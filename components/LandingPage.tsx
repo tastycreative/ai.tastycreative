@@ -332,8 +332,8 @@ export default function LandingPage() {
           </div>
 
           <p className="text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-6">
-            Looks shot on a million-dollar set—because your audience can't tell
-            it isn't. Creative Ink's state-of-the-art diffusion models deliver
+            Looks shot on a million-dollar set—because your audience can&apos;t tell
+            it isn&apos;t. Creative Ink&apos;s state-of-the-art diffusion models deliver
             skin texture, fabric detail, and natural motion so lifelike that
             followers assume you booked a pro crew and studio lighting.
           </p>
