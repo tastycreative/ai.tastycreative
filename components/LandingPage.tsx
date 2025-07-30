@@ -1,6 +1,9 @@
 'use client'
 import React, { useState, useEffect } from "react";
 import { ChevronRight, Play, Sparkles, Zap, Shield, Globe } from "lucide-react";
+import { AuthButtons } from '@/components/auth/auth-buttons';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import Link from 'next/link';
 
 export default function LandingPage() {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -44,39 +47,35 @@ export default function LandingPage() {
         </div>
 
         <div className="hidden md:flex items-center space-x-8">
-          <a
-            href="#"
+          <Link
+            href="/demo"
             className="text-gray-300 hover:text-white transition-colors"
           >
-            Product
-          </a>
-          <a
-            href="#"
-            className="text-gray-300 hover:text-white transition-colors"
-          >
-            Features
-          </a>
-          <a
-            href="#"
-            className="text-gray-300 hover:text-white transition-colors"
-          >
-            Pricing
-          </a>
-          <a
-            href="#"
+            Demo
+          </Link>
+          <Link
+            href="/about"
             className="text-gray-300 hover:text-white transition-colors"
           >
             About
-          </a>
+          </Link>
+          <Link
+            href="/pricing"
+            className="text-gray-300 hover:text-white transition-colors"
+          >
+            Pricing
+          </Link>
+          <Link
+            href="/dashboard"
+            className="text-gray-300 hover:text-white transition-colors"
+          >
+            Dashboard
+          </Link>
         </div>
 
         <div className="flex items-center space-x-4">
-          <button className="text-gray-300 hover:text-white transition-colors">
-            Sign In
-          </button>
-          <button className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors font-medium">
-            Get Started
-          </button>
+          <ThemeToggle />
+          <AuthButtons />
         </div>
       </nav>
 
@@ -111,15 +110,15 @@ export default function LandingPage() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-6 mb-16">
-            <button className="group bg-white text-black px-8 py-4 rounded-xl hover:bg-gray-100 transition-all duration-300 font-semibold text-lg flex items-center space-x-2 shadow-2xl hover:shadow-white/20">
+            <Link href="/register" className="group bg-white text-black px-8 py-4 rounded-xl hover:bg-gray-100 transition-all duration-300 font-semibold text-lg flex items-center space-x-2 shadow-2xl hover:shadow-white/20">
               <span>Start Free Trial</span>
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </button>
+            </Link>
 
-            <button className="group border border-gray-700 text-white px-8 py-4 rounded-xl hover:border-gray-600 hover:bg-gray-900/50 transition-all duration-300 font-semibold text-lg flex items-center space-x-2 backdrop-blur-sm">
+            <Link href="/demo" className="group border border-gray-700 text-white px-8 py-4 rounded-xl hover:border-gray-600 hover:bg-gray-900/50 transition-all duration-300 font-semibold text-lg flex items-center space-x-2 backdrop-blur-sm">
               <Play className="w-5 h-5" />
-              <span>Watch Demo</span>
-            </button>
+              <span>View Demo</span>
+            </Link>
           </div>
 
           {/* Stats */}
@@ -201,9 +200,9 @@ export default function LandingPage() {
           <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
             Join thousands of teams already using Omnime to build the future.
           </p>
-          <button className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-10 py-4 rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all duration-300 font-semibold text-lg shadow-2xl hover:shadow-blue-500/25">
+          <Link href="/register" className="inline-block bg-gradient-to-r from-blue-500 to-purple-600 text-white px-10 py-4 rounded-xl hover:from-blue-600 hover:to-purple-700 transition-all duration-300 font-semibold text-lg shadow-2xl hover:shadow-blue-500/25">
             Get Started Today
-          </button>
+          </Link>
         </div>
       </div>
 
