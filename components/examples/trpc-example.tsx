@@ -10,11 +10,11 @@ export function TRPCExample() {
   const { data: todos, isLoading: todosLoading } = trpc.getTodos.useQuery();
 
   return (
-    <div className="p-6 max-w-md mx-auto bg-white rounded-lg shadow-md space-y-4">
-      <h2 className="text-2xl font-bold text-gray-800">tRPC Example</h2>
+    <div className="p-6 max-w-md mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-md space-y-4">
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">tRPC Example</h2>
       
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+        <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Name:
         </label>
         <input
@@ -22,23 +22,23 @@ export function TRPCExample() {
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
         />
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold">Greeting:</h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Greeting:</h3>
         {greetingLoading ? (
-          <p>Loading...</p>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         ) : (
           <p className="text-green-600">{greeting?.greeting}</p>
         )}
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold">Todos:</h3>
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Todos:</h3>
         {todosLoading ? (
-          <p>Loading...</p>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         ) : (
           <ul className="list-disc list-inside">
             {todos?.map((todo) => (

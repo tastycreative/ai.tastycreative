@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { httpBatchLink } from '@trpc/client';
 import { useState } from 'react';
 import { trpc } from '../lib/trpc-client';
+import { ThemeProvider } from '../components/providers/theme-provider';
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return '';
@@ -34,8 +35,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
-        {children}
-        <ReactQueryDevtools initialIsOpen={false} />
+        <ThemeProvider>
+          {children}
+          <ReactQueryDevtools initialIsOpen={false} />
+        </ThemeProvider>
       </QueryClientProvider>
     </trpc.Provider>
   );
