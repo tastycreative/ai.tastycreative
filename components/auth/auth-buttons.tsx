@@ -8,11 +8,11 @@ export function AuthButtons() {
   if (isSignedIn) {
     return (
       <div className="flex items-center space-x-4">
-        <span className="text-sm text-gray-700 dark:text-gray-300">
+        <span className="text-sm text-gray-300">
           Welcome, {user.firstName || user.emailAddresses[0]?.emailAddress}!
         </span>
         <SignOutButton>
-          <button className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+          <button className="text-gray-300 hover:text-white transition-colors">
             Sign Out
           </button>
         </SignOutButton>
@@ -21,15 +21,15 @@ export function AuthButtons() {
   }
 
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center space-x-4">
       <SignInButton>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+        <button className="text-gray-300 hover:text-white transition-colors">
           Sign In
         </button>
       </SignInButton>
       <SignUpButton>
-        <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
-          Sign Up
+        <button className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors font-medium">
+          Get Started
         </button>
       </SignUpButton>
     </div>
