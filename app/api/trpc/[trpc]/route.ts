@@ -9,7 +9,7 @@ const handler = async (req: Request) => {
     endpoint: '/api/trpc',
     req,
     router: appRouter,
-    createContext: () => ({ userId }),
+    createContext: () => ({ userId: userId || null }),
   });
 };
 

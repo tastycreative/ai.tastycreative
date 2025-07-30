@@ -16,7 +16,7 @@ export default function ForgotPasswordPage() {
         <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6">
           <div className="text-center space-y-4">
             <p className="text-gray-700 dark:text-gray-300">
-              To reset your password, please go to the sign-in page and click on "Forgot password?" link.
+              To reset your password, please go to the sign-in page and click on &quot;Forgot password?&quot; link.
             </p>
             
             <div className="pt-4">

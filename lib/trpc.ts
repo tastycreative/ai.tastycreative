@@ -1,9 +1,7 @@
 import { initTRPC, TRPCError } from '@trpc/server';
-import { auth } from '@clerk/nextjs/server';
-import { z } from 'zod';
 
 interface Context {
-  userId?: string;
+  userId?: string | null;
 }
 
 const t = initTRPC.context<Context>().create();
@@ -17,7 +15,8 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   }
   return next({
     ctx: {
-      userId: ctx.userId,
+      ...ctx,
+      userId: ctx.userId as string,
     },
   });
 });
