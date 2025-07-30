@@ -20,8 +20,6 @@ export default function LoginPage() {
                 card: 'shadow-lg',
               },
             }}
-            routing="path"
-            path="/login"
           />
         </div>
       </div>

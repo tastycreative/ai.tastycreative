@@ -8,12 +8,27 @@ const isProtectedRoute = createRouteMatcher([
   '/api/webhooks(.*)',
 ]);
 
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/login(.*)',
+  '/register(.*)',
+  '/forgot-password(.*)',
+  '/about(.*)',
+  '/pricing(.*)',
+  '/demo(.*)',
+]);
+
 const isPublicApiRoute = createRouteMatcher([
   '/api/trpc/hello(.*)',
   '/api/trpc/getTodos(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  // Allow public routes
+  if (isPublicRoute(req)) {
+    return;
+  }
+  
   // Protect all routes starting with `/dashboard`, `/settings`, etc.
   if (isProtectedRoute(req)) {
     await auth.protect();

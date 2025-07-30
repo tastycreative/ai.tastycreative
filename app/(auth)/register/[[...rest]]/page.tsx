@@ -20,8 +20,6 @@ export default function RegisterPage() {
                 card: 'shadow-lg',
               },
             }}
-            routing="path"
-            path="/register"
           />
         </div>
       </div>
