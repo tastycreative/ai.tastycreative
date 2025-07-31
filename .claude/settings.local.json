@@ -4,7 +4,8 @@
       "Bash(npm install:*)",
       "Bash(mkdir:*)",
       "Bash(move \"register\\page.tsx\" \"register\\[[...rest]]\\page.tsx\")",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
