@@ -179,7 +179,7 @@ export default function DashboardLayout({
         {/* Sidebar header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700 dark:border-gray-800">
           {sidebarOpen && (
-            <h1 className="text-white text-lg font-semibold">Dashboard</h1>
+            <h1 className="text-white text-lg font-semibold">Creative Ink</h1>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
