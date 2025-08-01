@@ -1,4 +1,4 @@
-// app/api/generate/text-to-image/route.ts
+// app/api/generate/text-to-image/route.ts (Updated with user LoRA validation)
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,20 +12,59 @@ interface GenerationJob {
   promptId?: string;
   createdAt: Date;
   userId?: string;
+  usedLoRA?: string; // Track which LoRA was used
 }
 
 // In-memory job storage (use Redis in production)
 const jobs: Map<string, GenerationJob> = new Map();
 
+// Import influencers database for validation
+const influencersDb: Map<string, any[]> = new Map();
+
 // Environment variables
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15132';
+
+// Helper to get user ID
+function getUserId(request: NextRequest): string {
+  return request.headers.get('x-user-id') || 'default-user';
+}
+
+// Validate that user can use the specified LoRA
+async function validateUserLoRA(userId: string, loraName: string): Promise<boolean> {
+  if (loraName === "None") {
+    return true; // Everyone can use the base model
+  }
+  
+  const userInfluencers = influencersDb.get(userId) || [];
+  const hasLoRA = userInfluencers.some(inf => 
+    inf.fileName === loraName && inf.isActive
+  );
+  
+  return hasLoRA;
+}
+
+// Increment LoRA usage count
+async function incrementLoRAUsage(userId: string, loraName: string) {
+  if (loraName === "None") return;
+  
+  const userInfluencers = influencersDb.get(userId) || [];
+  const influencerIndex = userInfluencers.findIndex(inf => inf.fileName === loraName);
+  
+  if (influencerIndex !== -1) {
+    userInfluencers[influencerIndex].usageCount = (userInfluencers[influencerIndex].usageCount || 0) + 1;
+    userInfluencers[influencerIndex].lastUsedAt = new Date().toISOString();
+    influencersDb.set(userId, userInfluencers);
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     console.log('=== Text-to-Image Generation Started ===');
     
+    const userId = getUserId(request);
     const { workflow, params } = await request.json();
-    console.log('Received params:', params);
+    
+    console.log('Received params for user:', userId, params);
     
     // Validate required fields
     if (!workflow || !params?.prompt) {
@@ -35,6 +74,20 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    
+    // Validate user can use the specified LoRA
+    const selectedLoRA = params.selectedLora || "None";
+    const canUseLoRA = await validateUserLoRA(userId, selectedLoRA);
+    
+    if (!canUseLoRA) {
+      console.error('User not authorized for LoRA:', selectedLoRA);
+      return NextResponse.json(
+        { error: `You are not authorized to use the LoRA model: ${selectedLoRA}` },
+        { status: 403 }
+      );
+    }
+    
+    console.log('LoRA validation passed:', selectedLoRA);
 
     // Generate unique job ID
     const jobId = uuidv4();
@@ -46,6 +99,8 @@ export async function POST(request: NextRequest) {
       id: jobId,
       status: 'pending',
       createdAt: new Date(),
+      userId,
+      usedLoRA: selectedLoRA
     };
     
     jobs.set(jobId, job);
@@ -108,6 +163,9 @@ export async function POST(request: NextRequest) {
     jobs.set(jobId, job);
     console.log('Job updated with prompt ID:', promptId);
 
+    // Increment LoRA usage count
+    await incrementLoRAUsage(userId, selectedLoRA);
+
     // Start monitoring job in background
     monitorComfyUIJob(jobId, promptId, clientId);
 
@@ -126,7 +184,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Monitor ComfyUI job progress
+// Monitor ComfyUI job progress (updated to handle user context)
 async function monitorComfyUIJob(jobId: string, promptId: string, clientId: string) {
   console.log(`=== Starting monitoring for job ${jobId}, prompt ${promptId} ===`);
   
@@ -240,6 +298,9 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
           job.resultUrls = imageUrls;
           jobs.set(jobId, job);
           console.log(`Job ${jobId} completed successfully with ${imageUrls.length} images`);
+          
+          // Log successful generation for analytics
+          console.log(`User ${job.userId} successfully generated ${imageUrls.length} images using LoRA: ${job.usedLoRA}`);
         } else {
           console.error('No images found in outputs');
           job.status = 'failed';
@@ -268,8 +329,9 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
   setTimeout(checkStatus, 3000);
 }
 
-// GET endpoint to check job status
+// GET endpoint to check job status (updated to include user validation)
 export async function GET(request: NextRequest) {
+  const userId = getUserId(request);
   const url = new URL(request.url);
   const jobId = url.searchParams.get('jobId');
 
@@ -286,6 +348,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: 'Job not found' },
       { status: 404 }
+    );
+  }
+  
+  // Ensure user can only access their own jobs
+  if (job.userId && job.userId !== userId) {
+    return NextResponse.json(
+      { error: 'Access denied' },
+      { status: 403 }
     );
   }
 
