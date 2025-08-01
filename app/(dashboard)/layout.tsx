@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useClerk, useUser } from '@clerk/nextjs';
-import { 
-  ChevronLeft, 
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useClerk, useUser } from "@clerk/nextjs";
+import {
+  ChevronLeft,
   ChevronRight,
   Home,
   Users,
@@ -16,9 +16,14 @@ import {
   CreditCard,
   UserCheck,
   ChevronDown,
-  ChevronUp
-} from 'lucide-react';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
+  ChevronUp,
+  ImageIcon,
+  Palette,
+  Video,
+  Shuffle,
+  Sparkles,
+} from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 interface NavItem {
   name: string;
@@ -34,55 +39,81 @@ interface NavSection {
 
 const navigation: (NavItem | NavSection)[] = [
   {
-    name: 'Dashboard',
-    href: '/dashboard',
+    name: "Dashboard",
+    href: "/dashboard",
     icon: Home,
   },
   {
-    name: 'Workspace',
+    name: "Workspace",
     collapsible: true,
     items: [
       {
-        name: 'My Influencers',
-        href: '/workspace/my-influencers',
+        name: "My Influencers",
+        href: "/workspace/my-influencers",
         icon: Users,
       },
       {
-        name: 'Generated Content',
-        href: '/workspace/generated-content',
+        name: "Generated Content",
+        href: "/workspace/generated-content",
         icon: FileText,
       },
       {
-        name: 'Social Media',
-        href: '/workspace/social-media',
+        name: "Social Media",
+        href: "/workspace/social-media",
         icon: Share2,
-      },
-      {
-        name: 'Generate Content',
-        href: '/workspace/generate-content',
-        icon: PlusCircle,
       },
     ],
   },
   {
-    name: 'Settings',
-    href: '/settings',
+    name: "Generate Content",
+    collapsible: true,
+    items: [
+      {
+        name: "Text to Image",
+        href: "/workspace/generate-content/text-to-image",
+        icon: ImageIcon,
+      },
+      {
+        name: "Style Transfer",
+        href: "/workspace/generate-content/style-transfer",
+        icon: Palette,
+      },
+      {
+        name: "Image to Video",
+        href: "/workspace/generate-content/image-to-video",
+        icon: Video,
+      },
+      {
+        name: "Face Swapping",
+        href: "/workspace/generate-content/face-swapping",
+        icon: Shuffle,
+      },
+      {
+        name: "Skin Enhancer",
+        href: "/workspace/generate-content/skin-enhancer",
+        icon: Sparkles,
+      },
+    ],
+  },
+  {
+    name: "Settings",
+    href: "/settings",
     icon: Settings,
   },
   {
-    name: 'Billing',
-    href: '/billing',
+    name: "Billing",
+    href: "/billing",
     icon: CreditCard,
   },
   {
-    name: 'Team',
-    href: '/team',
+    name: "Team",
+    href: "/team",
     icon: UserCheck,
   },
 ];
 
 function classNames(...classes: string[]) {
-  return classes.filter(Boolean).join(' ');
+  return classes.filter(Boolean).join(" ");
 }
 
 export default function DashboardLayout({
@@ -92,14 +123,15 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
+  const [generateContentOpen, setGenerateContentOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
   const { signOut } = useClerk();
   const { user } = useUser();
-  
+
   // Get user's first name or fallback
-  const firstName = user?.firstName || user?.username || 'User';
-  const email = user?.emailAddresses?.[0]?.emailAddress || '';
+  const firstName = user?.firstName || user?.username || "User";
+  const email = user?.emailAddresses?.[0]?.emailAddress || "";
   const initials = firstName.charAt(0).toUpperCase();
 
   // Handle mobile detection and sidebar state
@@ -113,13 +145,13 @@ export default function DashboardLayout({
     };
 
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const isNavItemActive = (href: string) => {
-    if (href === '/dashboard') {
-      return pathname === '/dashboard';
+    if (href === "/dashboard") {
+      return pathname === "/dashboard";
     }
     return pathname.startsWith(href);
   };
@@ -142,18 +174,20 @@ export default function DashboardLayout({
         onClick={handleClick}
         className={classNames(
           isActive
-            ? 'bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white shadow-lg shadow-blue-500/25'
-            : 'text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white',
-          'group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300',
-          isInSection ? 'pl-8' : '',
-          !sidebarOpen ? 'justify-center' : ''
+            ? "bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white shadow-lg shadow-blue-500/25"
+            : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white",
+          "group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300",
+          isInSection ? "pl-8" : "",
+          !sidebarOpen ? "justify-center" : ""
         )}
       >
         <Icon
           className={classNames(
-            isActive ? 'text-white' : 'text-gray-400 dark:text-gray-400 group-hover:text-gray-300 dark:group-hover:text-white',
-            'h-6 w-6 flex-shrink-0',
-            sidebarOpen ? 'mr-3' : ''
+            isActive
+              ? "text-white"
+              : "text-gray-400 dark:text-gray-400 group-hover:text-gray-300 dark:group-hover:text-white",
+            "h-6 w-6 flex-shrink-0",
+            sidebarOpen ? "mr-3" : ""
           )}
           aria-hidden="true"
         />
@@ -163,18 +197,44 @@ export default function DashboardLayout({
   };
 
   const renderNavSection = (section: NavSection) => {
-    const isWorkspaceSection = section.name === 'Workspace';
-    const isExpanded = isWorkspaceSection ? workspaceOpen : true;
+    const isWorkspaceSection = section.name === "Workspace";
+    const isGenerateContentSection = section.name === "Generate Content";
+
+    // Determine if section is expanded
+    let isExpanded = true;
+    if (isWorkspaceSection) {
+      isExpanded = workspaceOpen;
+    } else if (isGenerateContentSection) {
+      isExpanded = generateContentOpen;
+    }
+
+    // Get the appropriate icon for the section
+    const getSectionIcon = () => {
+      if (isWorkspaceSection) return Users;
+      if (isGenerateContentSection) return PlusCircle;
+      return Users; // fallback
+    };
+
+    const SectionIcon = getSectionIcon();
+
+    // Handle section toggle
+    const handleSectionToggle = () => {
+      if (isWorkspaceSection) {
+        setWorkspaceOpen(!workspaceOpen);
+      } else if (isGenerateContentSection) {
+        setGenerateContentOpen(!generateContentOpen);
+      }
+    };
 
     return (
       <div key={section.name} className="space-y-1">
         {section.collapsible && sidebarOpen ? (
           <button
-            onClick={() => setWorkspaceOpen(!workspaceOpen)}
+            onClick={handleSectionToggle}
             className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300"
           >
             <span className="flex items-center">
-              <Users className="h-6 w-6 flex-shrink-0 mr-3 text-gray-400 dark:text-gray-400" />
+              <SectionIcon className="h-6 w-6 flex-shrink-0 mr-3 text-gray-400 dark:text-gray-400" />
               {section.name}
             </span>
             {isExpanded ? (
@@ -191,10 +251,14 @@ export default function DashboardLayout({
           )
         )}
         {isExpanded && (
-          <div className={classNames(
-            section.collapsible ? 'space-y-1' : 'space-y-1'
-          )}>
-            {section.items.map((item) => renderNavItem(item, section.collapsible))}
+          <div
+            className={classNames(
+              section.collapsible ? "space-y-1" : "space-y-1"
+            )}
+          >
+            {section.items.map((item) =>
+              renderNavItem(item, section.collapsible)
+            )}
           </div>
         )}
       </div>
@@ -204,14 +268,18 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:bg-gradient-to-br dark:from-black dark:via-gray-900 dark:to-blue-900/20 relative">
       {/* Desktop Sidebar */}
-      <div className={classNames(
-        'hidden lg:flex bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30',
-        sidebarOpen ? 'w-64' : 'w-16'
-      )}>
+      <div
+        className={classNames(
+          "hidden lg:flex bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30",
+          sidebarOpen ? "w-64" : "w-16"
+        )}
+      >
         {/* Sidebar header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
           {sidebarOpen && (
-            <h1 className="text-white text-base sm:text-lg font-semibold">Creative Ink</h1>
+            <h1 className="text-white text-base sm:text-lg font-semibold">
+              Creative Ink
+            </h1>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -228,7 +296,7 @@ export default function DashboardLayout({
         {/* Navigation */}
         <nav className="flex-1 px-2 py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
           {navigation.map((item) => {
-            if ('items' in item) {
+            if ("items" in item) {
               return renderNavSection(item);
             } else {
               return renderNavItem(item);
@@ -245,24 +313,32 @@ export default function DashboardLayout({
       </div>
 
       {/* Mobile Sidebar Overlay */}
-      <div className={classNames(
-        "lg:hidden fixed inset-0 z-50 transition-opacity duration-300",
-        sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-      )}>
+      <div
+        className={classNames(
+          "lg:hidden fixed inset-0 z-50 transition-opacity duration-300",
+          sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+      >
         {/* Backdrop */}
-        <div 
+        <div
           className="absolute inset-0 bg-black/20 dark:bg-opacity-30 transition-opacity duration-300"
           onClick={() => setSidebarOpen(false)}
         />
-        
+
         {/* Mobile Sidebar */}
-        <div className={classNames(
-          "relative w-64 h-full bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm flex flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 transition-transform duration-300 ease-in-out",
-          sidebarOpen ? "transform translate-x-0" : "transform -translate-x-full"
-        )}>
+        <div
+          className={classNames(
+            "relative w-64 h-full bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm flex flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 transition-transform duration-300 ease-in-out",
+            sidebarOpen
+              ? "transform translate-x-0"
+              : "transform -translate-x-full"
+          )}
+        >
           {/* Sidebar header */}
           <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
-            <h1 className="text-white text-base sm:text-lg font-semibold">Creative Ink</h1>
+            <h1 className="text-white text-base sm:text-lg font-semibold">
+              Creative Ink
+            </h1>
             <button
               onClick={() => setSidebarOpen(false)}
               className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-colors duration-200"
@@ -274,7 +350,7 @@ export default function DashboardLayout({
           {/* Navigation */}
           <nav className="flex-1 px-2 py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
             {navigation.map((item) => {
-              if ('items' in item) {
+              if ("items" in item) {
                 return renderNavSection(item);
               } else {
                 return renderNavItem(item);
@@ -314,25 +390,35 @@ export default function DashboardLayout({
               {/* Available Credits */}
               <div className="flex items-center space-x-1 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg shadow-sm">
                 <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
-                <span className="text-xs sm:text-sm font-medium bg-gradient-to-r from-blue-700 to-purple-700 dark:from-blue-300 dark:to-purple-300 bg-clip-text text-transparent">25 Credits</span>
+                <span className="text-xs sm:text-sm font-medium bg-gradient-to-r from-blue-700 to-purple-700 dark:from-blue-300 dark:to-purple-300 bg-clip-text text-transparent">
+                  25 Credits
+                </span>
               </div>
-              
+
               {/* User Dropdown */}
               <div className="relative group">
                 <button className="flex items-center space-x-1 sm:space-x-2 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-700 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-700 dark:hover:to-gray-600 border border-gray-200/50 dark:border-gray-600/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all duration-300 shadow-sm">
                   <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-md">
-                    <span className="text-white text-xs sm:text-sm font-semibold">{initials}</span>
+                    <span className="text-white text-xs sm:text-sm font-semibold">
+                      {initials}
+                    </span>
                   </div>
-                  <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">{firstName}</span>
+                  <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
+                    {firstName}
+                  </span>
                   <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400" />
                 </button>
-                
+
                 {/* Dropdown Menu */}
                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                   <div className="py-2">
                     <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{firstName}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{email}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {firstName}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {email}
+                      </p>
                     </div>
                     <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                       Profile Settings
@@ -341,8 +427,8 @@ export default function DashboardLayout({
                       Billing
                     </button>
                     <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
-                      <button 
-                        onClick={() => signOut({ redirectUrl: '/' })}
+                      <button
+                        onClick={() => signOut({ redirectUrl: "/" })}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
                         Sign Out
@@ -353,7 +439,7 @@ export default function DashboardLayout({
               </div>
             </div>
           </div>
-          
+
           {/* Content */}
           <div className="px-3 py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8">
             {children}
