@@ -38,7 +38,7 @@ interface GenerationJob {
   progress?: number;
   resultUrls?: string[];
   error?: string;
-  createdAt: Date;
+  createdAt: Date | string; // Allow both Date and string
 }
 
 const ASPECT_RATIOS = [
@@ -67,6 +67,17 @@ const SCHEDULERS = [
   "ddim_uniform",
   "beta",
 ];
+
+// Helper function to safely format date
+const formatJobTime = (createdAt: Date | string): string => {
+  try {
+    const date = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
+    return date.toLocaleTimeString();
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Unknown time';
+  }
+};
 
 export default function TextToImagePage() {
   const [params, setParams] = useState<GenerationParams>({
@@ -196,8 +207,24 @@ export default function TextToImagePage() {
         const response = await fetch(`/api/jobs/${jobId}`);
         const job = await response.json();
 
+        // Convert createdAt string to Date if needed
+        if (job.createdAt && typeof job.createdAt === 'string') {
+          job.createdAt = new Date(job.createdAt);
+        }
+
         setCurrentJob(job);
-        setJobHistory((prev) => prev.map((j) => (j.id === jobId ? job : j)));
+        setJobHistory((prev) => prev.map((j) => {
+          if (j.id === jobId) {
+            // Ensure createdAt is properly handled when updating
+            return {
+              ...job,
+              createdAt: job.createdAt && typeof job.createdAt === 'string' 
+                ? new Date(job.createdAt) 
+                : job.createdAt
+            };
+          }
+          return j;
+        }));
 
         if (job.status === "completed" || job.status === "failed") {
           setIsGenerating(false);
@@ -768,7 +795,7 @@ export default function TextToImagePage() {
                       )}
                       <div>
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {job.createdAt.toLocaleTimeString()}
+                          {formatJobTime(job.createdAt)}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
                           {job.status}
