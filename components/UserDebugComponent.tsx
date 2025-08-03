@@ -30,10 +30,10 @@ export default function UserDebugComponent() {
 
   const predefinedUsers = [
     "user-account-1",
-    "user-account-2", 
+    "user-account-2",
     "user-account-3",
     "test-user-alice",
-    "test-user-bob"
+    "test-user-bob",
   ];
 
   return (
@@ -85,8 +85,8 @@ export default function UserDebugComponent() {
                   onClick={() => handleSetSpecificUser(userId)}
                   className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
                     currentUserId === userId
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
-                      : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300'
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
+                      : "bg-gray-100 hover:bg-gray-200 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300"
                   }`}
                 >
                   {userId}
@@ -109,14 +109,16 @@ export default function UserDebugComponent() {
                 placeholder="Enter user ID..."
                 className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === "Enter") {
                     handleSetSpecificUser((e.target as HTMLInputElement).value);
                   }
                 }}
               />
               <button
                 onClick={(e) => {
-                  const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input') as HTMLInputElement;
+                  const input = (
+                    e.target as HTMLButtonElement
+                  ).parentElement?.querySelector("input") as HTMLInputElement;
                   if (input) {
                     handleSetSpecificUser(input.value);
                   }
@@ -153,7 +155,9 @@ export default function UserDebugComponent() {
           {/* Info */}
           <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
             <p className="text-xs text-yellow-700 dark:text-yellow-300">
-              <strong>Debug Mode:</strong> This panel allows you to switch between different user accounts to test user isolation. Each user will have their own LoRA models and generation history.
+              <strong>Debug Mode:</strong> This panel allows you to switch
+              between different user accounts to test user isolation. Each user
+              will have their own LoRA models and generation history.
             </p>
           </div>
         </div>
