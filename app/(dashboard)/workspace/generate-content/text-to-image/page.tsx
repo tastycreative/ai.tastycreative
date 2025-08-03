@@ -53,7 +53,7 @@ const ASPECT_RATIOS = [
 
 const SAMPLERS = [
   "euler",
-  "euler_ancestral", 
+  "euler_ancestral",
   "heun",
   "dpm_2",
   "dpm_2_ancestral",
@@ -74,11 +74,12 @@ const SCHEDULERS = [
 
 const formatJobTime = (createdAt: Date | string): string => {
   try {
-    const date = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
+    const date =
+      typeof createdAt === "string" ? new Date(createdAt) : createdAt;
     return date.toLocaleTimeString();
   } catch (error) {
-    console.error('Error formatting date:', error);
-    return 'Unknown time';
+    console.error("Error formatting date:", error);
+    return "Unknown time";
   }
 };
 
@@ -202,22 +203,25 @@ export default function TextToImagePage() {
         const response = await apiClient.get(`/api/jobs/${jobId}`);
         const job = await response.json();
 
-        if (job.createdAt && typeof job.createdAt === 'string') {
+        if (job.createdAt && typeof job.createdAt === "string") {
           job.createdAt = new Date(job.createdAt);
         }
 
         setCurrentJob(job);
-        setJobHistory((prev) => prev.map((j) => {
-          if (j.id === jobId) {
-            return {
-              ...job,
-              createdAt: job.createdAt && typeof job.createdAt === 'string' 
-                ? new Date(job.createdAt) 
-                : job.createdAt
-            };
-          }
-          return j;
-        }));
+        setJobHistory((prev) =>
+          prev.map((j) => {
+            if (j.id === jobId) {
+              return {
+                ...job,
+                createdAt:
+                  job.createdAt && typeof job.createdAt === "string"
+                    ? new Date(job.createdAt)
+                    : job.createdAt,
+              };
+            }
+            return j;
+          })
+        );
 
         if (job.status === "completed" || job.status === "failed") {
           setIsGenerating(false);
