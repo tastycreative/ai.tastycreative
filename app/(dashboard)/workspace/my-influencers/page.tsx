@@ -1,6 +1,8 @@
+// Updated app/(dashboard)/workspace/my-influencers/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/apiClient"; // Import the new API client
 import {
   Upload,
   Users,
@@ -15,20 +17,29 @@ import {
   User,
   Settings,
   Info,
+  RefreshCw,
+  Clock,
+  XCircle,
+  Sync,
+  FileText,
+  Copy
 } from "lucide-react";
 
-// Types
+// Types remain the same...
 interface InfluencerLoRA {
   id: string;
   name: string;
   displayName: string;
   fileName: string;
+  originalFileName: string;
   fileSize: number;
   uploadedAt: string;
   description?: string;
   thumbnailUrl?: string;
   isActive: boolean;
   usageCount: number;
+  syncStatus?: 'pending' | 'synced' | 'missing' | 'error';
+  lastUsedAt?: string;
 }
 
 interface UploadProgress {
@@ -38,16 +49,24 @@ interface UploadProgress {
   error?: string;
 }
 
+interface UploadInstructions {
+  title: string;
+  steps: string[];
+  note: string;
+}
+
 export default function MyInfluencersPage() {
   const [influencers, setInfluencers] = useState<InfluencerLoRA[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState<UploadInstructions | null>(null);
 
-  // Fetch user's influencers on load
+  // Fetch user's influencers on load - UPDATED
   useEffect(() => {
     fetchInfluencers();
   }, []);
@@ -55,7 +74,8 @@ export default function MyInfluencersPage() {
   const fetchInfluencers = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/user/influencers');
+      // Use the new API client instead of direct fetch
+      const response = await apiClient.get('/api/user/influencers');
       if (!response.ok) throw new Error('Failed to fetch influencers');
       
       const data = await response.json();
@@ -65,6 +85,35 @@ export default function MyInfluencersPage() {
       setError('Failed to load your influencers');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Sync with ComfyUI - UPDATED
+  const syncWithComfyUI = async () => {
+    try {
+      setSyncing(true);
+      // Use the new API client instead of direct fetch
+      const response = await apiClient.post('/api/models/loras', { 
+        action: 'sync_user_loras' 
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Refresh the influencers list
+        await fetchInfluencers();
+        
+        // Show sync results
+        const { summary } = data;
+        alert(`Sync completed:\n${summary.synced} models synced\n${summary.missing} models missing\n${summary.total} total models checked`);
+      } else {
+        throw new Error(data.error || 'Sync failed');
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      alert('Failed to sync with ComfyUI');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -92,11 +141,14 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
+  // Upload influencers - UPDATED
   const uploadInfluencers = async () => {
     if (selectedFiles.length === 0) return;
     
     setUploading(true);
     setUploadProgress([]);
+    let hasManualInstructions = false;
+    let manualInstructions: UploadInstructions | null = null;
     
     for (const file of selectedFiles) {
       try {
@@ -113,13 +165,13 @@ export default function MyInfluencersPage() {
         formData.append('displayName', file.name.replace(/\.[^/.]+$/, "")); // Remove extension
         formData.append('description', ''); // Optional description
         
-        const response = await fetch('/api/user/influencers/upload', {
-          method: 'POST',
-          body: formData,
-        });
+        // Use the new API client instead of direct fetch
+        const response = await apiClient.postFormData('/api/user/influencers/upload', formData);
+        
+        const result = await response.json();
         
         if (!response.ok) {
-          throw new Error(`Upload failed for ${file.name}`);
+          throw new Error(result.error || `Upload failed for ${file.name}`);
         }
         
         // Update progress to completed
@@ -130,6 +182,13 @@ export default function MyInfluencersPage() {
               : item
           )
         );
+        
+        // Check if manual setup is required
+        if (!result.uploadedToComfyUI && result.instructions) {
+          hasManualInstructions = true;
+          manualInstructions = result.instructions;
+          console.log('Manual setup required:', result.instructions);
+        }
         
       } catch (error) {
         console.error('Upload error:', error);
@@ -143,6 +202,11 @@ export default function MyInfluencersPage() {
       }
     }
     
+    // Show manual instructions if needed
+    if (hasManualInstructions && manualInstructions) {
+      setShowInstructions(manualInstructions);
+    }
+    
     // Refresh the influencers list
     await fetchInfluencers();
     
@@ -152,15 +216,15 @@ export default function MyInfluencersPage() {
     setUploadProgress([]);
   };
 
+  // Delete influencer - UPDATED
   const deleteInfluencer = async (id: string) => {
     if (!confirm('Are you sure you want to delete this influencer? This action cannot be undone.')) {
       return;
     }
     
     try {
-      const response = await fetch(`/api/user/influencers/${id}`, {
-        method: 'DELETE',
-      });
+      // Use the new API client instead of direct fetch
+      const response = await apiClient.delete(`/api/user/influencers/${id}`);
       
       if (!response.ok) throw new Error('Failed to delete influencer');
       
@@ -171,15 +235,11 @@ export default function MyInfluencersPage() {
     }
   };
 
+  // Toggle influencer status - UPDATED
   const toggleInfluencerStatus = async (id: string, isActive: boolean) => {
     try {
-      const response = await fetch(`/api/user/influencers/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ isActive }),
-      });
+      // Use the new API client instead of direct fetch
+      const response = await apiClient.patch(`/api/user/influencers/${id}`, { isActive });
       
       if (!response.ok) throw new Error('Failed to update influencer');
       
@@ -194,12 +254,51 @@ export default function MyInfluencersPage() {
     }
   };
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getSyncStatusIcon = (syncStatus?: string) => {
+    switch (syncStatus) {
+      case 'synced':
+        return <CheckCircle className="w-4 h-4 text-green-500" title="Synced with ComfyUI" />;
+      case 'pending':
+        return <Clock className="w-4 h-4 text-yellow-500" title="Pending sync" />;
+      case 'missing':
+        return <XCircle className="w-4 h-4 text-red-500" title="Missing from ComfyUI" />;
+      case 'error':
+        return <AlertCircle className="w-4 h-4 text-red-500" title="Sync error" />;
+      default:
+        return <Clock className="w-4 h-4 text-gray-400" title="Unknown status" />;
+    }
+  };
+
+  const getSyncStatusText = (syncStatus?: string) => {
+    switch (syncStatus) {
+      case 'synced':
+        return 'Ready to use';
+      case 'pending':
+        return 'Needs setup';
+      case 'missing':
+        return 'Not found in ComfyUI';
+      case 'error':
+        return 'Sync error';
+      default:
+        return 'Unknown';
+    }
   };
 
   if (loading) {
@@ -209,6 +308,10 @@ export default function MyInfluencersPage() {
       </div>
     );
   }
+
+  const syncedCount = influencers.filter(inf => inf.syncStatus === 'synced').length;
+  const pendingCount = influencers.filter(inf => inf.syncStatus === 'pending').length;
+  const missingCount = influencers.filter(inf => inf.syncStatus === 'missing').length;
 
   return (
     <div className="space-y-6">
@@ -229,15 +332,130 @@ export default function MyInfluencersPage() {
             </div>
           </div>
           
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Influencer</span>
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={syncWithComfyUI}
+              disabled={syncing}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-medium rounded-lg shadow-sm transition-colors"
+            >
+              {syncing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>Sync with ComfyUI</span>
+            </button>
+            
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Influencer</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Manual Instructions Modal - No changes needed */}
+      {showInstructions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+                  <FileText className="w-5 h-5" />
+                  <span>{showInstructions.title}</span>
+                </h2>
+                <button
+                  onClick={() => setShowInstructions(null)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-yellow-800 dark:text-yellow-200">
+                  <strong>Upload completed, but manual setup is required.</strong> ComfyUI doesn't appear to have an automatic file upload API enabled.
+                </p>
+              </div>
+              
+              <div className="space-y-3 mb-6">
+                <h3 className="font-medium text-gray-900 dark:text-white">Follow these steps:</h3>
+                {showInstructions.steps.map((step, index) => (
+                  <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-gray-900 dark:text-white">{step}</p>
+                      {step.includes('ComfyUI/models/loras/') && (
+                        <button
+                          onClick={() => copyToClipboard(step.split(': ')[1])}
+                          className="mt-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center space-x-1"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copy path</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-blue-800 dark:text-blue-200 text-sm">
+                  <strong>Note:</strong> {showInstructions.note}
+                </p>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowInstructions(null)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                >
+                  I'll do this later
+                </button>
+                <button
+                  onClick={() => {
+                    setShowInstructions(null);
+                    syncWithComfyUI();
+                  }}
+                  className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition-colors"
+                >
+                  I've completed the setup, sync now
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stats Card - Add user context */}
+      {influencers.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Your LoRA Models Status</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{influencers.length}</div>
+              <div className="text-sm text-gray-500">Your Models</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{syncedCount}</div>
+              <div className="text-sm text-gray-500">Ready to Use</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+              <div className="text-sm text-gray-500">Need Setup</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">{missingCount}</div>
+              <div className="text-sm text-gray-500">Missing</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -249,23 +467,26 @@ export default function MyInfluencersPage() {
         </div>
       )}
 
-      {/* Info Card */}
+      {/* Info Card - Updated text for clarity */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-start space-x-3">
           <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
           <div>
             <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-              About Influencer LoRA Models
+              About Your Personal Influencer LoRA Models
             </h3>
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+            <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
               Upload your custom LoRA models to create AI-generated content with specific styles or characteristics. 
-              These models will be available exclusively in your text-to-image generation workspace.
+              These models are private to your account and only you can use them.
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              <strong>Status indicators:</strong> Green = Ready to use, Yellow = Needs setup, Red = Missing from ComfyUI
             </p>
           </div>
         </div>
       </div>
 
-      {/* Influencers Grid */}
+      {/* Empty state - Updated text */}
       {influencers.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
           <div className="flex flex-col items-center space-y-4">
@@ -274,10 +495,10 @@ export default function MyInfluencersPage() {
             </div>
             <div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No Influencers Yet
+                No Personal Influencers Yet
               </h3>
               <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Upload your first LoRA model to get started with personalized AI generation
+                Upload your first LoRA model to get started with personalized AI generation. Your models will be private to your account.
               </p>
               <button
                 onClick={() => setShowUploadModal(true)}
@@ -316,16 +537,29 @@ export default function MyInfluencersPage() {
                     {influencer.displayName}
                   </h3>
                   <div className="flex items-center space-x-1">
-                    <button
-                      onClick={() => toggleInfluencerStatus(influencer.id, !influencer.isActive)}
-                      className={`w-3 h-3 rounded-full ${
-                        influencer.isActive 
-                          ? 'bg-green-500' 
-                          : 'bg-gray-300 dark:bg-gray-600'
-                      }`}
-                      title={influencer.isActive ? 'Active' : 'Inactive'}
-                    />
+                    {getSyncStatusIcon(influencer.syncStatus)}
                   </div>
+                </div>
+                
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    influencer.syncStatus === 'synced' 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                      : influencer.syncStatus === 'pending'
+                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                  }`}>
+                    {getSyncStatusText(influencer.syncStatus)}
+                  </span>
+                  <button
+                    onClick={() => toggleInfluencerStatus(influencer.id, !influencer.isActive)}
+                    className={`w-3 h-3 rounded-full ${
+                      influencer.isActive 
+                        ? 'bg-green-500' 
+                        : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
+                    title={influencer.isActive ? 'Active' : 'Inactive'}
+                  />
                 </div>
                 
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
@@ -370,7 +604,7 @@ export default function MyInfluencersPage() {
         </div>
       )}
 
-      {/* Upload Modal */}
+      {/* Upload Modal - No changes needed in the JSX, as the upload function was already updated */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
@@ -415,6 +649,13 @@ export default function MyInfluencersPage() {
                     </p>
                   </label>
                 </div>
+              </div>
+              
+              {/* Note about potential manual setup */}
+              <div className="mb-6 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  <strong>Note:</strong> Some files may require manual setup in ComfyUI. We'll provide detailed instructions if needed.
+                </p>
               </div>
               
               {/* Selected Files */}

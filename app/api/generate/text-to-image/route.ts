@@ -1,6 +1,7 @@
-// app/api/generate/text-to-image/route.ts (Updated with user LoRA validation)
+// app/api/generate/text-to-image/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
+import { getUserId, getUserInfluencers, incrementInfluencerUsage } from '@/lib/database';
 
 // Types
 interface GenerationJob {
@@ -12,22 +13,15 @@ interface GenerationJob {
   promptId?: string;
   createdAt: Date;
   userId?: string;
-  usedLoRA?: string; // Track which LoRA was used
+  usedLoRA?: string;
+  prompt?: string;
 }
 
 // In-memory job storage (use Redis in production)
 const jobs: Map<string, GenerationJob> = new Map();
 
-// Import influencers database for validation
-const influencersDb: Map<string, any[]> = new Map();
-
 // Environment variables
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15132';
-
-// Helper to get user ID
-function getUserId(request: NextRequest): string {
-  return request.headers.get('x-user-id') || 'default-user';
-}
 
 // Validate that user can use the specified LoRA
 async function validateUserLoRA(userId: string, loraName: string): Promise<boolean> {
@@ -35,26 +29,15 @@ async function validateUserLoRA(userId: string, loraName: string): Promise<boole
     return true; // Everyone can use the base model
   }
   
-  const userInfluencers = influencersDb.get(userId) || [];
+  const userInfluencers = getUserInfluencers(userId);
   const hasLoRA = userInfluencers.some(inf => 
-    inf.fileName === loraName && inf.isActive
+    inf.fileName === loraName && 
+    inf.isActive && 
+    inf.syncStatus === 'synced'
   );
   
+  console.log(`LoRA validation for ${loraName}:`, hasLoRA);
   return hasLoRA;
-}
-
-// Increment LoRA usage count
-async function incrementLoRAUsage(userId: string, loraName: string) {
-  if (loraName === "None") return;
-  
-  const userInfluencers = influencersDb.get(userId) || [];
-  const influencerIndex = userInfluencers.findIndex(inf => inf.fileName === loraName);
-  
-  if (influencerIndex !== -1) {
-    userInfluencers[influencerIndex].usageCount = (userInfluencers[influencerIndex].usageCount || 0) + 1;
-    userInfluencers[influencerIndex].lastUsedAt = new Date().toISOString();
-    influencersDb.set(userId, userInfluencers);
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -64,7 +47,10 @@ export async function POST(request: NextRequest) {
     const userId = getUserId(request);
     const { workflow, params } = await request.json();
     
-    console.log('Received params for user:', userId, params);
+    console.log('Received params for user:', userId, {
+      prompt: params?.prompt?.substring(0, 50) + '...',
+      selectedLora: params?.selectedLora
+    });
     
     // Validate required fields
     if (!workflow || !params?.prompt) {
@@ -81,8 +67,21 @@ export async function POST(request: NextRequest) {
     
     if (!canUseLoRA) {
       console.error('User not authorized for LoRA:', selectedLoRA);
+      
+      // Get available LoRAs for better error message
+      const userInfluencers = getUserInfluencers(userId);
+      const availableLoRAs = userInfluencers
+        .filter(inf => inf.isActive && inf.syncStatus === 'synced')
+        .map(inf => inf.displayName);
+      
       return NextResponse.json(
-        { error: `You are not authorized to use the LoRA model: ${selectedLoRA}` },
+        { 
+          error: `You are not authorized to use the LoRA model: ${selectedLoRA}`,
+          availableLoRAs,
+          suggestion: availableLoRAs.length > 0 
+            ? `Try using one of your available LoRAs: ${availableLoRAs.join(', ')}`
+            : 'Upload and sync a LoRA model first in the My Influencers section'
+        },
         { status: 403 }
       );
     }
@@ -100,7 +99,8 @@ export async function POST(request: NextRequest) {
       status: 'pending',
       createdAt: new Date(),
       userId,
-      usedLoRA: selectedLoRA
+      usedLoRA: selectedLoRA,
+      prompt: params.prompt
     };
     
     jobs.set(jobId, job);
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('Submitting to ComfyUI:', `${COMFYUI_URL}/prompt`);
-    console.log('Workflow keys:', Object.keys(workflow));
+    console.log('Workflow includes LoRA:', selectedLoRA !== "None");
 
     // Submit to ComfyUI
     const promptResponse = await fetch(`${COMFYUI_URL}/prompt`, {
@@ -163,8 +163,11 @@ export async function POST(request: NextRequest) {
     jobs.set(jobId, job);
     console.log('Job updated with prompt ID:', promptId);
 
-    // Increment LoRA usage count
-    await incrementLoRAUsage(userId, selectedLoRA);
+    // Increment LoRA usage count if not using base model
+    if (selectedLoRA !== "None") {
+      incrementInfluencerUsage(userId, selectedLoRA);
+      console.log('Incremented usage for LoRA:', selectedLoRA);
+    }
 
     // Start monitoring job in background
     monitorComfyUIJob(jobId, promptId, clientId);
@@ -172,7 +175,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       jobId,
       status: 'submitted',
-      message: 'Generation started successfully'
+      message: 'Generation started successfully',
+      usedLoRA: selectedLoRA
     });
 
   } catch (error) {
@@ -184,7 +188,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Monitor ComfyUI job progress (updated to handle user context)
+// Monitor ComfyUI job progress
 async function monitorComfyUIJob(jobId: string, promptId: string, clientId: string) {
   console.log(`=== Starting monitoring for job ${jobId}, prompt ${promptId} ===`);
   
@@ -209,10 +213,6 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
       }
       
       const queueData = await queueResponse.json();
-      console.log('Queue data:', {
-        running: queueData.queue_running?.length || 0,
-        pending: queueData.queue_pending?.length || 0
-      });
       
       // Check if job is still in queue
       const isInRunning = queueData.queue_running?.some((item: any) => item[1] === promptId);
@@ -220,7 +220,6 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
       const isInQueue = isInRunning || isInPending;
 
       if (isInQueue) {
-        console.log('Job still in queue, updating progress');
         // Job is still processing
         const queuePosition = queueData.queue_pending?.findIndex((item: any) => item[1] === promptId) || -1;
         
@@ -246,8 +245,6 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
         return;
       }
 
-      console.log('Job no longer in queue, checking history');
-
       // Job completed, get results
       const historyResponse = await fetch(`${COMFYUI_URL}/history/${promptId}`);
       
@@ -256,10 +253,8 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
       }
       
       const historyData = await historyResponse.json();
-      console.log('History data keys:', Object.keys(historyData));
       
       if (historyData[promptId]) {
-        console.log('Found job in history');
         const jobHistory = historyData[promptId];
         
         if (jobHistory.status?.status_str === 'error') {
@@ -271,12 +266,10 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
         }
 
         const outputs = jobHistory.outputs;
-        console.log('Job outputs:', Object.keys(outputs || {}));
         
-        // Find SaveImage node outputs (usually node 13 in your workflow)
+        // Find SaveImage node outputs
         let imageOutputs: any = null;
         
-        // Try to find outputs with images
         for (const [nodeId, output] of Object.entries(outputs || {})) {
           if ((output as any)?.images && Array.isArray((output as any).images)) {
             imageOutputs = output;
@@ -289,7 +282,6 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
           // Get image URLs
           const imageUrls = imageOutputs.images.map((img: any) => {
             const url = `${COMFYUI_URL}/view?filename=${encodeURIComponent(img.filename)}`;
-            console.log('Generated image URL:', url);
             return url;
           });
 
@@ -297,10 +289,9 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
           job.progress = 100;
           job.resultUrls = imageUrls;
           jobs.set(jobId, job);
-          console.log(`Job ${jobId} completed successfully with ${imageUrls.length} images`);
           
-          // Log successful generation for analytics
-          console.log(`User ${job.userId} successfully generated ${imageUrls.length} images using LoRA: ${job.usedLoRA}`);
+          console.log(`Job ${jobId} completed successfully with ${imageUrls.length} images`);
+          console.log(`User ${job.userId} generated images using LoRA: ${job.usedLoRA}`);
         } else {
           console.error('No images found in outputs');
           job.status = 'failed';
@@ -329,7 +320,7 @@ async function monitorComfyUIJob(jobId: string, promptId: string, clientId: stri
   setTimeout(checkStatus, 3000);
 }
 
-// GET endpoint to check job status (updated to include user validation)
+// GET endpoint to check job status
 export async function GET(request: NextRequest) {
   const userId = getUserId(request);
   const url = new URL(request.url);
