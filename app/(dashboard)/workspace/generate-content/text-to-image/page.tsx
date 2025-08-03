@@ -1,6 +1,8 @@
+// Updated page.tsx for text-to-image - key changes for user isolation
 "use client";
 
 import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/apiClient"; // Import the new API client
 import {
   ImageIcon,
   Wand2,
@@ -16,7 +18,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-// Types
+// Types remain the same...
 interface GenerationParams {
   prompt: string;
   width: number;
@@ -38,9 +40,10 @@ interface GenerationJob {
   progress?: number;
   resultUrls?: string[];
   error?: string;
-  createdAt: Date | string; // Allow both Date and string
+  createdAt: Date | string;
 }
 
+// Constants remain the same...
 const ASPECT_RATIOS = [
   { name: "Portrait", width: 832, height: 1216, ratio: "2:3" },
   { name: "Square", width: 1024, height: 1024, ratio: "1:1" },
@@ -50,7 +53,7 @@ const ASPECT_RATIOS = [
 
 const SAMPLERS = [
   "euler",
-  "euler_ancestral",
+  "euler_ancestral", 
   "heun",
   "dpm_2",
   "dpm_2_ancestral",
@@ -58,6 +61,7 @@ const SAMPLERS = [
   "dpm_fast",
   "dpm_adaptive",
 ];
+
 const SCHEDULERS = [
   "normal",
   "karras",
@@ -68,7 +72,6 @@ const SCHEDULERS = [
   "beta",
 ];
 
-// Helper function to safely format date
 const formatJobTime = (createdAt: Date | string): string => {
   try {
     const date = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
@@ -102,17 +105,17 @@ export default function TextToImagePage() {
   const [availableLoRAs, setAvailableLoRAs] = useState<string[]>([]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
-  // Fetch available LoRA models on component mount
+  // Fetch available LoRA models on component mount - UPDATED
   useEffect(() => {
     const fetchLoRAModels = async () => {
       try {
         setLoadingLoRAs(true);
-        const response = await fetch("/api/models/loras");
+        // Use the new API client instead of direct fetch
+        const response = await apiClient.get("/api/models/loras");
         const data = await response.json();
 
         if (data.success && data.models) {
           setAvailableLoRAs(data.models);
-          // Set default LoRA if available
           if (
             data.models.length > 0 &&
             !data.models.includes(params.selectedLora)
@@ -125,7 +128,6 @@ export default function TextToImagePage() {
             }));
           }
         } else {
-          // Fallback LoRA models
           setAvailableLoRAs(["None", "AI MODEL 3.safetensors"]);
         }
       } catch (error) {
@@ -139,18 +141,16 @@ export default function TextToImagePage() {
     fetchLoRAModels();
   }, []);
 
-  // Generate random seed
   const generateRandomSeed = () => {
     const seed = Math.floor(Math.random() * 1000000000);
     setParams((prev) => ({ ...prev, seed }));
   };
 
-  // Handle aspect ratio change
   const handleAspectRatioChange = (width: number, height: number) => {
     setParams((prev) => ({ ...prev, width, height }));
   };
 
-  // Submit generation
+  // Submit generation - UPDATED
   const handleGenerate = async () => {
     if (!params.prompt.trim()) {
       alert("Please enter a prompt");
@@ -158,24 +158,18 @@ export default function TextToImagePage() {
     }
 
     setIsGenerating(true);
-
-    // Create workflow JSON with current parameters
     const workflow = createWorkflowJson(params);
 
     try {
-      const response = await fetch("/api/generate/text-to-image", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          workflow,
-          params,
-        }),
+      // Use the new API client instead of direct fetch
+      const response = await apiClient.post("/api/generate/text-to-image", {
+        workflow,
+        params,
       });
 
       if (!response.ok) {
-        throw new Error("Generation failed");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Generation failed");
       }
 
       const { jobId } = await response.json();
@@ -189,25 +183,25 @@ export default function TextToImagePage() {
       setCurrentJob(newJob);
       setJobHistory((prev) => [newJob, ...prev]);
 
-      // Poll for job status (in real implementation, use WebSocket)
       pollJobStatus(jobId);
     } catch (error) {
       console.error("Generation error:", error);
       setIsGenerating(false);
+      alert(error instanceof Error ? error.message : "Generation failed");
     }
   };
 
-  // Poll job status (replace with WebSocket in production)
+  // Poll job status - UPDATED
   const pollJobStatus = async (jobId: string) => {
-    const maxAttempts = 120; // 2 minutes with 1s intervals
+    const maxAttempts = 120;
     let attempts = 0;
 
     const poll = async () => {
       try {
-        const response = await fetch(`/api/jobs/${jobId}`);
+        // Use the new API client instead of direct fetch
+        const response = await apiClient.get(`/api/jobs/${jobId}`);
         const job = await response.json();
 
-        // Convert createdAt string to Date if needed
         if (job.createdAt && typeof job.createdAt === 'string') {
           job.createdAt = new Date(job.createdAt);
         }
@@ -215,7 +209,6 @@ export default function TextToImagePage() {
         setCurrentJob(job);
         setJobHistory((prev) => prev.map((j) => {
           if (j.id === jobId) {
-            // Ensure createdAt is properly handled when updating
             return {
               ...job,
               createdAt: job.createdAt && typeof job.createdAt === 'string' 
@@ -246,7 +239,7 @@ export default function TextToImagePage() {
     poll();
   };
 
-  // Create workflow JSON from parameters
+  // createWorkflowJson function remains the same...
   const createWorkflowJson = (params: GenerationParams) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
     const useLoRA = params.selectedLora !== "None";
@@ -304,7 +297,7 @@ export default function TextToImagePage() {
       },
       "9": {
         inputs: {
-          model: useLoRA ? ["14", 0] : ["6", 0], // Use LoRA model if selected, otherwise base model
+          model: useLoRA ? ["14", 0] : ["6", 0],
           max_shift: 1.15,
           base_shift: 0.3,
           width: params.width,
@@ -342,7 +335,6 @@ export default function TextToImagePage() {
       },
     };
 
-    // Only add LoRA loader if a LoRA is selected
     if (useLoRA) {
       workflow["14"] = {
         inputs: {
@@ -357,6 +349,7 @@ export default function TextToImagePage() {
     return workflow;
   };
 
+  // Rest of the component JSX remains exactly the same...
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -422,7 +415,7 @@ export default function TextToImagePage() {
                 <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="text-sm text-gray-500">
-                    Loading LoRA models...
+                    Loading your LoRA models...
                   </span>
                 </div>
               ) : (
@@ -445,11 +438,12 @@ export default function TextToImagePage() {
               )}
               {params.selectedLora !== "None" && (
                 <div className="text-xs text-blue-600 dark:text-blue-400">
-                  Using LoRA: {params.selectedLora}
+                  Using your LoRA: {params.selectedLora}
                 </div>
               )}
             </div>
 
+            {/* Rest of the form remains the same... */}
             {/* Aspect Ratio */}
             <div className="space-y-3 mb-6">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -553,7 +547,7 @@ export default function TextToImagePage() {
                   />
                 </div>
 
-                {/* LoRA Strength - Only show if LoRA is selected */}
+                {/* LoRA Strength */}
                 {params.selectedLora !== "None" && (
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">

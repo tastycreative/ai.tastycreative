@@ -1,24 +1,17 @@
-// app/api/models/loras/route.ts (Updated)
+// app/api/models/loras/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserId, getUserInfluencers, updateUserInfluencer } from '@/lib/database';
 
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15132';
-
-// Helper to get user ID (implement your auth logic here)
-function getUserId(request: NextRequest): string {
-  return request.headers.get('x-user-id') || 'default-user';
-}
-
-// Import the influencers database (in production, use shared database)
-const influencersDb: Map<string, any[]> = new Map();
 
 export async function GET(request: NextRequest) {
   try {
     const userId = getUserId(request);
     console.log('Fetching LoRAs for user:', userId);
     
-    // Get user's influencers from our database
-    const userInfluencers = influencersDb.get(userId) || [];
-    const activeInfluencers = userInfluencers.filter(inf => inf.isActive);
+    // Get user's influencers from shared database
+    const userInfluencers = getUserInfluencers(userId);
+    const activeInfluencers = userInfluencers.filter(inf => inf.isActive && inf.syncStatus === 'synced');
     
     console.log('Found active influencers:', activeInfluencers.length);
     
@@ -26,12 +19,9 @@ export async function GET(request: NextRequest) {
     const userLoRAModels = activeInfluencers.map(inf => inf.fileName);
     
     // Always include "None" option for base model
-    const availableLoRAs = ['None', ...userLoRAModels];
+    let availableLoRAs = ['None', ...userLoRAModels];
     
-    // Optional: Verify that the LoRAs exist in ComfyUI
-    // This step ensures the files are actually available in ComfyUI
-    let verifiedLoRAs = availableLoRAs;
-    
+    // Verify that the LoRAs actually exist in ComfyUI
     try {
       console.log('Verifying LoRAs with ComfyUI...');
       const response = await fetch(`${COMFYUI_URL}/object_info`);
@@ -40,37 +30,54 @@ export async function GET(request: NextRequest) {
         const objectInfo = await response.json();
         const loraLoader = objectInfo.LoraLoaderModelOnly;
         
-        if (loraLoader && loraLoader.input && loraLoader.input.required && loraLoader.input.required.lora_name) {
-          const comfyUILoRAs = loraLoader.input.required.lora_name[0] || [];
+        if (loraLoader?.input?.required?.lora_name?.[0]) {
+          const comfyUILoRAs = loraLoader.input.required.lora_name[0];
+          console.log('ComfyUI available LoRAs:', comfyUILoRAs.length);
           
           // Filter user LoRAs to only include those actually available in ComfyUI
-          const verifiedUserLoRAs = userLoRAModels.filter(loraName => 
-            comfyUILoRAs.includes(loraName)
-          );
+          const verifiedUserLoRAs = [];
+          const syncUpdates = [];
           
-          verifiedLoRAs = ['None', ...verifiedUserLoRAs];
-          
-          console.log('Verified LoRAs:', verifiedLoRAs.length - 1); // -1 for "None"
-          
-          // Mark unavailable LoRAs in our database (optional)
-          const unavailableLoRAs = userLoRAModels.filter(loraName => 
-            !comfyUILoRAs.includes(loraName)
-          );
-          
-          if (unavailableLoRAs.length > 0) {
-            console.warn('Some user LoRAs not found in ComfyUI:', unavailableLoRAs);
+          for (const influencer of activeInfluencers) {
+            const isAvailableInComfyUI = comfyUILoRAs.includes(influencer.fileName);
             
-            // Optionally update the database to mark these as inactive
-            const updatedInfluencers = userInfluencers.map(inf => {
-              if (unavailableLoRAs.includes(inf.fileName)) {
-                return { ...inf, isActive: false, syncStatus: 'missing' };
+            if (isAvailableInComfyUI) {
+              verifiedUserLoRAs.push(influencer.fileName);
+              
+              // Update sync status if needed
+              if (influencer.syncStatus !== 'synced') {
+                syncUpdates.push({
+                  id: influencer.id,
+                  updates: { syncStatus: 'synced' as const }
+                });
               }
-              return inf;
-            });
-            
-            influencersDb.set(userId, updatedInfluencers);
+            } else {
+              // Mark as missing
+              syncUpdates.push({
+                id: influencer.id,
+                updates: { 
+                  syncStatus: 'missing' as const,
+                  isActive: false 
+                }
+              });
+            }
+          }
+          
+          // Apply sync updates
+          for (const update of syncUpdates) {
+            updateUserInfluencer(userId, update.id, update.updates);
+          }
+          
+          availableLoRAs = ['None', ...verifiedUserLoRAs];
+          
+          console.log('Verified LoRAs count:', verifiedUserLoRAs.length);
+          
+          if (syncUpdates.length > 0) {
+            console.log('Updated sync status for', syncUpdates.length, 'LoRAs');
           }
         }
+      } else {
+        console.warn('Could not verify LoRAs with ComfyUI, using cached list');
       }
     } catch (verificationError) {
       console.error('Error verifying LoRAs with ComfyUI:', verificationError);
@@ -79,10 +86,11 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      models: verifiedLoRAs,
-      userModelsCount: verifiedLoRAs.length - 1, // Exclude "None"
+      models: availableLoRAs,
+      userModelsCount: availableLoRAs.length - 1, // Exclude "None"
       totalInfluencers: userInfluencers.length,
-      activeInfluencers: activeInfluencers.length
+      activeInfluencers: userInfluencers.filter(inf => inf.isActive).length,
+      syncedInfluencers: userInfluencers.filter(inf => inf.syncStatus === 'synced').length
     });
 
   } catch (error) {
@@ -101,7 +109,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// GET with query parameter for admin/debug purposes
+// POST endpoint for LoRA management actions
 export async function POST(request: NextRequest) {
   try {
     const { action, userId: targetUserId } = await request.json();
@@ -110,7 +118,7 @@ export async function POST(request: NextRequest) {
     if (action === 'sync_user_loras') {
       // Sync a specific user's LoRAs with ComfyUI
       const userId = targetUserId || requestingUserId;
-      const userInfluencers = influencersDb.get(userId) || [];
+      const userInfluencers = getUserInfluencers(userId);
       
       console.log(`Syncing LoRAs for user ${userId}...`);
       
@@ -124,28 +132,44 @@ export async function POST(request: NextRequest) {
       const loraLoader = objectInfo.LoraLoaderModelOnly;
       const comfyUILoRAs = loraLoader?.input?.required?.lora_name?.[0] || [];
       
-      const syncResults = userInfluencers.map(inf => {
-        const isAvailable = comfyUILoRAs.includes(inf.fileName);
-        return {
-          id: inf.id,
-          fileName: inf.fileName,
-          displayName: inf.displayName,
+      const syncResults = [];
+      
+      for (const influencer of userInfluencers) {
+        const isAvailable = comfyUILoRAs.includes(influencer.fileName);
+        const newSyncStatus = isAvailable ? 'synced' : 'missing';
+        
+        // Update the influencer
+        const updated = updateUserInfluencer(userId, influencer.id, {
+          syncStatus: newSyncStatus,
+          isActive: isAvailable
+        });
+        
+        syncResults.push({
+          id: influencer.id,
+          fileName: influencer.fileName,
+          displayName: influencer.displayName,
           isAvailable,
-          syncStatus: isAvailable ? 'synced' : 'missing'
-        };
-      });
+          syncStatus: newSyncStatus,
+          previousStatus: influencer.syncStatus
+        });
+      }
       
       return NextResponse.json({
         success: true,
         syncResults,
-        message: `Sync completed for user ${userId}`
+        message: `Sync completed for user ${userId}`,
+        summary: {
+          total: syncResults.length,
+          synced: syncResults.filter(r => r.isAvailable).length,
+          missing: syncResults.filter(r => !r.isAvailable).length
+        }
       });
     }
     
     if (action === 'refresh_comfyui_cache') {
       // Force ComfyUI to refresh its model cache
       try {
-        const response = await fetch(`${COMFYUI_URL}/models/refresh`, {
+        const response = await fetch(`${COMFYUI_URL}/refresh`, {
           method: 'POST'
         });
         
@@ -176,4 +200,4 @@ export async function POST(request: NextRequest) {
 }
 
 // Cache the results for better performance
-export const revalidate = 60; // Cache for 1 minute
+export const revalidate = 30; // Cache for 30 seconds
