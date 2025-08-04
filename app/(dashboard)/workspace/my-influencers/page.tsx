@@ -1,8 +1,8 @@
-// Updated app/(dashboard)/workspace/my-influencers/page.tsx
+// Updated app/(dashboard)/workspace/my-influencers/page.tsx - CLEAN VERSION
 "use client";
 
 import { useState, useEffect } from "react";
-import { apiClient } from "@/lib/apiClient"; // Import the new API client
+import { apiClient } from "@/lib/apiClient";
 import {
   Upload,
   Users,
@@ -20,14 +20,16 @@ import {
   RefreshCw,
   Clock,
   XCircle,
-  Sync,
   FileText,
   Copy,
+  Calendar,
+  HardDrive,
 } from "lucide-react";
 
-// Types remain the same...
+// Types
 interface InfluencerLoRA {
   id: string;
+  userId: string;
   name: string;
   displayName: string;
   fileName: string;
@@ -40,6 +42,7 @@ interface InfluencerLoRA {
   usageCount: number;
   syncStatus?: "pending" | "synced" | "missing" | "error";
   lastUsedAt?: string;
+  comfyUIPath?: string;
 }
 
 interface UploadProgress {
@@ -64,10 +67,11 @@ export default function MyInfluencersPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [showInstructions, setShowInstructions] =
-    useState<UploadInstructions | null>(null);
+  const [showInstructions, setShowInstructions] = useState<UploadInstructions | null>(null);
+  const [selectedInfluencer, setSelectedInfluencer] = useState<InfluencerLoRA | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  // Fetch user's influencers on load - UPDATED
+  // Fetch user's influencers on load
   useEffect(() => {
     fetchInfluencers();
   }, []);
@@ -75,36 +79,60 @@ export default function MyInfluencersPage() {
   const fetchInfluencers = async () => {
     try {
       setLoading(true);
-      // Use the new API client instead of direct fetch
+      setError(null);
+      console.log('Fetching influencers...');
+
       const response = await apiClient.get("/api/user/influencers");
-      if (!response.ok) throw new Error("Failed to fetch influencers");
+      console.log('Fetch response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch influencers: ${response.status}`);
+      }
 
       const data = await response.json();
+      console.log('Fetched influencers data:', data);
+
       setInfluencers(data.influencers || []);
+
+      if (data.influencers && data.influencers.length > 0) {
+        console.log(`Successfully loaded ${data.influencers.length} influencers`);
+      } else {
+        console.log('No influencers found for this user');
+      }
     } catch (error) {
-      console.error("Error fetching influencers:", error);
-      setError("Failed to load your influencers");
+      console.error('Error fetching influencers:', error);
+      setError(`Failed to load your influencers: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Sync with ComfyUI - UPDATED
+  // Sync with ComfyUI
   const syncWithComfyUI = async () => {
     try {
       setSyncing(true);
-      // Use the new API client instead of direct fetch
+      console.log('=== SYNC WITH COMFYUI ===');
+      console.log('Calling sync endpoint...');
+
       const response = await apiClient.post("/api/models/loras", {
         action: "sync_user_loras",
       });
 
+      console.log('Sync response status:', response.status);
+      console.log('Sync response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Sync response error:', errorText);
+        throw new Error(`Sync request failed: ${response.status} - ${errorText}`);
+      }
+
       const data = await response.json();
+      console.log('Sync response data:', data);
 
       if (data.success) {
-        // Refresh the influencers list
         await fetchInfluencers();
 
-        // Show sync results
         const { summary } = data;
         alert(
           `Sync completed:\n${summary.synced} models synced\n${summary.missing} models missing\n${summary.total} total models checked`
@@ -114,7 +142,19 @@ export default function MyInfluencersPage() {
       }
     } catch (error) {
       console.error("Sync error:", error);
-      alert("Failed to sync with ComfyUI");
+
+      // Better error handling
+      if (error instanceof Error) {
+        if (error.message.includes('Missing workflow data')) {
+          alert("Sync endpoint error: Wrong API called. Please check the routing configuration.");
+        } else if (error.message.includes('Unexpected end of JSON input')) {
+          alert("Sync failed: Empty response from server. ComfyUI may not be accessible.");
+        } else {
+          alert(`Sync failed: ${error.message}`);
+        }
+      } else {
+        alert("Sync failed: Unknown error");
+      }
     } finally {
       setSyncing(false);
     }
@@ -147,7 +187,7 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
-  // Upload influencers - UPDATED
+  // Upload influencers
   const uploadInfluencers = async () => {
     if (selectedFiles.length === 0) return;
 
@@ -168,10 +208,18 @@ export default function MyInfluencersPage() {
 
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("displayName", file.name.replace(/\.[^/.]+$/, "")); // Remove extension
-        formData.append("description", ""); // Optional description
+        formData.append("displayName", file.name.replace(/\.[^/.]+$/, ""));
+        formData.append("description", "");
 
-        // Use the new API client instead of direct fetch
+        // Update progress to show upload starting
+        setUploadProgress((prev) =>
+          prev.map((item) =>
+            item.fileName === file.name
+              ? { ...item, progress: 25, status: "uploading" }
+              : item
+          )
+        );
+
         const response = await apiClient.postFormData(
           "/api/user/influencers/upload",
           formData
@@ -204,11 +252,11 @@ export default function MyInfluencersPage() {
           prev.map((item) =>
             item.fileName === file.name
               ? {
-                  ...item,
-                  status: "failed",
-                  error:
-                    error instanceof Error ? error.message : "Upload failed",
-                }
+                ...item,
+                status: "failed",
+                error:
+                  error instanceof Error ? error.message : "Upload failed",
+              }
               : item
           )
         );
@@ -229,7 +277,7 @@ export default function MyInfluencersPage() {
     setUploadProgress([]);
   };
 
-  // Delete influencer - UPDATED
+  // Delete influencer
   const deleteInfluencer = async (id: string) => {
     if (
       !confirm(
@@ -240,7 +288,6 @@ export default function MyInfluencersPage() {
     }
 
     try {
-      // Use the new API client instead of direct fetch
       const response = await apiClient.delete(`/api/user/influencers/${id}`);
 
       if (!response.ok) throw new Error("Failed to delete influencer");
@@ -252,10 +299,9 @@ export default function MyInfluencersPage() {
     }
   };
 
-  // Toggle influencer status - UPDATED
+  // Toggle influencer status
   const toggleInfluencerStatus = async (id: string, isActive: boolean) => {
     try {
-      // Use the new API client instead of direct fetch
       const response = await apiClient.patch(`/api/user/influencers/${id}`, {
         isActive,
       });
@@ -292,29 +338,33 @@ export default function MyInfluencersPage() {
     switch (syncStatus) {
       case "synced":
         return (
-          <CheckCircle
-            className="w-4 h-4 text-green-500"
-            title="Synced with ComfyUI"
-          />
+          <CheckCircle className="w-4 h-4 text-green-500">
+            <title>Synced with ComfyUI</title>
+          </CheckCircle>
         );
       case "pending":
         return (
-          <Clock className="w-4 h-4 text-yellow-500" title="Pending sync" />
+          <Clock className="w-4 h-4 text-yellow-500">
+            <title>Pending sync</title>
+          </Clock>
         );
       case "missing":
         return (
-          <XCircle
-            className="w-4 h-4 text-red-500"
-            title="Missing from ComfyUI"
-          />
+          <XCircle className="w-4 h-4 text-red-500">
+            <title>Missing from ComfyUI</title>
+          </XCircle>
         );
       case "error":
         return (
-          <AlertCircle className="w-4 h-4 text-red-500" title="Sync error" />
+          <AlertCircle className="w-4 h-4 text-red-500">
+            <title>Sync error</title>
+          </AlertCircle>
         );
       default:
         return (
-          <Clock className="w-4 h-4 text-gray-400" title="Unknown status" />
+          <Clock className="w-4 h-4 text-gray-400">
+            <title>Unknown status</title>
+          </Clock>
         );
     }
   };
@@ -332,6 +382,11 @@ export default function MyInfluencersPage() {
       default:
         return "Unknown";
     }
+  };
+
+  const showInfluencerDetails = (influencer: InfluencerLoRA) => {
+    setSelectedInfluencer(influencer);
+    setShowDetailsModal(true);
   };
 
   if (loading) {
@@ -396,7 +451,326 @@ export default function MyInfluencersPage() {
         </div>
       </div>
 
-      {/* Manual Instructions Modal - No changes needed */}
+      {/* Stats Card */}
+      {influencers.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Your LoRA Models Status
+            </h3>
+            <span className="text-sm text-gray-500">
+              Last updated: {new Date().toLocaleTimeString()}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                {influencers.length}
+              </div>
+              <div className="text-sm text-gray-500">Your Models</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {syncedCount}
+              </div>
+              <div className="text-sm text-gray-500">Ready to Use</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-yellow-600">
+                {pendingCount}
+              </div>
+              <div className="text-sm text-gray-500">Need Setup</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">
+                {missingCount}
+              </div>
+              <div className="text-sm text-gray-500">Missing</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            <p className="text-red-700 dark:text-red-400">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Info Card */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+          <div>
+            <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
+              About Your Personal Influencer LoRA Models
+            </h3>
+            <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
+              Upload your custom LoRA models to create AI-generated content with
+              specific styles or characteristics. These models are private to
+              your account and only you can use them.
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              <strong>Status indicators:</strong> Green = Ready to use, Yellow =
+              Needs setup, Red = Missing from ComfyUI
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {influencers.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded-full">
+              <User className="w-8 h-8 text-gray-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                No Personal Influencers Yet
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Upload your first LoRA model to get started with personalized AI
+                generation. Your models will be private to your account.
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="inline-flex items-center space-x-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition-colors"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Your First Influencer</span>
+                </button>
+                <p className="text-xs text-gray-500">
+                  If you recently uploaded models, the list will automatically refresh.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {influencers.map((influencer) => (
+            <div
+              key={influencer.id}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow"
+            >
+              {/* Thumbnail */}
+              <div className="h-48 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 flex items-center justify-center relative">
+                {influencer.thumbnailUrl ? (
+                  <img
+                    src={influencer.thumbnailUrl}
+                    alt={influencer.displayName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="w-16 h-16 text-purple-400" />
+                )}
+
+                {/* Usage badge */}
+                {influencer.usageCount > 0 && (
+                  <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                    {influencer.usageCount} uses
+                  </div>
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                      {influencer.displayName}
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {influencer.fileName}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    {getSyncStatusIcon(influencer.syncStatus)}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-2">
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${influencer.syncStatus === "synced"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                        : influencer.syncStatus === "pending"
+                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
+                          : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                      }`}
+                  >
+                    {getSyncStatusText(influencer.syncStatus)}
+                  </span>
+                  <button
+                    onClick={() =>
+                      toggleInfluencerStatus(
+                        influencer.id,
+                        !influencer.isActive
+                      )
+                    }
+                    className={`w-3 h-3 rounded-full ${influencer.isActive
+                        ? "bg-green-500"
+                        : "bg-gray-300 dark:bg-gray-600"
+                      }`}
+                    title={influencer.isActive ? "Active" : "Inactive"}
+                  />
+                </div>
+
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                  {influencer.description || "No description provided"}
+                </p>
+
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-4">
+                  <span>{formatFileSize(influencer.fileSize)}</span>
+                  <span>{new Date(influencer.uploadedAt).toLocaleDateString()}</span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => showInfluencerDetails(influencer)}
+                      className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Download functionality - could be implemented later
+                        alert("Download functionality coming soon!");
+                      }}
+                      className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => deleteInfluencer(influencer.id)}
+                    className="p-1.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Influencer Details Modal */}
+      {showDetailsModal && selectedInfluencer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Influencer Details
+                </h2>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Display Name</label>
+                    <p className="text-gray-900 dark:text-white">{selectedInfluencer.displayName}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">File Name</label>
+                    <p className="text-gray-900 dark:text-white font-mono text-sm">{selectedInfluencer.fileName}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">File Size</label>
+                    <p className="text-gray-900 dark:text-white">{formatFileSize(selectedInfluencer.fileSize)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Usage Count</label>
+                    <p className="text-gray-900 dark:text-white">{selectedInfluencer.usageCount} times</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                    <div className="flex items-center space-x-2">
+                      {getSyncStatusIcon(selectedInfluencer.syncStatus)}
+                      <span className="text-gray-900 dark:text-white">{getSyncStatusText(selectedInfluencer.syncStatus)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
+                    <p className="text-gray-900 dark:text-white">{selectedInfluencer.isActive ? "Yes" : "No"}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Uploaded</label>
+                  <p className="text-gray-900 dark:text-white">{new Date(selectedInfluencer.uploadedAt).toLocaleString()}</p>
+                </div>
+
+                {selectedInfluencer.lastUsedAt && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Last Used</label>
+                    <p className="text-gray-900 dark:text-white">{new Date(selectedInfluencer.lastUsedAt).toLocaleString()}</p>
+                  </div>
+                )}
+
+                {selectedInfluencer.comfyUIPath && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">ComfyUI Path</label>
+                    <div className="flex items-center space-x-2">
+                      <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded flex-1">
+                        {selectedInfluencer.comfyUIPath}
+                      </p>
+                      <button
+                        onClick={() => copyToClipboard(selectedInfluencer.comfyUIPath!)}
+                        className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                  <p className="text-gray-900 dark:text-white">
+                    {selectedInfluencer.description || "No description provided"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Instructions Modal */}
       {showInstructions && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -480,203 +854,7 @@ export default function MyInfluencersPage() {
         </div>
       )}
 
-      {/* Stats Card - Add user context */}
-      {influencers.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Your LoRA Models Status
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                {influencers.length}
-              </div>
-              <div className="text-sm text-gray-500">Your Models</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {syncedCount}
-              </div>
-              <div className="text-sm text-gray-500">Ready to Use</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">
-                {pendingCount}
-              </div>
-              <div className="text-sm text-gray-500">Need Setup</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">
-                {missingCount}
-              </div>
-              <div className="text-sm text-gray-500">Missing</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <p className="text-red-700 dark:text-red-400">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Info Card - Updated text for clarity */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-          <div>
-            <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-              About Your Personal Influencer LoRA Models
-            </h3>
-            <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
-              Upload your custom LoRA models to create AI-generated content with
-              specific styles or characteristics. These models are private to
-              your account and only you can use them.
-            </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400">
-              <strong>Status indicators:</strong> Green = Ready to use, Yellow =
-              Needs setup, Red = Missing from ComfyUI
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Empty state - Updated text */}
-      {influencers.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded-full">
-              <User className="w-8 h-8 text-gray-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                No Personal Influencers Yet
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                Upload your first LoRA model to get started with personalized AI
-                generation. Your models will be private to your account.
-              </p>
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Upload Your First Influencer</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {influencers.map((influencer) => (
-            <div
-              key={influencer.id}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow"
-            >
-              {/* Thumbnail */}
-              <div className="h-48 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 flex items-center justify-center">
-                {influencer.thumbnailUrl ? (
-                  <img
-                    src={influencer.thumbnailUrl}
-                    alt={influencer.displayName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <ImageIcon className="w-16 h-16 text-purple-400" />
-                )}
-              </div>
-
-              {/* Content */}
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                    {influencer.displayName}
-                  </h3>
-                  <div className="flex items-center space-x-1">
-                    {getSyncStatusIcon(influencer.syncStatus)}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between mb-2">
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      influencer.syncStatus === "synced"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                        : influencer.syncStatus === "pending"
-                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
-                        : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                    }`}
-                  >
-                    {getSyncStatusText(influencer.syncStatus)}
-                  </span>
-                  <button
-                    onClick={() =>
-                      toggleInfluencerStatus(
-                        influencer.id,
-                        !influencer.isActive
-                      )
-                    }
-                    className={`w-3 h-3 rounded-full ${
-                      influencer.isActive
-                        ? "bg-green-500"
-                        : "bg-gray-300 dark:bg-gray-600"
-                    }`}
-                    title={influencer.isActive ? "Active" : "Inactive"}
-                  />
-                </div>
-
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  {influencer.description || "No description provided"}
-                </p>
-
-                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-4">
-                  <span>{formatFileSize(influencer.fileSize)}</span>
-                  <span>{influencer.usageCount} uses</span>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => {
-                        /* View details */
-                      }}
-                      className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
-                      title="View Details"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        /* Download */
-                      }}
-                      className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
-                      title="Download"
-                    >
-                      <Download className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => deleteInfluencer(influencer.id)}
-                    className="p-1.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Upload Modal - No changes needed in the JSX, as the upload function was already updated */}
+      {/* Upload Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
