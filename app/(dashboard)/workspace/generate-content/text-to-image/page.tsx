@@ -1,8 +1,8 @@
-// Updated page.tsx for text-to-image - key changes for user isolation
+// app/(dashboard)/workspace/generate-content/text-to-image/page.tsx - CLEAN VERSION
 "use client";
 
 import { useState, useEffect } from "react";
-import { apiClient } from "@/lib/apiClient"; // Import the new API client
+import { apiClient } from "@/lib/apiClient";
 import {
   ImageIcon,
   Wand2,
@@ -18,7 +18,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-// Types remain the same...
+// Types
 interface GenerationParams {
   prompt: string;
   width: number;
@@ -40,10 +40,19 @@ interface GenerationJob {
   progress?: number;
   resultUrls?: string[];
   error?: string;
-  createdAt: Date | string;
+  createdAt?: Date | string;
+  userId?: string;
+  lastChecked?: string;
+  comfyUIPromptId?: string;
 }
 
-// Constants remain the same...
+interface LoRAModel {
+  fileName: string;
+  displayName: string;
+  name: string;
+}
+
+// Constants
 const ASPECT_RATIOS = [
   { name: "Portrait", width: 832, height: 1216, ratio: "2:3" },
   { name: "Square", width: 1024, height: 1024, ratio: "1:1" },
@@ -72,10 +81,18 @@ const SCHEDULERS = [
   "beta",
 ];
 
-const formatJobTime = (createdAt: Date | string): string => {
+const formatJobTime = (createdAt: Date | string | undefined): string => {
   try {
-    const date =
-      typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+    if (!createdAt) {
+      return "Unknown time";
+    }
+    
+    const date = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+    
+    if (isNaN(date.getTime())) {
+      return "Invalid time";
+    }
+    
     return date.toLocaleTimeString();
   } catch (error) {
     console.error("Error formatting date:", error);
@@ -95,7 +112,7 @@ export default function TextToImagePage() {
     scheduler: "beta",
     guidance: 4,
     loraStrength: 0.95,
-    selectedLora: "AI MODEL 3.safetensors",
+    selectedLora: "None",
     seed: null,
   });
 
@@ -103,37 +120,56 @@ export default function TextToImagePage() {
   const [jobHistory, setJobHistory] = useState<GenerationJob[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [availableLoRAs, setAvailableLoRAs] = useState<string[]>([]);
+  const [availableLoRAs, setAvailableLoRAs] = useState<LoRAModel[]>([
+    { fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }
+  ]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
-  // Fetch available LoRA models on component mount - UPDATED
+  // Initialize empty job history on mount
+  useEffect(() => {
+    if (!Array.isArray(jobHistory)) {
+      setJobHistory([]);
+    }
+  }, []);
+
+  // Fetch available LoRA models on component mount
   useEffect(() => {
     const fetchLoRAModels = async () => {
       try {
         setLoadingLoRAs(true);
-        // Use the new API client instead of direct fetch
+        console.log('=== FETCHING LORA MODELS ===');
+        
         const response = await apiClient.get("/api/models/loras");
+        console.log('LoRA API response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
+        console.log('LoRA API response data:', data);
 
-        if (data.success && data.models) {
+        if (data.success && data.models && Array.isArray(data.models)) {
+          console.log('Available LoRA models:', data.models);
           setAvailableLoRAs(data.models);
-          if (
-            data.models.length > 0 &&
-            !data.models.includes(params.selectedLora)
-          ) {
+          
+          // Set default LoRA if current selection isn't available
+          const currentLoRAExists = data.models.some((lora: LoRAModel) => lora.fileName === params.selectedLora);
+          if (!currentLoRAExists) {
+            const defaultLora = data.models.find((lora: LoRAModel) => lora.fileName === "None")?.fileName || data.models[0]?.fileName || "None";
+            console.log('Setting default LoRA to:', defaultLora);
             setParams((prev) => ({
               ...prev,
-              selectedLora: data.models.includes("None")
-                ? "None"
-                : data.models[0],
+              selectedLora: defaultLora,
             }));
           }
         } else {
-          setAvailableLoRAs(["None", "AI MODEL 3.safetensors"]);
+          console.error('Invalid LoRA API response:', data);
+          setAvailableLoRAs([{ fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }]);
         }
       } catch (error) {
-        console.error("Error fetching LoRA models:", error);
-        setAvailableLoRAs(["None", "AI MODEL 3.safetensors"]);
+        console.error('Error fetching LoRA models:', error);
+        setAvailableLoRAs([{ fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }]);
       } finally {
         setLoadingLoRAs(false);
       }
@@ -151,7 +187,7 @@ export default function TextToImagePage() {
     setParams((prev) => ({ ...prev, width, height }));
   };
 
-  // Submit generation - UPDATED
+  // Submit generation
   const handleGenerate = async () => {
     if (!params.prompt.trim()) {
       alert("Please enter a prompt");
@@ -159,32 +195,48 @@ export default function TextToImagePage() {
     }
 
     setIsGenerating(true);
-    const workflow = createWorkflowJson(params);
-
+    setCurrentJob(null);
+    
     try {
-      // Use the new API client instead of direct fetch
+      console.log('=== STARTING GENERATION ===');
+      console.log('Generation params:', params);
+      
+      const workflow = createWorkflowJson(params);
+      console.log('Created workflow for submission');
+      
       const response = await apiClient.post("/api/generate/text-to-image", {
         workflow,
         params,
       });
 
+      console.log('Generation API response status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Generation failed");
+        const errorText = await response.text();
+        console.error('Generation failed:', response.status, errorText);
+        throw new Error(`Generation failed: ${response.status} - ${errorText}`);
       }
 
       const { jobId } = await response.json();
+      console.log('Received job ID:', jobId);
+
+      if (!jobId) {
+        throw new Error('No job ID received from server');
+      }
 
       const newJob: GenerationJob = {
         id: jobId,
         status: "pending",
         createdAt: new Date(),
+        progress: 0
       };
 
       setCurrentJob(newJob);
-      setJobHistory((prev) => [newJob, ...prev]);
+      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)]);
 
+      // Start polling for job status
       pollJobStatus(jobId);
+      
     } catch (error) {
       console.error("Generation error:", error);
       setIsGenerating(false);
@@ -192,17 +244,41 @@ export default function TextToImagePage() {
     }
   };
 
-  // Poll job status - UPDATED
+  // Poll job status
   const pollJobStatus = async (jobId: string) => {
-    const maxAttempts = 120;
+    console.log('=== STARTING JOB POLLING ===');
+    console.log('Polling job ID:', jobId);
+    
+    const maxAttempts = 120; // 2 minutes
     let attempts = 0;
 
     const poll = async () => {
       try {
-        // Use the new API client instead of direct fetch
+        attempts++;
+        console.log(`Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`);
+        
         const response = await apiClient.get(`/api/jobs/${jobId}`);
-        const job = await response.json();
+        console.log('Job status response:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Job status error:', response.status, errorText);
+          
+          if (response.status === 404) {
+            console.error('Job not found - this might be a storage issue');
+            if (attempts < 10) { // Retry a few times for new jobs
+              setTimeout(poll, 2000);
+              return;
+            }
+          }
+          
+          throw new Error(`Job status check failed: ${response.status}`);
+        }
 
+        const job = await response.json();
+        console.log('Job status data:', job);
+
+        // Handle date conversion safely
         if (job.createdAt && typeof job.createdAt === "string") {
           job.createdAt = new Date(job.createdAt);
         }
@@ -210,40 +286,60 @@ export default function TextToImagePage() {
         setCurrentJob(job);
         setJobHistory((prev) =>
           prev.map((j) => {
-            if (j.id === jobId) {
+            if (j?.id === jobId) {
               return {
                 ...job,
-                createdAt:
-                  job.createdAt && typeof job.createdAt === "string"
-                    ? new Date(job.createdAt)
-                    : job.createdAt,
+                createdAt: job.createdAt || j.createdAt
               };
             }
             return j;
-          })
+          }).filter(Boolean)
         );
 
-        if (job.status === "completed" || job.status === "failed") {
+        if (job.status === "completed") {
+          console.log('Job completed successfully!');
+          setIsGenerating(false);
+          return;
+        } else if (job.status === "failed") {
+          console.log('Job failed:', job.error);
           setIsGenerating(false);
           return;
         }
 
+        // Continue polling
         attempts++;
         if (attempts < maxAttempts) {
           setTimeout(poll, 1000);
         } else {
+          console.error('Polling timeout reached');
           setIsGenerating(false);
+          setCurrentJob(prev => prev ? {
+            ...prev,
+            status: "failed" as const,
+            error: "Polling timeout - generation may still be running"
+          } : null);
         }
       } catch (error) {
         console.error("Polling error:", error);
-        setIsGenerating(false);
+        
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 2000); // Retry with longer delay
+        } else {
+          setIsGenerating(false);
+          setCurrentJob(prev => prev ? {
+            ...prev,
+            status: "failed" as const,
+            error: "Failed to get job status"
+          } : null);
+        }
       }
     };
 
-    poll();
+    // Start polling after a short delay
+    setTimeout(poll, 1000);
   };
 
-  // createWorkflowJson function remains the same...
+  // Create workflow JSON
   const createWorkflowJson = (params: GenerationParams) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
     const useLoRA = params.selectedLora !== "None";
@@ -353,7 +449,47 @@ export default function TextToImagePage() {
     return workflow;
   };
 
-  // Rest of the component JSX remains exactly the same...
+  // Manual job check
+  const manualJobCheck = async () => {
+    if (!currentJob?.id) {
+      alert('No current job to check');
+      return;
+    }
+    
+    try {
+      console.log('=== MANUAL JOB CHECK ===');
+      console.log('Checking job:', currentJob.id);
+      
+      const response = await apiClient.get(`/api/jobs/${currentJob.id}`);
+      console.log('Manual check response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Manual check failed:', errorText);
+        alert(`Job check failed: ${response.status} - ${errorText}`);
+        return;
+      }
+      
+      const job = await response.json();
+      console.log('Manual check result:', job);
+      
+      // Handle date conversion
+      if (job.createdAt && typeof job.createdAt === "string") {
+        job.createdAt = new Date(job.createdAt);
+      }
+      
+      setCurrentJob(job);
+      setJobHistory(prev => 
+        prev.map(j => j?.id === currentJob.id ? job : j).filter(Boolean)
+      );
+      
+      alert(`Job Status: ${job.status}\nProgress: ${job.progress || 0}%`);
+    } catch (error) {
+      console.error('Manual check error:', error);
+      alert('Manual check failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -415,11 +551,12 @@ export default function TextToImagePage() {
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 LoRA Model
               </label>
+              
               {loadingLoRAs ? (
                 <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="text-sm text-gray-500">
-                    Loading your LoRA models...
+                    Loading LoRA models...
                   </span>
                 </div>
               ) : (
@@ -433,21 +570,21 @@ export default function TextToImagePage() {
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  {availableLoRAs.map((lora) => (
-                    <option key={lora} value={lora}>
-                      {lora === "None" ? "No LoRA (Base Model)" : lora}
+                  {availableLoRAs.map((lora, index) => (
+                    <option key={`${lora.fileName}-${index}`} value={lora.fileName}>
+                      {lora.displayName}
                     </option>
                   ))}
                 </select>
               )}
+              
               {params.selectedLora !== "None" && (
                 <div className="text-xs text-blue-600 dark:text-blue-400">
-                  Using your LoRA: {params.selectedLora}
+                  Using LoRA: {availableLoRAs.find(lora => lora.fileName === params.selectedLora)?.displayName || params.selectedLora}
                 </div>
               )}
             </div>
 
-            {/* Rest of the form remains the same... */}
             {/* Aspect Ratio */}
             <div className="space-y-3 mb-6">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -571,10 +708,6 @@ export default function TextToImagePage() {
                       }
                       className="w-full"
                     />
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Lower values = less LoRA influence, Higher values = more
-                      LoRA influence
-                    </div>
                   </div>
                 )}
 
@@ -681,9 +814,11 @@ export default function TextToImagePage() {
           {/* Current Generation */}
           {currentJob && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Current Generation
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Current Generation
+                </h3>
+              </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -691,10 +826,7 @@ export default function TextToImagePage() {
                     Status
                   </span>
                   <div className="flex items-center space-x-2">
-                    {currentJob.status === "pending" && (
-                      <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                    )}
-                    {currentJob.status === "processing" && (
+                    {(currentJob.status === "pending" || currentJob.status === "processing") && (
                       <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                     )}
                     {currentJob.status === "completed" && (
@@ -735,18 +867,36 @@ export default function TextToImagePage() {
                     </h4>
                     <div className="grid grid-cols-1 gap-3">
                       {currentJob.resultUrls.map((url, index) => (
-                        <div key={index} className="relative group">
+                        <div key={`result-${currentJob.id}-${index}`} className="relative group">
                           <img
                             src={url}
                             alt={`Generated image ${index + 1}`}
                             className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                            onError={(e) => {
+                              console.error('Image load error:', url);
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
                           />
                           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <div className="flex space-x-1">
-                              <button className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg">
+                              <button 
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = url;
+                                  link.download = `generated-image-${index + 1}.png`;
+                                  link.click();
+                                }}
+                                className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                              >
                                 <Download className="w-4 h-4" />
                               </button>
-                              <button className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg">
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(url);
+                                  alert('Image URL copied to clipboard!');
+                                }}
+                                className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                              >
                                 <Share2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -775,9 +925,9 @@ export default function TextToImagePage() {
                 Recent Generations
               </h3>
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {jobHistory.slice(0, 10).map((job) => (
+                {jobHistory.filter(job => job && job.id).slice(0, 10).map((job, index) => (
                   <div
-                    key={job.id}
+                    key={job.id || `job-${index}`}
                     className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                   >
                     <div className="flex items-center space-x-3">
@@ -796,7 +946,7 @@ export default function TextToImagePage() {
                           {formatJobTime(job.createdAt)}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {job.status}
+                          {job.status || 'unknown'}
                         </p>
                       </div>
                     </div>

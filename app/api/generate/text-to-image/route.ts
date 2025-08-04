@@ -1,357 +1,336 @@
-// app/api/generate/text-to-image/route.ts
+// app/api/generate/text-to-image/route.ts - FIXED with Clerk + NeonDB
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getUserId, getUserInfluencers, incrementInfluencerUsage } from '@/lib/database';
+import { auth } from '@clerk/nextjs/server';
+import { incrementInfluencerUsage } from '@/lib/database';
+import { 
+  addJob, 
+  getJob, 
+  updateJob, 
+  debugJobsStorage,
+  type GenerationJob 
+} from '@/lib/jobsStorage';
 
-// Types
-interface GenerationJob {
-  id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress?: number;
-  resultUrls?: string[];
-  error?: string;
-  promptId?: string;
-  createdAt: Date;
-  userId?: string;
-  usedLoRA?: string;
-  prompt?: string;
-}
-
-// In-memory job storage (use Redis in production)
-const jobs: Map<string, GenerationJob> = new Map();
-
-// Environment variables
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15132';
-
-// Validate that user can use the specified LoRA
-async function validateUserLoRA(userId: string, loraName: string): Promise<boolean> {
-  if (loraName === "None") {
-    return true; // Everyone can use the base model
-  }
-  
-  const userInfluencers = getUserInfluencers(userId);
-  const hasLoRA = userInfluencers.some(inf => 
-    inf.fileName === loraName && 
-    inf.isActive && 
-    inf.syncStatus === 'synced'
-  );
-  
-  console.log(`LoRA validation for ${loraName}:`, hasLoRA);
-  return hasLoRA;
-}
+const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15833';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('=== Text-to-Image Generation Started ===');
+    // Get authenticated user from Clerk
+    const { userId: clerkId } = await auth();
     
-    const userId = getUserId(request);
+    if (!clerkId) {
+      console.log('No authenticated user found');
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    console.log('=== GENERATION REQUEST (CLERK + NEONDB) ===');
+    console.log('Generating image for Clerk user:', clerkId);
+    console.log('ComfyUI URL:', COMFYUI_URL);
+    
     const { workflow, params } = await request.json();
     
-    console.log('Received params for user:', userId, {
-      prompt: params?.prompt?.substring(0, 50) + '...',
-      selectedLora: params?.selectedLora
-    });
-    
-    // Validate required fields
-    if (!workflow || !params?.prompt) {
-      console.error('Missing workflow or prompt');
+    if (!workflow) {
       return NextResponse.json(
-        { error: 'Missing workflow or prompt' },
+        { error: 'Missing workflow data' },
         { status: 400 }
       );
     }
-    
-    // Validate user can use the specified LoRA
-    const selectedLoRA = params.selectedLora || "None";
-    const canUseLoRA = await validateUserLoRA(userId, selectedLoRA);
-    
-    if (!canUseLoRA) {
-      console.error('User not authorized for LoRA:', selectedLoRA);
-      
-      // Get available LoRAs for better error message
-      const userInfluencers = getUserInfluencers(userId);
-      const availableLoRAs = userInfluencers
-        .filter(inf => inf.isActive && inf.syncStatus === 'synced')
-        .map(inf => inf.displayName);
-      
-      return NextResponse.json(
-        { 
-          error: `You are not authorized to use the LoRA model: ${selectedLoRA}`,
-          availableLoRAs,
-          suggestion: availableLoRAs.length > 0 
-            ? `Try using one of your available LoRAs: ${availableLoRAs.join(', ')}`
-            : 'Upload and sync a LoRA model first in the My Influencers section'
-        },
-        { status: 403 }
-      );
-    }
-    
-    console.log('LoRA validation passed:', selectedLoRA);
 
-    // Generate unique job ID
     const jobId = uuidv4();
-    const clientId = uuidv4(); // ComfyUI client ID
-    console.log('Generated job ID:', jobId);
+    console.log('Created job ID:', jobId);
     
-    // Create job record
+    // Create job with Clerk user ID
     const job: GenerationJob = {
       id: jobId,
-      status: 'pending',
+      clerkId,
+      userId: clerkId,
+      status: "pending",
       createdAt: new Date(),
-      userId,
-      usedLoRA: selectedLoRA,
-      prompt: params.prompt
-    };
-    
-    jobs.set(jobId, job);
-    console.log('Job created and stored');
-
-    // Prepare ComfyUI request
-    const comfyUIPayload = {
-      prompt: workflow,
-      client_id: clientId,
+      params,
+      lastChecked: new Date().toISOString(),
+      progress: 0
     };
 
-    console.log('Submitting to ComfyUI:', `${COMFYUI_URL}/prompt`);
-    console.log('Workflow includes LoRA:', selectedLoRA !== "None");
-
-    // Submit to ComfyUI
-    const promptResponse = await fetch(`${COMFYUI_URL}/prompt`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(comfyUIPayload),
+    console.log('Adding job to NeonDB...');
+    console.log('Job details:', {
+      id: job.id,
+      clerkId: job.clerkId,
+      status: job.status,
+      createdAt: job.createdAt
     });
 
-    console.log('ComfyUI response status:', promptResponse.status);
-
-    if (!promptResponse.ok) {
-      const errorText = await promptResponse.text();
-      console.error('ComfyUI API error:', errorText);
-      
-      job.status = 'failed';
-      job.error = `ComfyUI API error: ${errorText}`;
-      jobs.set(jobId, job);
-      
+    // Add to NeonDB via Prisma
+    await addJob(job);
+    
+    // Verify job was added
+    const verifyJob = await getJob(jobId);
+    if (!verifyJob) {
+      console.error('CRITICAL: Job was not added to database properly!');
       return NextResponse.json(
-        { error: 'Failed to submit to ComfyUI', details: errorText },
+        { error: 'Failed to create job in database' },
         { status: 500 }
       );
     }
+    console.log('Job verified in NeonDB');
 
-    const promptResult = await promptResponse.json();
-    console.log('ComfyUI response:', promptResult);
-    
-    const promptId = promptResult.prompt_id;
-    
-    if (!promptId) {
-      console.error('No prompt_id in ComfyUI response');
-      job.status = 'failed';
-      job.error = 'Invalid ComfyUI response';
-      jobs.set(jobId, job);
+    // Debug storage state
+    const storageDebug = await debugJobsStorage();
+    console.log('Database debug after job creation:', storageDebug);
+
+    // Submit to ComfyUI
+    try {
+      console.log('🚀 Submitting to ComfyUI...');
+      console.log('📝 Workflow preview:', JSON.stringify(workflow).substring(0, 200) + '...');
       
-      return NextResponse.json(
-        { error: 'Invalid ComfyUI response' },
-        { status: 500 }
-      );
+      const comfyUIResponse = await fetch(`${COMFYUI_URL}/prompt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: workflow,
+          client_id: jobId,
+        }),
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+
+      console.log('🖥️ ComfyUI response status:', comfyUIResponse.status);
+      
+      if (!comfyUIResponse.ok) {
+        const errorText = await comfyUIResponse.text();
+        console.error('❌ ComfyUI request failed:', comfyUIResponse.status, errorText);
+        throw new Error(`ComfyUI request failed: ${comfyUIResponse.status} - ${errorText}`);
+      }
+
+      const result = await comfyUIResponse.json();
+      console.log('✅ ComfyUI submission result:', result);
+      
+      // Update job with ComfyUI prompt ID
+      const updates: Partial<GenerationJob> = {
+        status: "processing",
+        progress: 10,
+        lastChecked: new Date().toISOString()
+      };
+      
+      if (result.prompt_id) {
+        updates.comfyUIPromptId = result.prompt_id;
+        console.log('🔗 ComfyUI prompt ID:', result.prompt_id);
+      }
+
+      const updatedJob = await updateJob(jobId, updates);
+      if (!updatedJob) {
+        console.error('❌ Failed to update job after ComfyUI submission');
+      }
+
+      // Track LoRA usage if a LoRA was used
+      if (params?.selectedLora && params.selectedLora !== 'None') {
+        console.log('📊 Tracking LoRA usage:', params.selectedLora);
+        try {
+          await incrementInfluencerUsage(clerkId, params.selectedLora);
+        } catch (usageError) {
+          console.error('⚠️ Error tracking LoRA usage:', usageError);
+          // Don't fail the generation if usage tracking fails
+        }
+      }
+
+      // Start polling ComfyUI for results
+      console.log('🔄 Starting ComfyUI polling...');
+      pollComfyUIProgress(jobId);
+
+    } catch (error) {
+      console.error('❌ ComfyUI submission error:', error);
+      await updateJob(jobId, {
+        status: "failed",
+        error: error instanceof Error ? error.message : 'ComfyUI submission failed',
+        progress: 0
+      });
     }
 
-    // Update job with prompt ID
-    job.promptId = promptId;
-    job.status = 'processing';
-    jobs.set(jobId, job);
-    console.log('Job updated with prompt ID:', promptId);
-
-    // Increment LoRA usage count if not using base model
-    if (selectedLoRA !== "None") {
-      incrementInfluencerUsage(userId, selectedLoRA);
-      console.log('Incremented usage for LoRA:', selectedLoRA);
-    }
-
-    // Start monitoring job in background
-    monitorComfyUIJob(jobId, promptId, clientId);
-
+    console.log('✅ Generation request completed, returning job ID:', jobId);
     return NextResponse.json({ 
+      success: true,
       jobId,
-      status: 'submitted',
-      message: 'Generation started successfully',
-      usedLoRA: selectedLoRA
+      message: 'Generation started successfully' 
     });
 
   } catch (error) {
-    console.error('Text-to-image generation error:', error);
+    console.error('💥 Generation error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        success: false,
+        error: 'Generation failed: ' + (error instanceof Error ? error.message : 'Unknown error') 
+      },
       { status: 500 }
     );
   }
 }
 
-// Monitor ComfyUI job progress
-async function monitorComfyUIJob(jobId: string, promptId: string, clientId: string) {
-  console.log(`=== Starting monitoring for job ${jobId}, prompt ${promptId} ===`);
-  
-  const maxAttempts = 120; // 2 minutes
+// Enhanced function to poll ComfyUI for progress and results
+async function pollComfyUIProgress(jobId: string) {
+  const job = await getJob(jobId);
+  if (!job) {
+    console.error('❌ Job not found for polling:', jobId);
+    return;
+  }
+
+  console.log(`🔄 === POLLING START for job ${jobId} ===`);
   let attempts = 0;
+  const maxAttempts = 300; // 5 minutes max (300 * 1 second)
 
-  const checkStatus = async () => {
+  const poll = async () => {
     try {
-      const job = jobs.get(jobId);
-      if (!job) {
-        console.log('Job no longer exists, stopping monitoring');
-        return;
-      }
-
-      console.log(`Checking status attempt ${attempts + 1}/${maxAttempts} for job ${jobId}`);
-
-      // Check queue status
-      const queueResponse = await fetch(`${COMFYUI_URL}/queue`);
+      attempts++;
+      console.log(`🔍 Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`);
       
-      if (!queueResponse.ok) {
-        throw new Error(`Queue API returned ${queueResponse.status}`);
-      }
+      // Update last checked time
+      await updateJob(jobId, { lastChecked: new Date().toISOString() });
       
-      const queueData = await queueResponse.json();
-      
-      // Check if job is still in queue
-      const isInRunning = queueData.queue_running?.some((item: any) => item[1] === promptId);
-      const isInPending = queueData.queue_pending?.some((item: any) => item[1] === promptId);
-      const isInQueue = isInRunning || isInPending;
-
-      if (isInQueue) {
-        // Job is still processing
-        const queuePosition = queueData.queue_pending?.findIndex((item: any) => item[1] === promptId) || -1;
+      // Method 1: Check queue status first
+      try {
+        const queueResponse = await fetch(`${COMFYUI_URL}/queue`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000)
+        });
         
-        if (queuePosition >= 0) {
-          job.progress = Math.max(10, 100 - (queuePosition + 1) * 20);
-        } else if (isInRunning) {
-          job.progress = 75; // Currently running
-        } else {
-          job.progress = 50; // In queue
-        }
-        
-        jobs.set(jobId, job);
-        
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(checkStatus, 2000); // Check every 2 seconds
-        } else {
-          console.log('Max attempts reached, marking as failed');
-          job.status = 'failed';
-          job.error = 'Generation timeout';
-          jobs.set(jobId, job);
-        }
-        return;
-      }
-
-      // Job completed, get results
-      const historyResponse = await fetch(`${COMFYUI_URL}/history/${promptId}`);
-      
-      if (!historyResponse.ok) {
-        throw new Error(`History API returned ${historyResponse.status}`);
-      }
-      
-      const historyData = await historyResponse.json();
-      
-      if (historyData[promptId]) {
-        const jobHistory = historyData[promptId];
-        
-        if (jobHistory.status?.status_str === 'error') {
-          console.error('Job failed with error:', jobHistory.status);
-          job.status = 'failed';
-          job.error = 'Generation failed in ComfyUI';
-          jobs.set(jobId, job);
-          return;
-        }
-
-        const outputs = jobHistory.outputs;
-        
-        // Find SaveImage node outputs
-        let imageOutputs: any = null;
-        
-        for (const [nodeId, output] of Object.entries(outputs || {})) {
-          if ((output as any)?.images && Array.isArray((output as any).images)) {
-            imageOutputs = output;
-            console.log(`Found images in node ${nodeId}:`, (output as any).images.length);
-            break;
+        if (queueResponse.ok) {
+          const queueData = await queueResponse.json();
+          console.log('📋 Queue status - Running:', queueData.queue_running?.length || 0, 'Pending:', queueData.queue_pending?.length || 0);
+          
+          // Check if our job is in the running queue
+          const isRunning = queueData.queue_running?.some((item: any) => {
+            const clientId = item[2]?.client_id || item[1]?.client_id;
+            return clientId === jobId;
+          });
+          
+          if (isRunning) {
+            await updateJob(jobId, {
+              status: "processing",
+              progress: Math.min(20 + (attempts * 2), 90)
+            });
+            console.log('⚙️ Job is running, progress:', Math.min(20 + (attempts * 2), 90));
           }
         }
+      } catch (queueError) {
+        console.warn('⚠️ Queue check failed:', queueError);
+      }
 
-        if (imageOutputs && imageOutputs.images.length > 0) {
-          // Get image URLs
-          const imageUrls = imageOutputs.images.map((img: any) => {
-            const url = `${COMFYUI_URL}/view?filename=${encodeURIComponent(img.filename)}`;
-            return url;
-          });
-
-          job.status = 'completed';
-          job.progress = 100;
-          job.resultUrls = imageUrls;
-          jobs.set(jobId, job);
+      // Method 2: Check history for completion
+      try {
+        const historyResponse = await fetch(`${COMFYUI_URL}/history`, {
+          method: 'GET',
+          signal: AbortSignal.timeout(10000)
+        });
+        
+        if (historyResponse.ok) {
+          const historyData = await historyResponse.json();
           
-          console.log(`Job ${jobId} completed successfully with ${imageUrls.length} images`);
-          console.log(`User ${job.userId} generated images using LoRA: ${job.usedLoRA}`);
-        } else {
-          console.error('No images found in outputs');
-          job.status = 'failed';
-          job.error = 'No images generated';
-          jobs.set(jobId, job);
+          // Look for our job in the history
+          for (const [historyJobId, jobData] of Object.entries(historyData)) {
+            const jobInfo = jobData as any;
+            
+            // Check if this is our job
+            const matchesClientId = jobInfo.prompt?.[1]?.client_id === jobId;
+            const matchesPromptId = historyJobId === jobId;
+            const currentJob = await getJob(jobId);
+            const matchesComfyUIPromptId = currentJob?.comfyUIPromptId === historyJobId;
+            
+            if (matchesClientId || matchesPromptId || matchesComfyUIPromptId) {
+              console.log('🎯 Found our job in history:', historyJobId);
+              
+              if (jobInfo.status?.status_str === 'success' && jobInfo.outputs) {
+                console.log('✅ Job completed successfully!');
+                await processCompletedJob(jobId, jobInfo);
+                return; // Stop polling
+              } else if (jobInfo.status?.status_str === 'error') {
+                console.log('❌ Job failed in ComfyUI');
+                await updateJob(jobId, {
+                  status: "failed",
+                  error: "Generation failed in ComfyUI",
+                  progress: 0
+                });
+                return; // Stop polling
+              }
+            }
+          }
         }
+      } catch (historyError) {
+        console.warn('⚠️ History check failed:', historyError);
+      }
+
+      // Continue polling if not completed and within limits
+      if (attempts < maxAttempts) {
+        setTimeout(poll, 1000); // Poll every second
       } else {
-        console.error('Job not found in history');
-        job.status = 'failed';
-        job.error = 'Job not found in history';
-        jobs.set(jobId, job);
+        console.error('⏰ Polling timeout for job:', jobId);
+        await updateJob(jobId, {
+          status: "failed",
+          error: "Generation timeout - job may still be running in ComfyUI",
+          progress: 0
+        });
       }
 
     } catch (error) {
-      console.error('Error monitoring ComfyUI job:', error);
-      const job = jobs.get(jobId);
-      if (job) {
-        job.status = 'failed';
-        job.error = `Monitoring error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        jobs.set(jobId, job);
+      console.error('💥 Polling error for job', jobId, ':', error);
+      if (attempts < maxAttempts) {
+        setTimeout(poll, 2000); // Retry with longer delay
+      } else {
+        await updateJob(jobId, {
+          status: "failed",
+          error: "Polling failed: " + (error instanceof Error ? error.message : 'Unknown error'),
+          progress: 0
+        });
       }
     }
   };
 
-  // Start checking after 3 seconds
-  setTimeout(checkStatus, 3000);
+  // Start polling after a short delay
+  setTimeout(poll, 2000);
 }
 
-// GET endpoint to check job status
-export async function GET(request: NextRequest) {
-  const userId = getUserId(request);
-  const url = new URL(request.url);
-  const jobId = url.searchParams.get('jobId');
+async function processCompletedJob(jobId: string, jobData: any): Promise<void> {
+  try {
+    const job = await getJob(jobId);
+    if (!job) {
+      console.error('❌ Job not found for completion processing:', jobId);
+      return;
+    }
 
-  if (!jobId) {
-    return NextResponse.json(
-      { error: 'Missing jobId parameter' },
-      { status: 400 }
-    );
+    console.log('🎉 Processing completed job:', jobId);
+    
+    // Extract image URLs from outputs
+    const imageUrls: string[] = [];
+    
+    for (const nodeId in jobData.outputs) {
+      const nodeOutput = jobData.outputs[nodeId];
+      if (nodeOutput.images) {
+        for (const image of nodeOutput.images) {
+          const imageUrl = `${COMFYUI_URL}/view?filename=${image.filename}&subfolder=${image.subfolder}&type=${image.type}`;
+          imageUrls.push(imageUrl);
+          console.log('🖼️ Found image:', image.filename);
+        }
+      }
+    }
+    
+    const updatedJob = await updateJob(jobId, {
+      status: "completed",
+      progress: 100,
+      resultUrls: imageUrls,
+      lastChecked: new Date().toISOString()
+    });
+    
+    if (updatedJob) {
+      console.log('✅ Job completed successfully:', jobId, 'Images:', imageUrls.length);
+    } else {
+      console.error('❌ Failed to update completed job:', jobId);
+    }
+  } catch (error) {
+    console.error('💥 Error processing completed job:', error);
+    await updateJob(jobId, {
+      status: "failed",
+      error: "Failed to process results"
+    });
   }
-
-  const job = jobs.get(jobId);
-  
-  if (!job) {
-    return NextResponse.json(
-      { error: 'Job not found' },
-      { status: 404 }
-    );
-  }
-  
-  // Ensure user can only access their own jobs
-  if (job.userId && job.userId !== userId) {
-    return NextResponse.json(
-      { error: 'Access denied' },
-      { status: 403 }
-    );
-  }
-
-  return NextResponse.json(job);
 }
-
-// Export the jobs Map so other endpoints can access it
-export { jobs };

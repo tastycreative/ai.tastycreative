@@ -8,6 +8,10 @@ const isProtectedRoute = createRouteMatcher([
   '/team(.*)',
   '/workspace(.*)',
   '/api/webhooks(.*)',
+  '/api/generate(.*)',
+  '/api/jobs(.*)',
+  '/api/models(.*)',
+  '/api/user(.*)',
 ]);
 
 const isPublicRoute = createRouteMatcher([

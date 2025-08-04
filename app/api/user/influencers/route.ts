@@ -1,46 +1,75 @@
-// app/api/user/influencers/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-
-// Types
-interface InfluencerLoRA {
-  id: string;
-  userId: string;
-  name: string;
-  displayName: string;
-  fileName: string;
-  fileSize: number;
-  uploadedAt: string;
-  description?: string;
-  thumbnailUrl?: string;
-  isActive: boolean;
-  usageCount: number;
-  comfyUIPath?: string; // Path in ComfyUI models/loras directory
-}
-
-// In-memory storage (use database in production)
-const influencersDb: Map<string, InfluencerLoRA[]> = new Map();
-
-// Helper to get user ID (implement your auth logic here)
-function getUserId(request: NextRequest): string {
-  // For demo purposes, using a header or default user
-  return request.headers.get('x-user-id') || 'default-user';
-}
+import { 
+  getUserInfluencers, 
+  addUserInfluencer, 
+  getUserId,
+  type InfluencerLoRA 
+} from '@/lib/database';
 
 // GET /api/user/influencers - Fetch user's influencers
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserId(request);
-    const userInfluencers = influencersDb.get(userId) || [];
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: No user ID found' },
+        { status: 401 }
+      );
+    }
+    console.log('➕ === USER INFLUENCERS POST ===');
+    console.log('👤 Fetching influencers for user:', userId);
+    console.log('⏰ Timestamp:', new Date().toISOString());
     
-    return NextResponse.json({
+    // Use the shared database instance
+    const userInfluencers = await getUserInfluencers(userId) || []; // FIX: await here
+    
+    console.log(`📊 Found ${userInfluencers.length} influencers for user ${userId}`);
+    
+    if (userInfluencers.length > 0) {
+      console.log('📋 Influencer summary:');
+      const statusCounts = userInfluencers.reduce((acc, inf) => {
+        acc[inf.syncStatus || 'unknown'] = (acc[inf.syncStatus || 'unknown'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('📊 Status breakdown:', statusCounts);
+      
+      const activeCounts = {
+        active: userInfluencers.filter(inf => inf.isActive).length,
+        inactive: userInfluencers.filter(inf => !inf.isActive).length
+      };
+      console.log('📊 Active breakdown:', activeCounts);
+    }
+    
+    // Sort by most recent first
+    const sortedInfluencers = userInfluencers.sort((a, b) => 
+      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    );
+    
+    const response = {
       success: true,
-      influencers: userInfluencers
-    });
+      influencers: sortedInfluencers,
+      metadata: {
+        total: sortedInfluencers.length,
+        active: sortedInfluencers.filter(inf => inf.isActive).length,
+        synced: sortedInfluencers.filter(inf => inf.syncStatus === 'synced').length,
+        userId,
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    console.log('✅ Returning influencers data successfully');
+    return NextResponse.json(response);
+    
   } catch (error) {
-    console.error('Error fetching user influencers:', error);
+    console.error('💥 Error fetching user influencers:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch influencers' },
+      { 
+        success: false, 
+        error: 'Failed to fetch influencers',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      },
       { status: 500 }
     );
   }
@@ -49,42 +78,67 @@ export async function GET(request: NextRequest) {
 // POST /api/user/influencers - Create new influencer (metadata only)
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserId(request);
+    const userId = await getUserId(request);
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: No user ID found' },
+        { status: 401 }
+      );
+    }
+    console.log('➕ === USER INFLUENCERS POST ===');
+    console.log('👤 Creating influencer for user:', userId);
+
     const { displayName, description, fileName, fileSize, comfyUIPath } = await request.json();
-    
+    console.log('📋 Influencer data:', {
+      displayName,
+      fileName,
+      fileSize,
+      comfyUIPath: !!comfyUIPath
+    });
+
     if (!displayName || !fileName) {
+      console.error('❌ Missing required fields');
       return NextResponse.json(
         { success: false, error: 'Display name and file name are required' },
         { status: 400 }
       );
     }
-    
+
     const influencer: InfluencerLoRA = {
       id: uuidv4(),
-      userId,
-      name: fileName.replace(/\.[^/.]+$/, ""), // Remove extension
+      clerkId: userId, // userId is guaranteed to be string here
+      name: fileName.replace(/\.[^/.]+$/, ""),
       displayName,
       fileName,
+      originalFileName: fileName,
       fileSize: fileSize || 0,
       uploadedAt: new Date().toISOString(),
-      description,
+      description: description || '',
       isActive: true,
       usageCount: 0,
-      comfyUIPath
+      comfyUIPath,
+      syncStatus: 'pending'
     };
-    
-    const userInfluencers = influencersDb.get(userId) || [];
-    userInfluencers.push(influencer);
-    influencersDb.set(userId, userInfluencers);
-    
+
+    console.log('💾 Adding influencer to database:', influencer.id);
+
+    await addUserInfluencer(userId, influencer);
+
+    console.log('✅ Influencer created successfully:', influencer.id);
+
     return NextResponse.json({
       success: true,
-      influencer
+      influencer,
+      message: 'Influencer created successfully'
     });
   } catch (error) {
-    console.error('Error creating influencer:', error);
+    console.error('💥 Error creating influencer:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create influencer' },
+      {
+        success: false,
+        error: 'Failed to create influencer',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
