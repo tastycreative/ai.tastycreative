@@ -1,4 +1,4 @@
-// app/api/generate/text-to-image/route.ts - FIXED with Clerk + NeonDB
+// app/api/generate/text-to-image/route.ts - Updated with dynamic URL storage
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { auth } from '@clerk/nextjs/server';
@@ -10,6 +10,11 @@ import {
   debugJobsStorage,
   type GenerationJob 
 } from '@/lib/jobsStorage';
+import { 
+  saveImageToDatabase, 
+  buildComfyUIUrl,
+  type ImagePathInfo 
+} from '@/lib/imageStorage';
 
 const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15833';
 
@@ -26,7 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log('=== GENERATION REQUEST (CLERK + NEONDB) ===');
+    console.log('=== GENERATION REQUEST (DYNAMIC URLS) ===');
     console.log('Generating image for Clerk user:', clerkId);
     console.log('ComfyUI URL:', COMFYUI_URL);
     
@@ -55,14 +60,6 @@ export async function POST(request: NextRequest) {
     };
 
     console.log('Adding job to NeonDB...');
-    console.log('Job details:', {
-      id: job.id,
-      clerkId: job.clerkId,
-      status: job.status,
-      createdAt: job.createdAt
-    });
-
-    // Add to NeonDB via Prisma
     await addJob(job);
     
     // Verify job was added
@@ -76,14 +73,9 @@ export async function POST(request: NextRequest) {
     }
     console.log('Job verified in NeonDB');
 
-    // Debug storage state
-    const storageDebug = await debugJobsStorage();
-    console.log('Database debug after job creation:', storageDebug);
-
     // Submit to ComfyUI
     try {
       console.log('🚀 Submitting to ComfyUI...');
-      console.log('📝 Workflow preview:', JSON.stringify(workflow).substring(0, 200) + '...');
       
       const comfyUIResponse = await fetch(`${COMFYUI_URL}/prompt`, {
         method: 'POST',
@@ -94,7 +86,7 @@ export async function POST(request: NextRequest) {
           prompt: workflow,
           client_id: jobId,
         }),
-        signal: AbortSignal.timeout(10000) // 10 second timeout
+        signal: AbortSignal.timeout(10000)
       });
 
       console.log('🖥️ ComfyUI response status:', comfyUIResponse.status);
@@ -120,10 +112,7 @@ export async function POST(request: NextRequest) {
         console.log('🔗 ComfyUI prompt ID:', result.prompt_id);
       }
 
-      const updatedJob = await updateJob(jobId, updates);
-      if (!updatedJob) {
-        console.error('❌ Failed to update job after ComfyUI submission');
-      }
+      await updateJob(jobId, updates);
 
       // Track LoRA usage if a LoRA was used
       if (params?.selectedLora && params.selectedLora !== 'None') {
@@ -132,7 +121,6 @@ export async function POST(request: NextRequest) {
           await incrementInfluencerUsage(clerkId, params.selectedLora);
         } catch (usageError) {
           console.error('⚠️ Error tracking LoRA usage:', usageError);
-          // Don't fail the generation if usage tracking fails
         }
       }
 
@@ -168,7 +156,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Enhanced function to poll ComfyUI for progress and results
+// Enhanced polling function with dynamic URL storage
 async function pollComfyUIProgress(jobId: string) {
   const job = await getJob(jobId);
   if (!job) {
@@ -178,17 +166,16 @@ async function pollComfyUIProgress(jobId: string) {
 
   console.log(`🔄 === POLLING START for job ${jobId} ===`);
   let attempts = 0;
-  const maxAttempts = 300; // 5 minutes max (300 * 1 second)
+  const maxAttempts = 300;
 
   const poll = async () => {
     try {
       attempts++;
       console.log(`🔍 Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`);
       
-      // Update last checked time
       await updateJob(jobId, { lastChecked: new Date().toISOString() });
       
-      // Method 1: Check queue status first
+      // Check queue status
       try {
         const queueResponse = await fetch(`${COMFYUI_URL}/queue`, {
           method: 'GET',
@@ -197,9 +184,6 @@ async function pollComfyUIProgress(jobId: string) {
         
         if (queueResponse.ok) {
           const queueData = await queueResponse.json();
-          console.log('📋 Queue status - Running:', queueData.queue_running?.length || 0, 'Pending:', queueData.queue_pending?.length || 0);
-          
-          // Check if our job is in the running queue
           const isRunning = queueData.queue_running?.some((item: any) => {
             const clientId = item[2]?.client_id || item[1]?.client_id;
             return clientId === jobId;
@@ -217,7 +201,7 @@ async function pollComfyUIProgress(jobId: string) {
         console.warn('⚠️ Queue check failed:', queueError);
       }
 
-      // Method 2: Check history for completion
+      // Check history for completion
       try {
         const historyResponse = await fetch(`${COMFYUI_URL}/history`, {
           method: 'GET',
@@ -227,11 +211,9 @@ async function pollComfyUIProgress(jobId: string) {
         if (historyResponse.ok) {
           const historyData = await historyResponse.json();
           
-          // Look for our job in the history
           for (const [historyJobId, jobData] of Object.entries(historyData)) {
             const jobInfo = jobData as any;
             
-            // Check if this is our job
             const matchesClientId = jobInfo.prompt?.[1]?.client_id === jobId;
             const matchesPromptId = historyJobId === jobId;
             const currentJob = await getJob(jobId);
@@ -243,7 +225,7 @@ async function pollComfyUIProgress(jobId: string) {
               if (jobInfo.status?.status_str === 'success' && jobInfo.outputs) {
                 console.log('✅ Job completed successfully!');
                 await processCompletedJob(jobId, jobInfo);
-                return; // Stop polling
+                return;
               } else if (jobInfo.status?.status_str === 'error') {
                 console.log('❌ Job failed in ComfyUI');
                 await updateJob(jobId, {
@@ -251,7 +233,7 @@ async function pollComfyUIProgress(jobId: string) {
                   error: "Generation failed in ComfyUI",
                   progress: 0
                 });
-                return; // Stop polling
+                return;
               }
             }
           }
@@ -260,9 +242,9 @@ async function pollComfyUIProgress(jobId: string) {
         console.warn('⚠️ History check failed:', historyError);
       }
 
-      // Continue polling if not completed and within limits
+      // Continue polling
       if (attempts < maxAttempts) {
-        setTimeout(poll, 1000); // Poll every second
+        setTimeout(poll, 1000);
       } else {
         console.error('⏰ Polling timeout for job:', jobId);
         await updateJob(jobId, {
@@ -275,7 +257,7 @@ async function pollComfyUIProgress(jobId: string) {
     } catch (error) {
       console.error('💥 Polling error for job', jobId, ':', error);
       if (attempts < maxAttempts) {
-        setTimeout(poll, 2000); // Retry with longer delay
+        setTimeout(poll, 2000);
       } else {
         await updateJob(jobId, {
           status: "failed",
@@ -286,10 +268,10 @@ async function pollComfyUIProgress(jobId: string) {
     }
   };
 
-  // Start polling after a short delay
   setTimeout(poll, 2000);
 }
 
+// Updated processCompletedJob function with dynamic URL storage
 async function processCompletedJob(jobId: string, jobData: any): Promise<void> {
   try {
     const job = await getJob(jobId);
@@ -298,39 +280,84 @@ async function processCompletedJob(jobId: string, jobData: any): Promise<void> {
       return;
     }
 
-    console.log('🎉 Processing completed job:', jobId);
+    console.log('🎉 Processing completed job with dynamic URL storage:', jobId);
     
-    // Extract image URLs from outputs
-    const imageUrls: string[] = [];
+    // Extract image path information from outputs
+    const imagePathInfos: ImagePathInfo[] = [];
+    const legacyUrls: string[] = []; // Keep for backward compatibility
     
     for (const nodeId in jobData.outputs) {
       const nodeOutput = jobData.outputs[nodeId];
       if (nodeOutput.images) {
         for (const image of nodeOutput.images) {
-          const imageUrl = `${COMFYUI_URL}/view?filename=${image.filename}&subfolder=${image.subfolder}&type=${image.type}`;
-          imageUrls.push(imageUrl);
-          console.log('🖼️ Found image:', image.filename);
+          // Store path components instead of full URLs
+          const pathInfo: ImagePathInfo = {
+            filename: image.filename,
+            subfolder: image.subfolder || '',
+            type: image.type || 'output'
+          };
+          
+          imagePathInfos.push(pathInfo);
+          
+          // Also build legacy URL for backward compatibility
+          const legacyUrl = buildComfyUIUrl(pathInfo);
+          legacyUrls.push(legacyUrl);
+          
+          console.log('🖼️ Found image:', pathInfo.filename);
         }
       }
     }
     
+    console.log('💾 Saving', imagePathInfos.length, 'images with dynamic URLs...');
+    
+    // Save each image to the database using path components
+    const savedImages = [];
+    for (const pathInfo of imagePathInfos) {
+      try {
+        const savedImage = await saveImageToDatabase(
+          job.clerkId,
+          jobId,
+          pathInfo,
+          {
+            saveData: true, // Set to true to store actual image data
+            extractMetadata: true // Set to true to extract image metadata
+          }
+        );
+        
+        if (savedImage) {
+          savedImages.push(savedImage);
+          console.log('✅ Saved image to database:', savedImage.filename);
+        } else {
+          console.error('❌ Failed to save image:', pathInfo.filename);
+        }
+      } catch (imageError) {
+        console.error('💥 Error saving individual image:', pathInfo.filename, imageError);
+      }
+    }
+    
+    console.log('📊 Successfully saved', savedImages.length, 'out of', imagePathInfos.length, 'images');
+    
+    // Update job with completion status
     const updatedJob = await updateJob(jobId, {
       status: "completed",
       progress: 100,
-      resultUrls: imageUrls,
+      resultUrls: legacyUrls, // Keep legacy URLs for backward compatibility
       lastChecked: new Date().toISOString()
     });
     
     if (updatedJob) {
-      console.log('✅ Job completed successfully:', jobId, 'Images:', imageUrls.length);
+      console.log('✅ Job completed successfully:', jobId);
+      console.log('🖼️ Images in database:', savedImages.length);
+      console.log('🔗 Dynamic URLs will be constructed as needed');
     } else {
       console.error('❌ Failed to update completed job:', jobId);
     }
+    
   } catch (error) {
     console.error('💥 Error processing completed job:', error);
     await updateJob(jobId, {
       status: "failed",
-      error: "Failed to process results"
+      error: "Failed to process results: " + (error instanceof Error ? error.message : 'Unknown error')
     });
   }
 }
