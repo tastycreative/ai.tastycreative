@@ -1,4 +1,4 @@
-// app/(dashboard)/workspace/generate-content/text-to-image/page.tsx - CLEAN VERSION
+// app/(dashboard)/workspace/generate-content/text-to-image/page.tsx - COMPLETE WITH DYNAMIC URLS
 "use client";
 
 import { useState, useEffect } from "react";
@@ -50,6 +50,21 @@ interface LoRAModel {
   fileName: string;
   displayName: string;
   name: string;
+}
+
+// Updated DatabaseImage interface for dynamic URLs
+interface DatabaseImage {
+  id: string;
+  filename: string;
+  subfolder: string;
+  type: string;
+  fileSize?: number;
+  width?: number;
+  height?: number;
+  format?: string;
+  url?: string; // Dynamically constructed ComfyUI URL
+  dataUrl?: string; // Database-served image URL
+  createdAt: Date | string;
 }
 
 // Constants
@@ -125,12 +140,153 @@ export default function TextToImagePage() {
   ]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
+  // Database image states
+  const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>({});
+  const [imageStats, setImageStats] = useState<any>(null);
+
   // Initialize empty job history on mount
   useEffect(() => {
     if (!Array.isArray(jobHistory)) {
       setJobHistory([]);
     }
   }, []);
+
+  // Fetch image stats on mount
+  useEffect(() => {
+    fetchImageStats();
+  }, []);
+
+  // Function to fetch images for a completed job
+  const fetchJobImages = async (jobId: string): Promise<boolean> => {
+    try {
+      console.log('🖼️ Fetching database images for job:', jobId);
+      
+      const response = await apiClient.get(`/api/jobs/${jobId}/images`);
+      console.log('📡 Image fetch response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to fetch job images:', response.status, errorText);
+        return false;
+      }
+      
+      const data = await response.json();
+      console.log('📊 Job images data:', data);
+      
+      if (data.success && data.images && Array.isArray(data.images)) {
+        setJobImages(prev => ({
+          ...prev,
+          [jobId]: data.images
+        }));
+        console.log('✅ Updated job images state for job:', jobId, 'Images count:', data.images.length);
+        
+        // Log sample image data for debugging
+        if (data.images.length > 0) {
+          console.log('📸 Sample image:', {
+            filename: data.images[0].filename,
+            hasDataUrl: !!data.images[0].dataUrl,
+            hasUrl: !!data.images[0].url,
+            id: data.images[0].id
+          });
+        }
+        
+        return data.images.length > 0;
+      } else {
+        console.warn('⚠️ Invalid response format:', data);
+        return false;
+      }
+      
+    } catch (error) {
+      console.error('💥 Error fetching job images:', error);
+      return false;
+    }
+  };
+
+  // Function to fetch user image statistics
+  const fetchImageStats = async () => {
+    try {
+      const response = await apiClient.get('/api/images?stats=true');
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setImageStats(data.stats);
+          console.log('📊 Image stats:', data.stats);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching image stats:', error);
+    }
+  };
+
+  // Function to download image with dynamic URL support
+  const downloadDatabaseImage = async (image: DatabaseImage) => {
+    try {
+      console.log('📥 Downloading image:', image.filename);
+      
+      if (image.dataUrl) {
+        // Priority 1: Download from database
+        const response = await apiClient.get(image.dataUrl);
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = image.filename;
+          link.click();
+          
+          URL.revokeObjectURL(url);
+          console.log('✅ Database image downloaded');
+          return;
+        }
+      }
+      
+      if (image.url) {
+        // Priority 2: Download from ComfyUI (dynamic URL)
+        const link = document.createElement('a');
+        link.href = image.url;
+        link.download = image.filename;
+        link.click();
+        console.log('✅ ComfyUI image downloaded');
+        return;
+      }
+      
+      throw new Error('No download URL available');
+      
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      alert('Failed to download image: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
+  // Function to share image URL
+  const shareImage = (image: DatabaseImage) => {
+    let urlToShare = '';
+    
+    if (image.dataUrl) {
+      // Priority 1: Share database URL (more reliable)
+      urlToShare = `${window.location.origin}${image.dataUrl}`;
+    } else if (image.url) {
+      // Priority 2: Share ComfyUI URL (dynamic)
+      urlToShare = image.url;
+    } else {
+      alert('No shareable URL available for this image');
+      return;
+    }
+    
+    navigator.clipboard.writeText(urlToShare);
+    alert('Image URL copied to clipboard!');
+  };
+
+  // Helper function for legacy URL downloads
+  const downloadFromUrl = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+  };
 
   // Fetch available LoRA models on component mount
   useEffect(() => {
@@ -244,7 +400,7 @@ export default function TextToImagePage() {
     }
   };
 
-  // Poll job status
+  // Updated poll job status with database image fetching
   const pollJobStatus = async (jobId: string) => {
     console.log('=== STARTING JOB POLLING ===');
     console.log('Polling job ID:', jobId);
@@ -299,6 +455,19 @@ export default function TextToImagePage() {
         if (job.status === "completed") {
           console.log('Job completed successfully!');
           setIsGenerating(false);
+          
+          // Fetch database images for completed job with retry logic
+          console.log('🔄 Attempting to fetch job images...');
+          const fetchSuccess = await fetchJobImages(jobId);
+          
+          // If fetch failed or no images found, retry after a short delay
+          if (!fetchSuccess) {
+            console.log('🔄 Retrying image fetch after delay...');
+            setTimeout(() => {
+              fetchJobImages(jobId);
+            }, 3000);
+          }
+          
           return;
         } else if (job.status === "failed") {
           console.log('Job failed:', job.error);
@@ -307,7 +476,6 @@ export default function TextToImagePage() {
         }
 
         // Continue polling
-        attempts++;
         if (attempts < maxAttempts) {
           setTimeout(poll, 1000);
         } else {
@@ -811,6 +979,27 @@ export default function TextToImagePage() {
 
         {/* Right Panel - Results */}
         <div className="space-y-6">
+          {/* Image Statistics */}
+          {imageStats && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Your Image Library
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-600 dark:text-gray-400">Total Images:</span>
+                  <span className="ml-2 font-medium">{imageStats.totalImages}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600 dark:text-gray-400">Total Size:</span>
+                  <span className="ml-2 font-medium">
+                    {Math.round(imageStats.totalSize / 1024 / 1024 * 100) / 100} MB
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Current Generation */}
           {currentJob && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -818,6 +1007,15 @@ export default function TextToImagePage() {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Current Generation
                 </h3>
+                {currentJob.status === "completed" && (
+                  <button
+                    onClick={() => fetchJobImages(currentJob.id)}
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Refresh generated images"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -860,49 +1058,132 @@ export default function TextToImagePage() {
                   </div>
                 )}
 
-                {currentJob.resultUrls && currentJob.resultUrls.length > 0 && (
+                {/* Show loading or no images message for completed jobs */}
+                {currentJob.status === "completed" && 
+                 (!currentJob.resultUrls || currentJob.resultUrls.length === 0) &&
+                 (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0) && (
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Generated Images
                     </h4>
+                    <div className="text-center py-8">
+                      <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Loading generated images...</span>
+                      </div>
+                      <button
+                        onClick={() => fetchJobImages(currentJob.id)}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                      >
+                        Refresh Images
+                      </button>
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        If images don't appear automatically, click refresh
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Enhanced image display with dynamic URL support */}
+                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) || 
+                  (jobImages[currentJob.id] && jobImages[currentJob.id].length > 0)) && (
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Generated Images
+                    </h4>
+                    
                     <div className="grid grid-cols-1 gap-3">
-                      {currentJob.resultUrls.map((url, index) => (
-                        <div key={`result-${currentJob.id}-${index}`} className="relative group">
-                          <img
-                            src={url}
-                            alt={`Generated image ${index + 1}`}
-                            className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                            onError={(e) => {
-                              console.error('Image load error:', url);
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="flex space-x-1">
-                              <button 
-                                onClick={() => {
-                                  const link = document.createElement('a');
-                                  link.href = url;
-                                  link.download = `generated-image-${index + 1}.png`;
-                                  link.click();
-                                }}
-                                className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  navigator.clipboard.writeText(url);
-                                  alert('Image URL copied to clipboard!');
-                                }}
-                                className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                              >
-                                <Share2 className="w-4 h-4" />
-                              </button>
+                      {/* Show database images if available */}
+                      {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 ? (
+                        // Database images with dynamic URLs
+                        jobImages[currentJob.id].map((dbImage, index) => (
+                          <div key={`db-${dbImage.id}`} className="relative group">
+                            <img
+                              src={dbImage.dataUrl || dbImage.url}
+                              alt={`Generated image ${index + 1}`}
+                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                              onError={(e) => {
+                                console.error('Image load error for:', dbImage.filename);
+                                
+                                // Smart fallback logic
+                                const currentSrc = (e.target as HTMLImageElement).src;
+                                
+                                if (currentSrc === dbImage.dataUrl && dbImage.url) {
+                                  console.log('Falling back to ComfyUI URL');
+                                  (e.target as HTMLImageElement).src = dbImage.url;
+                                } else if (currentSrc === dbImage.url && dbImage.dataUrl) {
+                                  console.log('Falling back to database URL');
+                                  (e.target as HTMLImageElement).src = dbImage.dataUrl;
+                                } else {
+                                  console.error('All URLs failed for:', dbImage.filename);
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }
+                              }}
+                            />
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex space-x-1">
+                                <button 
+                                  onClick={() => downloadDatabaseImage(dbImage)}
+                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  title={`Download ${dbImage.filename} (${dbImage.fileSize ? `${Math.round(dbImage.fileSize / 1024)}KB` : 'Unknown size'})`}
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => shareImage(dbImage)}
+                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {/* Image metadata */}
+                            <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                {dbImage.width && dbImage.height ? `${dbImage.width}×${dbImage.height}` : 'Unknown size'}
+                                {dbImage.fileSize && ` • ${Math.round(dbImage.fileSize / 1024)}KB`}
+                                {dbImage.format && ` • ${dbImage.format.toUpperCase()}`}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      ) : (
+                        // Fallback to legacy URLs if no database images
+                        currentJob.resultUrls && currentJob.resultUrls.length > 0 && 
+                        currentJob.resultUrls.map((url, index) => (
+                          <div key={`legacy-${currentJob.id}-${index}`} className="relative group">
+                            <img
+                              src={url}
+                              alt={`Generated image ${index + 1}`}
+                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                              onError={(e) => {
+                                console.error('Legacy image load error:', url);
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex space-x-1">
+                                <button 
+                                  onClick={() => downloadFromUrl(url, `generated-image-${index + 1}.png`)}
+                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(url);
+                                    alert('Image URL copied to clipboard!');
+                                  }}
+                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
@@ -952,8 +1233,12 @@ export default function TextToImagePage() {
                     </div>
                     {job.resultUrls && job.resultUrls.length > 0 && (
                       <div className="flex space-x-1">
-                        <button className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
-                          <Download className="w-4 h-4" />
+                        <button 
+                          onClick={() => fetchJobImages(job.id)}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                          title="Refresh images"
+                        >
+                          <RefreshCw className="w-4 h-4" />
                         </button>
                       </div>
                     )}
