@@ -1,4 +1,4 @@
-// app/api/generate/face-swap/route.ts - NEW FILE
+// app/api/generate/skin-enhancer/route.ts - Skin Enhancer with dynamic URL storage
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { auth } from '@clerk/nextjs/server';
@@ -7,6 +7,7 @@ import {
   addJob, 
   getJob, 
   updateJob, 
+  debugJobsStorage,
   type GenerationJob 
 } from '@/lib/jobsStorage';
 import { 
@@ -30,29 +31,15 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log('=== FACE SWAP GENERATION REQUEST ===');
-    console.log('Generating face swap for Clerk user:', clerkId);
+    console.log('=== SKIN ENHANCEMENT REQUEST ===');
+    console.log('Enhancing skin for Clerk user:', clerkId);
     console.log('ComfyUI URL:', COMFYUI_URL);
     
-    const { workflow, params, originalImage, newFaceImage, maskImage } = await request.json();
+    const { workflow, params } = await request.json();
     
     if (!workflow) {
       return NextResponse.json(
         { error: 'Missing workflow data' },
-        { status: 400 }
-      );
-    }
-
-    if (!originalImage) {
-      return NextResponse.json(
-        { error: 'Missing original image' },
-        { status: 400 }
-      );
-    }
-
-    if (!newFaceImage) {
-      return NextResponse.json(
-        { error: 'Missing new face image' },
         { status: 400 }
       );
     }
@@ -67,18 +54,12 @@ export async function POST(request: NextRequest) {
       userId: clerkId,
       status: "pending",
       createdAt: new Date(),
-      params: {
-        ...params,
-        originalImage,
-        newFaceImage,
-        maskImage,
-        generationType: 'face-swap'
-      },
+      params,
       lastChecked: new Date().toISOString(),
       progress: 0
     };
 
-    console.log('Adding face swap job to NeonDB...');
+    console.log('Adding skin enhancement job to NeonDB...');
     await addJob(job);
     
     // Verify job was added
@@ -94,10 +75,7 @@ export async function POST(request: NextRequest) {
 
     // Submit to ComfyUI
     try {
-      console.log('🚀 Submitting face swap to ComfyUI...');
-      console.log('📸 Original image:', originalImage);
-      console.log('👤 New face image:', newFaceImage);
-      console.log('🎭 Mask image:', maskImage || 'None');
+      console.log('🚀 Submitting skin enhancer to ComfyUI...');
       
       const comfyUIResponse = await fetch(`${COMFYUI_URL}/prompt`, {
         method: 'POST',
@@ -136,18 +114,18 @@ export async function POST(request: NextRequest) {
 
       await updateJob(jobId, updates);
 
-      // Track LoRA usage if a LoRA was used
-      if (params?.selectedLora && params.selectedLora !== 'None') {
-        console.log('📊 Tracking LoRA usage:', params.selectedLora);
+      // Track influencer LoRA usage if used
+      if (params?.selectedInfluencerLora && params.selectedInfluencerLora !== 'None') {
+        console.log('📊 Tracking influencer LoRA usage:', params.selectedInfluencerLora);
         try {
-          await incrementInfluencerUsage(clerkId, params.selectedLora);
+          await incrementInfluencerUsage(clerkId, params.selectedInfluencerLora);
         } catch (usageError) {
           console.error('⚠️ Error tracking LoRA usage:', usageError);
         }
       }
 
       // Start polling ComfyUI for results
-      console.log('🔄 Starting ComfyUI polling...');
+      console.log('🔄 Starting ComfyUI polling for skin enhancement...');
       pollComfyUIProgress(jobId);
 
     } catch (error) {
@@ -159,26 +137,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.log('✅ Face swap request completed, returning job ID:', jobId);
+    console.log('✅ Skin enhancement request completed, returning job ID:', jobId);
     return NextResponse.json({ 
       success: true,
       jobId,
-      message: 'Face swap started successfully' 
+      message: 'Skin enhancement started successfully' 
     });
 
   } catch (error) {
-    console.error('💥 Face swap generation error:', error);
+    console.error('💥 Skin enhancement error:', error);
     return NextResponse.json(
       { 
         success: false,
-        error: 'Face swap failed: ' + (error instanceof Error ? error.message : 'Unknown error') 
+        error: 'Skin enhancement failed: ' + (error instanceof Error ? error.message : 'Unknown error') 
       },
       { status: 500 }
     );
   }
 }
 
-// Enhanced polling function for face swap
+// Enhanced polling function for skin enhancement with dynamic URL storage
 async function pollComfyUIProgress(jobId: string) {
   const job = await getJob(jobId);
   if (!job) {
@@ -186,14 +164,14 @@ async function pollComfyUIProgress(jobId: string) {
     return;
   }
 
-  console.log(`🔄 === FACE SWAP POLLING START for job ${jobId} ===`);
+  console.log(`🔄 === SKIN ENHANCEMENT POLLING START for job ${jobId} ===`);
   let attempts = 0;
-  const maxAttempts = 300; // 5 minutes for face swap (can be complex)
+  const maxAttempts = 300; // 5 minutes for skin enhancement (more complex workflow)
 
   const poll = async () => {
     try {
       attempts++;
-      console.log(`🔍 Polling attempt ${attempts}/${maxAttempts} for face swap job ${jobId}`);
+      console.log(`🔍 Polling attempt ${attempts}/${maxAttempts} for skin enhancement job ${jobId}`);
       
       await updateJob(jobId, { lastChecked: new Date().toISOString() });
       
@@ -212,11 +190,12 @@ async function pollComfyUIProgress(jobId: string) {
           });
           
           if (isRunning) {
+            const progress = Math.min(20 + (attempts * 1.5), 90); // Slower progress for complex workflow
             await updateJob(jobId, {
               status: "processing",
-              progress: Math.min(20 + (attempts * 2), 90)
+              progress: Math.round(progress)
             });
-            console.log('⚙️ Face swap job is running, progress:', Math.min(20 + (attempts * 2), 90));
+            console.log('⚙️ Skin enhancement job is running, progress:', Math.round(progress));
           }
         }
       } catch (queueError) {
@@ -242,17 +221,17 @@ async function pollComfyUIProgress(jobId: string) {
             const matchesComfyUIPromptId = currentJob?.comfyUIPromptId === historyJobId;
             
             if (matchesClientId || matchesPromptId || matchesComfyUIPromptId) {
-              console.log('🎯 Found face swap job in history:', historyJobId);
+              console.log('🎯 Found skin enhancement job in history:', historyJobId);
               
               if (jobInfo.status?.status_str === 'success' && jobInfo.outputs) {
-                console.log('✅ Face swap job completed successfully!');
-                await processCompletedFaceSwapJob(jobId, jobInfo);
+                console.log('✅ Skin enhancement job completed successfully!');
+                await processSkinEnhancementCompletion(jobId, jobInfo);
                 return;
               } else if (jobInfo.status?.status_str === 'error') {
-                console.log('❌ Face swap job failed in ComfyUI');
+                console.log('❌ Skin enhancement job failed in ComfyUI');
                 await updateJob(jobId, {
                   status: "failed",
-                  error: "Face swap failed in ComfyUI",
+                  error: "Skin enhancement failed in ComfyUI",
                   progress: 0
                 });
                 return;
@@ -266,20 +245,20 @@ async function pollComfyUIProgress(jobId: string) {
 
       // Continue polling
       if (attempts < maxAttempts) {
-        setTimeout(poll, 1000);
+        setTimeout(poll, 2000); // Longer interval for complex workflow
       } else {
-        console.error('⏰ Polling timeout for face swap job:', jobId);
+        console.error('⏰ Polling timeout for skin enhancement job:', jobId);
         await updateJob(jobId, {
           status: "failed",
-          error: "Face swap timeout - job may still be running in ComfyUI",
+          error: "Skin enhancement timeout - job may still be running in ComfyUI",
           progress: 0
         });
       }
 
     } catch (error) {
-      console.error('💥 Polling error for face swap job', jobId, ':', error);
+      console.error('💥 Polling error for skin enhancement job', jobId, ':', error);
       if (attempts < maxAttempts) {
-        setTimeout(poll, 2000);
+        setTimeout(poll, 3000); // Even longer retry delay
       } else {
         await updateJob(jobId, {
           status: "failed",
@@ -293,16 +272,16 @@ async function pollComfyUIProgress(jobId: string) {
   setTimeout(poll, 2000);
 }
 
-// Process completed face swap job
-async function processCompletedFaceSwapJob(jobId: string, jobData: any): Promise<void> {
+// Updated processSkinEnhancementCompletion function with dynamic URL storage
+async function processSkinEnhancementCompletion(jobId: string, jobData: any): Promise<void> {
   try {
     const job = await getJob(jobId);
     if (!job) {
-      console.error('❌ Job not found for completion processing:', jobId);
+      console.error('❌ Job not found for skin enhancement completion processing:', jobId);
       return;
     }
 
-    console.log('🎉 Processing completed face swap job:', jobId);
+    console.log('🎉 Processing completed skin enhancement job with dynamic URL storage:', jobId);
     
     // Extract image path information from outputs
     const imagePathInfos: ImagePathInfo[] = [];
@@ -325,12 +304,12 @@ async function processCompletedFaceSwapJob(jobId: string, jobData: any): Promise
           const legacyUrl = buildComfyUIUrl(pathInfo);
           legacyUrls.push(legacyUrl);
           
-          console.log('🖼️ Found face swap result:', pathInfo.filename);
+          console.log('🖼️ Found skin enhanced image:', pathInfo.filename);
         }
       }
     }
     
-    console.log('💾 Saving', imagePathInfos.length, 'face swap results with dynamic URLs...');
+    console.log('💾 Saving', imagePathInfos.length, 'skin enhanced images with dynamic URLs...');
     
     // Save each image to the database using path components
     const savedImages = [];
@@ -341,23 +320,23 @@ async function processCompletedFaceSwapJob(jobId: string, jobData: any): Promise
           jobId,
           pathInfo,
           {
-            saveData: true, // Store actual image data
+            saveData: true, // Store actual image data for skin enhanced images
             extractMetadata: true // Extract image metadata
           }
         );
         
         if (savedImage) {
           savedImages.push(savedImage);
-          console.log('✅ Saved face swap result to database:', savedImage.filename);
+          console.log('✅ Saved skin enhanced image to database:', savedImage.filename);
         } else {
-          console.error('❌ Failed to save face swap result:', pathInfo.filename);
+          console.error('❌ Failed to save skin enhanced image:', pathInfo.filename);
         }
       } catch (imageError) {
-        console.error('💥 Error saving individual face swap result:', pathInfo.filename, imageError);
+        console.error('💥 Error saving individual skin enhanced image:', pathInfo.filename, imageError);
       }
     }
     
-    console.log('📊 Successfully saved', savedImages.length, 'out of', imagePathInfos.length, 'face swap results');
+    console.log('📊 Successfully saved', savedImages.length, 'out of', imagePathInfos.length, 'skin enhanced images');
     
     // Update job with completion status
     const updatedJob = await updateJob(jobId, {
@@ -368,18 +347,18 @@ async function processCompletedFaceSwapJob(jobId: string, jobData: any): Promise
     });
     
     if (updatedJob) {
-      console.log('✅ Face swap job completed successfully:', jobId);
-      console.log('🖼️ Results in database:', savedImages.length);
+      console.log('✅ Skin enhancement job completed successfully:', jobId);
+      console.log('🖼️ Enhanced images in database:', savedImages.length);
       console.log('🔗 Dynamic URLs will be constructed as needed');
     } else {
-      console.error('❌ Failed to update completed face swap job:', jobId);
+      console.error('❌ Failed to update completed skin enhancement job:', jobId);
     }
     
   } catch (error) {
-    console.error('💥 Error processing completed face swap job:', error);
+    console.error('💥 Error processing completed skin enhancement job:', error);
     await updateJob(jobId, {
       status: "failed",
-      error: "Failed to process results: " + (error instanceof Error ? error.message : 'Unknown error')
+      error: "Failed to process skin enhancement results: " + (error instanceof Error ? error.message : 'Unknown error')
     });
   }
 }

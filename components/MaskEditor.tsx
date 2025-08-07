@@ -1,4 +1,4 @@
-// components/MaskEditor.tsx - Person Detection focused mask editor
+// components/MaskEditor.tsx - Updated with manual control props
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { 
   Brush, 
@@ -17,6 +17,10 @@ interface MaskEditorProps {
   imageUrl: string;
   onMaskUpdate: (maskDataUrl: string | null) => void;
   className?: string;
+  // New props for manual control
+  autoDetect?: boolean;
+  startWithBlankCanvas?: boolean;
+  initialMask?: string | null;
 }
 
 interface Point {
@@ -24,7 +28,14 @@ interface Point {
   y: number;
 }
 
-export default function MaskEditor({ imageUrl, onMaskUpdate, className = '' }: MaskEditorProps) {
+export default function MaskEditor({ 
+  imageUrl, 
+  onMaskUpdate, 
+  className = '',
+  autoDetect = true,          // Default to true for backward compatibility
+  startWithBlankCanvas = false, // Default to false for backward compatibility  
+  initialMask = null          // Optional initial mask to load
+}: MaskEditorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -581,7 +592,25 @@ export default function MaskEditor({ imageUrl, onMaskUpdate, className = '' }: M
     setIsProcessing(false);
   }, [updateMaskPreview, generateMaskData]);
 
-  // Initialize canvas when image loads
+  // Load initial mask function
+  const loadInitialMask = useCallback((maskDataUrl: string) => {
+    const maskCanvas = maskCanvasRef.current;
+    if (!maskCanvas) return;
+    
+    const ctx = maskCanvas.getContext('2d');
+    if (!ctx) return;
+    
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+      ctx.drawImage(img, 0, 0, maskCanvas.width, maskCanvas.height);
+      updateMaskPreview();
+      generateMaskData();
+    };
+    img.src = maskDataUrl;
+  }, [updateMaskPreview, generateMaskData]);
+
+  // Initialize canvas when image loads - UPDATED with manual control
   const initializeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     const maskCanvas = maskCanvasRef.current;
@@ -627,11 +656,20 @@ export default function MaskEditor({ imageUrl, onMaskUpdate, className = '' }: M
     
     setImageLoaded(true);
     
-    // Automatically apply person detection after a short delay
-    setTimeout(() => {
-      detectPerson();
-    }, 100);
-  }, [detectPerson]);
+    // Only auto-detect if enabled AND not starting with blank canvas
+    if (autoDetect && !startWithBlankCanvas) {
+      setTimeout(() => {
+        detectPerson();
+      }, 100);
+    }
+    
+    // Load initial mask if provided
+    if (initialMask && startWithBlankCanvas) {
+      setTimeout(() => {
+        loadInitialMask(initialMask);
+      }, 200);
+    }
+  }, [detectPerson, autoDetect, startWithBlankCanvas, initialMask, loadInitialMask]);
 
   // Load image
   useEffect(() => {
@@ -902,7 +940,7 @@ export default function MaskEditor({ imageUrl, onMaskUpdate, className = '' }: M
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
             <div className="text-center text-gray-500 dark:text-gray-400">
               <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-              <p>Loading image and detecting person...</p>
+              <p>Loading image{autoDetect && !startWithBlankCanvas ? ' and detecting person...' : '...'}</p>
             </div>
           </div>
         )}
@@ -924,19 +962,37 @@ export default function MaskEditor({ imageUrl, onMaskUpdate, className = '' }: M
             )}
           </div>
         )}
+        
+        {/* Mode indicator for manual masking */}
+        {startWithBlankCanvas && (
+          <div className="absolute top-2 right-2 bg-blue-500 bg-opacity-90 text-white px-2 py-1 rounded text-xs">
+            Manual Mode
+          </div>
+        )}
       </div>
 
       {/* Instructions */}
       <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-        <p><strong>Person Detection & Masking:</strong></p>
+        <p><strong>{startWithBlankCanvas ? 'Manual Mask Editor:' : 'Person Detection & Masking:'}</strong></p>
         <ul className="list-disc list-inside space-y-1">
-          <li><strong>👤 Automatic Person Detection:</strong> Detects and masks people automatically when you upload an image</li>
-          <li><strong>🖌️ Brush Tool:</strong> Manually add areas to the person mask</li>
-          <li><strong>🧽 Eraser Tool:</strong> Remove areas from the person mask</li>
-          <li><strong>🎯 Re-detect Person:</strong> Click the target button to run person detection again</li>
+          {startWithBlankCanvas ? (
+            <>
+              <li><strong>🖌️ Brush Tool:</strong> Paint areas you want to mask (white areas will be processed)</li>
+              <li><strong>🧽 Eraser Tool:</strong> Remove areas from the mask</li>
+              <li><strong>🎯 Person Detection:</strong> Click the target button to auto-detect people</li>
+              <li><strong>Manual Control:</strong> Start with a blank canvas for precise masking</li>
+            </>
+          ) : (
+            <>
+              <li><strong>👤 Automatic Person Detection:</strong> Detects and masks people automatically when you upload an image</li>
+              <li><strong>🖌️ Brush Tool:</strong> Manually add areas to the person mask</li>
+              <li><strong>🧽 Eraser Tool:</strong> Remove areas from the person mask</li>
+              <li><strong>🎯 Re-detect Person:</strong> Click the target button to run person detection again</li>
+            </>
+          )}
           <li><strong>Algorithm:</strong> Uses skin tone detection + human proportions + intelligent region growing</li>
           <li><strong>Best for:</strong> Portraits, full-body photos, group photos, fashion shots</li>
-          <li>Red overlay shows detected person areas that will receive style transfer</li>
+          <li>Red overlay shows {startWithBlankCanvas ? 'masked' : 'detected person'} areas that will be processed</li>
         </ul>
       </div>
     </div>
