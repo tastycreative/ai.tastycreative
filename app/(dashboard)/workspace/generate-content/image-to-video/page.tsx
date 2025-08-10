@@ -34,12 +34,8 @@ interface GenerationParams {
   cfg: number;
   samplerName: string;
   scheduler: string;
-  guidance: number;
-  loraStrength: number;
-  selectedLora: string;
   seed: number | null;
   uploadedImage: string | null;
-  maskImage: string | null;
 }
 
 interface GenerationJob {
@@ -52,12 +48,6 @@ interface GenerationJob {
   userId?: string;
   lastChecked?: string;
   comfyUIPromptId?: string;
-}
-
-interface LoRAModel {
-  fileName: string;
-  displayName: string;
-  name: string;
 }
 
 interface DatabaseVideo {
@@ -84,7 +74,7 @@ const ASPECT_RATIOS = [
 
 const SAMPLERS = [
   "euler",
-  "euler_ancestral", 
+  "euler_ancestral",
   "heun",
   "dpm_2",
   "dpm_2_ancestral",
@@ -97,7 +87,7 @@ const SCHEDULERS = [
   "simple",
   "normal",
   "karras",
-  "exponential", 
+  "exponential",
   "sgm_uniform",
   "ddim_uniform",
   "beta",
@@ -106,7 +96,8 @@ const SCHEDULERS = [
 const formatJobTime = (createdAt: Date | string | undefined): string => {
   try {
     if (!createdAt) return "Unknown time";
-    const date = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+    const date =
+      typeof createdAt === "string" ? new Date(createdAt) : createdAt;
     if (isNaN(date.getTime())) return "Invalid time";
     return date.toLocaleTimeString();
   } catch (error) {
@@ -118,7 +109,8 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 export default function ImageToVideoPage() {
   const [params, setParams] = useState<GenerationParams>({
     prompt: "",
-    negativePrompt: "",
+    negativePrompt:
+      "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
     width: 720,
     height: 480,
     length: 65,
@@ -127,12 +119,8 @@ export default function ImageToVideoPage() {
     cfg: 1,
     samplerName: "euler",
     scheduler: "simple",
-    guidance: 4,
-    loraStrength: 1.5,
-    selectedLora: "None",
     seed: null,
     uploadedImage: null,
-    maskImage: null,
   });
 
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
@@ -140,14 +128,14 @@ export default function ImageToVideoPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null);
-  const [availableLoRAs, setAvailableLoRAs] = useState<LoRAModel[]>([
-    { fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }
-  ]);
-  const [loadingLoRAs, setLoadingLoRAs] = useState(true);
+  const [uploadedImagePreview, setUploadedImagePreview] = useState<
+    string | null
+  >(null);
 
   // Video-specific states
-  const [jobVideos, setJobVideos] = useState<Record<string, DatabaseVideo[]>>({});
+  const [jobVideos, setJobVideos] = useState<Record<string, DatabaseVideo[]>>(
+    {}
+  );
   const [videoStats, setVideoStats] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,146 +149,116 @@ export default function ImageToVideoPage() {
     fetchVideoStats();
   }, []);
 
-  // Fetch LoRA models
-  useEffect(() => {
-    const fetchLoRAModels = async () => {
-      try {
-        setLoadingLoRAs(true);
-        console.log('=== FETCHING LORA MODELS FOR I2V ===');
-        
-        const response = await apiClient.get("/api/models/loras");
-        console.log('LoRA API response status:', response.status);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log('LoRA API response data:', data);
-
-        if (data.success && data.models && Array.isArray(data.models)) {
-          console.log('Available LoRA models:', data.models);
-          setAvailableLoRAs(data.models);
-          
-          const currentLoRAExists = data.models.some((lora: LoRAModel) => lora.fileName === params.selectedLora);
-          if (!currentLoRAExists) {
-            const defaultLora = data.models.find((lora: LoRAModel) => lora.fileName === "None")?.fileName || data.models[0]?.fileName || "None";
-            console.log('Setting default LoRA to:', defaultLora);
-            setParams((prev) => ({
-              ...prev,
-              selectedLora: defaultLora,
-            }));
-          }
-        } else {
-          console.error('Invalid LoRA API response:', data);
-          setAvailableLoRAs([{ fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }]);
-        }
-      } catch (error) {
-        console.error('Error fetching LoRA models:', error);
-        setAvailableLoRAs([{ fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }]);
-      } finally {
-        setLoadingLoRAs(false);
-      }
-    };
-
-    fetchLoRAModels();
-  }, []);
-
   // Fetch video statistics
   const fetchVideoStats = async () => {
     try {
-      const response = await apiClient.get('/api/videos?stats=true');
-      
+      const response = await apiClient.get("/api/videos?stats=true");
+
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setVideoStats(data.stats);
-          console.log('📊 Video stats:', data.stats);
+          console.log("📊 Video stats:", data.stats);
         }
       }
     } catch (error) {
-      console.error('Error fetching video stats:', error);
+      console.error("Error fetching video stats:", error);
     }
   };
 
   // Fetch videos for a completed job
   const fetchJobVideos = async (jobId: string): Promise<boolean> => {
     try {
-      console.log('🎬 Fetching database videos for job:', jobId);
-      
+      console.log("🎬 Fetching database videos for job:", jobId);
+
       const response = await apiClient.get(`/api/jobs/${jobId}/videos`);
-      console.log('📡 Video fetch response status:', response.status);
-      
+      console.log("📡 Video fetch response status:", response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Failed to fetch job videos:', response.status, errorText);
+        console.error(
+          "Failed to fetch job videos:",
+          response.status,
+          errorText
+        );
         return false;
       }
-      
+
       const data = await response.json();
-      console.log('📊 Job videos data:', data);
-      
+      console.log("📊 Job videos data:", data);
+
       if (data.success && data.videos && Array.isArray(data.videos)) {
-        setJobVideos(prev => ({
+        setJobVideos((prev) => ({
           ...prev,
-          [jobId]: data.videos
+          [jobId]: data.videos,
         }));
-        console.log('✅ Updated job videos state for job:', jobId, 'Videos count:', data.videos.length);
+        console.log(
+          "✅ Updated job videos state for job:",
+          jobId,
+          "Videos count:",
+          data.videos.length
+        );
         return data.videos.length > 0;
       } else {
-        console.warn('⚠️ Invalid response format:', data);
+        console.warn("⚠️ Invalid response format:", data);
         return false;
       }
-      
     } catch (error) {
-      console.error('💥 Error fetching job videos:', error);
+      console.error("💥 Error fetching job videos:", error);
       return false;
     }
   };
 
   // Handle image upload
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
 
     try {
-      console.log('=== UPLOADING IMAGE FOR I2V ===');
-      console.log('File:', file.name, file.size, file.type);
+      console.log("=== UPLOADING IMAGE FOR I2V ===");
+      console.log("File:", file.name, file.size, file.type);
 
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append("image", file);
 
-      const response = await apiClient.post('/api/upload/image', formData);
+      const response = await apiClient.postFormData(
+        "/api/upload/image",
+        formData
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Upload failed:', response.status, errorText);
+        console.error("Upload failed:", response.status, errorText);
         throw new Error(`Upload failed: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('Upload result:', result);
+      console.log("Upload result:", result);
 
       if (result.success && result.filename) {
-        setParams(prev => ({
+        setParams((prev) => ({
           ...prev,
-          uploadedImage: result.filename
+          uploadedImage: result.filename,
         }));
 
         // Create preview URL
         const previewUrl = URL.createObjectURL(file);
         setUploadedImagePreview(previewUrl);
 
-        console.log('✅ Image uploaded successfully:', result.filename);
+        console.log("✅ Image uploaded successfully:", result.filename);
       } else {
-        throw new Error('Upload succeeded but no filename returned');
+        throw new Error("Upload succeeded but no filename returned");
       }
-
     } catch (error) {
-      console.error('Upload error:', error);
-      alert('Failed to upload image: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error("Upload error:", error);
+      alert(
+        "Failed to upload image: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
     } finally {
       setIsUploading(false);
     }
@@ -308,13 +266,13 @@ export default function ImageToVideoPage() {
 
   // Remove uploaded image
   const removeUploadedImage = () => {
-    setParams(prev => ({
+    setParams((prev) => ({
       ...prev,
-      uploadedImage: null
+      uploadedImage: null,
     }));
     setUploadedImagePreview(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
   };
 
@@ -329,23 +287,22 @@ export default function ImageToVideoPage() {
     setParams((prev) => ({ ...prev, width, height }));
   };
 
-  // Create workflow JSON based on the provided ComfyUI workflow
+  // Create workflow JSON based on the provided ComfyUI workflow with fixed values
   const createWorkflowJson = (params: GenerationParams) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
-    const useLoRA = params.selectedLora !== "None";
 
     const workflow: any = {
       "6": {
         inputs: {
           text: params.prompt,
-          clip: ["64", 0],
+          clip: ["38", 0], // Direct connection to CLIPLoader
         },
         class_type: "CLIPTextEncode",
       },
       "7": {
         inputs: {
-          text: params.negativePrompt || "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
-          clip: ["64", 0],
+          text: params.negativePrompt,
+          clip: ["38", 0], // Direct connection to CLIPLoader
         },
         class_type: "CLIPTextEncode",
       },
@@ -372,7 +329,7 @@ export default function ImageToVideoPage() {
       },
       "48": {
         inputs: {
-          model: useLoRA ? ["89", 0] : ["37", 0],
+          model: ["89", 0], // Connected to LoRA high noise model
           shift: 8,
         },
         class_type: "ModelSamplingSD3",
@@ -405,9 +362,27 @@ export default function ImageToVideoPage() {
         },
         class_type: "UNETLoader",
       },
+      "89": {
+        inputs: {
+          model: ["37", 0],
+          lora_name:
+            "lightx2v_14B_T2V_cfg_step_distill_lora_adaptive_rank_quantile_0.15_bf16.safetensors",
+          strength_model: 2.5,
+        },
+        class_type: "LoraLoaderModelOnly",
+      },
+      "90": {
+        inputs: {
+          model: ["81", 0],
+          lora_name:
+            "Wan21_T2V_14B_lightx2v_cfg_step_distill_lora_rank32.safetensors",
+          strength_model: 1.5,
+        },
+        class_type: "LoraLoaderModelOnly",
+      },
       "91": {
         inputs: {
-          seed: seed,
+          noise_seed: seed,
           steps: params.steps,
           cfg: params.cfg,
           sampler_name: params.samplerName,
@@ -426,7 +401,7 @@ export default function ImageToVideoPage() {
       },
       "92": {
         inputs: {
-          seed: seed,
+          noise_seed: seed,
           steps: params.steps,
           cfg: params.cfg,
           sampler_name: params.samplerName,
@@ -447,8 +422,8 @@ export default function ImageToVideoPage() {
         inputs: {
           positive: ["6", 0],
           negative: ["7", 0],
-          vae: ["72", 0],
-          start_image: ["67", 0],
+          vae: ["39", 0], // Direct connection to VAELoader
+          start_image: ["65", 0], // Direct connection to ImageResize
           width: params.width,
           height: params.height,
           length: params.length,
@@ -458,7 +433,7 @@ export default function ImageToVideoPage() {
       },
       "94": {
         inputs: {
-          model: useLoRA ? ["90", 0] : ["81", 0],
+          model: ["90", 0], // Connected to LoRA low noise model
           shift: 8,
         },
         class_type: "ModelSamplingSD3",
@@ -466,7 +441,7 @@ export default function ImageToVideoPage() {
       "8": {
         inputs: {
           samples: ["91", 0],
-          vae: ["72", 0],
+          vae: ["39", 0], // Direct connection to VAELoader
         },
         class_type: "VAEDecode",
       },
@@ -486,43 +461,7 @@ export default function ImageToVideoPage() {
         },
         class_type: "SaveVideo",
       },
-      "64": {
-        type: "GetNode",
-        inputs: [],
-        class_type: "GetNode",
-      },
-      "67": {
-        type: "GetNode",
-        inputs: [],
-        class_type: "GetNode",
-      },
-      "72": {
-        type: "GetNode",
-        inputs: [],
-        class_type: "GetNode",
-      },
     };
-
-    // Add LoRA loaders if using LoRA
-    if (useLoRA) {
-      workflow["89"] = {
-        inputs: {
-          model: ["37", 0],
-          lora_name: params.selectedLora,
-          strength_model: params.loraStrength,
-        },
-        class_type: "LoraLoaderModelOnly",
-      };
-      
-      workflow["90"] = {
-        inputs: {
-          model: ["81", 0],
-          lora_name: params.selectedLora,
-          strength_model: params.loraStrength,
-        },
-        class_type: "LoraLoaderModelOnly",
-      };
-    }
 
     return workflow;
   };
@@ -541,39 +480,39 @@ export default function ImageToVideoPage() {
 
     setIsGenerating(true);
     setCurrentJob(null);
-    
+
     try {
-      console.log('=== STARTING I2V GENERATION ===');
-      console.log('Generation params:', params);
-      
+      console.log("=== STARTING I2V GENERATION ===");
+      console.log("Generation params:", params);
+
       const workflow = createWorkflowJson(params);
-      console.log('Created I2V workflow for submission');
-      
+      console.log("Created I2V workflow for submission");
+
       const response = await apiClient.post("/api/generate/image-to-video", {
         workflow,
         params,
       });
 
-      console.log('I2V Generation API response status:', response.status);
+      console.log("I2V Generation API response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('I2V Generation failed:', response.status, errorText);
+        console.error("I2V Generation failed:", response.status, errorText);
         throw new Error(`Generation failed: ${response.status} - ${errorText}`);
       }
 
       const { jobId } = await response.json();
-      console.log('Received I2V job ID:', jobId);
+      console.log("Received I2V job ID:", jobId);
 
       if (!jobId) {
-        throw new Error('No job ID received from server');
+        throw new Error("No job ID received from server");
       }
 
       const newJob: GenerationJob = {
         id: jobId,
         status: "pending",
         createdAt: new Date(),
-        progress: 0
+        progress: 0,
       };
 
       setCurrentJob(newJob);
@@ -581,7 +520,6 @@ export default function ImageToVideoPage() {
 
       // Start polling for job status
       pollJobStatus(jobId);
-      
     } catch (error) {
       console.error("I2V Generation error:", error);
       setIsGenerating(false);
@@ -591,37 +529,39 @@ export default function ImageToVideoPage() {
 
   // Poll job status (similar to text-to-image but adapted for videos)
   const pollJobStatus = async (jobId: string) => {
-    console.log('=== STARTING I2V JOB POLLING ===');
-    console.log('Polling I2V job ID:', jobId);
-    
+    console.log("=== STARTING I2V JOB POLLING ===");
+    console.log("Polling I2V job ID:", jobId);
+
     const maxAttempts = 300; // 5 minutes for video generation
     let attempts = 0;
 
     const poll = async () => {
       try {
         attempts++;
-        console.log(`Polling attempt ${attempts}/${maxAttempts} for I2V job ${jobId}`);
-        
+        console.log(
+          `Polling attempt ${attempts}/${maxAttempts} for I2V job ${jobId}`
+        );
+
         const response = await apiClient.get(`/api/jobs/${jobId}`);
-        console.log('I2V Job status response:', response.status);
-        
+        console.log("I2V Job status response:", response.status);
+
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('I2V Job status error:', response.status, errorText);
-          
+          console.error("I2V Job status error:", response.status, errorText);
+
           if (response.status === 404) {
-            console.error('I2V Job not found - this might be a storage issue');
+            console.error("I2V Job not found - this might be a storage issue");
             if (attempts < 10) {
               setTimeout(poll, 2000);
               return;
             }
           }
-          
+
           throw new Error(`Job status check failed: ${response.status}`);
         }
 
         const job = await response.json();
-        console.log('I2V Job status data:', job);
+        console.log("I2V Job status data:", job);
 
         if (job.createdAt && typeof job.createdAt === "string") {
           job.createdAt = new Date(job.createdAt);
@@ -629,35 +569,37 @@ export default function ImageToVideoPage() {
 
         setCurrentJob(job);
         setJobHistory((prev) =>
-          prev.map((j) => {
-            if (j?.id === jobId) {
-              return {
-                ...job,
-                createdAt: job.createdAt || j.createdAt
-              };
-            }
-            return j;
-          }).filter(Boolean)
+          prev
+            .map((j) => {
+              if (j?.id === jobId) {
+                return {
+                  ...job,
+                  createdAt: job.createdAt || j.createdAt,
+                };
+              }
+              return j;
+            })
+            .filter(Boolean)
         );
 
         if (job.status === "completed") {
-          console.log('I2V Job completed successfully!');
+          console.log("I2V Job completed successfully!");
           setIsGenerating(false);
-          
+
           // Fetch videos for completed job
-          console.log('🔄 Attempting to fetch job videos...');
+          console.log("🔄 Attempting to fetch job videos...");
           const fetchSuccess = await fetchJobVideos(jobId);
-          
+
           if (!fetchSuccess) {
-            console.log('🔄 Retrying video fetch after delay...');
+            console.log("🔄 Retrying video fetch after delay...");
             setTimeout(() => {
               fetchJobVideos(jobId);
             }, 3000);
           }
-          
+
           return;
         } else if (job.status === "failed") {
-          console.log('I2V Job failed:', job.error);
+          console.log("I2V Job failed:", job.error);
           setIsGenerating(false);
           return;
         }
@@ -666,26 +608,34 @@ export default function ImageToVideoPage() {
         if (attempts < maxAttempts) {
           setTimeout(poll, 2000); // Longer interval for video generation
         } else {
-          console.error('I2V Polling timeout reached');
+          console.error("I2V Polling timeout reached");
           setIsGenerating(false);
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            status: "failed" as const,
-            error: "Polling timeout - generation may still be running"
-          } : null);
+          setCurrentJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed" as const,
+                  error: "Polling timeout - generation may still be running",
+                }
+              : null
+          );
         }
       } catch (error) {
         console.error("I2V Polling error:", error);
-        
+
         if (attempts < maxAttempts) {
           setTimeout(poll, 3000);
         } else {
           setIsGenerating(false);
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            status: "failed" as const,
-            error: "Failed to get job status"
-          } : null);
+          setCurrentJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed" as const,
+                  error: "Failed to get job status",
+                }
+              : null
+          );
         }
       }
     };
@@ -696,58 +646,60 @@ export default function ImageToVideoPage() {
   // Download video
   const downloadVideo = async (video: DatabaseVideo) => {
     try {
-      console.log('📥 Downloading video:', video.filename);
-      
+      console.log("📥 Downloading video:", video.filename);
+
       if (video.dataUrl) {
         const response = await apiClient.get(video.dataUrl);
-        
+
         if (response.ok) {
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
-          
-          const link = document.createElement('a');
+
+          const link = document.createElement("a");
           link.href = url;
           link.download = video.filename;
           link.click();
-          
+
           URL.revokeObjectURL(url);
-          console.log('✅ Database video downloaded');
+          console.log("✅ Database video downloaded");
           return;
         }
       }
-      
+
       if (video.url) {
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = video.url;
         link.download = video.filename;
         link.click();
-        console.log('✅ ComfyUI video downloaded');
+        console.log("✅ ComfyUI video downloaded");
         return;
       }
-      
-      throw new Error('No download URL available');
-      
+
+      throw new Error("No download URL available");
     } catch (error) {
-      console.error('Error downloading video:', error);
-      alert('Failed to download video: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error("Error downloading video:", error);
+      alert(
+        "Failed to download video: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
     }
   };
 
   // Share video
   const shareVideo = (video: DatabaseVideo) => {
-    let urlToShare = '';
-    
+    let urlToShare = "";
+
     if (video.dataUrl) {
       urlToShare = `${window.location.origin}${video.dataUrl}`;
     } else if (video.url) {
       urlToShare = video.url;
     } else {
-      alert('No shareable URL available for this video');
+      alert("No shareable URL available for this video");
       return;
     }
-    
+
     navigator.clipboard.writeText(urlToShare);
-    alert('Video URL copied to clipboard!');
+    alert("Video URL copied to clipboard!");
   };
 
   return (
@@ -777,9 +729,9 @@ export default function ImageToVideoPage() {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Upload Image
             </h3>
-            
+
             {!uploadedImagePreview ? (
-              <div 
+              <div
                 className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -820,7 +772,7 @@ export default function ImageToVideoPage() {
                 </div>
               </div>
             )}
-            
+
             <input
               ref={fileInputRef}
               type="file"
@@ -853,7 +805,7 @@ export default function ImageToVideoPage() {
                 placeholder="Describe the video motion you want to generate..."
                 className="w-full h-24 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
               />
-              
+
               {/* Negative Prompt */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -862,7 +814,10 @@ export default function ImageToVideoPage() {
                 <textarea
                   value={params.negativePrompt}
                   onChange={(e) =>
-                    setParams((prev) => ({ ...prev, negativePrompt: e.target.value }))
+                    setParams((prev) => ({
+                      ...prev,
+                      negativePrompt: e.target.value,
+                    }))
                   }
                   placeholder="Describe what you don't want in the video..."
                   className="w-full h-20 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
@@ -876,39 +831,6 @@ export default function ImageToVideoPage() {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Video Settings
             </h3>
-
-            {/* LoRA Model Selection */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                LoRA Model
-              </label>
-              
-              {loadingLoRAs ? (
-                <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm text-gray-500">
-                    Loading LoRA models...
-                  </span>
-                </div>
-              ) : (
-                <select
-                  value={params.selectedLora}
-                  onChange={(e) =>
-                    setParams((prev) => ({
-                      ...prev,
-                      selectedLora: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {availableLoRAs.map((lora, index) => (
-                    <option key={`${lora.fileName}-${index}`} value={lora.fileName}>
-                      {lora.displayName}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
 
             {/* Aspect Ratio */}
             <div className="space-y-3 mb-6">
@@ -1013,29 +935,6 @@ export default function ImageToVideoPage() {
                   />
                 </div>
 
-                {/* LoRA Strength */}
-                {params.selectedLora !== "None" && (
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      LoRA Strength: {params.loraStrength}
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="3"
-                      step="0.1"
-                      value={params.loraStrength}
-                      onChange={(e) =>
-                        setParams((prev) => ({
-                          ...prev,
-                          loraStrength: parseFloat(e.target.value),
-                        }))
-                      }
-                      className="w-full"
-                    />
-                  </div>
-                )}
-
                 {/* Sampler */}
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1117,7 +1016,9 @@ export default function ImageToVideoPage() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || !params.prompt.trim() || !params.uploadedImage}
+            disabled={
+              isGenerating || !params.prompt.trim() || !params.uploadedImage
+            }
             className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
           >
             {isGenerating ? (
@@ -1144,13 +1045,21 @@ export default function ImageToVideoPage() {
               </h3>
               <div className="grid grid-cols-1 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Total Videos:</span>
-                  <span className="ml-2 font-medium">{videoStats.totalVideos}</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Total Videos:
+                  </span>
+                  <span className="ml-2 font-medium">
+                    {videoStats.totalVideos}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Total Size:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Total Size:
+                  </span>
                   <span className="ml-2 font-medium">
-                    {Math.round(videoStats.totalSize / 1024 / 1024 * 100) / 100} MB
+                    {Math.round((videoStats.totalSize / 1024 / 1024) * 100) /
+                      100}{" "}
+                    MB
                   </span>
                 </div>
               </div>
@@ -1181,7 +1090,8 @@ export default function ImageToVideoPage() {
                     Status
                   </span>
                   <div className="flex items-center space-x-2">
-                    {(currentJob.status === "pending" || currentJob.status === "processing") && (
+                    {(currentJob.status === "pending" ||
+                      currentJob.status === "processing") && (
                       <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
                     )}
                     {currentJob.status === "completed" && (
@@ -1216,120 +1126,143 @@ export default function ImageToVideoPage() {
                 )}
 
                 {/* Video Display */}
-                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) || 
-                  (jobVideos[currentJob.id] && jobVideos[currentJob.id].length > 0)) && (
+                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
+                  (jobVideos[currentJob.id] &&
+                    jobVideos[currentJob.id].length > 0)) && (
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Generated Videos
                     </h4>
-                    
+
                     <div className="grid grid-cols-1 gap-3">
                       {/* Show database videos if available */}
-                      {jobVideos[currentJob.id] && jobVideos[currentJob.id].length > 0 ? (
-                        jobVideos[currentJob.id].map((dbVideo, index) => (
-                          <div key={`db-${dbVideo.id}`} className="relative group">
-                            <video
-                              ref={videoRef}
-                              controls
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                              poster="/video-placeholder.jpg"
+                      {jobVideos[currentJob.id] &&
+                      jobVideos[currentJob.id].length > 0
+                        ? jobVideos[currentJob.id].map((dbVideo, index) => (
+                            <div
+                              key={`db-${dbVideo.id}`}
+                              className="relative group"
                             >
-                              <source src={dbVideo.dataUrl || dbVideo.url} type="video/mp4" />
-                              Your browser does not support the video tag.
-                            </video>
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button 
-                                  onClick={() => downloadVideo(dbVideo)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  title={`Download ${dbVideo.filename}`}
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => shareVideo(dbVideo)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
+                              <video
+                                ref={videoRef}
+                                controls
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                poster="/video-placeholder.jpg"
+                              >
+                                <source
+                                  src={dbVideo.dataUrl || dbVideo.url}
+                                  type="video/mp4"
+                                />
+                                Your browser does not support the video tag.
+                              </video>
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() => downloadVideo(dbVideo)}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    title={`Download ${dbVideo.filename}`}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => shareVideo(dbVideo)}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Video metadata */}
+                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                  {dbVideo.width && dbVideo.height
+                                    ? `${dbVideo.width}×${dbVideo.height}`
+                                    : "Unknown size"}
+                                  {dbVideo.fileSize &&
+                                    ` • ${
+                                      Math.round(
+                                        (dbVideo.fileSize / 1024 / 1024) * 100
+                                      ) / 100
+                                    }MB`}
+                                </div>
                               </div>
                             </div>
-                            
-                            {/* Video metadata */}
-                            <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                {dbVideo.width && dbVideo.height ? `${dbVideo.width}×${dbVideo.height}` : 'Unknown size'}
-                                {dbVideo.fileSize && ` • ${Math.round(dbVideo.fileSize / 1024 / 1024 * 100) / 100}MB`}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        // Fallback to legacy URLs
-                        currentJob.resultUrls && currentJob.resultUrls.length > 0 && 
-                        currentJob.resultUrls.map((url, index) => (
-                          <div key={`legacy-${currentJob.id}-${index}`} className="relative group">
-                            <video
-                              controls
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                              poster="/video-placeholder.jpg"
+                          ))
+                        : // Fallback to legacy URLs
+                          currentJob.resultUrls &&
+                          currentJob.resultUrls.length > 0 &&
+                          currentJob.resultUrls.map((url, index) => (
+                            <div
+                              key={`legacy-${currentJob.id}-${index}`}
+                              className="relative group"
                             >
-                              <source src={url} type="video/mp4" />
-                              Your browser does not support the video tag.
-                            </video>
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button 
-                                  onClick={() => {
-                                    const link = document.createElement('a');
-                                    link.href = url;
-                                    link.download = `generated-video-${index + 1}.mp4`;
-                                    link.click();
-                                  }}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(url);
-                                    alert('Video URL copied to clipboard!');
-                                  }}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
+                              <video
+                                controls
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                poster="/video-placeholder.jpg"
+                              >
+                                <source src={url} type="video/mp4" />
+                                Your browser does not support the video tag.
+                              </video>
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() => {
+                                      const link = document.createElement("a");
+                                      link.href = url;
+                                      link.download = `generated-video-${
+                                        index + 1
+                                      }.mp4`;
+                                      link.click();
+                                    }}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(url);
+                                      alert("Video URL copied to clipboard!");
+                                    }}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
-                      )}
+                          ))}
                     </div>
                   </div>
                 )}
 
                 {/* Loading message for completed jobs without videos */}
-                {currentJob.status === "completed" && 
-                 (!currentJob.resultUrls || currentJob.resultUrls.length === 0) &&
-                 (!jobVideos[currentJob.id] || jobVideos[currentJob.id].length === 0) && (
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Generated Videos
-                    </h4>
-                    <div className="text-center py-8">
-                      <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Loading generated videos...</span>
+                {currentJob.status === "completed" &&
+                  (!currentJob.resultUrls ||
+                    currentJob.resultUrls.length === 0) &&
+                  (!jobVideos[currentJob.id] ||
+                    jobVideos[currentJob.id].length === 0) && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Generated Videos
+                      </h4>
+                      <div className="text-center py-8">
+                        <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">
+                            Loading generated videos...
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => fetchJobVideos(currentJob.id)}
+                          className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
+                        >
+                          Refresh Videos
+                        </button>
                       </div>
-                      <button
-                        onClick={() => fetchJobVideos(currentJob.id)}
-                        className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
-                      >
-                        Refresh Videos
-                      </button>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {currentJob.error && (
                   <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -1349,44 +1282,47 @@ export default function ImageToVideoPage() {
                 Recent Generations
               </h3>
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {jobHistory.filter(job => job && job.id).slice(0, 10).map((job, index) => (
-                  <div
-                    key={job.id || `job-${index}`}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      {job.status === "completed" && (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      )}
-                      {job.status === "failed" && (
-                        <AlertCircle className="w-4 h-4 text-red-500" />
-                      )}
-                      {(job.status === "pending" ||
-                        job.status === "processing") && (
-                        <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {formatJobTime(job.createdAt)}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {job.status || 'unknown'}
-                        </p>
+                {jobHistory
+                  .filter((job) => job && job.id)
+                  .slice(0, 10)
+                  .map((job, index) => (
+                    <div
+                      key={job.id || `job-${index}`}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    >
+                      <div className="flex items-center space-x-3">
+                        {job.status === "completed" && (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        )}
+                        {job.status === "failed" && (
+                          <AlertCircle className="w-4 h-4 text-red-500" />
+                        )}
+                        {(job.status === "pending" ||
+                          job.status === "processing") && (
+                          <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {formatJobTime(job.createdAt)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                            {job.status || "unknown"}
+                          </p>
+                        </div>
                       </div>
+                      {job.resultUrls && job.resultUrls.length > 0 && (
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => fetchJobVideos(job.id)}
+                            className="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+                            title="Refresh videos"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {job.resultUrls && job.resultUrls.length > 0 && (
-                      <div className="flex space-x-1">
-                        <button 
-                          onClick={() => fetchJobVideos(job.id)}
-                          className="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
-                          title="Refresh videos"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           )}

@@ -1,7 +1,7 @@
 // lib/videoStorage.ts - Dynamic URL video management for NeonDB
 import { prisma } from './database';
 
-const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://localhost:8188';
+const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://211.21.50.84:15833';
 
 export interface GeneratedVideo {
   id: string;
@@ -96,10 +96,11 @@ export async function saveVideoToDatabase(
     extractMetadata?: boolean; // Whether to extract video dimensions/duration
   } = {}
 ): Promise<GeneratedVideo | null> {
-  console.log('💾 Saving video to database:', pathInfo.filename);
+  console.log('💾 saveVideoToDatabase called with:');
   console.log('👤 User:', clerkId);
   console.log('🆔 Job:', jobId);
   console.log('📂 Path info:', pathInfo);
+  console.log('⚙️ Options:', options);
   
   try {
     let videoData: Buffer | undefined;
@@ -193,7 +194,7 @@ export async function saveVideoToDatabase(
       duration: savedVideo.duration || undefined,
       fps: savedVideo.fps || undefined,
       format: savedVideo.format || undefined,
-      data: savedVideo.data || undefined,
+      data: savedVideo.data ? Buffer.from(savedVideo.data) : undefined,
       metadata: savedVideo.metadata,
       createdAt: savedVideo.createdAt,
       updatedAt: savedVideo.updatedAt,
@@ -256,7 +257,7 @@ export async function getUserVideos(
     
     return videos.map(video => ({
       ...video,
-      data: video.data || undefined,
+      data: video.data ? Buffer.from(video.data) : undefined,
       fileSize: video.fileSize || undefined,
       width: video.width || undefined,
       height: video.height || undefined,
@@ -312,7 +313,7 @@ export async function getJobVideos(
     
     return videos.map(video => ({
       ...video,
-      data: video.data || undefined,
+      data: video.data ? Buffer.from(video.data) : undefined,
       fileSize: video.fileSize || undefined,
       width: video.width || undefined,
       height: video.height || undefined,
@@ -361,7 +362,7 @@ export async function getVideoData(
     console.log('✅ Serving video data:', video.filename);
     
     return {
-      data: video.data,
+      data: Buffer.from(video.data),
       filename: video.filename,
       format: video.format || undefined
     };
@@ -504,7 +505,7 @@ export async function getVideoById(
       duration: video.duration || undefined,
       fps: video.fps || undefined,
       format: video.format || undefined,
-      data: video.data || undefined,
+      data: video.data ? Buffer.from(video.data) : undefined,
       metadata: video.metadata,
       createdAt: video.createdAt,
       updatedAt: video.updatedAt,
@@ -561,7 +562,7 @@ export async function updateVideoMetadata(
       duration: updated.duration || undefined,
       fps: updated.fps || undefined,
       format: updated.format || undefined,
-      data: updated.data || undefined,
+      data: updated.data ? Buffer.from(updated.data) : undefined,
       metadata: updated.metadata,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
@@ -588,7 +589,7 @@ export async function migrateVideoUrlsToPathComponents(): Promise<void> {
     // to GeneratedVideo records with path components
     const jobs = await prisma.generationJob.findMany({
       where: {
-        resultUrls: { some: {} },
+        resultUrls: { isEmpty: false },
         // Only migrate jobs that might contain videos
         params: {
           path: ['type'],
@@ -727,7 +728,7 @@ export async function getVideosByFormat(
     
     return videos.map(video => ({
       ...video,
-      data: video.data || undefined,
+      data: video.data ? Buffer.from(video.data) : undefined,
       fileSize: video.fileSize || undefined,
       width: video.width || undefined,
       height: video.height || undefined,

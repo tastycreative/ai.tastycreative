@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       params,
       lastChecked: new Date().toISOString(),
       progress: 0,
-      type: "image-to-video"
+      type: "IMAGE_TO_VIDEO"
     };
 
     console.log('Adding I2V job to NeonDB...');
@@ -230,6 +230,8 @@ async function pollComfyUIProgress(jobId: string) {
             
             if (matchesClientId || matchesPromptId || matchesComfyUIPromptId) {
               console.log('🎯 Found our I2V job in history:', historyJobId);
+              console.log('📊 Job status:', jobInfo.status?.status_str);
+              console.log('📊 Job outputs:', JSON.stringify(jobInfo.outputs, null, 2));
               
               if (jobInfo.status?.status_str === 'success' && jobInfo.outputs) {
                 console.log('✅ I2V Job completed successfully!');
@@ -237,9 +239,10 @@ async function pollComfyUIProgress(jobId: string) {
                 return;
               } else if (jobInfo.status?.status_str === 'error') {
                 console.log('❌ I2V Job failed in ComfyUI');
+                console.log('❌ Error details:', jobInfo.status);
                 await updateJob(jobId, {
                   status: "failed",
-                  error: "Video generation failed in ComfyUI",
+                  error: "Video generation failed in ComfyUI: " + (jobInfo.status?.messages?.join(', ') || 'Unknown error'),
                   progress: 0
                 });
                 return;
@@ -290,58 +293,106 @@ async function processCompletedVideoJob(jobId: string, jobData: any): Promise<vo
     }
 
     console.log('🎉 Processing completed I2V job:', jobId);
+    console.log('🔍 Job data outputs:', JSON.stringify(jobData.outputs, null, 2));
+    console.log('🔍 Job data status:', jobData.status);
+    console.log('🔍 Job data prompt:', JSON.stringify(jobData.prompt?.[1], null, 2));
     
     // Extract video path information from outputs
     const videoPathInfos: VideoPathInfo[] = [];
     const legacyUrls: string[] = []; // Keep for backward compatibility
     
+    console.log('🔍 Scanning job outputs for videos...');
+    
+    // Enhanced output scanning - look for all possible video output types
     for (const nodeId in jobData.outputs) {
       const nodeOutput = jobData.outputs[nodeId];
+      console.log(`🔍 Checking node ${nodeId}:`, JSON.stringify(nodeOutput, null, 2));
       
-      // Look for video outputs (SaveVideo node outputs)
-      if (nodeOutput.videos) {
-        for (const video of nodeOutput.videos) {
-          const pathInfo: VideoPathInfo = {
-            filename: video.filename,
-            subfolder: video.subfolder || '',
-            type: video.type || 'output'
-          };
-          
-          videoPathInfos.push(pathInfo);
-          
-          // Build legacy URL for backward compatibility
-          const legacyUrl = buildComfyUIVideoUrl(pathInfo);
-          legacyUrls.push(legacyUrl);
-          
-          console.log('🎬 Found video:', pathInfo.filename);
-        }
-      }
+      // Look for videos in various formats
+      const videoKeys = ['videos', 'gifs', 'video', 'gif', 'output', 'outputs'];
       
-      // Also check for gifs or other video formats
-      if (nodeOutput.gifs) {
-        for (const gif of nodeOutput.gifs) {
-          const pathInfo: VideoPathInfo = {
-            filename: gif.filename,
-            subfolder: gif.subfolder || '',
-            type: gif.type || 'output'
-          };
+      for (const key of videoKeys) {
+        if (nodeOutput[key] && Array.isArray(nodeOutput[key])) {
+          console.log(`🎬 Found ${key} in node ${nodeId}:`, nodeOutput[key]);
           
-          videoPathInfos.push(pathInfo);
-          
-          const legacyUrl = buildComfyUIVideoUrl(pathInfo);
-          legacyUrls.push(legacyUrl);
-          
-          console.log('🎞️ Found GIF:', pathInfo.filename);
+          for (const videoItem of nodeOutput[key]) {
+            const pathInfo: VideoPathInfo = {
+              filename: videoItem.filename,
+              subfolder: videoItem.subfolder || '',
+              type: videoItem.type || 'output'
+            };
+            
+            videoPathInfos.push(pathInfo);
+            
+            // Build legacy URL for backward compatibility
+            const legacyUrl = buildComfyUIVideoUrl(pathInfo);
+            legacyUrls.push(legacyUrl);
+            
+            console.log(`🎬 Added video: ${pathInfo.filename} from ${key} in node ${nodeId}`);
+          }
         }
       }
     }
     
-    console.log('💾 Saving', videoPathInfos.length, 'videos with dynamic URLs...');
+    // If no videos found with the standard method, try alternative approaches
+    if (videoPathInfos.length === 0) {
+      console.warn('⚠️ No videos found with standard detection. Trying alternative methods...');
+      
+      // Alternative 1: Look for any array with filename property
+      for (const nodeId in jobData.outputs) {
+        const nodeOutput = jobData.outputs[nodeId];
+        for (const key in nodeOutput) {
+          if (Array.isArray(nodeOutput[key])) {
+            for (const item of nodeOutput[key]) {
+              if (item && typeof item === 'object' && item.filename) {
+                // Check if it looks like a video file
+                const extension = item.filename.split('.').pop()?.toLowerCase();
+                const videoExtensions = ['mp4', 'webm', 'avi', 'mov', 'gif', 'mkv'];
+                
+                if (videoExtensions.includes(extension || '')) {
+                  const pathInfo: VideoPathInfo = {
+                    filename: item.filename,
+                    subfolder: item.subfolder || '',
+                    type: item.type || 'output'
+                  };
+                  
+                  videoPathInfos.push(pathInfo);
+                  legacyUrls.push(buildComfyUIVideoUrl(pathInfo));
+                  
+                  console.log(`� Found video via extension check: ${pathInfo.filename} (${extension})`);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(`💾 Attempting to save ${videoPathInfos.length} videos to database...`);
+    
+    if (videoPathInfos.length === 0) {
+      console.error('⚠️ No videos found in job outputs! This might indicate an issue with video detection.');
+      console.log('🔍 Full job data for debugging:', JSON.stringify(jobData, null, 2));
+      
+      // Still mark job as completed but with a note about missing videos
+      await updateJob(jobId, {
+        status: "completed",
+        progress: 100,
+        resultUrls: [],
+        error: "Job completed but no videos were found in the output",
+        lastChecked: new Date().toISOString()
+      });
+      
+      return;
+    }
     
     // Save each video to the database
     const savedVideos = [];
-    for (const pathInfo of videoPathInfos) {
+    for (let i = 0; i < videoPathInfos.length; i++) {
+      const pathInfo = videoPathInfos[i];
       try {
+        console.log(`💾 Saving video ${i + 1}/${videoPathInfos.length} to database:`, pathInfo);
+        
         const savedVideo = await saveVideoToDatabase(
           job.clerkId,
           jobId,
@@ -354,35 +405,49 @@ async function processCompletedVideoJob(jobId: string, jobData: any): Promise<vo
         
         if (savedVideo) {
           savedVideos.push(savedVideo);
-          console.log('✅ Saved video to database:', savedVideo.filename);
+          console.log(`✅ Successfully saved video ${i + 1}/${videoPathInfos.length} to database:`, savedVideo.filename, savedVideo.id);
         } else {
-          console.error('❌ Failed to save video:', pathInfo.filename);
+          console.error(`❌ saveVideoToDatabase returned null for: ${pathInfo.filename}`);
         }
       } catch (videoError) {
-        console.error('💥 Error saving individual video:', pathInfo.filename, videoError);
+        console.error(`💥 Error saving video ${i + 1}/${videoPathInfos.length}:`, pathInfo.filename, videoError);
+        console.error('💥 Video error stack:', videoError instanceof Error ? videoError.stack : 'No stack trace');
+        
+        // Continue with other videos even if one fails
+        continue;
       }
     }
     
-    console.log('📊 Successfully saved', savedVideos.length, 'out of', videoPathInfos.length, 'videos');
+    console.log(`📊 Successfully saved ${savedVideos.length} out of ${videoPathInfos.length} videos`);
     
     // Update job with completion status
     const updatedJob = await updateJob(jobId, {
       status: "completed",
       progress: 100,
       resultUrls: legacyUrls, // Keep legacy URLs for backward compatibility
-      lastChecked: new Date().toISOString()
+      lastChecked: new Date().toISOString(),
+      ...(savedVideos.length === 0 && { error: "Videos detected but failed to save to database" })
     });
     
     if (updatedJob) {
       console.log('✅ I2V Job completed successfully:', jobId);
       console.log('🎬 Videos in database:', savedVideos.length);
       console.log('🔗 Dynamic URLs will be constructed as needed');
+      
+      if (savedVideos.length > 0) {
+        console.log('🎬 Saved video details:');
+        savedVideos.forEach((video, index) => {
+          console.log(`  ${index + 1}. ${video.filename} (ID: ${video.id})`);
+        });
+      }
     } else {
       console.error('❌ Failed to update completed I2V job:', jobId);
     }
     
   } catch (error) {
     console.error('💥 Error processing completed I2V job:', error);
+    console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
     await updateJob(jobId, {
       status: "failed",
       error: "Failed to process video results: " + (error instanceof Error ? error.message : 'Unknown error')
