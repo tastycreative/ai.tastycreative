@@ -72,7 +72,7 @@ export async function GET(
     }
     
     // Return video data as response with proper headers for streaming
-    return new NextResponse(videoData.data, {
+    return new NextResponse(new Uint8Array(videoData.data), {
       status: 200,
       headers: {
         'Content-Type': contentType,

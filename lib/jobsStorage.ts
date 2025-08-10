@@ -1,6 +1,6 @@
 // lib/jobsStorage.ts - Updated with Clerk integration
 import { prisma } from './database';
-import { JobStatus } from './generated/prisma';
+import { JobStatus, GenerationType } from './generated/prisma';
 
 export interface GenerationJob {
   id: string;
@@ -10,6 +10,7 @@ export interface GenerationJob {
   progress?: number;
   resultUrls?: string[];
   error?: string;
+  type?: GenerationType;
   createdAt: Date | string;
   params?: any;
   comfyUIPromptId?: string;
@@ -39,6 +40,7 @@ export async function addJob(job: GenerationJob): Promise<void> {
         progress: job.progress || 0,
         resultUrls: job.resultUrls || [],
         error: job.error,
+        type: job.type || 'TEXT_TO_IMAGE', // Default to TEXT_TO_IMAGE if not specified
         params: job.params || {},
         comfyUIPromptId: job.comfyUIPromptId,
         lastChecked: job.lastChecked ? new Date(job.lastChecked) : null
@@ -76,6 +78,7 @@ export async function getJob(jobId: string): Promise<GenerationJob | undefined> 
       progress: job.progress || undefined,
       resultUrls: job.resultUrls,
       error: job.error || undefined,
+      type: job.type,
       createdAt: job.createdAt,
       params: job.params,
       comfyUIPromptId: job.comfyUIPromptId || undefined,
@@ -106,6 +109,9 @@ export async function updateJob(jobId: string, updates: Partial<GenerationJob>):
     if (updates.error !== undefined) {
       updateData.error = updates.error;
     }
+    if (updates.type !== undefined) {
+      updateData.type = updates.type;
+    }
     if (updates.params !== undefined) {
       updateData.params = updates.params;
     }
@@ -131,6 +137,7 @@ export async function updateJob(jobId: string, updates: Partial<GenerationJob>):
       progress: updated.progress || undefined,
       resultUrls: updated.resultUrls,
       error: updated.error || undefined,
+      type: updated.type,
       createdAt: updated.createdAt,
       params: updated.params,
       comfyUIPromptId: updated.comfyUIPromptId || undefined,
@@ -176,6 +183,7 @@ export async function getAllJobs(): Promise<GenerationJob[]> {
       progress: job.progress || undefined,
       resultUrls: job.resultUrls,
       error: job.error || undefined,
+      type: job.type,
       createdAt: job.createdAt,
       params: job.params,
       comfyUIPromptId: job.comfyUIPromptId || undefined,
@@ -206,6 +214,7 @@ export async function getJobsByUser(clerkId: string): Promise<GenerationJob[]> {
       progress: job.progress || undefined,
       resultUrls: job.resultUrls,
       error: job.error || undefined,
+      type: job.type,
       createdAt: job.createdAt,
       params: job.params,
       comfyUIPromptId: job.comfyUIPromptId || undefined,
