@@ -1,4 +1,4 @@
-// prisma/schema.prisma - Updated with dynamic URL approach
+// prisma/schema.prisma - Complete with video support and dynamic URL approach
 generator client {
   provider = "prisma-client-js"
   output   = "../lib/generated/prisma"
@@ -23,6 +23,7 @@ model User {
   influencers InfluencerLoRA[]
   jobs        GenerationJob[]
   images      GeneratedImage[]
+  videos      GeneratedVideo[] // Added video relation
 
   @@map("users")
 }
@@ -48,26 +49,38 @@ model InfluencerLoRA {
   // Relations
   user User @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
+  @@index([clerkId])
+  @@index([fileName])
+  @@index([isActive])
   @@map("influencer_loras")
 }
 
 model GenerationJob {
-  id              String    @id @default(cuid())
-  clerkId         String    // Link to Clerk user
-  status          JobStatus @default(PENDING)
-  progress        Int?      @default(0)
-  resultUrls      String[]  @default([]) // Keep for backward compatibility temporarily
+  id              String      @id @default(cuid())
+  clerkId         String      // Link to Clerk user
+  status          JobStatus   @default(PENDING)
+  progress        Int?        @default(0)
+  resultUrls      String[]    @default([]) // Keep for backward compatibility temporarily
   error           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  type            GenerationType @default(TEXT_TO_IMAGE) // Added generation type
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
   lastChecked     DateTime?
   comfyUIPromptId String?
-  params          Json?     // Store generation parameters as JSON
+  params          Json?       // Store generation parameters as JSON
 
   // Relations
   user   User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   images GeneratedImage[]
+  videos GeneratedVideo[] // Added video relation
 
+  @@index([clerkId])
+  @@index([status])
+  @@index([type]) // Added index for generation type
+  @@index([createdAt])
+  @@index([clerkId, createdAt])
+  @@index([clerkId, status])
+  @@index([clerkId, type])
   @@map("generation_jobs")
 }
 
@@ -96,7 +109,51 @@ model GeneratedImage {
   user User           @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job  GenerationJob? @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
+  @@index([clerkId])
+  @@index([jobId])
+  @@index([clerkId, createdAt])
+  @@index([format])
+  @@index([filename])
+  @@unique([jobId, filename, subfolder, type]) // Prevent duplicates
   @@map("generated_images")
+}
+
+// New model for storing videos with dynamic URL construction
+model GeneratedVideo {
+  id          String   @id @default(cuid())
+  clerkId     String   // Link to Clerk user
+  jobId       String   // Link to generation job
+  
+  // URL-independent path components
+  filename    String   // e.g., "video_00001_.mp4"
+  subfolder   String   @default("") // e.g., "" or "video/ComfyUI/wan2.2"
+  type        String   @default("output") // e.g., "output", "input", "temp"
+  
+  // Video-specific metadata
+  fileSize    Int?     // File size in bytes
+  width       Int?     // Video width in pixels
+  height      Int?     // Video height in pixels
+  duration    Float?   // Duration in seconds
+  fps         Float?   // Frames per second
+  format      String?  // mp4, webm, avi, mov, gif, etc.
+  data        Bytes?   // Optional: store actual video data
+  metadata    Json?    // Store additional metadata (codec, bitrate, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User           @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  job  GenerationJob? @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([jobId])
+  @@index([clerkId, createdAt])
+  @@index([format])
+  @@index([filename])
+  @@index([duration]) // For sorting by duration
+  @@index([fileSize]) // For sorting by size
+  @@unique([jobId, filename, subfolder, type]) // Prevent duplicates
+  @@map("generated_videos")
 }
 
 enum SyncStatus {
@@ -111,4 +168,13 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// New enum for generation types
+enum GenerationType {
+  TEXT_TO_IMAGE
+  IMAGE_TO_VIDEO
+  IMAGE_TO_IMAGE
+  TEXT_TO_VIDEO
+  VIDEO_TO_VIDEO
 }
