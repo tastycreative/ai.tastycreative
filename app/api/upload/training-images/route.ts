@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { v4 as uuidv4 } from 'uuid';
+import { put } from '@vercel/blob';
 import path from 'path';
-import fs from 'fs/promises';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file (Vercel limit)
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB total (Conservative for Vercel)
 const MAX_FILES_PER_BATCH = 5; // Limit concurrent uploads
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 
 // Configure route for large payloads
 export const maxDuration = 300; // 5 minutes
@@ -49,9 +48,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`📁 Uploading ${files.length} training images (${Math.round(totalSize / 1024 / 1024)}MB total)`);
 
-    // Ensure upload directory exists
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
-
     const uploadedImages = [];
 
     for (let i = 0; i < files.length; i++) {
@@ -68,28 +64,32 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Generate filename
-      const timestamp = Date.now();
-      const uniqueId = uuidv4().substring(0, 6);
-      const extension = path.extname(file.name).toLowerCase() || '.jpg';
-      const filename = `upload_${timestamp}_${uniqueId}${extension}`;
-      const filePath = path.join(UPLOAD_DIR, filename);
+      try {
+        // Generate filename
+        const timestamp = Date.now();
+        const uniqueId = uuidv4().substring(0, 6);
+        const extension = path.extname(file.name).toLowerCase() || '.jpg';
+        const filename = `upload_${timestamp}_${uniqueId}${extension}`;
 
-      // Save file
-      const buffer = Buffer.from(await file.arrayBuffer());
-      await fs.writeFile(filePath, buffer);
+        // Upload to Vercel Blob storage
+        const blob = await put(filename, file, {
+          access: 'public',
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+        });
 
-      const publicUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/uploads/${filename}`;
-      
-      uploadedImages.push({
-        filename,
-        originalName: file.name,
-        size: file.size,
-        type: file.type,
-        url: publicUrl
-      });
+        uploadedImages.push({
+          filename,
+          originalName: file.name,
+          size: file.size,
+          type: file.type,
+          url: blob.url
+        });
 
-      console.log(`✅ Saved training image ${i + 1}: ${filename}`);
+        console.log(`✅ Saved training image ${i + 1}: ${filename} to blob storage`);
+      } catch (error) {
+        console.error(`❌ Failed to upload ${file.name}:`, error);
+        // Continue with other files instead of failing completely
+      }
     }
 
     console.log(`🎉 Successfully uploaded ${uploadedImages.length} training images`);
