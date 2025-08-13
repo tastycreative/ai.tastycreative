@@ -4,8 +4,9 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
-const MAX_TOTAL_SIZE = 200 * 1024 * 1024; // 200MB total
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file (Vercel limit)
+const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB total (Conservative for Vercel)
+const MAX_FILES_PER_BATCH = 5; // Limit concurrent uploads
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 
@@ -31,11 +32,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No image files provided' }, { status: 400 });
     }
 
+    // Limit number of files per batch to prevent timeout/memory issues
+    if (files.length > MAX_FILES_PER_BATCH) {
+      return NextResponse.json({ 
+        error: `Too many files in single request. Maximum ${MAX_FILES_PER_BATCH} files per batch. Consider uploading in smaller batches.` 
+      }, { status: 413 });
+    }
+
     // Check total upload size
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
     if (totalSize > MAX_TOTAL_SIZE) {
       return NextResponse.json({ 
-        error: `Total upload size (${Math.round(totalSize / 1024 / 1024)}MB) exceeds limit of ${MAX_TOTAL_SIZE / 1024 / 1024}MB` 
+        error: `Total upload size (${Math.round(totalSize / 1024 / 1024)}MB) exceeds limit of ${MAX_TOTAL_SIZE / 1024 / 1024}MB. Try smaller batches or compress images.` 
       }, { status: 413 });
     }
 
