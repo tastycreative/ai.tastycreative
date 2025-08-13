@@ -13,8 +13,5 @@
       "source": "/api/(.*)",
       "destination": "/api/$1"
     }
-  ],
-  "limits": {
-    "duration": 300000
-  }
+  ]
 }
