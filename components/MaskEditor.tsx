@@ -924,8 +924,7 @@ export default function MaskEditor({
           style={{ 
             width: canvasSize.width, 
             height: canvasSize.height,
-            maxWidth: '100%',
-            height: 'auto'
+            maxWidth: '100%'
           }}
         />
         

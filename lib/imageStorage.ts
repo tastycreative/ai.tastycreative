@@ -162,7 +162,7 @@ export async function saveImageToDatabase(
       width: savedImage.width || undefined,
       height: savedImage.height || undefined,
       format: savedImage.format || undefined,
-      data: savedImage.data || undefined,
+      data: savedImage.data ? Buffer.from(savedImage.data) : undefined,
       metadata: savedImage.metadata,
       createdAt: savedImage.createdAt,
       updatedAt: savedImage.updatedAt,
@@ -223,7 +223,7 @@ export async function getUserImages(
     
     return images.map(img => ({
       ...img,
-      data: img.data || undefined,
+      data: img.data ? Buffer.from(img.data) : undefined,
       fileSize: img.fileSize || undefined,
       width: img.width || undefined,
       height: img.height || undefined,
@@ -275,7 +275,7 @@ export async function getJobImages(
     
     return images.map(img => ({
       ...img,
-      data: img.data || undefined,
+      data: img.data ? Buffer.from(img.data) : undefined,
       fileSize: img.fileSize || undefined,
       width: img.width || undefined,
       height: img.height || undefined,
@@ -322,7 +322,7 @@ export async function getImageData(
     console.log('✅ Serving image data:', image.filename);
     
     return {
-      data: image.data,
+      data: Buffer.from(image.data),
       filename: image.filename,
       format: image.format || undefined
     };
@@ -412,7 +412,7 @@ export async function migrateUrlsToPathComponents(): Promise<void> {
     // to GeneratedImage records with path components
     const jobs = await prisma.generationJob.findMany({
       where: {
-        resultUrls: { some: {} }
+        resultUrls: { isEmpty: false }
       }
     });
     
