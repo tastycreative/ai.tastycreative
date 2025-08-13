@@ -34,7 +34,7 @@ async function migrateToPathComponents() {
     
     const jobs = await prisma.generationJob.findMany({
       where: {
-        resultUrls: { some: {} }
+        resultUrls: { isEmpty: false }
       }
     });
     
@@ -100,8 +100,8 @@ async function migrateToPathComponents() {
       where: {
         AND: [
           { filename: { not: '' } },
-          { subfolder: { not: null } },
-          { type: { not: null } }
+          { subfolder: { not: '' } },
+          { type: { not: '' } }
         ]
       }
     });
@@ -150,7 +150,7 @@ async function dryRunMigration() {
   try {
     const jobs = await prisma.generationJob.findMany({
       where: {
-        resultUrls: { some: {} }
+        resultUrls: { isEmpty: false }
       }
     });
     

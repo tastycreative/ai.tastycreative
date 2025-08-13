@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
     if (action === 'create_test_job') {
       const testJob: GenerationJob = {
         id: 'test-job-' + Date.now(),
+        clerkId: 'test-clerk-id',
         userId: 'test-user',
         status: 'pending',
         createdAt: new Date(),
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
       addJob(testJob);
       
       // Immediately try to retrieve it
-      const retrievedJob = getJob(testJob.id);
+      const retrievedJob = await getJob(testJob.id);
       console.log('Retrieved test job:', !!retrievedJob);
       
       return NextResponse.json({
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
       // Create a job first
       const testJob: GenerationJob = {
         id: jobId,
+        clerkId: 'test-clerk-id',
         userId: 'test-user',
         status: 'pending',
         createdAt: new Date(),
@@ -111,6 +113,7 @@ export async function POST(request: NextRequest) {
       // Step 1: Create job (like generation endpoint does)
       const newJob: GenerationJob = {
         id: jobId,
+        clerkId: 'workflow-test-clerk-id',
         userId: 'workflow-test-user',
         status: 'pending',
         createdAt: new Date(),
@@ -123,7 +126,7 @@ export async function POST(request: NextRequest) {
       
       // Step 2: Try to retrieve it (like status endpoint does)
       console.log('Step 2: Retrieving job');
-      const retrievedJob = getJob(jobId);
+      const retrievedJob = await getJob(jobId);
       
       // Step 3: Update it (like polling does)
       console.log('Step 3: Updating job');
@@ -134,7 +137,7 @@ export async function POST(request: NextRequest) {
       
       // Step 4: Final retrieval
       console.log('Step 4: Final retrieval');
-      const finalJob = getJob(jobId);
+      const finalJob = await getJob(jobId);
       
       return NextResponse.json({
         success: true,
