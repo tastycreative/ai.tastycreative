@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TrainingJobsDB } from '@/lib/trainingJobsDB';
 import { RunPodTrainingClient } from '@/lib/runpodTrainingClient';
-import { runpodWebhookSchema } from '@/lib/validations/training';
 import { z } from 'zod';
 
 export async function POST(
