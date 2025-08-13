@@ -4,9 +4,14 @@ import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import fs from 'fs/promises';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
+const MAX_TOTAL_SIZE = 200 * 1024 * 1024; // 200MB total
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
+
+// Configure route for large payloads
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +31,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No image files provided' }, { status: 400 });
     }
 
-    console.log(`📁 Uploading ${files.length} training images`);
+    // Check total upload size
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize > MAX_TOTAL_SIZE) {
+      return NextResponse.json({ 
+        error: `Total upload size (${Math.round(totalSize / 1024 / 1024)}MB) exceeds limit of ${MAX_TOTAL_SIZE / 1024 / 1024}MB` 
+      }, { status: 413 });
+    }
+
+    console.log(`📁 Uploading ${files.length} training images (${Math.round(totalSize / 1024 / 1024)}MB total)`);
 
     // Ensure upload directory exists
     await fs.mkdir(UPLOAD_DIR, { recursive: true });
@@ -43,7 +56,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (file.size > MAX_FILE_SIZE) {
-        console.warn(`⚠️ Skipping large file: ${file.size} bytes`);
+        console.warn(`⚠️ Skipping large file: ${file.name} (${Math.round(file.size / 1024 / 1024)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`);
         continue;
       }
 
