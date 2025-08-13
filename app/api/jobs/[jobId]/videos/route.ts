@@ -5,8 +5,9 @@ import { getUserVideos } from '@/lib/videoStorage';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
+  const params = await context.params;
   try {
     const { userId: clerkId } = await auth();
     

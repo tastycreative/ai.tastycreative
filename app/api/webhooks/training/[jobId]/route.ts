@@ -6,8 +6,9 @@ import { z } from 'zod';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
+  const params = await context.params;
   try {
     const jobId = params.jobId;
     console.log(`🔔 Received training webhook for job ${jobId}`);
@@ -268,8 +269,9 @@ export async function POST(
 // Handle GET requests for testing
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
+  const params = await context.params;
   return NextResponse.json({
     message: 'Training webhook endpoint is active',
     jobId: params.jobId,
