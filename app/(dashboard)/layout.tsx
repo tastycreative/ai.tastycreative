@@ -22,6 +22,7 @@ import {
   Video,
   Shuffle,
   Sparkles,
+  BarChart3,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -96,6 +97,22 @@ const navigation: (NavItem | NavSection)[] = [
     ],
   },
   {
+    name: "Train Models",
+    collapsible: true,
+    items: [
+      {
+        name: "Train LoRA",
+        href: "/workspace/train-lora",
+        icon: PlusCircle,
+      },
+      {
+        name: "Training Jobs",
+        href: "/workspace/training-jobs",
+        icon: BarChart3,
+      },
+    ],
+  },
+  {
     name: "Settings",
     href: "/settings",
     icon: Settings,
@@ -124,6 +141,7 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(true);
   const [generateContentOpen, setGenerateContentOpen] = useState(true);
+  const [trainModelsOpen, setTrainModelsOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
   const { signOut } = useClerk();
@@ -199,6 +217,7 @@ export default function DashboardLayout({
   const renderNavSection = (section: NavSection) => {
     const isWorkspaceSection = section.name === "Workspace";
     const isGenerateContentSection = section.name === "Generate Content";
+    const isTrainModelsSection = section.name === "Train Models";
 
     // Determine if section is expanded
     let isExpanded = true;
@@ -206,12 +225,15 @@ export default function DashboardLayout({
       isExpanded = workspaceOpen;
     } else if (isGenerateContentSection) {
       isExpanded = generateContentOpen;
+    } else if (isTrainModelsSection) {
+      isExpanded = trainModelsOpen;
     }
 
     // Get the appropriate icon for the section
     const getSectionIcon = () => {
       if (isWorkspaceSection) return Users;
       if (isGenerateContentSection) return PlusCircle;
+      if (isTrainModelsSection) return Settings;
       return Users; // fallback
     };
 
@@ -223,6 +245,8 @@ export default function DashboardLayout({
         setWorkspaceOpen(!workspaceOpen);
       } else if (isGenerateContentSection) {
         setGenerateContentOpen(!generateContentOpen);
+      } else if (isTrainModelsSection) {
+        setTrainModelsOpen(!trainModelsOpen);
       }
     };
 
