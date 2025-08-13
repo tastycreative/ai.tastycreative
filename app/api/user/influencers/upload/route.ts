@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Helper function to verify LoRA is available in ComfyUI
-export async function verifyLoRAInComfyUI(fileName: string): Promise<boolean> {
+async function verifyLoRAInComfyUI(fileName: string): Promise<boolean> {
   try {
     console.log('🔍 Verifying LoRA in ComfyUI:', fileName);
     const response = await fetch(`${COMFYUI_URL}/object_info`, {
