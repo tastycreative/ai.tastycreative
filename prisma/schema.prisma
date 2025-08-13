@@ -20,10 +20,12 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  influencers InfluencerLoRA[]
-  jobs        GenerationJob[]
-  images      GeneratedImage[]
-  videos      GeneratedVideo[] // Added video relation
+  influencers    InfluencerLoRA[]
+  jobs           GenerationJob[]
+  images         GeneratedImage[]
+  videos         GeneratedVideo[]
+  trainingJobs   TrainingJob[]
+  trainingImages TrainingImage[] // Added training images relation
 
   @@map("users")
 }
@@ -45,13 +47,16 @@ model InfluencerLoRA {
   comfyUIPath      String?
   syncStatus       SyncStatus @default(PENDING)
   lastUsedAt       DateTime?
+  trainingJobId    String?    // Optional link to training job that created this LoRA
 
   // Relations
-  user User @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  user        User         @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  trainingJob TrainingJob? @relation(fields: [trainingJobId], references: [id], onDelete: SetNull)
 
   @@index([clerkId])
   @@index([fileName])
   @@index([isActive])
+  @@index([trainingJobId])
   @@map("influencer_loras")
 }
 
@@ -156,6 +161,79 @@ model GeneratedVideo {
   @@map("generated_videos")
 }
 
+// New model for LoRA training jobs
+model TrainingJob {
+  id              String            @id @default(cuid())
+  clerkId         String            // Link to Clerk user
+  name            String            // Training job name
+  description     String?           // Optional description
+  status          TrainingStatus    @default(PENDING)
+  progress        Int?              @default(0) // Progress percentage (0-100)
+  currentStep     Int?              @default(0) // Current training step
+  totalSteps      Int?              // Total training steps
+  runpodJobId     String?           // RunPod job ID
+  runpodPodId     String?           // RunPod pod ID
+  
+  // Configuration and data
+  trainingConfig  Json              // Training configuration (network, train params, etc.)
+  datasetConfig   Json              // Dataset configuration
+  modelConfig     Json              // Base model configuration
+  sampleConfig    Json              // Sample generation configuration
+  
+  // Results and outputs
+  error           String?           // Error message if failed
+  loss            Float?            // Current/final training loss
+  learningRate    Float?            // Current learning rate
+  eta             String?           // Estimated time remaining
+  sampleUrls      String[]          @default([]) // URLs to sample images
+  checkpointUrls  String[]          @default([]) // URLs to saved checkpoints
+  finalModelUrl   String?           // URL to final trained model
+  logUrl          String?           // URL to training logs
+  
+  // Timestamps
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  startedAt       DateTime?         // When training actually started
+  completedAt     DateTime?         // When training completed
+  
+  // Relations
+  user            User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  resultingLoRAs  InfluencerLoRA[]  // LoRAs created from this training job
+  trainingImages  TrainingImage[]   // Images used for training
+  
+  @@index([clerkId])
+  @@index([status])
+  @@index([clerkId, status])
+  @@index([createdAt])
+  @@index([runpodJobId])
+  @@map("training_jobs")
+}
+
+// Model for storing training dataset images
+model TrainingImage {
+  id            String      @id @default(cuid())
+  clerkId       String      // Link to Clerk user
+  trainingJobId String      // Link to training job
+  filename      String      // Original filename
+  caption       String?     // Optional caption for the image
+  fileSize      Int?        // File size in bytes
+  width         Int?        // Image width
+  height        Int?        // Image height
+  format        String?     // Image format (jpg, png, etc.)
+  storageUrl    String      // URL where image is stored (for RunPod access)
+  localPath     String?     // Local path on RunPod instance
+  uploadedAt    DateTime    @default(now())
+  
+  // Relations
+  user        User        @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  trainingJob TrainingJob @relation(fields: [trainingJobId], references: [id], onDelete: Cascade)
+  
+  @@index([trainingJobId])
+  @@index([clerkId])
+  @@unique([trainingJobId, filename]) // Prevent duplicate filenames per job
+  @@map("training_images")
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -168,6 +246,20 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// Training job status enum
+enum TrainingStatus {
+  PENDING      // Job created but not started
+  QUEUED       // Job queued on RunPod
+  INITIALIZING // Setting up training environment
+  PROCESSING   // Training in progress
+  SAMPLING     // Generating sample images
+  SAVING       // Saving checkpoints/final model
+  COMPLETED    // Training completed successfully
+  FAILED       // Training failed
+  CANCELLED    // Training was cancelled
+  TIMEOUT      // Training timed out
 }
 
 // New enum for generation types
