@@ -2,9 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['prisma'],
-  serverActions: {
-    bodySizeLimit: '50mb', // Increase from default 1MB to handle LoRA models
+  experimental: {
+    serverComponentsExternalPackages: ['prisma'],
   },
+  // Note: Body size limit is now configured in route handlers directly
+  // or through middleware, not in next.config
 };
 
 export default nextConfig;

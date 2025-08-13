@@ -18,8 +18,9 @@ function getMimeType(filename: string): string {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  context: { params: Promise<{ path: string[] }> }
 ) {
+  const params = await context.params;
   try {
     // Join the path segments to get the full file path
     const filePath = params.path.join('/');
