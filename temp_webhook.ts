@@ -1,7 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { TrainingJobsDB } from '@/lib/trainingJobsDB';
 import { RunPodTrainingClient } from '@/lib/runpodTrainingClient';
-import { PrismaClient } from '@/lib/generated/prisma';
 import { z } from 'zod';
 
 export async function POST(
@@ -11,11 +10,11 @@ export async function POST(
   try {
     const params = await context.params;
     const jobId = params.jobId;
-    console.log(`🔔 Received training webhook for job ${jobId}`);
+    console.log(`≡ƒöö Received training webhook for job ${jobId}`);
 
     // Parse the webhook payload
     const body = await request.json();
-    console.log('📦 Webhook payload:', JSON.stringify(body, null, 2));
+    console.log('≡ƒôª Webhook payload:', JSON.stringify(body, null, 2));
 
     // Handle different payload structures
     let runPodJobId: string;
@@ -30,16 +29,16 @@ export async function POST(
       runPodStatus = body.status;
       output = body.output;
       error = body.error;
-      console.log('📡 Processing RunPod webhook format');
+      console.log('≡ƒôí Processing RunPod webhook format');
     } else if (body.job_id && body.status) {
       // This is our custom webhook format
       runPodJobId = body.runpod_job_id || body.job_id;
       runPodStatus = body.status;
       output = body.output;
       error = body.error;
-      console.log('📡 Processing custom webhook format');
+      console.log('≡ƒôí Processing custom webhook format');
     } else {
-      console.error('❌ Unknown webhook payload format');
+      console.error('Γ¥î Unknown webhook payload format');
       return NextResponse.json(
         { error: 'Invalid webhook payload format' },
         { status: 400 }
@@ -47,35 +46,26 @@ export async function POST(
     }
 
     // Try to find the training job - first by our job ID, then by RunPod job ID
-    let trainingJob;
-    try {
-      trainingJob = await TrainingJobsDB.getTrainingJob(jobId, '');
-      
-      if (!trainingJob) {
-        // Try to find by RunPod job ID
-        trainingJob = await TrainingJobsDB.getTrainingJobByRunPodId(runPodJobId);
-      }
-    } catch (dbError) {
-      console.error('❌ Database error when fetching training job:', dbError);
-      return NextResponse.json(
-        { error: 'Database error' },
-        { status: 500 }
-      );
+    let trainingJob = await TrainingJobsDB.getTrainingJob(jobId, '');
+    
+    if (!trainingJob) {
+      // Try to find by RunPod job ID
+      trainingJob = await TrainingJobsDB.getTrainingJobByRunPodId(runPodJobId);
     }
     
     if (!trainingJob) {
-      console.error(`❌ Training job not found for job ID: ${jobId} or RunPod ID: ${runPodJobId}`);
+      console.error(`Γ¥î Training job not found for job ID: ${jobId} or RunPod ID: ${runPodJobId}`);
       return NextResponse.json(
         { error: 'Training job not found' },
         { status: 404 }
       );
     }
 
-    console.log(`📋 Found training job: ${trainingJob.id} for user ${trainingJob.clerkId}`);
+    console.log(`≡ƒôï Found training job: ${trainingJob.id} for user ${trainingJob.clerkId}`);
 
     // Map RunPod status to our status
     const status = RunPodTrainingClient.mapRunPodStatus(runPodStatus);
-    console.log(`🔄 Status mapping: ${runPodStatus} -> ${status}`);
+    console.log(`≡ƒöä Status mapping: ${runPodStatus} -> ${status}`);
 
     // Prepare updates
     const updates: any = {
@@ -116,7 +106,7 @@ export async function POST(
           updates.learningRate = output.final_learning_rate;
         }
 
-        console.log('✅ Extracted completion data:', {
+        console.log('Γ£à Extracted completion data:', {
           finalModelUrl: updates.finalModelUrl,
           checkpointCount: updates.checkpointUrls?.length || 0,
           sampleCount: updates.sampleUrls?.length || 0,
@@ -124,11 +114,12 @@ export async function POST(
         });
       }
 
-      // ✨ AUTOMATIC LORA CREATION - This is the key fix!
+      // Γ£¿ AUTOMATIC LORA CREATION - This is the key fix!
       try {
-        console.log('🎯 Attempting to create LoRA entry automatically...');
+        console.log('≡ƒÄ» Attempting to create LoRA entry automatically...');
         
         // Check if LoRA already exists
+        const { PrismaClient } = require('@/lib/generated/prisma');
         const prisma = new PrismaClient();
         
         const existingLora = await prisma.influencerLoRA.findFirst({
@@ -139,7 +130,7 @@ export async function POST(
         });
 
         if (existingLora) {
-          console.log('✅ LoRA already exists:', existingLora.id);
+          console.log('Γ£à LoRA already exists:', existingLora.id);
           
           // Update existing LoRA to active status
           await prisma.influencerLoRA.update({
@@ -151,7 +142,7 @@ export async function POST(
             }
           });
         } else {
-          console.log('🆕 Creating new LoRA entry...');
+          console.log('≡ƒåò Creating new LoRA entry...');
           
           // Create new LoRA entry
           const newLora = await prisma.influencerLoRA.create({
@@ -170,7 +161,7 @@ export async function POST(
             }
           });
 
-          console.log('✅ Created LoRA entry automatically:', {
+          console.log('Γ£à Created LoRA entry automatically:', {
             id: newLora.id,
             name: newLora.name,
             fileName: newLora.fileName
@@ -180,7 +171,7 @@ export async function POST(
         await prisma.$disconnect();
         
       } catch (loraError) {
-        console.error('❌ Failed to create LoRA entry:', loraError);
+        console.error('Γ¥î Failed to create LoRA entry:', loraError);
         // Don't fail the webhook - just log the error
       }
     }
@@ -211,7 +202,7 @@ export async function POST(
         updates.checkpointUrls = [output.checkpoint_url];
       }
 
-      console.log('📈 Progress update:', {
+      console.log('≡ƒôê Progress update:', {
         currentStep: updates.currentStep,
         progress: updates.progress,
         loss: updates.loss,
@@ -225,7 +216,7 @@ export async function POST(
       if (error) {
         updates.error = error;
       }
-      console.log('❌ Job failed/cancelled:', error);
+      console.log('Γ¥î Job failed/cancelled:', error);
     }
 
     // Handle queued/starting states
@@ -233,20 +224,13 @@ export async function POST(
       if (!trainingJob.startedAt) {
         updates.startedAt = new Date();
       }
-      console.log('🚀 Job queued/started');
+      console.log('≡ƒÜÇ Job queued/started');
     }
 
     // Update the training job
-    try {
-      await TrainingJobsDB.updateTrainingJob(trainingJob.id, updates);
-      console.log(`✅ Updated training job ${trainingJob.id} with status ${status}`);
-    } catch (updateError) {
-      console.error('❌ Failed to update training job:', updateError);
-      return NextResponse.json(
-        { error: 'Failed to update training job' },
-        { status: 500 }
-      );
-    }
+    await TrainingJobsDB.updateTrainingJob(trainingJob.id, updates);
+
+    console.log(`Γ£à Updated training job ${trainingJob.id} with status ${status}`);
 
     return NextResponse.json({
       success: true,
@@ -257,11 +241,11 @@ export async function POST(
     });
 
   } catch (error) {
-    console.error('💥 Training webhook error:', error);
+    console.error('≡ƒÆÑ Training webhook error:', error);
 
     // Log validation errors specifically
     if (error instanceof z.ZodError) {
-      console.error('📋 Validation errors:', error.issues);
+      console.error('≡ƒôï Validation errors:', error.issues);
       return NextResponse.json(
         { 
           error: 'Invalid webhook payload',
