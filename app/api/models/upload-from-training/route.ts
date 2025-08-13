@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TrainingJobsDB } from '@/lib/trainingJobsDB';
 import { PrismaClient } from '@/lib/generated/prisma';
-import path from 'path';
-import fs from 'fs/promises';
+import { put } from '@vercel/blob';
 
 const prisma = new PrismaClient();
 
@@ -53,21 +52,18 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Create models directory structure
-    const modelsDir = path.join(process.cwd(), 'public', 'models');
-    const userModelsDir = path.join(modelsDir, trainingJob.clerkId);
-    
-    await fs.mkdir(modelsDir, { recursive: true });
-    await fs.mkdir(userModelsDir, { recursive: true });
-
-    // Save file with proper name
+    // Save file to Vercel Blob storage
     const fileName = `${modelName}.safetensors`;
-    const filePath = path.join(userModelsDir, fileName);
+    const blobPath = `models/${trainingJob.clerkId}/${fileName}`;
     
     const buffer = await file.arrayBuffer();
-    await fs.writeFile(filePath, new Uint8Array(buffer));
+    const blob = await put(blobPath, buffer, {
+      access: 'public',
+      contentType: 'application/octet-stream'
+    });
 
-    console.log(`✅ Model file saved: ${fileName} (${file.size} bytes)`);
+    console.log(`✅ Model file uploaded to blob storage: ${fileName} (${file.size} bytes)`);
+    console.log(`📂 Blob URL: ${blob.url}`);
 
     // Check if LoRA entry already exists
     let lora = await prisma.influencerLoRA.findFirst({
@@ -114,7 +110,7 @@ export async function POST(request: NextRequest) {
       status: 'COMPLETED',
       progress: 100,
       completedAt: new Date(),
-      finalModelUrl: `/models/${trainingJob.clerkId}/${fileName}`,
+      finalModelUrl: blob.url,
       ...(finalLoss && { loss: parseFloat(finalLoss) })
     });
 
@@ -132,7 +128,7 @@ export async function POST(request: NextRequest) {
         fileSize: lora.fileSize,
         isActive: lora.isActive
       },
-      filePath: `/models/${trainingJob.clerkId}/${fileName}`
+      filePath: blob.url
     });
 
   } catch (error) {
