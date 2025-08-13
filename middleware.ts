@@ -7,7 +7,6 @@ const isProtectedRoute = createRouteMatcher([
   '/billing(.*)',
   '/team(.*)',
   '/workspace(.*)',
-  '/api/webhooks(.*)',
   '/api/generate(.*)',
   '/api/jobs(.*)',
   '/api/models(.*)',
@@ -33,6 +32,7 @@ const isAuthRoute = createRouteMatcher([
 const isPublicApiRoute = createRouteMatcher([
   '/api/trpc/hello(.*)',
   '/api/trpc/getTodos(.*)',
+  '/api/webhooks(.*)',  // Allow webhooks to be called without authentication
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
