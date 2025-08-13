@@ -275,7 +275,8 @@ export class RunPodTrainingClient {
       console.warn('💡 For production, use your actual domain.');
     }
     
-    return `${baseUrl}/api/webhooks/training/${jobId}`;
+    // Use training2 endpoint which is working reliably
+    return `${baseUrl}/api/webhooks/training2/${jobId}`;
   }
 
   /**
