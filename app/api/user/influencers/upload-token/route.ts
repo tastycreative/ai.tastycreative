@@ -1,16 +1,15 @@
 // app/api/user/influencers/upload-token/route.ts - Handle blob uploads properly
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { getUserId } from '@/lib/database';
 
-export async function POST(request: NextRequest): Promise<NextResponse | Response> {
+export async function POST(request: NextRequest) {
   try {
     console.log('🔧 Upload token request received');
     console.log('🔧 BLOB_READ_WRITE_TOKEN available:', !!process.env.BLOB_READ_WRITE_TOKEN);
-    console.log('🔧 Request method:', request.method);
-    console.log('🔧 Request headers:', Object.fromEntries(request.headers.entries()));
     
-    const result = await handleUpload({
+    // Return handleUpload directly - it already returns the proper Response
+    return await handleUpload({
       body: request.body as unknown as HandleUploadBody,
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
@@ -40,28 +39,18 @@ export async function POST(request: NextRequest): Promise<NextResponse | Respons
       },
     });
 
-    // Convert the result to a proper NextResponse
-    if ('clientToken' in result) {
-      return NextResponse.json({
-        type: 'blob.generate-client-token',
-        clientToken: result.clientToken
-      });
-    } else {
-      return NextResponse.json({
-        type: 'blob.upload-completed', 
-        response: 'ok'
-      });
-    }
-
   } catch (error) {
     console.error('❌ Error in blob upload handler:', error);
-    return NextResponse.json(
-      { 
+    return new Response(
+      JSON.stringify({ 
         success: false, 
         error: 'Upload token generation failed',
         details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
+      }),
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 }
