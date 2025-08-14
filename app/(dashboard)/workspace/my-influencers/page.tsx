@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { upload } from '@vercel/blob/client';
 import { apiClient } from "@/lib/apiClient";
 import {
   Upload,
@@ -208,7 +209,7 @@ export default function MyInfluencersPage() {
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using server-side blob upload`);
+        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using direct client-side blob upload`);
 
         // Update progress to show upload starting
         setUploadProgress((prev) =>
@@ -219,39 +220,33 @@ export default function MyInfluencersPage() {
           )
         );
 
-        // Step 1: Upload to Vercel Blob via server-side API
-        console.log('☁️ Starting server-side blob upload');
+        // Step 1: Upload directly to Vercel Blob from client using handleUploadUrl
+        const fileExtension = file.name.substring(file.name.lastIndexOf('.'));
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
+        const timestamp = Date.now();
+        const uniquePath = `loras/client/${timestamp}_${baseName}${fileExtension}`;
         
-        const blobResponse = await fetch('/api/user/influencers/blob-upload', {
-          method: 'POST',
-          headers: {
-            'x-filename': file.name,
-            'content-type': 'application/octet-stream',
-            'content-length': file.size.toString()
-          },
-          body: file
+        console.log('☁️ Starting direct blob upload to:', uniquePath);
+        
+        const blob = await upload(uniquePath, file, {
+          access: 'public',
+          handleUploadUrl: '/api/user/influencers/upload-token',
         });
         
-        const blobResult = await blobResponse.json();
-        
-        if (!blobResponse.ok) {
-          throw new Error(blobResult.error || `Blob upload failed for ${file.name}`);
-        }
-        
-        console.log('✅ Server-side blob upload completed:', blobResult.blobUrl);
+        console.log('✅ Direct blob upload completed:', blob.url);
 
         // Update progress to show blob upload completed
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 60, status: "processing" }
+              ? { ...item, progress: 70, status: "processing" }
               : item
           )
         );
 
         // Step 2: Complete the upload with metadata and ComfyUI processing
         const completeResponse = await apiClient.post('/api/user/influencers/blob-complete', {
-          blobUrl: blobResult.blobUrl,
+          blobUrl: blob.url,
           fileName: file.name,
           displayName: file.name.replace(/\.[^/.]+$/, ""),
           description: '',
