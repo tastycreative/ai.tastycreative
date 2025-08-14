@@ -208,26 +208,28 @@ export default function MyInfluencersPage() {
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using Vercel Blob`);
-
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("displayName", file.name.replace(/\.[^/.]+$/, ""));
-        formData.append("description", "");
+        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using streaming upload`);
 
         // Update progress to show upload starting
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 50, status: "uploading" }
+              ? { ...item, progress: 25, status: "uploading" }
               : item
           )
         );
 
-        const response = await apiClient.postFormData(
-          "/api/user/influencers/upload",
-          formData
-        );
+        // Upload using streaming endpoint with custom headers
+        const response = await fetch('/api/user/influencers/upload-stream', {
+          method: 'POST',
+          headers: {
+            'x-filename': file.name,
+            'x-display-name': file.name.replace(/\.[^/.]+$/, ""),
+            'x-description': '',
+            'content-type': file.type || 'application/octet-stream'
+          },
+          body: file
+        });
 
         const result = await response.json();
 
