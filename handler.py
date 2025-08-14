@@ -553,46 +553,61 @@ def handler(job):
             # Upload model file to your storage via API
             model_upload_success = False
             if model_file_data and webhook_url:
-                try:
-                    logger.info("🚀 Uploading model to your storage...")
-                    
-                    # Extract base URL from webhook URL
-                    # webhook_url is like: https://your-domain.com/api/webhooks/training/job_id
-                    base_url = webhook_url.split('/api/webhooks')[0]
-                    upload_url = f"{base_url}/api/models/upload-from-training"
-                    
-                    # Prepare multipart form data
-                    import requests
-                    
-                    files = {
-                        'file': (model_filename, model_file_data, 'application/octet-stream')
-                    }
-                    
-                    data = {
-                        'job_id': job_id,
-                        'model_name': job_input['name'],
-                        'training_steps': step,
-                        'final_loss': None  # Could extract from training logs if needed
-                    }
-                    
-                    response = requests.post(
-                        upload_url, 
-                        files=files, 
-                        data=data,
-                        timeout=120,  # 2 minute timeout for large files
-                        headers={
-                            'User-Agent': 'RunPod-Training-Handler/1.0'
-                        }
-                    )
-                    
-                    if response.status_code == 200:
-                        logger.info("✅ Model uploaded successfully to your storage!")
-                        model_upload_success = True
-                    else:
-                        logger.error(f"❌ Model upload failed: {response.status_code} - {response.text}")
+                max_retries = 3
+                retry_delay = 30  # seconds
+                
+                for attempt in range(max_retries):
+                    try:
+                        logger.info(f"🚀 Uploading model to your storage (attempt {attempt + 1}/{max_retries})...")
                         
-                except Exception as upload_error:
-                    logger.error(f"❌ Model upload error: {upload_error}")
+                        # Extract base URL from webhook URL
+                        # webhook_url is like: https://your-domain.com/api/webhooks/training/job_id
+                        base_url = webhook_url.split('/api/webhooks')[0]
+                        upload_url = f"{base_url}/api/models/upload-from-training"
+                        
+                        # Prepare multipart form data
+                        import requests
+                        
+                        files = {
+                            'file': (model_filename, model_file_data, 'application/octet-stream')
+                        }
+                        
+                        data = {
+                            'job_id': job_id,
+                            'model_name': job_input['name'],
+                            'training_steps': step,
+                            'final_loss': None  # Could extract from training logs if needed
+                        }
+                        
+                        response = requests.post(
+                            upload_url, 
+                            files=files, 
+                            data=data,
+                            timeout=600,  # 10 minute timeout for large files (increased from 2 minutes)
+                            headers={
+                                'User-Agent': 'RunPod-Training-Handler/1.0'
+                            }
+                        )
+                        
+                        if response.status_code == 200:
+                            logger.info("✅ Model uploaded successfully to your storage!")
+                            model_upload_success = True
+                            break  # Success - exit retry loop
+                        else:
+                            logger.error(f"❌ Model upload failed: {response.status_code} - {response.text}")
+                            if attempt < max_retries - 1:
+                                logger.info(f"⏳ Retrying in {retry_delay} seconds...")
+                                time.sleep(retry_delay)
+                                continue
+                            
+                    except Exception as upload_error:
+                        logger.error(f"❌ Model upload error (attempt {attempt + 1}): {upload_error}")
+                        if attempt < max_retries - 1:
+                            logger.info(f"⏳ Retrying in {retry_delay} seconds...")
+                            time.sleep(retry_delay)
+                        else:
+                            logger.error("❌ All upload attempts failed")
+                            break
             
             # Prepare sample URLs (these would need to be uploaded to your storage)
             sample_urls = [f"/training/{job_id}/samples/{f['filename']}" for f in output_files['sample_files']]
