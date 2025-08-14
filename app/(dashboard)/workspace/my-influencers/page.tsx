@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
+import { ChunkedUploader, type ChunkUploadProgress } from "@/lib/chunkedUpload";
 import {
   Upload,
   Users,
@@ -50,6 +51,9 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
+  currentChunk?: number;
+  totalChunks?: number;
+  uploadMethod?: 'direct' | 'chunked';
 }
 
 interface UploadInstructions {
@@ -187,7 +191,7 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
-  // Upload influencers
+  // Upload influencers with chunked upload for large files
   const uploadInfluencers = async () => {
     if (selectedFiles.length === 0) return;
 
@@ -196,49 +200,86 @@ export default function MyInfluencersPage() {
     let hasManualInstructions = false;
     let manualInstructions: UploadInstructions | null = null;
 
+    const chunkedUploader = new ChunkedUploader();
+    const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4MB - use chunked upload for files larger than this
+
     for (const file of selectedFiles) {
       try {
+        const isLargeFile = file.size > CHUNKED_THRESHOLD;
+        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using ${isLargeFile ? 'chunked' : 'direct'} method`);
+
         const progressItem: UploadProgress = {
           fileName: file.name,
           progress: 0,
           status: "uploading",
+          uploadMethod: isLargeFile ? 'chunked' : 'direct'
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("displayName", file.name.replace(/\.[^/.]+$/, ""));
-        formData.append("description", "");
+        let result: any;
 
-        // Update progress to show upload starting
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? { ...item, progress: 25, status: "uploading" }
-              : item
-          )
-        );
+        if (isLargeFile) {
+          // Use chunked upload for large files
+          result = await chunkedUploader.uploadFile(
+            file,
+            {
+              displayName: file.name.replace(/\.[^/.]+$/, ""),
+              description: ""
+            },
+            (progress: ChunkUploadProgress) => {
+              setUploadProgress((prev) =>
+                prev.map((item) =>
+                  item.fileName === file.name
+                    ? { 
+                        ...item, 
+                        progress: progress.progress,
+                        status: progress.status,
+                        currentChunk: progress.currentChunk,
+                        totalChunks: progress.totalChunks,
+                        error: progress.error
+                      }
+                    : item
+                )
+              );
+            }
+          );
+        } else {
+          // Use direct upload for small files
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("displayName", file.name.replace(/\.[^/.]+$/, ""));
+          formData.append("description", "");
 
-        const response = await apiClient.postFormData(
-          "/api/user/influencers/upload",
-          formData
-        );
+          // Update progress to show upload starting
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? { ...item, progress: 25, status: "uploading" }
+                : item
+            )
+          );
 
-        const result = await response.json();
+          const response = await apiClient.postFormData(
+            "/api/user/influencers/upload",
+            formData
+          );
 
-        if (!response.ok) {
-          throw new Error(result.error || `Upload failed for ${file.name}`);
+          result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || `Upload failed for ${file.name}`);
+          }
+
+          // Update progress to completed
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? { ...item, progress: 100, status: "completed" }
+                : item
+            )
+          );
         }
-
-        // Update progress to completed
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? { ...item, progress: 100, status: "completed" }
-              : item
-          )
-        );
 
         // Check if manual setup is required
         if (!result.uploadedToComfyUI && result.instructions) {
@@ -960,6 +1001,17 @@ export default function MyInfluencersPage() {
                               {progress.progress}%
                             </span>
                           </div>
+                        </div>
+                        {/* Show method and chunk info */}
+                        <div className="flex items-center justify-between text-xs text-gray-400">
+                          <span>
+                            {progress.uploadMethod === 'chunked' ? '📦 Chunked upload' : '⚡ Direct upload'}
+                          </span>
+                          {progress.currentChunk && progress.totalChunks && (
+                            <span>
+                              Chunk {progress.currentChunk}/{progress.totalChunks}
+                            </span>
+                          )}
                         </div>
                         {progress.status !== "completed" && (
                           <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1">
