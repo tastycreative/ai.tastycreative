@@ -208,33 +208,60 @@ export default function MyInfluencersPage() {
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using streaming upload`);
+        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using server-side blob upload`);
 
         // Update progress to show upload starting
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 25, status: "uploading" }
+              ? { ...item, progress: 10, status: "uploading" }
               : item
           )
         );
 
-        // Upload using streaming endpoint with custom headers
-        const response = await fetch('/api/user/influencers/upload-stream', {
+        // Step 1: Upload to Vercel Blob via server-side API
+        console.log('☁️ Starting server-side blob upload');
+        
+        const blobResponse = await fetch('/api/user/influencers/blob-upload', {
           method: 'POST',
           headers: {
             'x-filename': file.name,
-            'x-display-name': file.name.replace(/\.[^/.]+$/, ""),
-            'x-description': '',
-            'content-type': file.type || 'application/octet-stream'
+            'content-type': 'application/octet-stream',
+            'content-length': file.size.toString()
           },
           body: file
         });
+        
+        const blobResult = await blobResponse.json();
+        
+        if (!blobResponse.ok) {
+          throw new Error(blobResult.error || `Blob upload failed for ${file.name}`);
+        }
+        
+        console.log('✅ Server-side blob upload completed:', blobResult.blobUrl);
 
-        const result = await response.json();
+        // Update progress to show blob upload completed
+        setUploadProgress((prev) =>
+          prev.map((item) =>
+            item.fileName === file.name
+              ? { ...item, progress: 60, status: "processing" }
+              : item
+          )
+        );
 
-        if (!response.ok) {
-          throw new Error(result.error || `Upload failed for ${file.name}`);
+        // Step 2: Complete the upload with metadata and ComfyUI processing
+        const completeResponse = await apiClient.post('/api/user/influencers/blob-complete', {
+          blobUrl: blobResult.blobUrl,
+          fileName: file.name,
+          displayName: file.name.replace(/\.[^/.]+$/, ""),
+          description: '',
+          fileSize: file.size
+        });
+
+        const result = await completeResponse.json();
+
+        if (!completeResponse.ok) {
+          throw new Error(result.error || `Processing failed for ${file.name}`);
         }
 
         // Update progress to completed
