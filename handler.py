@@ -550,7 +550,7 @@ def handler(job):
                         except Exception as e:
                             logger.error(f"❌ Failed to read model file: {e}")
             
-            # Upload model file to your storage via API
+            # Upload model file to your storage via API using base64 encoding
             model_upload_success = False
             if model_file_data and webhook_url:
                 max_retries = 3
@@ -558,39 +558,40 @@ def handler(job):
                 
                 for attempt in range(max_retries):
                     try:
-                        logger.info(f"🚀 Uploading model to your storage (attempt {attempt + 1}/{max_retries})...")
+                        logger.info(f"🚀 Uploading model to blob storage (attempt {attempt + 1}/{max_retries})...")
                         
                         # Extract base URL from webhook URL
                         # webhook_url is like: https://your-domain.com/api/webhooks/training/job_id
                         base_url = webhook_url.split('/api/webhooks')[0]
-                        upload_url = f"{base_url}/api/models/upload-from-training"
+                        upload_url = f"{base_url}/api/models/upload-blob"
                         
-                        # Prepare multipart form data
-                        import requests
+                        # Convert file data to base64 to avoid 413 errors
+                        import base64
+                        file_base64 = base64.b64encode(model_file_data).decode('utf-8')
+                        logger.info(f"📦 Converted file to base64: {len(file_base64)} chars")
                         
-                        files = {
-                            'file': (model_filename, model_file_data, 'application/octet-stream')
-                        }
-                        
-                        data = {
-                            'job_id': job_id,
-                            'model_name': job_input['name'],
-                            'training_steps': step,
-                            'final_loss': None  # Could extract from training logs if needed
+                        # Prepare JSON payload (smaller than multipart)
+                        payload = {
+                            'jobId': job_id,
+                            'modelName': job_input['name'],
+                            'fileName': model_filename,
+                            'fileData': file_base64,
+                            'trainingSteps': str(step),
+                            'finalLoss': None  # Could extract from training logs if needed
                         }
                         
                         response = requests.post(
                             upload_url, 
-                            files=files, 
-                            data=data,
-                            timeout=600,  # 10 minute timeout for large files (increased from 2 minutes)
+                            json=payload,  # Use JSON instead of multipart form data
+                            timeout=600,  # 10 minute timeout for large files
                             headers={
-                                'User-Agent': 'RunPod-Training-Handler/1.0'
+                                'User-Agent': 'RunPod-Training-Handler/1.0',
+                                'Content-Type': 'application/json'
                             }
                         )
                         
                         if response.status_code == 200:
-                            logger.info("✅ Model uploaded successfully to your storage!")
+                            logger.info("✅ Model uploaded successfully to blob storage!")
                             model_upload_success = True
                             break  # Success - exit retry loop
                         else:
