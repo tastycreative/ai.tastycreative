@@ -132,14 +132,14 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          // Check if LoRA entry already exists. Some generated clients may not expose trainingJobId in where yet; filter in code if necessary
-          let lora = await prisma.influencerLoRA.findFirst({
+          // Check if LoRA entry already exists (filter by clerkId first, then check trainingJobId)
+          const existingLoras = await prisma.influencerLoRA.findMany({
             where: {
-              clerkId: trainingJob.clerkId,
-              // @ts-ignore allow if trainingJobId field exists
-              trainingJobId: trainingJob.id
-            } as any
+              clerkId: trainingJob.clerkId
+            }
           });
+          
+          let lora = existingLoras.find((l: any) => l.trainingJobId === trainingJob.id);
 
           if (lora) {
             // Update existing LoRA with model data
@@ -169,7 +169,6 @@ export async function POST(request: NextRequest) {
               originalFileName: fileName,
               fileSize: finalBuffer.length,
               description: `LoRA trained from ${modelName} - ${trainingSteps} steps${finalLoss ? `, final loss: ${finalLoss}` : ''}`,
-              // @ts-ignore include relation if available
               trainingJobId: trainingJob.id,
               syncStatus: 'SYNCED',
               isActive: true
