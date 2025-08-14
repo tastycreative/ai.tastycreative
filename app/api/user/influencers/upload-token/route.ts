@@ -5,13 +5,21 @@ import { getUserId } from '@/lib/database';
 
 export async function POST(request: NextRequest): Promise<NextResponse | Response> {
   try {
+    console.log('🔧 Upload token request received');
+    console.log('🔧 BLOB_READ_WRITE_TOKEN available:', !!process.env.BLOB_READ_WRITE_TOKEN);
+    console.log('🔧 Request method:', request.method);
+    console.log('🔧 Request headers:', Object.fromEntries(request.headers.entries()));
+    
     const result = await handleUpload({
       body: request.body as unknown as HandleUploadBody,
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         // Authenticate the user  
+        console.log('🔧 onBeforeGenerateToken called for path:', pathname);
+        
         const userId = await getUserId(request);
         if (!userId) {
+          console.error('❌ No user ID found during authentication');
           throw new Error('Unauthorized: No user ID found');
         }
         
