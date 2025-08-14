@@ -33,6 +33,19 @@ export interface VideoPathInfo {
 
 // Helper function to construct ComfyUI video URLs dynamically
 export function buildComfyUIVideoUrl(pathInfo: VideoPathInfo): string {
+  // Use proxy endpoint for production to avoid mixed content issues
+  if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://')) {
+    const params = new URLSearchParams({
+      filename: pathInfo.filename,
+      subfolder: pathInfo.subfolder,
+      type: pathInfo.type
+    });
+    
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ai.tastycreative.xyz';
+    return `${appUrl}/api/proxy/comfyui/view?${params.toString()}`;
+  }
+  
+  // Use direct ComfyUI URL for local development
   const baseUrl = COMFYUI_URL();
   const params = new URLSearchParams({
     filename: pathInfo.filename,
