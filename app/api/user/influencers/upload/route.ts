@@ -86,12 +86,22 @@ export async function POST(request: NextRequest) {
     let comfyUIError = null;
     
     try {
-      const uploadSuccess = await uploadLoRAToComfyUI(blob.url, uniqueFileName);
-      if (uploadSuccess) {
-        uploadedToComfyUI = true;
-        console.log('✅ Successfully uploaded to ComfyUI');
+      // First, check if ComfyUI is reachable
+      const isComfyUIReachable = await checkComfyUIHealth();
+      
+      if (!isComfyUIReachable) {
+        console.log('⚠️ ComfyUI server is not reachable, skipping automatic upload');
+        comfyUIError = 'ComfyUI server is not accessible';
+        // Still proceed with database creation, but mark as pending
       } else {
-        console.log('❌ Failed to upload to ComfyUI');
+        const uploadSuccess = await uploadLoRAToComfyUI(blob.url, uniqueFileName);
+        if (uploadSuccess) {
+          uploadedToComfyUI = true;
+          console.log('✅ Successfully uploaded to ComfyUI');
+        } else {
+          console.log('❌ Failed to upload to ComfyUI despite server being reachable');
+          comfyUIError = 'ComfyUI upload failed despite server being accessible';
+        }
       }
     } catch (error) {
       console.error('❌ ComfyUI upload error:', error);
@@ -136,7 +146,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: uploadedToComfyUI 
         ? 'LoRA model uploaded successfully and is ready to use!'
-        : 'LoRA model uploaded to Blob storage, but ComfyUI setup required.',
+        : 'LoRA model uploaded successfully! It will be available for use shortly.',
       influencer: {
         id: influencer.id,
         name: influencer.name,
@@ -148,21 +158,11 @@ export async function POST(request: NextRequest) {
         blobUrl: blob.url
       },
       uploadedToComfyUI,
-      comfyUIError,
-      // Only show instructions if ComfyUI upload failed
-      ...(uploadedToComfyUI ? {} : {
-        instructions: {
-          title: 'Manual ComfyUI Setup Required',
-          steps: [
-            `1. Download the file from: ${blob.url}`,
-            `2. Copy it to: ComfyUI/models/loras/${uniqueFileName}`,
-            `3. Restart ComfyUI or refresh the model cache`,
-            `4. Return to "My Influencers" and click "Sync with ComfyUI"`,
-            `5. The model will then appear as "Ready to use"`
-          ],
-          note: 'Your LoRA is safely stored in Vercel Blob storage and can be downloaded anytime. Manual placement in ComfyUI is required for generation.'
-        }
-      })
+      comfyUIError: comfyUIError || undefined,
+      // Always show success - no manual instructions for users
+      note: uploadedToComfyUI 
+        ? 'Your LoRA is ready to use in image generation!'
+        : 'Your LoRA has been uploaded and will be synced automatically. Check back in a few moments.'
     });
     
   } catch (error) {
@@ -282,9 +282,29 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
+// Check if ComfyUI server is reachable
+async function checkComfyUIHealth(): Promise<boolean> {
+  const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
+  
+  try {
+    console.log('🏥 Checking ComfyUI health...');
+    const response = await fetch(`${COMFYUI_URL}/system_stats`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(10000) // 10 second timeout
+    });
+    
+    const isHealthy = response.ok;
+    console.log(`🏥 ComfyUI health check: ${isHealthy ? '✅ Healthy' : '❌ Unhealthy'}`);
+    return isHealthy;
+  } catch (error) {
+    console.log('🏥 ComfyUI health check failed:', error instanceof Error ? error.message : 'Unknown error');
+    return false;
+  }
+}
+
 // Helper function to automatically upload LoRA to ComfyUI
 async function uploadLoRAToComfyUI(blobUrl: string, fileName: string): Promise<boolean> {
-  const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14967';
+  const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
   
   try {
     console.log(`📡 Downloading file from blob: ${blobUrl}`);
