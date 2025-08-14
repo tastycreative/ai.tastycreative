@@ -1,9 +1,8 @@
-// Updated app/(dashboard)/workspace/my-influencers/page.tsx - CLEAN VERSION
+// Updated app/(dashboard)/workspace/my-influencers/page.tsx - Vercel Blob Upload
 "use client";
 
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/apiClient";
-import { ChunkedUploader, type ChunkUploadProgress } from "@/lib/chunkedUpload";
 import {
   Upload,
   Users,
@@ -51,9 +50,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  currentChunk?: number;
-  totalChunks?: number;
-  uploadMethod?: 'direct' | 'chunked';
+  uploadMethod?: 'direct';
 }
 
 interface UploadInstructions {
@@ -191,7 +188,7 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
-  // Upload influencers with chunked upload for large files
+  // Upload influencers with Vercel Blob (no chunking needed)
   const uploadInfluencers = async () => {
     if (selectedFiles.length === 0) return;
 
@@ -200,86 +197,52 @@ export default function MyInfluencersPage() {
     let hasManualInstructions = false;
     let manualInstructions: UploadInstructions | null = null;
 
-    const chunkedUploader = new ChunkedUploader();
-    const CHUNKED_THRESHOLD = 4 * 1024 * 1024; // 4MB - use chunked upload for files larger than this
-
     for (const file of selectedFiles) {
       try {
-        const isLargeFile = file.size > CHUNKED_THRESHOLD;
-        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using ${isLargeFile ? 'chunked' : 'direct'} method`);
-
         const progressItem: UploadProgress = {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: isLargeFile ? 'chunked' : 'direct'
+          uploadMethod: 'direct' // Always direct with Vercel Blob
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        let result: any;
+        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using Vercel Blob`);
 
-        if (isLargeFile) {
-          // Use chunked upload for large files
-          result = await chunkedUploader.uploadFile(
-            file,
-            {
-              displayName: file.name.replace(/\.[^/.]+$/, ""),
-              description: ""
-            },
-            (progress: ChunkUploadProgress) => {
-              setUploadProgress((prev) =>
-                prev.map((item) =>
-                  item.fileName === file.name
-                    ? { 
-                        ...item, 
-                        progress: progress.progress,
-                        status: progress.status,
-                        currentChunk: progress.currentChunk,
-                        totalChunks: progress.totalChunks,
-                        error: progress.error
-                      }
-                    : item
-                )
-              );
-            }
-          );
-        } else {
-          // Use direct upload for small files
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("displayName", file.name.replace(/\.[^/.]+$/, ""));
-          formData.append("description", "");
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("displayName", file.name.replace(/\.[^/.]+$/, ""));
+        formData.append("description", "");
 
-          // Update progress to show upload starting
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? { ...item, progress: 25, status: "uploading" }
-                : item
-            )
-          );
+        // Update progress to show upload starting
+        setUploadProgress((prev) =>
+          prev.map((item) =>
+            item.fileName === file.name
+              ? { ...item, progress: 50, status: "uploading" }
+              : item
+          )
+        );
 
-          const response = await apiClient.postFormData(
-            "/api/user/influencers/upload",
-            formData
-          );
+        const response = await apiClient.postFormData(
+          "/api/user/influencers/upload",
+          formData
+        );
 
-          result = await response.json();
+        const result = await response.json();
 
-          if (!response.ok) {
-            throw new Error(result.error || `Upload failed for ${file.name}`);
-          }
-
-          // Update progress to completed
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? { ...item, progress: 100, status: "completed" }
-                : item
-            )
-          );
+        if (!response.ok) {
+          throw new Error(result.error || `Upload failed for ${file.name}`);
         }
+
+        // Update progress to completed
+        setUploadProgress((prev) =>
+          prev.map((item) =>
+            item.fileName === file.name
+              ? { ...item, progress: 100, status: "completed" }
+              : item
+          )
+        );
 
         // Check if manual setup is required
         if (!result.uploadedToComfyUI && result.instructions) {
@@ -942,11 +905,11 @@ export default function MyInfluencersPage() {
                 </div>
               </div>
 
-              {/* Note about potential manual setup */}
-              <div className="mb-6 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                  <strong>Note:</strong> Some files may require manual setup in
-                  ComfyUI. We'll provide detailed instructions if needed.
+              {/* Note about the new upload process */}
+              <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <strong>✨ New:</strong> Files are now uploaded directly to Vercel Blob storage! 
+                  Large files (up to 500MB) are fully supported. Manual ComfyUI setup will be required after upload.
                 </p>
               </div>
 
@@ -1002,14 +965,14 @@ export default function MyInfluencersPage() {
                             </span>
                           </div>
                         </div>
-                        {/* Show method and chunk info */}
+                        {/* Show method and status */}
                         <div className="flex items-center justify-between text-xs text-gray-400">
                           <span>
-                            {progress.uploadMethod === 'chunked' ? '📦 Chunked upload' : '⚡ Direct upload'}
+                            ⚡ Vercel Blob Upload
                           </span>
-                          {progress.currentChunk && progress.totalChunks && (
+                          {progress.status === "uploading" && (
                             <span>
-                              Chunk {progress.currentChunk}/{progress.totalChunks}
+                              Uploading to cloud...
                             </span>
                           )}
                         </div>
