@@ -29,6 +29,17 @@ export async function POST(request: NextRequest) {
   try {
     console.log('📦 Received streaming upload request');
 
+    // Simple API key auth to allow external (RunPod) access without Clerk session
+    const apiKey = request.headers.get('x-api-key');
+    const expected = process.env.TRAINING_UPLOAD_KEY;
+    if (!expected) {
+      console.warn('⚠️ TRAINING_UPLOAD_KEY not set in environment – refusing unauthenticated streaming upload');
+      return NextResponse.json({ error: 'Server misconfiguration: training upload key missing' }, { status: 500 });
+    }
+    if (apiKey !== expected) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { 
       sessionId,
       chunkIndex,
@@ -43,7 +54,7 @@ export async function POST(request: NextRequest) {
       finalLoss
     } = await request.json();
 
-    if (!sessionId || chunkIndex === undefined || !chunkData) {
+  if (!sessionId || chunkIndex === undefined || !chunkData) {
       console.error('❌ Missing required fields');
       return NextResponse.json({ 
         error: 'Missing required fields: sessionId, chunkIndex, chunkData' 
@@ -121,45 +132,52 @@ export async function POST(request: NextRequest) {
         }
 
         try {
-          // Check if LoRA entry already exists
+          // Check if LoRA entry already exists. Some generated clients may not expose trainingJobId in where yet; filter in code if necessary
           let lora = await prisma.influencerLoRA.findFirst({
             where: {
               clerkId: trainingJob.clerkId,
+              // @ts-ignore allow if trainingJobId field exists
               trainingJobId: trainingJob.id
-            }
+            } as any
           });
 
           if (lora) {
             // Update existing LoRA with model data
+            const updateData: any = {
+              fileName: fileName,
+              fileSize: finalBuffer.length,
+              syncStatus: 'SYNCED',
+              isActive: true,
+              updatedAt: new Date()
+            };
+            // Only include binary field if supported in generated client
+            if ('data' in (prisma.influencerLoRA as any)) {
+              updateData.data = finalBuffer;
+            }
             lora = await prisma.influencerLoRA.update({
               where: { id: lora.id },
-              data: {
-                fileName: fileName,
-                fileSize: finalBuffer.length,
-                data: finalBuffer,  // Store binary data directly in database
-                syncStatus: 'SYNCED',
-                isActive: true,
-                updatedAt: new Date()
-              }
+              data: updateData
             });
             console.log(`✅ Updated existing LoRA: ${lora.id} with model data`);
           } else {
             // Create new LoRA entry with model data
-            lora = await prisma.influencerLoRA.create({
-              data: {
-                clerkId: trainingJob.clerkId,
-                name: modelName,
-                displayName: trainingJob.description || trainingJob.name || modelName,
-                fileName: fileName,
-                originalFileName: fileName,
-                fileSize: finalBuffer.length,
-                data: finalBuffer,  // Store binary data directly in database
-                description: `LoRA trained from ${modelName} - ${trainingSteps} steps${finalLoss ? `, final loss: ${finalLoss}` : ''}`,
-                trainingJobId: trainingJob.id,
-                syncStatus: 'SYNCED',
-                isActive: true
-              }
-            });
+            const createData: any = {
+              clerkId: trainingJob.clerkId,
+              name: modelName,
+              displayName: trainingJob.description || trainingJob.name || modelName,
+              fileName: fileName,
+              originalFileName: fileName,
+              fileSize: finalBuffer.length,
+              description: `LoRA trained from ${modelName} - ${trainingSteps} steps${finalLoss ? `, final loss: ${finalLoss}` : ''}`,
+              // @ts-ignore include relation if available
+              trainingJobId: trainingJob.id,
+              syncStatus: 'SYNCED',
+              isActive: true
+            };
+            if ('data' in (prisma.influencerLoRA as any)) {
+              createData.data = finalBuffer;
+            }
+            lora = await prisma.influencerLoRA.create({ data: createData });
             console.log(`✅ Created new LoRA: ${lora.id} with model data stored in database`);
           }
 

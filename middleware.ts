@@ -58,8 +58,16 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
   
-  // Protect API routes except public ones
+  // Protect API routes except public ones; allow API key for specific endpoints
   if (req.nextUrl.pathname.startsWith('/api/') && !isPublicApiRoute(req)) {
+    // Allow training streaming uploads with API key (external RunPod)
+    if (req.nextUrl.pathname.startsWith('/api/models/upload-streaming')) {
+      const key = req.headers.get('x-api-key');
+      const expected = process.env.TRAINING_UPLOAD_KEY;
+      if (expected && key === expected) {
+        return; // bypass Clerk auth
+      }
+    }
     await auth.protect();
   }
 });

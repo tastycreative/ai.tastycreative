@@ -609,7 +609,8 @@ def handler(job):
                                     timeout=60,  # 1 minute per chunk
                                     headers={
                                         'User-Agent': 'RunPod-Training-Handler/1.0',
-                                        'Content-Type': 'application/json'
+                                        'Content-Type': 'application/json',
+                                        'x-api-key': os.environ.get('TRAINING_UPLOAD_KEY', '')
                                     }
                                 )
                                 
