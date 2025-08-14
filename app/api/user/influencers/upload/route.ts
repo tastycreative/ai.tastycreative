@@ -80,6 +80,24 @@ export async function POST(request: NextRequest) {
     
     console.log('✅ File uploaded to Vercel Blob:', blob.url);
     
+    // Automatically upload to ComfyUI
+    console.log('🚀 Attempting to upload to ComfyUI...');
+    let uploadedToComfyUI = false;
+    let comfyUIError = null;
+    
+    try {
+      const uploadSuccess = await uploadLoRAToComfyUI(blob.url, uniqueFileName);
+      if (uploadSuccess) {
+        uploadedToComfyUI = true;
+        console.log('✅ Successfully uploaded to ComfyUI');
+      } else {
+        console.log('❌ Failed to upload to ComfyUI');
+      }
+    } catch (error) {
+      console.error('❌ ComfyUI upload error:', error);
+      comfyUIError = error instanceof Error ? error.message : 'Unknown error';
+    }
+    
     // Create influencer metadata in database
     const influencer: InfluencerLoRA = {
       id: uuidv4(),
@@ -92,9 +110,9 @@ export async function POST(request: NextRequest) {
       uploadedAt: new Date().toISOString(),
       description: description || `LoRA model uploaded from ${file.name}`,
       thumbnailUrl: undefined,
-      isActive: true,
+      isActive: uploadedToComfyUI,
       usageCount: 0,
-      syncStatus: 'pending', // Will need to be synced with ComfyUI later
+      syncStatus: uploadedToComfyUI ? 'synced' : 'pending',
       lastUsedAt: undefined,
       comfyUIPath: `models/loras/${uniqueFileName}`
     };
@@ -116,7 +134,9 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      message: 'LoRA model uploaded successfully to Vercel Blob storage!',
+      message: uploadedToComfyUI 
+        ? 'LoRA model uploaded successfully and is ready to use!'
+        : 'LoRA model uploaded to Blob storage, but ComfyUI setup required.',
       influencer: {
         id: influencer.id,
         name: influencer.name,
@@ -127,18 +147,22 @@ export async function POST(request: NextRequest) {
         syncStatus: influencer.syncStatus,
         blobUrl: blob.url
       },
-      uploadedToComfyUI: false, // Will be synced later
-      instructions: {
-        title: 'Manual ComfyUI Setup Required',
-        steps: [
-          `1. Download the file from: ${blob.url}`,
-          `2. Copy it to: ComfyUI/models/loras/${uniqueFileName}`,
-          `3. Restart ComfyUI or refresh the model cache`,
-          `4. Return to "My Influencers" and click "Sync with ComfyUI"`,
-          `5. The model will then appear as "Ready to use"`
-        ],
-        note: 'Your LoRA is safely stored in Vercel Blob storage and can be downloaded anytime. Manual placement in ComfyUI is required for generation.'
-      }
+      uploadedToComfyUI,
+      comfyUIError,
+      // Only show instructions if ComfyUI upload failed
+      ...(uploadedToComfyUI ? {} : {
+        instructions: {
+          title: 'Manual ComfyUI Setup Required',
+          steps: [
+            `1. Download the file from: ${blob.url}`,
+            `2. Copy it to: ComfyUI/models/loras/${uniqueFileName}`,
+            `3. Restart ComfyUI or refresh the model cache`,
+            `4. Return to "My Influencers" and click "Sync with ComfyUI"`,
+            `5. The model will then appear as "Ready to use"`
+          ],
+          note: 'Your LoRA is safely stored in Vercel Blob storage and can be downloaded anytime. Manual placement in ComfyUI is required for generation.'
+        }
+      })
     });
     
   } catch (error) {
@@ -256,4 +280,102 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Helper function to automatically upload LoRA to ComfyUI
+async function uploadLoRAToComfyUI(blobUrl: string, fileName: string): Promise<boolean> {
+  const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14967';
+  
+  try {
+    console.log(`📡 Downloading file from blob: ${blobUrl}`);
+    
+    // Download the file from Vercel Blob
+    const blobResponse = await fetch(blobUrl);
+    if (!blobResponse.ok) {
+      console.error('❌ Failed to download from blob:', blobResponse.status);
+      return false;
+    }
+    
+    const fileBuffer = await blobResponse.arrayBuffer();
+    console.log(`✅ Downloaded file from blob (${fileBuffer.byteLength} bytes)`);
+    
+    // Try multiple ComfyUI upload strategies
+    const uploadStrategies = [
+      () => uploadViaComfyUIUploadEndpoint(COMFYUI_URL, fileBuffer, fileName),
+      () => uploadViaComfyUIImageEndpoint(COMFYUI_URL, fileBuffer, fileName),
+      () => uploadViaComfyUICustomEndpoint(COMFYUI_URL, fileBuffer, fileName)
+    ];
+    
+    for (let i = 0; i < uploadStrategies.length; i++) {
+      try {
+        console.log(`🔄 Trying upload strategy ${i + 1}/3...`);
+        const success = await uploadStrategies[i]();
+        if (success) {
+          console.log(`✅ Upload strategy ${i + 1} succeeded`);
+          return true;
+        }
+      } catch (error) {
+        console.log(`❌ Upload strategy ${i + 1} failed:`, error instanceof Error ? error.message : 'Unknown error');
+      }
+    }
+    
+    console.log('❌ All upload strategies failed');
+    return false;
+    
+  } catch (error) {
+    console.error('❌ Error in uploadLoRAToComfyUI:', error);
+    return false;
+  }
+}
+
+// Strategy 1: Try ComfyUI's standard upload endpoint
+async function uploadViaComfyUIUploadEndpoint(baseUrl: string, fileBuffer: ArrayBuffer, fileName: string): Promise<boolean> {
+  const formData = new FormData();
+  formData.append('image', new Blob([fileBuffer]), fileName);
+  formData.append('type', 'input');
+  formData.append('subfolder', 'loras');
+  
+  const response = await fetch(`${baseUrl}/upload/image`, {
+    method: 'POST',
+    body: formData,
+    signal: AbortSignal.timeout(30000) // 30 second timeout
+  });
+  
+  return response.ok;
+}
+
+// Strategy 2: Try ComfyUI's image upload endpoint (sometimes works for models)
+async function uploadViaComfyUIImageEndpoint(baseUrl: string, fileBuffer: ArrayBuffer, fileName: string): Promise<boolean> {
+  const formData = new FormData();
+  formData.append('image', new Blob([fileBuffer]), fileName);
+  formData.append('subfolder', 'loras');
+  formData.append('type', 'input');
+  
+  const response = await fetch(`${baseUrl}/upload/image`, {
+    method: 'POST',
+    body: formData,
+    signal: AbortSignal.timeout(30000)
+  });
+  
+  return response.ok;
+}
+
+// Strategy 3: Try a custom endpoint or direct file upload
+async function uploadViaComfyUICustomEndpoint(baseUrl: string, fileBuffer: ArrayBuffer, fileName: string): Promise<boolean> {
+  // Try direct API approach
+  const response = await fetch(`${baseUrl}/api/files/upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      filename: fileName,
+      data: Buffer.from(fileBuffer).toString('base64'),
+      path: 'models/loras',
+      type: 'lora'
+    }),
+    signal: AbortSignal.timeout(60000) // 60 second timeout for large files
+  });
+  
+  return response.ok;
 }
