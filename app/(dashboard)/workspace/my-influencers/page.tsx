@@ -1,8 +1,7 @@
-// Updated app/(dashboard)/workspace/my-influencers/page.tsx - Vercel Blob Upload
+// Updated app/(dashboard)/workspace/my-influencers/page.tsx - Direct Blob Upload
 "use client";
 
 import { useState, useEffect } from "react";
-import { upload } from '@vercel/blob/client';
 import { apiClient } from "@/lib/apiClient";
 import {
   Upload,
@@ -228,38 +227,37 @@ export default function MyInfluencersPage() {
         
         console.log('☁️ Starting direct blob upload to:', uniquePath);
         
-        const blob = await upload(uniquePath, file, {
-          access: 'public',
-          handleUploadUrl: '/api/user/influencers/upload-token',
+        // Step 1: Authenticate the user first
+        const authResponse = await apiClient.post('/api/user/influencers/upload-token', {});
+        const authResult = await authResponse.json();
+        
+        if (!authResponse.ok || !authResult.success) {
+          throw new Error('Authentication failed for upload');
+        }
+        
+        console.log('🔐 User authenticated for upload');
+        
+        // Step 2: Upload to server endpoint which will handle blob storage
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('fileName', file.name);
+        formData.append('displayName', file.name.replace(/\.[^/.]+$/, ""));
+        formData.append('description', '');
+        
+        const uploadResponse = await fetch('/api/user/influencers/upload-blob', {
+          method: 'POST',
+          body: formData,
         });
         
-        console.log('✅ Direct blob upload completed:', blob.url);
-
-        // Update progress to show blob upload completed
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? { ...item, progress: 70, status: "processing" }
-              : item
-          )
-        );
-
-        // Step 2: Complete the upload with metadata and ComfyUI processing
-        const completeResponse = await apiClient.post('/api/user/influencers/blob-complete', {
-          blobUrl: blob.url,
-          fileName: file.name,
-          displayName: file.name.replace(/\.[^/.]+$/, ""),
-          description: '',
-          fileSize: file.size
-        });
-
-        const result = await completeResponse.json();
-
-        if (!completeResponse.ok) {
-          throw new Error(result.error || `Processing failed for ${file.name}`);
+        const uploadResult = await uploadResponse.json();
+        
+        if (!uploadResponse.ok) {
+          throw new Error(uploadResult.error || `Upload failed for ${file.name}`);
         }
+        
+        console.log('✅ Server-side blob upload completed:', uploadResult.blobUrl);
 
-        // Update progress to completed
+        // Update progress to completed - the server endpoint handles everything
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -269,10 +267,10 @@ export default function MyInfluencersPage() {
         );
 
         // Check if manual setup is required
-        if (!result.uploadedToComfyUI && result.instructions) {
+        if (!uploadResult.uploadedToComfyUI && uploadResult.instructions) {
           hasManualInstructions = true;
-          manualInstructions = result.instructions;
-          console.log("Manual setup required:", result.instructions);
+          manualInstructions = uploadResult.instructions;
+          console.log("Manual setup required:", uploadResult.instructions);
         }
       } catch (error) {
         console.error("Upload error:", error);
