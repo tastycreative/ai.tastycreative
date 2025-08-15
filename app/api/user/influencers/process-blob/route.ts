@@ -1,7 +1,18 @@
 // app/api/user/influencers/process-blob/route.ts - Complete LoRA upload after blob storage
+// Cache-busting rebuild: 2025-08-15-14:05
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getUserId, addUserInfluencer, type InfluencerLoRA } from '@/lib/database';
+
+// GET method for testing/debugging
+export async function GET() {
+  return NextResponse.json({ 
+    message: "process-blob endpoint is working",
+    method: "GET",
+    timestamp: new Date().toISOString(),
+    endpoints: ["POST"]
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
