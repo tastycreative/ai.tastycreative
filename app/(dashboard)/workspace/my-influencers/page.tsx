@@ -86,7 +86,7 @@ export default function MyInfluencersPage() {
       setError(null);
       console.log("Fetching influencers...");
 
-      const response = await apiClient.get("/api/user/influencers/list");
+      const response = await apiClient.get("/api/user/influencers");
       console.log("Fetch response status:", response.status);
 
       if (!response.ok) {
