@@ -279,30 +279,25 @@ export default function MyInfluencersPage() {
         console.log("🔄 Processing uploaded file...");
 
         // Step 4: Send blob URL to processing endpoint
-        const processResponse = await fetch(
+        const processResponse = await apiClient.post(
           "/api/user/influencers/process-blob",
           {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              blobUrl: blob.url,
-              fileName: file.name,
-              displayName: displayName,
-              description: "",
-              fileSize: file.size,
-            }),
+            blobUrl: blob.url,
+            fileName: file.name,
+            displayName: displayName,
+            description: "",
+            fileSize: file.size,
           }
         );
 
-        const processResult = await processResponse.json();
-
         if (!processResponse.ok) {
+          const errorData = await processResponse.json();
           throw new Error(
-            processResult.error || `Processing failed for ${file.name}`
+            errorData.error || `Processing failed for ${file.name}`
           );
         }
+
+        const processResult = await processResponse.json();
 
         console.log("✅ File processing completed:", processResult);
 
