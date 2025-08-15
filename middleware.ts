@@ -7,10 +7,7 @@ const isProtectedRoute = createRouteMatcher([
   '/billing(.*)',
   '/team(.*)',
   '/workspace(.*)',
-  '/api/generate(.*)',
-  '/api/jobs(.*)',
-  '/api/models(.*)',
-  '/api/user(.*)',
+  '/api/webhooks(.*)',
 ]);
 
 const isPublicRoute = createRouteMatcher([
@@ -32,24 +29,9 @@ const isAuthRoute = createRouteMatcher([
 const isPublicApiRoute = createRouteMatcher([
   '/api/trpc/hello(.*)',
   '/api/trpc/getTodos(.*)',
-  '/api/webhooks(.*)',  // Allow webhooks to be called without authentication
-  '/api/user/influencers/upload-url(.*)',  // Allow Vercel Blob upload URL generation
-  '/api/user/influencers/server-upload(.*)',  // Allow server-side upload
-  '/api/user/influencers/blob-complete(.*)',  // Allow blob completion processing
-  '/api/user/influencers/direct-upload(.*)',  // Allow direct upload bypassing blob storage
-  '/api/debug(.*)',  // Allow debug endpoints
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // Check for dev mode bypass
-  const url = new URL(req.url);
-  const isDevMode = url.searchParams.get('test') === 'devmode';
-  
-  if (isDevMode) {
-    // Skip all Clerk authentication in dev mode
-    return;
-  }
-  
   const { userId } = await auth();
   
   // If user is logged in and trying to access auth routes, redirect to dashboard
@@ -72,16 +54,8 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
   
-  // Protect API routes except public ones; allow API key for specific endpoints
+  // Protect API routes except public ones
   if (req.nextUrl.pathname.startsWith('/api/') && !isPublicApiRoute(req)) {
-    // Allow training streaming uploads with API key (external RunPod)
-    if (req.nextUrl.pathname.startsWith('/api/models/upload-streaming')) {
-      const key = req.headers.get('x-api-key');
-      const expected = process.env.TRAINING_UPLOAD_KEY;
-      if (expected && key === expected) {
-        return; // bypass Clerk auth
-      }
-    }
     await auth.protect();
   }
 });
