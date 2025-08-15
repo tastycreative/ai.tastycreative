@@ -7,6 +7,14 @@
       "maxDuration": 300,
       "memory": 1024
     },
+    "app/api/user/influencers/upload-blob-first/**/*.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "app/api/user/influencers/transfer-to-comfyui/**/*.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
     "app/api/user/influencers/upload-chunked/**/*.ts": {
       "maxDuration": 120,
       "memory": 512

@@ -51,7 +51,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback" | "chunked";
+  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback" | "chunked" | "blob-first";
 }
 
 interface UploadInstructions {
@@ -226,7 +226,7 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: file.size > 50 * 1024 * 1024 ? "chunked" : "direct", // Use chunked for files > 50MB
+          uploadMethod: file.size > 50 * 1024 * 1024 ? "blob-first" : "direct", // Use blob-first for files > 50MB
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
@@ -247,48 +247,55 @@ export default function MyInfluencersPage() {
         const displayName = file.name.replace(/\.[^/.]+$/, "");
         const isLargeFile = file.size > 50 * 1024 * 1024; // 50MB threshold
 
-        if (isLargeFile) {
-          // Use chunked upload for large files (>50MB)
-          console.log("🚀 Starting chunked upload for large file...");
-          
-          const chunkedUploadClient = new ChunkedUploadClient(apiClient);
-          const uploadResult = await chunkedUploadClient.uploadFile({
-            file,
-            displayName,
-            onProgress: (progress, currentChunk, totalChunks) => {
-              setUploadProgress((prev) =>
-                prev.map((item) =>
-                  item.fileName === file.name
-                    ? { 
-                        ...item, 
-                        progress, 
-                        status: "uploading",
-                        uploadMethod: "chunked"
-                      }
-                    : item
-                )
-              );
-              console.log(`📊 Chunked Progress: ${Math.round(progress)}% (chunk ${currentChunk}/${totalChunks})`);
-            },
-            onChunkComplete: (chunkIndex, totalChunks) => {
-              console.log(`✅ Chunk ${chunkIndex + 1}/${totalChunks} completed`);
-            },
-            onError: (error) => {
-              console.error("❌ Chunked upload error:", error);
-            }
-          });
+        console.log(
+          `📦 Uploading ${file.name} (${file.size} bytes) using ${isLargeFile ? 'blob-first' : 'direct'} upload`
+        );
 
-          if (!uploadResult.success) {
-            throw new Error(uploadResult.error || "Chunked upload failed");
+        if (isLargeFile) {
+          // Use blob-first upload for large files (>50MB) - more reliable than chunked
+          console.log("☁️ Starting blob-first upload for large file...");
+          
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? { ...item, progress: 25, status: "uploading", uploadMethod: "blob-first" }
+                : item
+            )
+          );
+
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("displayName", displayName);
+          formData.append("description", "");
+
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? { ...item, progress: 50, status: "uploading" }
+                : item
+            )
+          );
+
+          console.log("� Uploading to Vercel Blob first, then ComfyUI...");
+
+          const uploadResponse = await apiClient.postFormData(
+            "/api/user/influencers/upload-blob-first",
+            formData
+          );
+
+          if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json();
+            throw new Error(errorData.error || `Blob-first upload failed for ${file.name}`);
           }
 
-          console.log("✅ Chunked upload completed successfully");
+          const uploadResult = await uploadResponse.json();
+          console.log("✅ Blob-first upload completed:", uploadResult);
 
           // Update progress to completed
           setUploadProgress((prev) =>
             prev.map((item) =>
               item.fileName === file.name
-                ? { ...item, progress: 100, status: "completed", uploadMethod: "chunked" }
+                ? { ...item, progress: 100, status: "completed", uploadMethod: "blob-first" }
                 : item
             )
           );
@@ -357,7 +364,7 @@ export default function MyInfluencersPage() {
         if (error instanceof Error) {
           if (error.message.includes("413") || error.message.includes("Request Entity Too Large")) {
             alert(
-              `Upload failed: File too large (${Math.round(file.size / 1024 / 1024)}MB)\n\nThis file exceeds the server limits. Try refreshing and uploading again - the system should automatically use chunked upload for large files.`
+              `Upload failed: File too large (${Math.round(file.size / 1024 / 1024)}MB)\n\nThis shouldn't happen with the new blob-first upload system. Please try refreshing the page and uploading again.`
             );
           } else if (error.message.includes("Network error")) {
             alert(
@@ -365,7 +372,7 @@ export default function MyInfluencersPage() {
             );
           } else if (error.message.includes("timeout")) {
             alert(
-              `Upload failed: ${error.message}\n\nThe file may be too large or your connection is slow. Try refreshing - the system should automatically use chunked upload.`
+              `Upload failed: ${error.message}\n\nThe file upload timed out. The new blob-first system should handle this better - please try again.`
             );
           } else {
             alert(`Upload failed: ${error.message}`);
@@ -1074,10 +1081,10 @@ export default function MyInfluencersPage() {
                 </p>
               </div>
 
-              {/* Chunked upload info */}
+              {/* Smart upload info */}
               <div className="mb-6 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  <strong>🚀 Smart Upload:</strong> Files larger than 50MB automatically use chunked upload to prevent timeouts. Your 343MB file will be uploaded in smaller pieces.
+                  <strong>🚀 Smart Upload:</strong> Files larger than 50MB automatically upload to Vercel Blob first, then transfer to ComfyUI. This prevents 413 errors and ensures reliable uploads for your large files.
                 </p>
               </div>
 
