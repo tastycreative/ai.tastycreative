@@ -1,4 +1,5 @@
 // app/api/user/influencers/blob-complete/route.ts
+// FIXED: Removed conflicting parent route.ts file to enable proper routing
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getUserId, addUserInfluencer, type InfluencerLoRA } from '@/lib/database';
