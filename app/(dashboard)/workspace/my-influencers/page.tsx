@@ -1,9 +1,9 @@
-// Updated app/(dashboard)/workspace/my-influencers/page.tsx - Direct Blob Upload
+// app/(dashboard)/workspace/my-influencers/page.tsx - Complete component with authentication
 "use client";
 
 import { useState, useEffect } from "react";
 import { upload } from "@vercel/blob/client";
-import { apiClient } from "@/lib/apiClient";
+import { useApiClient } from "@/lib/apiClient"; // ✅ Use the hook
 import {
   Upload,
   Users,
@@ -75,12 +75,22 @@ export default function MyInfluencersPage() {
     useState<InfluencerLoRA | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
+  // ✅ Get the authenticated API client
+  const apiClient = useApiClient();
+
   // Fetch user's influencers on load
   useEffect(() => {
-    fetchInfluencers();
-  }, []);
+    if (apiClient) {
+      fetchInfluencers();
+    }
+  }, [apiClient]); // ✅ Depend on apiClient
 
   const fetchInfluencers = async () => {
+    if (!apiClient) {
+      console.log("⚠️ API client not ready");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -119,6 +129,8 @@ export default function MyInfluencersPage() {
 
   // Sync with ComfyUI
   const syncWithComfyUI = async () => {
+    if (!apiClient) return;
+
     try {
       setSyncing(true);
       console.log("=== SYNC WITH COMFYUI ===");
@@ -129,10 +141,6 @@ export default function MyInfluencersPage() {
       });
 
       console.log("Sync response status:", response.status);
-      console.log(
-        "Sync response headers:",
-        Object.fromEntries(response.headers.entries())
-      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -158,7 +166,6 @@ export default function MyInfluencersPage() {
     } catch (error) {
       console.error("Sync error:", error);
 
-      // Better error handling
       if (error instanceof Error) {
         if (error.message.includes("Missing workflow data")) {
           alert(
@@ -206,14 +213,12 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
-  // Upload influencers directly to ComfyUI and database (bypassing blob storage)
+  // Upload influencers with authentication
   const uploadInfluencers = async () => {
-    if (selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0 || !apiClient) return;
 
     setUploading(true);
     setUploadProgress([]);
-    const hasManualInstructions = false;
-    const manualInstructions: UploadInstructions | null = null;
 
     for (const file of selectedFiles) {
       try {
@@ -221,7 +226,7 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: "client-blob", // Use client-side blob upload for large files
+          uploadMethod: "client-blob",
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
@@ -243,7 +248,7 @@ export default function MyInfluencersPage() {
 
         console.log("🚀 Starting client-side blob upload...");
 
-        // Step 1: Get upload URL from Vercel Blob
+        // Step 1: Upload to Vercel Blob
         const timestamp = Date.now();
         const fileName = `${timestamp}_${file.name}`;
 
@@ -259,7 +264,7 @@ export default function MyInfluencersPage() {
 
         console.log("📤 Uploading to Vercel Blob...");
 
-        // Step 2: Upload directly to Vercel Blob (client-side, no size limits)
+        // Step 2: Upload directly to Vercel Blob
         const blob = await upload(fileName, file, {
           access: "public",
           handleUploadUrl: "/api/user/influencers/upload-url",
@@ -267,7 +272,7 @@ export default function MyInfluencersPage() {
 
         console.log("✅ Blob upload completed:", blob.url);
 
-        // Step 3: Process the uploaded blob
+        // Step 3: Process the uploaded blob WITH AUTHENTICATION
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -278,7 +283,7 @@ export default function MyInfluencersPage() {
 
         console.log("🔄 Processing uploaded file...");
 
-        // Step 4: Send blob URL to processing endpoint
+        // ✅ Use the authenticated API client
         const processResponse = await apiClient.post(
           "/api/user/influencers/process-blob",
           {
@@ -302,7 +307,6 @@ export default function MyInfluencersPage() {
         console.log("✅ File processing completed:", processResult);
 
         // Update progress to completed
-        // Step 4: Update progress to completed
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -340,6 +344,8 @@ export default function MyInfluencersPage() {
 
   // Delete influencer
   const deleteInfluencer = async (id: string) => {
+    if (!apiClient) return;
+
     if (
       !confirm(
         "Are you sure you want to delete this influencer? This action cannot be undone."
@@ -362,6 +368,8 @@ export default function MyInfluencersPage() {
 
   // Toggle influencer status
   const toggleInfluencerStatus = async (id: string, isActive: boolean) => {
+    if (!apiClient) return;
+
     try {
       const response = await apiClient.patch(`/api/user/influencers/${id}`, {
         isActive,
@@ -399,33 +407,33 @@ export default function MyInfluencersPage() {
     switch (syncStatus) {
       case "synced":
         return (
-          <CheckCircle className="w-4 h-4 text-green-500">
-            <title>Synced with ComfyUI</title>
-          </CheckCircle>
+          <span title="Synced with ComfyUI">
+            <CheckCircle className="w-4 h-4 text-green-500" />
+          </span>
         );
       case "pending":
         return (
-          <Clock className="w-4 h-4 text-yellow-500">
-            <title>Pending sync</title>
-          </Clock>
+          <span title="Pending sync">
+            <Clock className="w-4 h-4 text-yellow-500" />
+          </span>
         );
       case "missing":
         return (
-          <XCircle className="w-4 h-4 text-red-500">
-            <title>Missing from ComfyUI</title>
-          </XCircle>
+          <span title="Missing from ComfyUI">
+            <XCircle className="w-4 h-4 text-red-500" />
+          </span>
         );
       case "error":
         return (
-          <AlertCircle className="w-4 h-4 text-red-500">
-            <title>Sync error</title>
-          </AlertCircle>
+          <span title="Sync error">
+            <AlertCircle className="w-4 h-4 text-red-500" />
+          </span>
         );
       default:
         return (
-          <Clock className="w-4 h-4 text-gray-400">
-            <title>Unknown status</title>
-          </Clock>
+          <span title="Unknown status">
+            <Clock className="w-4 h-4 text-gray-400" />
+          </span>
         );
     }
   };
@@ -449,6 +457,18 @@ export default function MyInfluencersPage() {
     setSelectedInfluencer(influencer);
     setShowDetailsModal(true);
   };
+
+  // Show loading state if API client isn't ready
+  if (!apiClient) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-2" />
+          <p className="text-gray-600">Initializing authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -708,7 +728,6 @@ export default function MyInfluencersPage() {
                     </button>
                     <button
                       onClick={() => {
-                        // Download functionality - could be implemented later
                         alert("Download functionality coming soon!");
                       }}
                       className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
@@ -1009,9 +1028,8 @@ export default function MyInfluencersPage() {
               {/* Note about the new upload process */}
               <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>✨ New:</strong> Files are now uploaded directly to
-                  Vercel Blob storage! Large files (up to 500MB) are fully
-                  supported. Manual ComfyUI setup will be required after upload.
+                  <strong>✨ New:</strong> Files are now uploaded with proper
+                  authentication! Large files (up to 500MB) are fully supported.
                 </p>
               </div>
 
@@ -1067,11 +1085,10 @@ export default function MyInfluencersPage() {
                             </span>
                           </div>
                         </div>
-                        {/* Show method and status */}
                         <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span>⚡ Vercel Blob Upload</span>
+                          <span>⚡ Authenticated Upload</span>
                           {progress.status === "uploading" && (
-                            <span>Uploading to cloud...</span>
+                            <span>Processing with auth...</span>
                           )}
                         </div>
                         {progress.status !== "completed" && (
