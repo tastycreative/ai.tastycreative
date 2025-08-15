@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { getUserId } from '@/lib/database';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     console.log('🎫 === UPLOAD URL REQUEST ===');
     
@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
       },
     });
     
-    return response;
+    // Convert the handleUpload response to a proper NextResponse
+    return NextResponse.json(response);
   } catch (error) {
     console.error('💥 Error in upload-url handler:', error);
     return NextResponse.json({
