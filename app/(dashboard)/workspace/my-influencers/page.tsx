@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { upload } from "@vercel/blob/client";
 import { useApiClient } from "@/lib/apiClient"; // ✅ Use the hook
 import {
   Upload,
@@ -213,7 +212,7 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
-  // Upload influencers with authentication
+  // Upload influencers with authentication - Updated with fallback approach
   const uploadInfluencers = async () => {
     if (selectedFiles.length === 0 || !apiClient) return;
 
@@ -226,13 +225,13 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: "client-blob",
+          uploadMethod: "direct",
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
         console.log(
-          `📦 Uploading ${file.name} (${file.size} bytes) using client-side blob upload`
+          `📦 Uploading ${file.name} (${file.size} bytes) using direct upload`
         );
 
         // Update progress to show upload starting
@@ -246,65 +245,38 @@ export default function MyInfluencersPage() {
 
         const displayName = file.name.replace(/\.[^/.]+$/, "");
 
-        console.log("🚀 Starting client-side blob upload...");
+        console.log("🚀 Starting server-side upload...");
 
-        // Step 1: Upload to Vercel Blob
-        const timestamp = Date.now();
-        const fileName = `${timestamp}_${file.name}`;
+        // Use FormData for direct server-side upload (more reliable than client-side blob)
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("displayName", displayName);
+        formData.append("description", "");
 
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 20, status: "uploading" }
+              ? { ...item, progress: 50, status: "uploading" }
               : item
           )
         );
 
-        const { upload } = await import("@vercel/blob/client");
+        console.log("� Uploading via server-side endpoint...");
 
-        console.log("📤 Uploading to Vercel Blob...");
-
-        // Step 2: Upload directly to Vercel Blob
-        const blob = await upload(fileName, file, {
-          access: "public",
-          handleUploadUrl: "/api/user/influencers/upload-url",
-        });
-
-        console.log("✅ Blob upload completed:", blob.url);
-
-        // Step 3: Process the uploaded blob WITH AUTHENTICATION
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? { ...item, progress: 70, status: "processing" }
-              : item
-          )
+        // Use the postFormData method for proper file upload
+        const uploadResponse = await apiClient.postFormData(
+          "/api/user/influencers/upload-direct",
+          formData
         );
 
-        console.log("🔄 Processing uploaded file...");
-
-        // ✅ Use the authenticated API client
-        const processResponse = await apiClient.post(
-          "/api/user/influencers/process-blob",
-          {
-            blobUrl: blob.url,
-            fileName: file.name,
-            displayName: displayName,
-            description: "",
-            fileSize: file.size,
-          }
-        );
-
-        if (!processResponse.ok) {
-          const errorData = await processResponse.json();
-          throw new Error(
-            errorData.error || `Processing failed for ${file.name}`
-          );
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          throw new Error(errorData.error || `Upload failed for ${file.name}`);
         }
 
-        const processResult = await processResponse.json();
+        const uploadResult = await uploadResponse.json();
 
-        console.log("✅ File processing completed:", processResult);
+        console.log("✅ File upload completed:", uploadResult);
 
         // Update progress to completed
         setUploadProgress((prev) =>
@@ -315,9 +287,9 @@ export default function MyInfluencersPage() {
           )
         );
 
-        console.log("✅ Upload and processing completed successfully");
+        console.log("✅ Upload completed successfully");
       } catch (error) {
-        console.error("Client-side blob upload error:", error);
+        console.error("Server-side upload error:", error);
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -330,6 +302,21 @@ export default function MyInfluencersPage() {
               : item
           )
         );
+
+        // Show user-friendly error message
+        if (error instanceof Error) {
+          if (error.message.includes("Network error")) {
+            alert(
+              `Upload failed: ${error.message}\n\nPlease check that your development server is running at http://localhost:3000`
+            );
+          } else if (error.message.includes("timeout")) {
+            alert(
+              `Upload failed: ${error.message}\n\nThe file may be too large or your connection is slow. Try again with a smaller file.`
+            );
+          } else {
+            alert(`Upload failed: ${error.message}`);
+          }
+        }
       }
     }
 

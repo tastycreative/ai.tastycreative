@@ -3,7 +3,7 @@
     "app/api/**/*.ts": {
       "maxDuration": 60
     },
-    "app/api/user/influencers/blob-upload/*.ts": {
+    "app/api/user/influencers/**/*.ts": {
       "maxDuration": 300,
       "memory": 1024
     },

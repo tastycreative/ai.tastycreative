@@ -53,10 +53,17 @@ class AuthenticatedApiClient {
       const startTime = Date.now();
       console.log('🚀 Sending request...');
       
+      // Add a timeout to the fetch request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
       
       const duration = Date.now() - startTime;
       console.log('⏱️ Request duration:', duration + 'ms');
@@ -66,15 +73,20 @@ class AuthenticatedApiClient {
       
       // Log response body for debugging (only for non-successful responses)
       if (!response.ok) {
-        const responseText = await response.text();
-        console.error('❌ Error response body:', responseText);
-        
-        // Create a new response with the same data since we consumed the body
-        return new Response(responseText, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers
-        });
+        try {
+          const responseText = await response.text();
+          console.error('❌ Error response body:', responseText);
+          
+          // Create a new response with the same data since we consumed the body
+          return new Response(responseText, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers
+          });
+        } catch (textError) {
+          console.error('❌ Failed to read error response body:', textError);
+          return response;
+        }
       }
       
       console.log('✅ Request completed successfully');
@@ -82,7 +94,33 @@ class AuthenticatedApiClient {
       
     } catch (error) {
       console.error('💥 === API CLIENT ERROR ===');
-      console.error('🔥 Fetch error:', error);
+      console.error('🔥 Error type:', error instanceof Error ? error.name : typeof error);
+      console.error('🔥 Error message:', error instanceof Error ? error.message : error);
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.error('⏰ Request timed out after 30 seconds');
+          throw new Error('Request timeout - the server took too long to respond');
+        }
+        
+        if (error.message.includes('Failed to fetch')) {
+          console.error('🌐 Network connection failed');
+          // More helpful error message for production
+          const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+          if (isProduction) {
+            throw new Error('Network error - unable to connect to server. Please check your internet connection and try again.');
+          } else {
+            throw new Error('Network error - unable to connect to server. Is the development server running?');
+          }
+        }
+        
+        // Handle CORS errors in production
+        if (error.message.includes('CORS')) {
+          throw new Error('Cross-origin request blocked. Please contact support if this persists.');
+        }
+      }
+      
+      console.error('🔥 Full error object:', error);
       throw error;
     }
   }
