@@ -65,42 +65,78 @@ export async function POST(request: NextRequest) {
 
       console.log(`📁 File assembled: ${fileName} (${completeFile.length} bytes)`);
 
-      // Now upload the complete file to ComfyUI
-      const uploadSuccess = await uploadBufferToComfyUI(completeFile, fileName);
+      // Create influencer metadata
+      const timestamp = Date.now();
+      const fileExtension = fileName.substring(fileName.lastIndexOf('.'));
+      const baseName = fileName.substring(0, fileName.lastIndexOf('.'));
+      const uniqueFileName = `${userId}_${timestamp}_${baseName}${fileExtension}`;
 
-      if (uploadSuccess) {
-        // Trigger the completion handler
-        const completionResponse = await fetch(`${request.nextUrl.origin}/api/user/influencers/complete-upload`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': request.headers.get('Authorization') || '',
-          },
-          body: JSON.stringify({
-            fileName,
-            displayName,
-            fileSize: completeFile.length,
-            uploadMethod: 'chunked'
-          })
+      // Try to upload to ComfyUI first
+      console.log(`📡 Attempting to upload to ComfyUI...`);
+      const comfyUISuccess = await uploadBufferToComfyUI(completeFile, uniqueFileName);
+      
+      // Also upload to Vercel Blob for backup storage
+      console.log(`☁️ Uploading to Vercel Blob for backup...`);
+      let blobUrl: string | undefined;
+      try {
+        const { put } = await import('@vercel/blob');
+        const blobPath = `loras/${userId}/${uniqueFileName}`;
+        
+        const blob = await put(blobPath, completeFile, {
+          access: 'public',
+          contentType: 'application/octet-stream'
         });
-
-        if (completionResponse.ok) {
-          const completionData = await completionResponse.json();
-          return NextResponse.json({
-            success: true,
-            isComplete: true,
-            message: 'File uploaded successfully',
-            influencer: completionData.influencer
-          });
-        } else {
-          throw new Error('Failed to complete upload process');
-        }
-      } else {
-        return NextResponse.json(
-          { success: false, error: 'Failed to upload to ComfyUI' },
-          { status: 500 }
-        );
+        
+        blobUrl = blob.url;
+        console.log('✅ File uploaded to Vercel Blob:', blobUrl);
+      } catch (blobError) {
+        console.warn('⚠️ Failed to upload to Vercel Blob:', blobError);
       }
+
+      // Create influencer record in database
+      const { addUserInfluencer } = await import('@/lib/database');
+      const { v4: uuidv4 } = await import('uuid');
+      
+      const influencer = {
+        id: uuidv4(),
+        clerkId: userId,
+        name: baseName,
+        displayName: displayName || baseName,
+        fileName: uniqueFileName,
+        originalFileName: fileName,
+        fileSize: completeFile.length,
+        uploadedAt: new Date().toISOString(),
+        description: `LoRA model uploaded via chunked upload`,
+        thumbnailUrl: undefined,
+        isActive: comfyUISuccess, // Only active if ComfyUI upload succeeded
+        usageCount: 0,
+        syncStatus: comfyUISuccess ? ('synced' as const) : ('missing' as const),
+        lastUsedAt: undefined,
+        comfyUIPath: comfyUISuccess ? `models/loras/${uniqueFileName}` : undefined
+      };
+
+      console.log('💾 Creating influencer record in database...');
+      await addUserInfluencer(userId, influencer);
+      console.log('✅ Influencer record created successfully');
+
+      return NextResponse.json({
+        success: true,
+        isComplete: true,
+        message: comfyUISuccess 
+          ? 'File uploaded successfully to both ComfyUI and Vercel Blob'
+          : 'File uploaded to Vercel Blob, but ComfyUI upload failed. Use sync to retry.',
+        influencer: {
+          id: influencer.id,
+          name: influencer.name,
+          displayName: influencer.displayName,
+          fileName: influencer.fileName,
+          fileSize: influencer.fileSize,
+          isActive: influencer.isActive,
+          syncStatus: influencer.syncStatus
+        },
+        comfyUISuccess,
+        blobUrl
+      });
     } else {
       // Return progress
       const receivedChunks = storage.chunks.filter(chunk => chunk !== null).length;

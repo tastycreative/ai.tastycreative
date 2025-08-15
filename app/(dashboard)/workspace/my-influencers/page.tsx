@@ -252,53 +252,56 @@ export default function MyInfluencersPage() {
         );
 
         if (isLargeFile) {
-          // Use blob-first upload for large files (>50MB) - more reliable than chunked
-          console.log("☁️ Starting blob-first upload for large file...");
+          // Use authenticated chunked upload for large files (>50MB)
+          console.log("🔗 Starting authenticated chunked upload for large file...");
           
           setUploadProgress((prev) =>
             prev.map((item) =>
               item.fileName === file.name
-                ? { ...item, progress: 25, status: "uploading", uploadMethod: "blob-first" }
+                ? { ...item, progress: 10, status: "uploading", uploadMethod: "chunked" }
                 : item
             )
           );
 
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("displayName", displayName);
-          formData.append("description", "");
+          // Use our chunked upload client for authenticated large file upload
+          console.log("📤 Starting chunked upload with authentication...");
+          
+          const chunkedUploadClient = new ChunkedUploadClient(apiClient);
+          
+          const uploadResult = await chunkedUploadClient.uploadFile({
+            file: file,
+            displayName: displayName,
+            onProgress: (progress: number, currentChunk: number, totalChunks: number) => {
+              setUploadProgress((prev) =>
+                prev.map((item) =>
+                  item.fileName === file.name
+                    ? { 
+                        ...item, 
+                        progress: 10 + Math.floor(progress * 0.9), // 10% to 100%
+                        status: "uploading" 
+                      }
+                    : item
+                )
+              );
+            }
+          });
 
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? { ...item, progress: 50, status: "uploading" }
-                : item
-            )
-          );
-
-          console.log("� Uploading to Vercel Blob first, then ComfyUI...");
-
-          const uploadResponse = await apiClient.postFormData(
-            "/api/user/influencers/upload-blob-first",
-            formData
-          );
-
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json();
-            throw new Error(errorData.error || `Blob-first upload failed for ${file.name}`);
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || "Chunked upload failed");
           }
 
-          const uploadResult = await uploadResponse.json();
-          console.log("✅ Blob-first upload completed:", uploadResult);
+          console.log("✅ Chunked upload completed:", uploadResult);
 
-          // Update progress to completed
           setUploadProgress((prev) =>
             prev.map((item) =>
               item.fileName === file.name
-                ? { ...item, progress: 100, status: "completed", uploadMethod: "blob-first" }
+                ? { ...item, progress: 100, status: "completed", uploadMethod: "chunked" }
                 : item
             )
           );
+
+          // Note: The chunked upload already handles the complete process
+          // including database updates and ComfyUI sync
         } else {
           // Use direct upload for smaller files (<50MB)
           console.log("🚀 Starting server-side upload...");
@@ -1084,7 +1087,7 @@ export default function MyInfluencersPage() {
               {/* Smart upload info */}
               <div className="mb-6 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  <strong>🚀 Smart Upload:</strong> Files larger than 50MB automatically upload to Vercel Blob first, then transfer to ComfyUI. This prevents 413 errors and ensures reliable uploads for your large files.
+                  <strong>🚀 Smart Upload:</strong> Files larger than 50MB automatically use authenticated chunked upload. This prevents 413 errors and ensures reliable uploads for your large files with proper authentication.
                 </p>
               </div>
 
@@ -1141,9 +1144,14 @@ export default function MyInfluencersPage() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span>⚡ Authenticated Upload</span>
+                          <span>🔐 Authenticated Upload</span>
                           {progress.status === "uploading" && (
-                            <span>Processing with auth...</span>
+                            <span>
+                              {progress.uploadMethod === "chunked" 
+                                ? "Chunked upload in progress..." 
+                                : "Processing with auth..."
+                              }
+                            </span>
                           )}
                         </div>
                         {progress.status !== "completed" && (

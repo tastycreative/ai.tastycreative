@@ -27,10 +27,6 @@
       "maxDuration": 60,
       "memory": 1024
     },
-    "app/api/models/**/*.ts": {
-      "maxDuration": 300,
-      "memory": 1024
-    },
     "app/api/webhooks/**/*.ts": {
       "maxDuration": 300
     },
