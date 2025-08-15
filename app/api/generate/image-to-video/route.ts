@@ -16,7 +16,7 @@ import {
   type VideoPathInfo 
 } from '@/lib/videoStorage';
 
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
+const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15833';
 
 export async function POST(request: NextRequest) {
   try {

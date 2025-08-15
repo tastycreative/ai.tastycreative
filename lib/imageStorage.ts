@@ -1,8 +1,7 @@
-// lib/imageStorage.ts - Dynamic URL image management for NeonDB with Vercel Blob
+// lib/imageStorage.ts - Dynamic URL image management for NeonDB
 import { prisma } from './database';
-import { put } from '@vercel/blob';
 
-const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
+const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://localhost:8188';
 
 export interface GeneratedImage {
   id: string;
@@ -17,11 +16,11 @@ export interface GeneratedImage {
   format?: string;
   data?: Buffer;
   metadata?: any;
-  createdAt: Date;
-  updatedAt: Date;
-  url?: string; // Dynamically constructed ComfyUI URL
-  dataUrl?: string; // Database-served image URL
-  blobUrl?: string; // Vercel Blob URL
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  // Dynamic properties
+  url?: string; // Constructed dynamically
+  dataUrl?: string; // For database-served images
 }
 
 export interface ImagePathInfo {
@@ -80,14 +79,12 @@ export async function saveImageToDatabase(
   options: {
     saveData?: boolean; // Whether to store actual image bytes
     extractMetadata?: boolean; // Whether to extract image dimensions/format
-    saveToBlobStorage?: boolean; // Whether to save to Vercel Blob
   } = {}
 ): Promise<GeneratedImage | null> {
   console.log('💾 Saving image to database:', pathInfo.filename);
   console.log('👤 User:', clerkId);
   console.log('🆔 Job:', jobId);
   console.log('📂 Path info:', pathInfo);
-  console.log('⚙️ Options:', options);
   
   try {
     let imageData: Buffer | undefined;
@@ -96,10 +93,9 @@ export async function saveImageToDatabase(
     let height: number | undefined;
     let format: string | undefined;
     let metadata: any = {};
-    let blobUrl: string | undefined;
 
     // Download image data if requested
-    if (options.saveData || options.extractMetadata || options.saveToBlobStorage) {
+    if (options.saveData || options.extractMetadata) {
       const imageUrl = buildComfyUIUrl(pathInfo);
       console.log('📥 Downloading image from:', imageUrl);
       
@@ -120,35 +116,6 @@ export async function saveImageToDatabase(
       if (options.saveData) {
         imageData = buffer;
         console.log('💾 Will save image data to database');
-      }
-      
-      // Upload to Vercel Blob if requested
-      if (options.saveToBlobStorage) {
-        try {
-          console.log('☁️ Uploading image to Vercel Blob...');
-          
-          // Create a unique filename for blob storage
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const blobFilename = `generated-images/${clerkId}/${jobId}/${timestamp}-${pathInfo.filename}`;
-          
-          const blob = await put(blobFilename, buffer, {
-            access: 'public',
-            contentType: format === 'png' ? 'image/png' : 
-                        format === 'jpg' || format === 'jpeg' ? 'image/jpeg' :
-                        format === 'webp' ? 'image/webp' : 
-                        'image/png' // default
-          });
-          
-          blobUrl = blob.url;
-          console.log('✅ Image uploaded to Vercel Blob:', blobUrl);
-          
-          metadata.blobUrl = blobUrl;
-          metadata.blobUploadedAt = new Date().toISOString();
-          
-        } catch (blobError) {
-          console.error('⚠️ Failed to upload to Vercel Blob:', blobError);
-          // Continue with database save even if blob upload fails
-        }
       }
       
       if (options.extractMetadata) {
@@ -191,17 +158,11 @@ export async function saveImageToDatabase(
         height,
         format,
         data: imageData,
-        metadata: {
-          ...metadata,
-          blobUrl: blobUrl || undefined
-        }
+        metadata
       }
     });
     
     console.log('✅ Image saved to database:', savedImage.id);
-    if (blobUrl) {
-      console.log('☁️ Vercel Blob URL:', blobUrl);
-    }
     
     return {
       id: savedImage.id,
@@ -223,8 +184,7 @@ export async function saveImageToDatabase(
         subfolder: savedImage.subfolder,
         type: savedImage.type
       }),
-      dataUrl: savedImage.data ? `/api/images/${savedImage.id}/data` : undefined,
-      blobUrl: blobUrl || (savedImage.metadata as any)?.blobUrl || undefined
+      dataUrl: savedImage.data ? `/api/images/${savedImage.id}/data` : undefined
     };
     
   } catch (error) {
@@ -246,17 +206,11 @@ export async function getUserImages(
   console.log('🖼️ Getting images for user:', clerkId);
   
   try {
-    const whereClause: any = {
-      clerkId
-    };
-    
-    // Only add jobId filter if it's explicitly provided
-    if (options.jobId) {
-      whereClause.jobId = options.jobId;
-    }
-    
     const images = await prisma.generatedImage.findMany({
-      where: whereClause,
+      where: {
+        clerkId,
+        jobId: options.jobId
+      },
       select: {
         id: true,
         clerkId: true,
@@ -292,8 +246,7 @@ export async function getUserImages(
         subfolder: img.subfolder,
         type: img.type
       }),
-      dataUrl: img.data ? `/api/images/${img.id}/data` : undefined,
-      blobUrl: (img.metadata as any)?.blobUrl || undefined
+      dataUrl: img.data ? `/api/images/${img.id}/data` : undefined
     }));
     
   } catch (error) {
@@ -345,8 +298,7 @@ export async function getJobImages(
         subfolder: img.subfolder,
         type: img.type
       }),
-      dataUrl: img.data ? `/api/images/${img.id}/data` : undefined,
-      blobUrl: (img.metadata as any)?.blobUrl || undefined
+      dataUrl: img.data ? `/api/images/${img.id}/data` : undefined
     }));
     
   } catch (error) {
