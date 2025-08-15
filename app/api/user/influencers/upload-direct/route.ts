@@ -4,6 +4,11 @@ import { put } from '@vercel/blob';
 import { v4 as uuidv4 } from 'uuid';
 import { getUserId, addUserInfluencer, type InfluencerLoRA } from '@/lib/database';
 
+// Configure for Vercel deployment
+export const runtime = 'nodejs';
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getUserId(request);
