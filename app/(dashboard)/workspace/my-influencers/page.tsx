@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient"; // ✅ Use the hook
+import { ChunkedUploadClient } from "@/lib/chunkedUploadClient"; // ✅ Add chunked upload
 import {
   Upload,
   Users,
@@ -50,7 +51,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback";
+  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback" | "chunked";
 }
 
 interface UploadInstructions {
@@ -225,7 +226,7 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: "direct",
+          uploadMethod: file.size > 50 * 1024 * 1024 ? "chunked" : "direct", // Use chunked for files > 50MB
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
@@ -244,8 +245,56 @@ export default function MyInfluencersPage() {
         );
 
         const displayName = file.name.replace(/\.[^/.]+$/, "");
+        const isLargeFile = file.size > 50 * 1024 * 1024; // 50MB threshold
 
-        console.log("🚀 Starting server-side upload...");
+        if (isLargeFile) {
+          // Use chunked upload for large files (>50MB)
+          console.log("🚀 Starting chunked upload for large file...");
+          
+          const chunkedUploadClient = new ChunkedUploadClient(apiClient);
+          const uploadResult = await chunkedUploadClient.uploadFile({
+            file,
+            displayName,
+            onProgress: (progress, currentChunk, totalChunks) => {
+              setUploadProgress((prev) =>
+                prev.map((item) =>
+                  item.fileName === file.name
+                    ? { 
+                        ...item, 
+                        progress, 
+                        status: "uploading",
+                        uploadMethod: "chunked"
+                      }
+                    : item
+                )
+              );
+              console.log(`📊 Chunked Progress: ${Math.round(progress)}% (chunk ${currentChunk}/${totalChunks})`);
+            },
+            onChunkComplete: (chunkIndex, totalChunks) => {
+              console.log(`✅ Chunk ${chunkIndex + 1}/${totalChunks} completed`);
+            },
+            onError: (error) => {
+              console.error("❌ Chunked upload error:", error);
+            }
+          });
+
+          if (!uploadResult.success) {
+            throw new Error(uploadResult.error || "Chunked upload failed");
+          }
+
+          console.log("✅ Chunked upload completed successfully");
+
+          // Update progress to completed
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? { ...item, progress: 100, status: "completed", uploadMethod: "chunked" }
+                : item
+            )
+          );
+        } else {
+          // Use direct upload for smaller files (<50MB)
+          console.log("🚀 Starting server-side upload...");
 
         // Use FormData for direct server-side upload (more reliable than client-side blob)
         const formData = new FormData();
@@ -288,6 +337,7 @@ export default function MyInfluencersPage() {
         );
 
         console.log("✅ Upload completed successfully");
+        } // End of else block
       } catch (error) {
         console.error("Server-side upload error:", error);
         setUploadProgress((prev) =>
@@ -305,13 +355,17 @@ export default function MyInfluencersPage() {
 
         // Show user-friendly error message
         if (error instanceof Error) {
-          if (error.message.includes("Network error")) {
+          if (error.message.includes("413") || error.message.includes("Request Entity Too Large")) {
             alert(
-              `Upload failed: ${error.message}\n\nPlease check that your development server is running at http://localhost:3000`
+              `Upload failed: File too large (${Math.round(file.size / 1024 / 1024)}MB)\n\nThis file exceeds the server limits. Try refreshing and uploading again - the system should automatically use chunked upload for large files.`
+            );
+          } else if (error.message.includes("Network error")) {
+            alert(
+              `Upload failed: ${error.message}\n\nPlease check your internet connection and try again.`
             );
           } else if (error.message.includes("timeout")) {
             alert(
-              `Upload failed: ${error.message}\n\nThe file may be too large or your connection is slow. Try again with a smaller file.`
+              `Upload failed: ${error.message}\n\nThe file may be too large or your connection is slow. Try refreshing - the system should automatically use chunked upload.`
             );
           } else {
             alert(`Upload failed: ${error.message}`);
@@ -1013,10 +1067,17 @@ export default function MyInfluencersPage() {
               </div>
 
               {/* Note about the new upload process */}
-              <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   <strong>✨ New:</strong> Files are now uploaded with proper
                   authentication! Large files (up to 500MB) are fully supported.
+                </p>
+              </div>
+
+              {/* Chunked upload info */}
+              <div className="mb-6 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  <strong>🚀 Smart Upload:</strong> Files larger than 50MB automatically use chunked upload to prevent timeouts. Your 343MB file will be uploaded in smaller pieces.
                 </p>
               </div>
 
