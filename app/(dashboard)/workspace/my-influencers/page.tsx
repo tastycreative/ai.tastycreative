@@ -246,7 +246,7 @@ export default function MyInfluencersPage() {
         // Step 1: Get upload URL from Vercel Blob
         const timestamp = Date.now();
         const fileName = `${timestamp}_${file.name}`;
-        
+
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -255,14 +255,14 @@ export default function MyInfluencersPage() {
           )
         );
 
-        const { upload } = await import('@vercel/blob/client');
-        
+        const { upload } = await import("@vercel/blob/client");
+
         console.log("📤 Uploading to Vercel Blob...");
-        
+
         // Step 2: Upload directly to Vercel Blob (client-side, no size limits)
         const blob = await upload(fileName, file, {
-          access: 'public',
-          handleUploadUrl: '/api/user/influencers/upload-url'
+          access: "public",
+          handleUploadUrl: "/api/user/influencers/upload-url",
         });
 
         console.log("✅ Blob upload completed:", blob.url);
@@ -279,19 +279,22 @@ export default function MyInfluencersPage() {
         console.log("🔄 Processing uploaded file...");
 
         // Step 4: Send blob URL to processing endpoint
-        const processResponse = await fetch('/api/user/influencers/blob-complete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            blobUrl: blob.url,
-            fileName: file.name,
-            displayName: displayName,
-            description: '',
-            fileSize: file.size
-          }),
-        });
+        const processResponse = await fetch(
+          "/api/user/influencers/blob-complete",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              blobUrl: blob.url,
+              fileName: file.name,
+              displayName: displayName,
+              description: "",
+              fileSize: file.size,
+            }),
+          }
+        );
 
         const processResult = await processResponse.json();
 
@@ -301,10 +304,7 @@ export default function MyInfluencersPage() {
           );
         }
 
-        console.log(
-          "✅ File processing completed:",
-          processResult
-        );
+        console.log("✅ File processing completed:", processResult);
 
         // Update progress to completed
         // Step 4: Update progress to completed
@@ -317,7 +317,6 @@ export default function MyInfluencersPage() {
         );
 
         console.log("✅ Upload and processing completed successfully");
-
       } catch (error) {
         console.error("Client-side blob upload error:", error);
         setUploadProgress((prev) =>
