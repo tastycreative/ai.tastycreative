@@ -29,6 +29,8 @@ const isAuthRoute = createRouteMatcher([
 const isPublicApiRoute = createRouteMatcher([
   '/api/trpc/hello(.*)',
   '/api/trpc/getTodos(.*)',
+  '/api/debug(.*)',
+  '/api/test(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -56,7 +58,14 @@ export default clerkMiddleware(async (auth, req) => {
   
   // Protect API routes except public ones
   if (req.nextUrl.pathname.startsWith('/api/') && !isPublicApiRoute(req)) {
-    await auth.protect();
+    // For API routes, check auth but don't call protect() which can cause method issues
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
   }
 });
 
