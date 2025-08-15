@@ -221,63 +221,93 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: "direct", // Direct upload to ComfyUI
+          uploadMethod: "client-blob", // Use client-side blob upload for large files
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
         console.log(
-          `📦 Uploading ${file.name} (${file.size} bytes) using direct upload to ComfyUI`
+          `📦 Uploading ${file.name} (${file.size} bytes) using client-side blob upload`
         );
 
         // Update progress to show upload starting
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 25, status: "uploading" }
+              ? { ...item, progress: 10, status: "uploading" }
               : item
           )
         );
 
         const displayName = file.name.replace(/\.[^/.]+$/, "");
 
-        console.log("🚀 Starting direct upload to ComfyUI...");
+        console.log("🚀 Starting client-side blob upload...");
 
-        // Create FormData for direct upload
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('displayName', displayName);
-        formData.append('description', '');
-
-        // Progress update for processing
+        // Step 1: Get upload URL from Vercel Blob
+        const timestamp = Date.now();
+        const fileName = `${timestamp}_${file.name}`;
+        
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 50, status: "processing" }
+              ? { ...item, progress: 20, status: "uploading" }
               : item
           )
         );
 
-        // Direct upload to ComfyUI and database
-        const uploadResponse = await fetch('/api/user/influencers/direct-upload', {
-          method: 'POST',
-          body: formData,
+        const { upload } = await import('@vercel/blob/client');
+        
+        console.log("📤 Uploading to Vercel Blob...");
+        
+        // Step 2: Upload directly to Vercel Blob (client-side, no size limits)
+        const blob = await upload(fileName, file, {
+          access: 'public',
+          handleUploadUrl: '/api/user/influencers/upload-url'
         });
 
-        const uploadResult = await uploadResponse.json();
+        console.log("✅ Blob upload completed:", blob.url);
 
-        if (!uploadResponse.ok) {
+        // Step 3: Process the uploaded blob
+        setUploadProgress((prev) =>
+          prev.map((item) =>
+            item.fileName === file.name
+              ? { ...item, progress: 70, status: "processing" }
+              : item
+          )
+        );
+
+        console.log("🔄 Processing uploaded file...");
+
+        // Step 4: Send blob URL to processing endpoint
+        const processResponse = await fetch('/api/user/influencers/blob-complete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            blobUrl: blob.url,
+            fileName: file.name,
+            displayName: displayName,
+            description: '',
+            fileSize: file.size
+          }),
+        });
+
+        const processResult = await processResponse.json();
+
+        if (!processResponse.ok) {
           throw new Error(
-            uploadResult.error || `Direct upload failed for ${file.name}`
+            processResult.error || `Processing failed for ${file.name}`
           );
         }
 
         console.log(
-          "✅ Direct upload completed:",
-          uploadResult
+          "✅ File processing completed:",
+          processResult
         );
 
         // Update progress to completed
+        // Step 4: Update progress to completed
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -286,18 +316,10 @@ export default function MyInfluencersPage() {
           )
         );
 
-        // Check if manual setup is required
-        if (!uploadResult.uploadedToComfyUI) {
-          hasManualInstructions = true;
-          manualInstructions = {
-            title: "LoRA Upload Complete!",
-            note: "Your LoRA has been saved to the database but couldn't be uploaded to ComfyUI. It will be retried automatically.",
-            steps: []
-          };
-          console.log("ComfyUI upload failed, but LoRA saved to database");
-        }
+        console.log("✅ Upload and processing completed successfully");
+
       } catch (error) {
-        console.error("Direct upload error:", error);
+        console.error("Client-side blob upload error:", error);
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -311,11 +333,6 @@ export default function MyInfluencersPage() {
           )
         );
       }
-    }
-
-    // Show manual instructions if needed
-    if (hasManualInstructions && manualInstructions) {
-      setShowInstructions(manualInstructions);
     }
 
     // Refresh the influencers list
