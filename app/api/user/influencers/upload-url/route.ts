@@ -1,8 +1,15 @@
-// app/api/user/influencers/upload-stream/route.ts - Streaming upload endpoint
+// app/api/user/influencers/upload-url/route.ts - Streaming upload endpoint
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
 import { v4 as uuidv4 } from 'uuid';
 import { getUserId, addUserInfluencer, type InfluencerLoRA } from '@/lib/database';
+
+// Disable body parsing to handle large files
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,16 +24,16 @@ export async function POST(request: NextRequest) {
     console.log('📤 === STREAMING LORA UPLOAD ===');
     console.log('👤 Processing LoRA upload for user:', userId);
     
-    // Get metadata from headers
+    // Get the file stream directly from the request
+    const contentType = request.headers.get('content-type') || '';
     const fileName = request.headers.get('x-filename') || 'upload.safetensors';
     const displayName = request.headers.get('x-display-name') || fileName.replace(/\.[^/.]+$/, '');
     const description = request.headers.get('x-description') || '';
-    const contentLength = request.headers.get('content-length');
     
     console.log('📋 Upload request data:', {
       fileName,
+      contentType,
       displayName,
-      contentLength,
       hasBody: !!request.body
     });
     
@@ -66,12 +73,13 @@ export async function POST(request: NextRequest) {
     
     const blob = await put(blobPath, request.body, {
       access: 'public',
-      contentType: 'application/octet-stream'
+      contentType: contentType || 'application/octet-stream'
     });
     
     console.log('✅ File uploaded to Vercel Blob:', blob.url);
     
-    // Get file size
+    // Get file size from content-length header or estimate from blob
+    const contentLength = request.headers.get('content-length');
     const fileSize = contentLength ? parseInt(contentLength) : 0;
     
     // Automatically upload to ComfyUI
@@ -128,7 +136,12 @@ export async function POST(request: NextRequest) {
         isActive: influencer.isActive
       },
       uploadedToComfyUI,
-      comfyUIError: comfyUIError || undefined
+      comfyUIError: comfyUIError || undefined,
+      blobUrl: blob.url,
+      instructions: !uploadedToComfyUI ? {
+        title: "LoRA Upload Complete!",
+        note: "Your LoRA has been uploaded and will be automatically synced to ComfyUI. No manual work required!"
+      } : undefined
     });
     
   } catch (error) {
@@ -149,7 +162,7 @@ async function uploadLoRAToComfyUI(blobUrl: string, fileName: string): Promise<b
   const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
   
   try {
-    console.log(`📡 Downloading file from blob: ${blobUrl}`);
+    console.log(`� Downloading file from blob: ${blobUrl}`);
     
     // Download the file from Vercel Blob
     const blobResponse = await fetch(blobUrl);

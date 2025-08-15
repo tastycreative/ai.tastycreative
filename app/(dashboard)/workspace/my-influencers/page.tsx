@@ -227,24 +227,14 @@ export default function MyInfluencersPage() {
         
         console.log('☁️ Starting direct blob upload to:', uniquePath);
         
-        // Step 1: Authenticate the user first
-        const authResponse = await apiClient.post('/api/user/influencers/upload-token', {});
-        const authResult = await authResponse.json();
-        
-        if (!authResponse.ok || !authResult.success) {
-          throw new Error('Authentication failed for upload');
-        }
-        
-        console.log('🔐 User authenticated for upload');
-        
-        // Step 2: Upload to server endpoint which will handle blob storage
+        // Upload to server endpoint which will handle authentication and storage
         const formData = new FormData();
         formData.append('file', file);
         formData.append('fileName', file.name);
         formData.append('displayName', file.name.replace(/\.[^/.]+$/, ""));
         formData.append('description', '');
         
-        const uploadResponse = await fetch('/api/user/influencers/upload-blob', {
+        const uploadResponse = await fetch('/api/user/influencers/upload-direct', {
           method: 'POST',
           body: formData,
         });
