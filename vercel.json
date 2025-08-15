@@ -7,6 +7,14 @@
       "maxDuration": 300,
       "memory": 1024
     },
+    "app/api/user/influencers/upload-chunked/**/*.ts": {
+      "maxDuration": 120,
+      "memory": 512
+    },
+    "app/api/user/influencers/complete-upload/**/*.ts": {
+      "maxDuration": 180,
+      "memory": 1024
+    },
     "app/api/upload/**/*.ts": {
       "maxDuration": 60,
       "memory": 1024
