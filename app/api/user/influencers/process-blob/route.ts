@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { addUserInfluencer, type InfluencerLoRA } from '@/lib/database';
 
 export async function GET() {
+  console.log('🔍 GET request to process-blob endpoint');
   return NextResponse.json({ 
     message: "process-blob endpoint is working",
     method: "GET",
@@ -13,12 +14,29 @@ export async function GET() {
   });
 }
 
+export async function OPTIONS() {
+  console.log('🔍 OPTIONS request to process-blob endpoint');
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Allow': 'GET, HEAD, OPTIONS, POST',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS, POST',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('🔄 === PROCESSING BLOB UPLOAD ===');
+    console.log('📥 Request method:', request.method);
+    console.log('📍 Request URL:', request.url);
+    console.log('📋 Request headers:', Object.fromEntries(request.headers.entries()));
     
     // ✅ Use Clerk's auth function directly
     const { userId } = await auth();
+    console.log('👤 Clerk userId:', userId ? 'Present' : 'Missing');
     
     if (!userId) {
       console.error('❌ No user ID found');
