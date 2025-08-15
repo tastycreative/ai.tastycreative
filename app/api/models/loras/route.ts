@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserId, getUserInfluencers, updateUserInfluencer } from '@/lib/database';
 
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15279';
+const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
 
 export async function GET(request: NextRequest) {
   try {

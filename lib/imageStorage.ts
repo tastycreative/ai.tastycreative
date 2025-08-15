@@ -1,7 +1,7 @@
 // lib/imageStorage.ts - Dynamic URL image management for NeonDB
 import { prisma } from './database';
 
-const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://localhost:8188';
+const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
 
 export interface GeneratedImage {
   id: string;

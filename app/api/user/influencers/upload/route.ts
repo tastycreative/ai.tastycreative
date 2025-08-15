@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
 
 // Helper function to verify LoRA is available in ComfyUI
 async function verifyLoRAInComfyUI(fileName: string): Promise<boolean> {
-  const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14967';
+  const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
   
   try {
     const response = await fetch(`${COMFYUI_URL}/object_info`, {
