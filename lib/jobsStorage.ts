@@ -318,3 +318,168 @@ export async function cleanupOldJobs(maxAgeHours: number = 24): Promise<number> 
     return 0;
   }
 }
+
+// Get user jobs with filtering options
+export async function getUserJobs(clerkId: string, options: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<GenerationJob[]> {
+  console.log('📊 Getting filtered jobs for user:', clerkId, 'options:', options);
+  
+  try {
+    const { status, limit = 50, offset = 0 } = options;
+    
+    const whereClause: any = {
+      clerkId: clerkId
+    };
+    
+    if (status) {
+      whereClause.status = status.toUpperCase() as JobStatus;
+    }
+    
+    const jobs = await prisma.generationJob.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset
+    });
+    
+    console.log('✅ Found', jobs.length, 'filtered jobs for user');
+    
+    return jobs.map(job => ({
+      id: job.id,
+      clerkId: job.clerkId,
+      userId: job.clerkId,
+      status: job.status.toLowerCase() as any,
+      progress: job.progress || undefined,
+      resultUrls: job.resultUrls,
+      error: job.error || undefined,
+      type: job.type,
+      createdAt: job.createdAt,
+      params: job.params,
+      comfyUIPromptId: job.comfyUIPromptId || undefined,
+      lastChecked: job.lastChecked?.toISOString()
+    }));
+  } catch (error) {
+    console.error('💥 Error getting filtered user jobs:', error);
+    return [];
+  }
+}
+
+// Get completed jobs for a user (specific function for image fetching)
+export async function getCompletedJobsForUser(clerkId: string, limit: number = 50): Promise<GenerationJob[]> {
+  console.log('🎯 Getting completed jobs for user:', clerkId);
+  
+  try {
+    const jobs = await prisma.generationJob.findMany({
+      where: {
+        clerkId: clerkId,
+        status: 'COMPLETED'
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        clerkId: true,
+        status: true,
+        createdAt: true,
+        resultUrls: true,
+        type: true
+      }
+    });
+    
+    console.log('✅ Found', jobs.length, 'completed jobs for user');
+    
+    return jobs.map(job => ({
+      id: job.id,
+      clerkId: job.clerkId,
+      userId: job.clerkId,
+      status: job.status.toLowerCase() as any,
+      progress: undefined,
+      resultUrls: job.resultUrls,
+      error: undefined,
+      type: job.type,
+      createdAt: job.createdAt,
+      params: undefined,
+      comfyUIPromptId: undefined,
+      lastChecked: undefined
+    }));
+  } catch (error) {
+    console.error('💥 Error getting completed jobs:', error);
+    return [];
+  }
+}
+
+// Get job statistics for a user
+export async function getUserJobStats(clerkId: string): Promise<{
+  total: number;
+  pending: number;
+  processing: number;
+  completed: number;
+  failed: number;
+  totalImages: number;
+}> {
+  console.log('📊 Getting job stats for user:', clerkId);
+  
+  try {
+    const [totalJobs, jobsByStatus, completedJobsWithImages] = await Promise.all([
+      // Total jobs count
+      prisma.generationJob.count({
+        where: { clerkId }
+      }),
+      
+      // Jobs grouped by status
+      prisma.generationJob.groupBy({
+        by: ['status'],
+        where: { clerkId },
+        _count: { status: true }
+      }),
+      
+      // Count total images from completed jobs
+      prisma.generationJob.findMany({
+        where: {
+          clerkId,
+          status: 'COMPLETED'
+        },
+        select: {
+          resultUrls: true
+        }
+      })
+    ]);
+    
+    // Calculate status counts
+    const statusCounts = jobsByStatus.reduce((acc, item) => {
+      acc[item.status.toLowerCase()] = item._count.status;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Calculate total images from job results
+    const totalImages = completedJobsWithImages.reduce((sum, job) => {
+      return sum + (job.resultUrls?.length || 0);
+    }, 0);
+    
+    const stats = {
+      total: totalJobs,
+      pending: statusCounts.pending || 0,
+      processing: statusCounts.processing || 0,
+      completed: statusCounts.completed || 0,
+      failed: statusCounts.failed || 0,
+      totalImages
+    };
+    
+    console.log('📊 User job stats:', stats);
+    return stats;
+    
+  } catch (error) {
+    console.error('💥 Error getting user job stats:', error);
+    return {
+      total: 0,
+      pending: 0,
+      processing: 0,
+      completed: 0,
+      failed: 0,
+      totalImages: 0
+    };
+  }
+}
