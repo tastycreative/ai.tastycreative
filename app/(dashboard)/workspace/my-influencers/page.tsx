@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { upload } from "@vercel/blob/client";
 import { apiClient } from "@/lib/apiClient";
 import {
   Upload,
@@ -50,7 +51,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  uploadMethod?: 'direct' | 'streaming';
+  uploadMethod?: 'direct' | 'streaming' | 'client-blob';
 }
 
 interface UploadInstructions {
@@ -203,12 +204,12 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: 'streaming' // Use streaming to avoid 413 errors
+          uploadMethod: 'client-blob' // Client-side blob upload
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using streaming upload to avoid 413 errors`);
+        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using client-side Vercel Blob upload`);
 
         // Update progress to show upload starting
         setUploadProgress((prev) =>
@@ -219,30 +220,60 @@ export default function MyInfluencersPage() {
           )
         );
 
-        // Upload using streaming endpoint to avoid 413 errors on large files
+        // Step 1: Upload directly to Vercel Blob from client
         const displayName = file.name.replace(/\.[^/.]+$/, "");
+        const timestamp = Date.now();
+        const userId = 'user'; // Will be set by server
+        const uniqueFileName = `${userId}_${timestamp}_${file.name}`;
         
-        console.log('🚀 Starting streaming upload for large file...');
+        console.log('☁️ Starting client-side Vercel Blob upload...');
         
-        // Use streaming endpoint that doesn't parse FormData (avoids 413 errors)
-        const uploadResponse = await fetch('/api/user/influencers/upload-url', {
-          method: 'POST',
-          body: file,
-          headers: {
-            'X-Filename': file.name,
-            'X-Display-Name': displayName,
-            'X-Description': '',
-            'Content-Type': 'application/octet-stream'
-          }
+        // Progress tracking for blob upload
+        setUploadProgress((prev) =>
+          prev.map((item) =>
+            item.fileName === file.name
+              ? { ...item, progress: 25, status: "uploading" }
+              : item
+          )
+        );
+        
+        // Upload directly to Vercel Blob
+        const blob = await upload(uniqueFileName, file, {
+          access: 'public',
+          handleUploadUrl: '/api/user/influencers/upload-url',
         });
         
-        const uploadResult = await uploadResponse.json();
+        console.log('✅ Blob upload completed:', blob.url);
         
-        if (!uploadResponse.ok) {
-          throw new Error(uploadResult.error || `Upload failed for ${file.name}`);
+        // Progress update after blob upload
+        setUploadProgress((prev) =>
+          prev.map((item) =>
+            item.fileName === file.name
+              ? { ...item, progress: 75, status: "processing" }
+              : item
+          )
+        );
+        
+        // Step 2: Notify server to process the blob (ComfyUI upload + database)
+        const processResponse = await fetch('/api/user/influencers/blob-complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            blobUrl: blob.url,
+            fileName: file.name,
+            displayName: displayName,
+            description: '',
+            fileSize: file.size
+          })
+        });
+        
+        const uploadResult = await processResponse.json();
+        
+        if (!processResponse.ok) {
+          throw new Error(uploadResult.error || `Upload processing failed for ${file.name}`);
         }
         
-        console.log('✅ Streaming upload completed:', uploadResult.blobUrl || 'No blob URL provided');
+        console.log('✅ Client-side blob upload and processing completed:', uploadResult);
 
         // Update progress to completed - the server endpoint handles everything
         setUploadProgress((prev) =>
