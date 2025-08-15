@@ -51,7 +51,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  uploadMethod?: 'direct' | 'streaming' | 'client-blob';
+  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback";
 }
 
 interface UploadInstructions {
@@ -69,8 +69,10 @@ export default function MyInfluencersPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [showInstructions, setShowInstructions] = useState<UploadInstructions | null>(null);
-  const [selectedInfluencer, setSelectedInfluencer] = useState<InfluencerLoRA | null>(null);
+  const [showInstructions, setShowInstructions] =
+    useState<UploadInstructions | null>(null);
+  const [selectedInfluencer, setSelectedInfluencer] =
+    useState<InfluencerLoRA | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Fetch user's influencers on load
@@ -82,28 +84,34 @@ export default function MyInfluencersPage() {
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching influencers...');
+      console.log("Fetching influencers...");
 
       const response = await apiClient.get("/api/user/influencers");
-      console.log('Fetch response status:', response.status);
+      console.log("Fetch response status:", response.status);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch influencers: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Fetched influencers data:', data);
+      console.log("Fetched influencers data:", data);
 
       setInfluencers(data.influencers || []);
 
       if (data.influencers && data.influencers.length > 0) {
-        console.log(`Successfully loaded ${data.influencers.length} influencers`);
+        console.log(
+          `Successfully loaded ${data.influencers.length} influencers`
+        );
       } else {
-        console.log('No influencers found for this user');
+        console.log("No influencers found for this user");
       }
     } catch (error) {
-      console.error('Error fetching influencers:', error);
-      setError(`Failed to load your influencers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("Error fetching influencers:", error);
+      setError(
+        `Failed to load your influencers: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setLoading(false);
     }
@@ -113,24 +121,29 @@ export default function MyInfluencersPage() {
   const syncWithComfyUI = async () => {
     try {
       setSyncing(true);
-      console.log('=== SYNC WITH COMFYUI ===');
-      console.log('Calling sync endpoint...');
+      console.log("=== SYNC WITH COMFYUI ===");
+      console.log("Calling sync endpoint...");
 
       const response = await apiClient.post("/api/models/loras", {
         action: "sync_user_loras",
       });
 
-      console.log('Sync response status:', response.status);
-      console.log('Sync response headers:', Object.fromEntries(response.headers.entries()));
+      console.log("Sync response status:", response.status);
+      console.log(
+        "Sync response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Sync response error:', errorText);
-        throw new Error(`Sync request failed: ${response.status} - ${errorText}`);
+        console.error("Sync response error:", errorText);
+        throw new Error(
+          `Sync request failed: ${response.status} - ${errorText}`
+        );
       }
 
       const data = await response.json();
-      console.log('Sync response data:', data);
+      console.log("Sync response data:", data);
 
       if (data.success) {
         await fetchInfluencers();
@@ -147,10 +160,14 @@ export default function MyInfluencersPage() {
 
       // Better error handling
       if (error instanceof Error) {
-        if (error.message.includes('Missing workflow data')) {
-          alert("Sync endpoint error: Wrong API called. Please check the routing configuration.");
-        } else if (error.message.includes('Unexpected end of JSON input')) {
-          alert("Sync failed: Empty response from server. ComfyUI may not be accessible.");
+        if (error.message.includes("Missing workflow data")) {
+          alert(
+            "Sync endpoint error: Wrong API called. Please check the routing configuration."
+          );
+        } else if (error.message.includes("Unexpected end of JSON input")) {
+          alert(
+            "Sync failed: Empty response from server. ComfyUI may not be accessible."
+          );
         } else {
           alert(`Sync failed: ${error.message}`);
         }
@@ -189,7 +206,7 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
-  // Upload influencers with Vercel Blob (no chunking needed)
+  // Upload influencers directly to ComfyUI and database (bypassing blob storage)
   const uploadInfluencers = async () => {
     if (selectedFiles.length === 0) return;
 
@@ -204,31 +221,16 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: 'client-blob' // Client-side blob upload
+          uploadMethod: "direct", // Direct upload to ComfyUI
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using client-side Vercel Blob upload`);
-
-        // Update progress to show upload starting
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? { ...item, progress: 10, status: "uploading" }
-              : item
-          )
+        console.log(
+          `📦 Uploading ${file.name} (${file.size} bytes) using direct upload to ComfyUI`
         );
 
-        // Step 1: Upload directly to Vercel Blob from client
-        const displayName = file.name.replace(/\.[^/.]+$/, "");
-        const timestamp = Date.now();
-        const userId = 'user'; // Will be set by server
-        const uniqueFileName = `${userId}_${timestamp}_${file.name}`;
-        
-        console.log('☁️ Starting client-side Vercel Blob upload...');
-        
-        // Progress tracking for blob upload
+        // Update progress to show upload starting
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -236,46 +238,46 @@ export default function MyInfluencersPage() {
               : item
           )
         );
-        
-        // Upload directly to Vercel Blob
-        const blob = await upload(uniqueFileName, file, {
-          access: 'public',
-          handleUploadUrl: '/api/user/influencers/upload-url',
-        });
-        
-        console.log('✅ Blob upload completed:', blob.url);
-        
-        // Progress update after blob upload
+
+        const displayName = file.name.replace(/\.[^/.]+$/, "");
+
+        console.log("🚀 Starting direct upload to ComfyUI...");
+
+        // Create FormData for direct upload
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('displayName', displayName);
+        formData.append('description', '');
+
+        // Progress update for processing
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 75, status: "processing" }
+              ? { ...item, progress: 50, status: "processing" }
               : item
           )
         );
-        
-        // Step 2: Notify server to process the blob (ComfyUI upload + database)
-        const processResponse = await fetch('/api/user/influencers/blob-complete', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            blobUrl: blob.url,
-            fileName: file.name,
-            displayName: displayName,
-            description: '',
-            fileSize: file.size
-          })
-        });
-        
-        const uploadResult = await processResponse.json();
-        
-        if (!processResponse.ok) {
-          throw new Error(uploadResult.error || `Upload processing failed for ${file.name}`);
-        }
-        
-        console.log('✅ Client-side blob upload and processing completed:', uploadResult);
 
-        // Update progress to completed - the server endpoint handles everything
+        // Direct upload to ComfyUI and database
+        const uploadResponse = await fetch('/api/user/influencers/direct-upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const uploadResult = await uploadResponse.json();
+
+        if (!uploadResponse.ok) {
+          throw new Error(
+            uploadResult.error || `Direct upload failed for ${file.name}`
+          );
+        }
+
+        console.log(
+          "✅ Direct upload completed:",
+          uploadResult
+        );
+
+        // Update progress to completed
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -285,22 +287,26 @@ export default function MyInfluencersPage() {
         );
 
         // Check if manual setup is required
-        if (!uploadResult.uploadedToComfyUI && uploadResult.instructions) {
+        if (!uploadResult.uploadedToComfyUI) {
           hasManualInstructions = true;
-          manualInstructions = uploadResult.instructions;
-          console.log("Manual setup required:", uploadResult.instructions);
+          manualInstructions = {
+            title: "LoRA Upload Complete!",
+            note: "Your LoRA has been saved to the database but couldn't be uploaded to ComfyUI. It will be retried automatically.",
+            steps: []
+          };
+          console.log("ComfyUI upload failed, but LoRA saved to database");
         }
       } catch (error) {
-        console.error("Upload error:", error);
+        console.error("Direct upload error:", error);
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
               ? {
-                ...item,
-                status: "failed",
-                error:
-                  error instanceof Error ? error.message : "Upload failed",
-              }
+                  ...item,
+                  status: "failed",
+                  error:
+                    error instanceof Error ? error.message : "Upload failed",
+                }
               : item
           )
         );
@@ -590,7 +596,8 @@ export default function MyInfluencersPage() {
                   <span>Upload Your First Influencer</span>
                 </button>
                 <p className="text-xs text-gray-500">
-                  If you recently uploaded models, the list will automatically refresh.
+                  If you recently uploaded models, the list will automatically
+                  refresh.
                 </p>
               </div>
             </div>
@@ -641,12 +648,13 @@ export default function MyInfluencersPage() {
 
                 <div className="flex items-center justify-between mb-2">
                   <span
-                    className={`text-xs px-2 py-1 rounded-full ${influencer.syncStatus === "synced"
+                    className={`text-xs px-2 py-1 rounded-full ${
+                      influencer.syncStatus === "synced"
                         ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
                         : influencer.syncStatus === "pending"
-                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
-                          : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                      }`}
+                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
+                        : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                    }`}
                   >
                     {getSyncStatusText(influencer.syncStatus)}
                   </span>
@@ -657,10 +665,11 @@ export default function MyInfluencersPage() {
                         !influencer.isActive
                       )
                     }
-                    className={`w-3 h-3 rounded-full ${influencer.isActive
+                    className={`w-3 h-3 rounded-full ${
+                      influencer.isActive
                         ? "bg-green-500"
                         : "bg-gray-300 dark:bg-gray-600"
-                      }`}
+                    }`}
                     title={influencer.isActive ? "Active" : "Inactive"}
                   />
                 </div>
@@ -671,7 +680,9 @@ export default function MyInfluencersPage() {
 
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-4">
                   <span>{formatFileSize(influencer.fileSize)}</span>
-                  <span>{new Date(influencer.uploadedAt).toLocaleDateString()}</span>
+                  <span>
+                    {new Date(influencer.uploadedAt).toLocaleDateString()}
+                  </span>
                 </div>
 
                 {/* Actions */}
@@ -730,61 +741,97 @@ export default function MyInfluencersPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Display Name</label>
-                    <p className="text-gray-900 dark:text-white">{selectedInfluencer.displayName}</p>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Display Name
+                    </label>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedInfluencer.displayName}
+                    </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">File Name</label>
-                    <p className="text-gray-900 dark:text-white font-mono text-sm">{selectedInfluencer.fileName}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">File Size</label>
-                    <p className="text-gray-900 dark:text-white">{formatFileSize(selectedInfluencer.fileSize)}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Usage Count</label>
-                    <p className="text-gray-900 dark:text-white">{selectedInfluencer.usageCount} times</p>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      File Name
+                    </label>
+                    <p className="text-gray-900 dark:text-white font-mono text-sm">
+                      {selectedInfluencer.fileName}
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      File Size
+                    </label>
+                    <p className="text-gray-900 dark:text-white">
+                      {formatFileSize(selectedInfluencer.fileSize)}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Usage Count
+                    </label>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedInfluencer.usageCount} times
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Status
+                    </label>
                     <div className="flex items-center space-x-2">
                       {getSyncStatusIcon(selectedInfluencer.syncStatus)}
-                      <span className="text-gray-900 dark:text-white">{getSyncStatusText(selectedInfluencer.syncStatus)}</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {getSyncStatusText(selectedInfluencer.syncStatus)}
+                      </span>
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Active</label>
-                    <p className="text-gray-900 dark:text-white">{selectedInfluencer.isActive ? "Yes" : "No"}</p>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Active
+                    </label>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedInfluencer.isActive ? "Yes" : "No"}
+                    </p>
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Uploaded</label>
-                  <p className="text-gray-900 dark:text-white">{new Date(selectedInfluencer.uploadedAt).toLocaleString()}</p>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Uploaded
+                  </label>
+                  <p className="text-gray-900 dark:text-white">
+                    {new Date(selectedInfluencer.uploadedAt).toLocaleString()}
+                  </p>
                 </div>
 
                 {selectedInfluencer.lastUsedAt && (
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Last Used</label>
-                    <p className="text-gray-900 dark:text-white">{new Date(selectedInfluencer.lastUsedAt).toLocaleString()}</p>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Last Used
+                    </label>
+                    <p className="text-gray-900 dark:text-white">
+                      {new Date(selectedInfluencer.lastUsedAt).toLocaleString()}
+                    </p>
                   </div>
                 )}
 
                 {selectedInfluencer.comfyUIPath && (
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">ComfyUI Path</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      ComfyUI Path
+                    </label>
                     <div className="flex items-center space-x-2">
                       <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded flex-1">
                         {selectedInfluencer.comfyUIPath}
                       </p>
                       <button
-                        onClick={() => copyToClipboard(selectedInfluencer.comfyUIPath!)}
+                        onClick={() =>
+                          copyToClipboard(selectedInfluencer.comfyUIPath!)
+                        }
                         className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                       >
                         <Copy className="w-4 h-4" />
@@ -794,9 +841,12 @@ export default function MyInfluencersPage() {
                 )}
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Description
+                  </label>
                   <p className="text-gray-900 dark:text-white">
-                    {selectedInfluencer.description || "No description provided"}
+                    {selectedInfluencer.description ||
+                      "No description provided"}
                   </p>
                 </div>
               </div>
@@ -948,8 +998,9 @@ export default function MyInfluencersPage() {
               {/* Note about the new upload process */}
               <div className="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>✨ New:</strong> Files are now uploaded directly to Vercel Blob storage! 
-                  Large files (up to 500MB) are fully supported. Manual ComfyUI setup will be required after upload.
+                  <strong>✨ New:</strong> Files are now uploaded directly to
+                  Vercel Blob storage! Large files (up to 500MB) are fully
+                  supported. Manual ComfyUI setup will be required after upload.
                 </p>
               </div>
 
@@ -1007,13 +1058,9 @@ export default function MyInfluencersPage() {
                         </div>
                         {/* Show method and status */}
                         <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span>
-                            ⚡ Vercel Blob Upload
-                          </span>
+                          <span>⚡ Vercel Blob Upload</span>
                           {progress.status === "uploading" && (
-                            <span>
-                              Uploading to cloud...
-                            </span>
+                            <span>Uploading to cloud...</span>
                           )}
                         </div>
                         {progress.status !== "completed" && (

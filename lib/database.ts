@@ -23,6 +23,7 @@ export interface InfluencerLoRA {
   uploadedAt: string;
   description?: string;
   thumbnailUrl?: string;
+  // blobUrl?: string; // Temporarily disabled until schema migration
   isActive: boolean;
   usageCount: number;
   comfyUIPath?: string;
@@ -57,6 +58,7 @@ export async function getUserInfluencers(clerkId: string): Promise<InfluencerLoR
       uploadedAt: inf.uploadedAt.toISOString(),
       description: inf.description || undefined,
       thumbnailUrl: inf.thumbnailUrl || undefined,
+      // blobUrl: inf.blobUrl || undefined, // Temporarily disabled until migration completes
       isActive: inf.isActive,
       usageCount: inf.usageCount,
       comfyUIPath: inf.comfyUIPath || undefined,

@@ -1,5 +1,6 @@
-// app/api/user/influencers/blob-complete/route.ts - Complete LoRA upload after blob storage
+// app/api/user/influencers/upload-stream/route.ts - Streaming upload endpoint
 import { NextRequest, NextResponse } from 'next/server';
+import { put } from '@vercel/blob';
 import { v4 as uuidv4 } from 'uuid';
 import { getUserId, addUserInfluencer, type InfluencerLoRA } from '@/lib/database';
 
@@ -13,12 +14,29 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const { blobUrl, fileName, displayName, description, fileSize } = await request.json();
+    console.log('📤 === STREAMING LORA UPLOAD ===');
+    console.log('👤 Processing LoRA upload for user:', userId);
     
-    console.log('📤 === COMPLETING LORA UPLOAD ===');
-    console.log('👤 User:', userId);
-    console.log('📁 File:', fileName);
-    console.log('🔗 Blob URL:', blobUrl);
+    // Get metadata from headers
+    const fileName = request.headers.get('x-filename') || 'upload.safetensors';
+    const displayName = request.headers.get('x-display-name') || fileName.replace(/\.[^/.]+$/, '');
+    const description = request.headers.get('x-description') || '';
+    const contentLength = request.headers.get('content-length');
+    
+    console.log('📋 Upload request data:', {
+      fileName,
+      displayName,
+      contentLength,
+      hasBody: !!request.body
+    });
+    
+    if (!request.body) {
+      console.error('❌ No request body provided');
+      return NextResponse.json(
+        { success: false, error: 'No file data provided' },
+        { status: 400 }
+      );
+    }
     
     // Validate file type
     const validExtensions = ['.safetensors', '.pt', '.ckpt'];
@@ -40,13 +58,29 @@ export async function POST(request: NextRequest) {
     const baseName = fileName.substring(0, fileName.lastIndexOf('.'));
     const uniqueFileName = `${userId}_${timestamp}_${baseName}${fileExtension}`;
     
+    console.log('📁 Generated unique filename:', uniqueFileName);
+    
+    // Upload to Vercel Blob storage using stream
+    console.log('☁️ Uploading to Vercel Blob storage...');
+    const blobPath = `loras/${userId}/${uniqueFileName}`;
+    
+    const blob = await put(blobPath, request.body, {
+      access: 'public',
+      contentType: 'application/octet-stream'
+    });
+    
+    console.log('✅ File uploaded to Vercel Blob:', blob.url);
+    
+    // Get file size
+    const fileSize = contentLength ? parseInt(contentLength) : 0;
+    
     // Automatically upload to ComfyUI
     console.log('🚀 Attempting to upload to ComfyUI...');
     let uploadedToComfyUI = false;
-    let comfyUIError: string | null = null;
+    let comfyUIError = null;
     
     try {
-      const uploadSuccess = await uploadLoRAToComfyUI(blobUrl, uniqueFileName);
+      const uploadSuccess = await uploadLoRAToComfyUI(blob.url, uniqueFileName);
       if (uploadSuccess) {
         uploadedToComfyUI = true;
         console.log('✅ Successfully uploaded to ComfyUI');
@@ -67,7 +101,7 @@ export async function POST(request: NextRequest) {
       displayName: displayName || baseName,
       fileName: uniqueFileName,
       originalFileName: fileName,
-      fileSize: fileSize || 0,
+      fileSize: fileSize,
       uploadedAt: new Date().toISOString(),
       isActive: uploadedToComfyUI,
       usageCount: 0,
@@ -94,19 +128,15 @@ export async function POST(request: NextRequest) {
         isActive: influencer.isActive
       },
       uploadedToComfyUI,
-      comfyUIError: comfyUIError || undefined,
-      instructions: !uploadedToComfyUI ? {
-        title: "LoRA Upload Complete!",
-        note: "Your LoRA has been uploaded and will be automatically synced to ComfyUI. No manual work required!"
-      } : undefined
+      comfyUIError: comfyUIError || undefined
     });
     
   } catch (error) {
-    console.error('💥 Upload completion error:', error);
+    console.error('💥 Upload error:', error);
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Upload completion failed',
+        error: 'Upload failed',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
@@ -147,8 +177,6 @@ async function uploadLoRAToComfyUI(blobUrl: string, fileName: string): Promise<b
       return true;
     } else {
       console.error('❌ ComfyUI upload failed:', uploadResponse.status);
-      const responseText = await uploadResponse.text().catch(() => 'No response body');
-      console.error('❌ ComfyUI response:', responseText);
       return false;
     }
     

@@ -43,6 +43,7 @@ model InfluencerLoRA {
   updatedAt        DateTime   @updatedAt
   description      String?
   thumbnailUrl     String?
+  // blobUrl          String?    // Vercel Blob storage URL - temporarily disabled
   isActive         Boolean    @default(true)
   usageCount       Int        @default(0)
   comfyUIPath      String?

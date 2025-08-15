@@ -33,6 +33,11 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/trpc/hello(.*)',
   '/api/trpc/getTodos(.*)',
   '/api/webhooks(.*)',  // Allow webhooks to be called without authentication
+  '/api/user/influencers/upload-url(.*)',  // Allow Vercel Blob upload URL generation
+  '/api/user/influencers/server-upload(.*)',  // Allow server-side upload
+  '/api/user/influencers/blob-complete(.*)',  // Allow blob completion processing
+  '/api/user/influencers/direct-upload(.*)',  // Allow direct upload bypassing blob storage
+  '/api/debug(.*)',  // Allow debug endpoints
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
