@@ -38,7 +38,6 @@ model InfluencerLoRA {
   fileName         String     @unique
   originalFileName String
   fileSize         Int
-  data             Bytes?     // Store model file data directly in database
   uploadedAt       DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   description      String?

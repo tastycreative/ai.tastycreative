@@ -550,102 +550,49 @@ def handler(job):
                         except Exception as e:
                             logger.error(f"❌ Failed to read model file: {e}")
             
-            # Upload model file via streaming chunks to database
+            # Upload model file to your storage via API
             model_upload_success = False
             if model_file_data and webhook_url:
                 try:
-                    logger.info("🚀 Starting streaming upload to database...")
+                    logger.info("🚀 Uploading model to your storage...")
                     
                     # Extract base URL from webhook URL
+                    # webhook_url is like: https://your-domain.com/api/webhooks/training/job_id
                     base_url = webhook_url.split('/api/webhooks')[0]
-                    upload_url = f"{base_url}/api/models/upload-streaming"
+                    upload_url = f"{base_url}/api/models/upload-from-training"
                     
-                    # Convert file data to base64
-                    import base64
-                    import uuid
-                    file_base64 = base64.b64encode(model_file_data).decode('utf-8')
+                    # Prepare multipart form data
+                    import requests
                     
-                    # Split into smaller chunks (1MB chunks to avoid payload limits)
-                    chunk_size = 1 * 1024 * 1024  # 1MB in base64 chars
-                    chunks = [file_base64[i:i + chunk_size] for i in range(0, len(file_base64), chunk_size)]
-                    total_chunks = len(chunks)
-                    session_id = str(uuid.uuid4())
+                    files = {
+                        'file': (model_filename, model_file_data, 'application/octet-stream')
+                    }
                     
-                    logger.info(f"📦 Model file size: {len(model_file_data)} bytes ({len(model_file_data) / 1024 / 1024:.1f}MB)")
-                    logger.info(f"📦 Base64 size: {len(file_base64)} chars ({len(file_base64) / 1024 / 1024:.1f}MB)")
-                    logger.info(f"📦 Splitting into {total_chunks} chunks of ~1MB each (session: {session_id})")
+                    data = {
+                        'job_id': job_id,
+                        'model_name': job_input['name'],
+                        'training_steps': step,
+                        'final_loss': None  # Could extract from training logs if needed
+                    }
                     
-                    # Upload each chunk
-                    for chunk_index, chunk_data in enumerate(chunks):
-                        chunk_success = False
-                        max_chunk_retries = 3
-                        is_last_chunk = (chunk_index == total_chunks - 1)
-                        
-                        for attempt in range(max_chunk_retries):
-                            try:
-                                logger.info(f"📤 Uploading chunk {chunk_index + 1}/{total_chunks} (attempt {attempt + 1}/{max_chunk_retries})")
-                                
-                                payload = {
-                                    'sessionId': session_id,
-                                    'chunkIndex': chunk_index,
-                                    'totalChunks': total_chunks,
-                                    'chunkData': chunk_data,
-                                    'isLastChunk': is_last_chunk
-                                }
-                                
-                                # Include metadata in first chunk
-                                if chunk_index == 0:
-                                    payload.update({
-                                        'jobId': job_id,
-                                        'modelName': job_input['name'],
-                                        'fileName': model_filename,
-                                        'trainingSteps': step,
-                                        'finalLoss': None  # Could extract from logs if needed
-                                    })
-                                
-                                response = requests.post(
-                                    upload_url, 
-                                    json=payload,
-                                    timeout=60,  # 1 minute per chunk
-                                    headers={
-                                        'User-Agent': 'RunPod-Training-Handler/1.0',
-                                        'Content-Type': 'application/json',
-                                        'x-api-key': os.environ.get('TRAINING_UPLOAD_KEY', '')
-                                    }
-                                )
-                                
-                                if response.status_code == 200:
-                                    result = response.json()
-                                    if result.get('uploadComplete'):
-                                        logger.info(f"✅ Chunk {chunk_index + 1}/{total_chunks} uploaded - DATABASE STORAGE COMPLETE!")
-                                        model_upload_success = True
-                                    else:
-                                        logger.info(f"✅ Chunk {chunk_index + 1}/{total_chunks} uploaded successfully")
-                                    chunk_success = True
-                                    break
-                                else:
-                                    logger.error(f"❌ Chunk {chunk_index + 1} upload failed: {response.status_code} - {response.text}")
-                                    if attempt < max_chunk_retries - 1:
-                                        logger.info(f"⏳ Retrying chunk {chunk_index + 1} in 5 seconds...")
-                                        time.sleep(5)
-                                        
-                            except Exception as chunk_error:
-                                logger.error(f"❌ Chunk {chunk_index + 1} error (attempt {attempt + 1}): {chunk_error}")
-                                if attempt < max_chunk_retries - 1:
-                                    logger.info(f"⏳ Retrying chunk {chunk_index + 1} in 5 seconds...")
-                                    time.sleep(5)
-                        
-                        if not chunk_success:
-                            logger.error(f"❌ Failed to upload chunk {chunk_index + 1} after {max_chunk_retries} attempts")
-                            break
+                    response = requests.post(
+                        upload_url, 
+                        files=files, 
+                        data=data,
+                        timeout=120,  # 2 minute timeout for large files
+                        headers={
+                            'User-Agent': 'RunPod-Training-Handler/1.0'
+                        }
+                    )
                     
-                    if model_upload_success:
-                        logger.info("✅ Model stored in database successfully!")
+                    if response.status_code == 200:
+                        logger.info("✅ Model uploaded successfully to your storage!")
+                        model_upload_success = True
                     else:
-                        logger.error("❌ Streaming database upload failed")
+                        logger.error(f"❌ Model upload failed: {response.status_code} - {response.text}")
                         
                 except Exception as upload_error:
-                    logger.error(f"❌ Streaming upload error: {upload_error}")
+                    logger.error(f"❌ Model upload error: {upload_error}")
             
             # Prepare sample URLs (these would need to be uploaded to your storage)
             sample_urls = [f"/training/{job_id}/samples/{f['filename']}" for f in output_files['sample_files']]
