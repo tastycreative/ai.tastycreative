@@ -53,9 +53,11 @@ class AuthenticatedApiClient {
       const startTime = Date.now();
       console.log('🚀 Sending request...');
       
-      // Add a timeout to the fetch request
+      // Add a timeout to the fetch request - longer timeout for upload operations
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      const isUploadOperation = url.includes('/upload') || url.includes('/blob') || url.includes('/sync');
+      const timeoutDuration = isUploadOperation ? 120000 : 30000; // 2 minutes for uploads, 30 seconds for others
+      const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
       
       const response = await fetch(url, {
         ...options,
@@ -70,7 +72,8 @@ class AuthenticatedApiClient {
       console.log('📊 Response status:', response.status, response.statusText);
       console.log('🌐 Response URL:', response.url);
       console.log('📋 Response headers:', Object.fromEntries(response.headers.entries()));
-      
+      console.log(`⏰ Used ${isUploadOperation ? '2-minute' : '30-second'} timeout for this operation`);
+
       // Log response body for debugging (only for non-successful responses)
       if (!response.ok) {
         try {
