@@ -2,8 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useApiClient } from "@/lib/apiClient"; // ✅ Use the hook
-import { ChunkedUploadClient } from "@/lib/chunkedUploadClient"; // ✅ Add chunked upload
+import { useApiClient } from "@/lib/apiClient";
 import {
   Upload,
   Users,
@@ -51,7 +50,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback" | "chunked" | "blob-first" | "client-direct";
+  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback" | "chunked" | "blob-first" | "client-direct" | "direct-comfyui-fallback" | "direct-comfyui";
 }
 
 interface UploadInstructions {
@@ -127,7 +126,7 @@ export default function MyInfluencersPage() {
     }
   };
 
-  // Sync with ComfyUI
+  // Sync with ComfyUI (original function)
   const syncWithComfyUI = async () => {
     if (!apiClient) return;
 
@@ -186,6 +185,52 @@ export default function MyInfluencersPage() {
     }
   };
 
+  // Sync uploaded files from Blob to ComfyUI
+  const syncUploadedFiles = async () => {
+    if (!apiClient) return;
+
+    try {
+      setSyncing(true);
+      console.log("=== SYNC UPLOADED FILES ===");
+      console.log("Syncing files from Vercel Blob to ComfyUI...");
+
+      const response = await apiClient.post("/api/user/influencers/sync-blob-files", {});
+
+      console.log("Sync uploaded files response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Sync uploaded files response error:", errorText);
+        throw new Error(
+          `Sync request failed: ${response.status} - ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+      console.log("Sync uploaded files response data:", data);
+
+      if (data.success) {
+        await fetchInfluencers();
+
+        alert(
+          `Sync completed:\n${data.synced} files synced to ComfyUI\n${data.failed} files failed\n${data.total} total files processed`
+        );
+      } else {
+        throw new Error(data.error || "Sync failed");
+      }
+    } catch (error) {
+      console.error("Sync uploaded files error:", error);
+
+      if (error instanceof Error) {
+        alert(`Sync failed: ${error.message}`);
+      } else {
+        alert("Sync failed: Unknown error");
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     const validFiles = files.filter((file) => {
@@ -213,7 +258,7 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
-  // Upload influencers with authentication - Updated with fallback approach
+  // Upload influencers with direct ComfyUI upload only
   const uploadInfluencers = async () => {
     if (selectedFiles.length === 0 || !apiClient) return;
 
@@ -226,14 +271,12 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: file.size > 50 * 1024 * 1024 ? "blob-first" : "direct", // Use blob-first for files > 50MB
+          uploadMethod: "direct-comfyui",
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        console.log(
-          `📦 Uploading ${file.name} (${file.size} bytes) using direct upload`
-        );
+        console.log(`🎯 Uploading ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) directly to ComfyUI`);
 
         // Update progress to show upload starting
         setUploadProgress((prev) =>
@@ -245,181 +288,71 @@ export default function MyInfluencersPage() {
         );
 
         const displayName = file.name.replace(/\.[^/.]+$/, "");
-        const isLargeFile = file.size > 50 * 1024 * 1024; // 50MB threshold
 
-        console.log(
-          `📦 Uploading ${file.name} (${file.size} bytes) using ${isLargeFile ? 'blob-first' : 'direct'} upload`
-        );
-
-        if (isLargeFile) {
-          // Use direct client-side blob upload for large files (>50MB)
-          console.log("☁️ Starting direct client-side blob upload for large file...");
-          
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? { ...item, progress: 5, status: "uploading", uploadMethod: "client-direct" }
-                : item
-            )
-          );
-
-          // Step 1: Get upload token and create database record
-          console.log("🎫 Getting upload token...");
-          const tokenResponse = await apiClient.post("/api/user/influencers/get-upload-token", {
-            fileName: file.name,
-            fileSize: file.size,
-            displayName: displayName,
-            description: ""
-          });
-
-          if (!tokenResponse.ok) {
-            const errorData = await tokenResponse.json();
-            throw new Error(errorData.error || "Failed to get upload token");
-          }
-
-          const { influencerId, fileName: uniqueFileName, blobPath, uploadToken } = await tokenResponse.json();
-          console.log("✅ Got upload token and created database record");
-
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? { ...item, progress: 15, status: "uploading" }
-                : item
-            )
-          );
-
-          // Step 2: Upload directly to Vercel Blob (completely bypasses API)
-          console.log("☁️ Uploading directly to Vercel Blob...");
-          
-          // Import Vercel Blob client for direct upload
-          const { put } = await import('@vercel/blob');
-          
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? { ...item, progress: 20, status: "uploading" }
-                : item
-            )
-          );
-
-          try {
-            // Start progress simulation during upload
-            const progressInterval = setInterval(() => {
-              setUploadProgress((prev) =>
-                prev.map((item) =>
-                  item.fileName === file.name && item.progress < 90
-                    ? { ...item, progress: Math.min(90, item.progress + 5) }
-                    : item
-                )
-              );
-            }, 2000);
-
-            // Direct client-side upload to Vercel Blob
-            const blobResult = await put(blobPath, file, {
-              access: 'public',
-              token: uploadToken,
-              contentType: file.type || 'application/octet-stream'
-            });
-
-            // Clear progress interval
-            clearInterval(progressInterval);
-
-            console.log("✅ File uploaded directly to Vercel Blob:", blobResult.url);
-
-            setUploadProgress((prev) =>
-              prev.map((item) =>
-                item.fileName === file.name
-                  ? { ...item, progress: 95, status: "uploading" }
-                  : item
-              )
-            );
-
-            // Step 3: Notify our server that upload is complete and trigger ComfyUI sync
-            console.log("📤 Notifying server of successful upload...");
-            const notifyResponse = await apiClient.post("/api/user/influencers/notify-upload-complete", {
-              influencerId: influencerId,
-              blobUrl: blobResult.url,
-              fileName: uniqueFileName
-            });
-
-            if (!notifyResponse.ok) {
-              const errorData = await notifyResponse.json();
-              console.warn("⚠️ Failed to complete upload process, but file is uploaded:", errorData.error);
-              // Don't throw here since the file is already uploaded
-            } else {
-              const notifyData = await notifyResponse.json();
-              console.log("✅ Upload process completed successfully:", notifyData);
-            }
-
-            // Update progress to completed
-            setUploadProgress((prev) =>
-              prev.map((item) =>
-                item.fileName === file.name
-                  ? { ...item, progress: 100, status: "completed", uploadMethod: "client-direct" }
-                  : item
-              )
-            );
-
-          } catch (blobError) {
-            console.error("❌ Direct blob upload failed:", blobError);
-            throw new Error(`Direct blob upload failed: ${blobError instanceof Error ? blobError.message : 'Unknown error'}`);
-          }
-        } else {
-          // Use direct upload for smaller files (<50MB)
-          console.log("🚀 Starting server-side upload...");
-
-        // Use FormData for direct server-side upload (more reliable than client-side blob)
+        // Use direct ComfyUI upload for all files
         const formData = new FormData();
         formData.append("file", file);
         formData.append("displayName", displayName);
-        formData.append("description", "");
 
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? { ...item, progress: 50, status: "uploading" }
-              : item
-          )
-        );
+        console.log("🎯 Starting direct ComfyUI upload...");
 
-        console.log("� Uploading via server-side endpoint...");
+        // Start progress simulation during upload
+        const progressInterval = setInterval(() => {
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name && item.progress < 90
+                ? { ...item, progress: Math.min(90, item.progress + 5) }
+                : item
+            )
+          );
+        }, 3000);
 
-        // Use the postFormData method for proper file upload
-        const uploadResponse = await apiClient.postFormData(
-          "/api/user/influencers/upload-direct",
+        const directResponse = await apiClient.postFormData(
+          "/api/user/influencers/upload-direct-comfyui",
           formData
         );
 
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json();
-          throw new Error(errorData.error || `Upload failed for ${file.name}`);
+        // Clear progress interval
+        clearInterval(progressInterval);
+
+        if (!directResponse.ok) {
+          const errorData = await directResponse.json();
+          throw new Error(errorData.error || `Direct ComfyUI upload failed for ${file.name}`);
         }
 
-        const uploadResult = await uploadResponse.json();
-
-        console.log("✅ File upload completed:", uploadResult);
+        const directResult = await directResponse.json();
+        console.log("✅ Direct ComfyUI upload completed:", directResult);
 
         // Update progress to completed
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 100, status: "completed" }
+              ? { 
+                  ...item, 
+                  progress: 100, 
+                  status: "completed", 
+                  uploadMethod: "direct-comfyui"
+                }
               : item
           )
         );
 
-        console.log("✅ Upload completed successfully");
-        } // End of else block
+        // Show success message
+        alert(
+          `✅ Upload completed successfully!\n\n` +
+          `Your file "${file.name}" (${Math.round(file.size / 1024 / 1024)}MB) has been uploaded directly to ComfyUI.\n\n` +
+          `Your LoRA is ready for AI generation immediately!`
+        );
+
       } catch (error) {
-        console.error("Server-side upload error:", error);
+        console.error("❌ Direct ComfyUI upload error:", error);
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
               ? {
                   ...item,
                   status: "failed",
-                  error:
-                    error instanceof Error ? error.message : "Upload failed",
+                  error: error instanceof Error ? error.message : "Upload failed",
                 }
               : item
           )
@@ -427,21 +360,7 @@ export default function MyInfluencersPage() {
 
         // Show user-friendly error message
         if (error instanceof Error) {
-          if (error.message.includes("413") || error.message.includes("Request Entity Too Large")) {
-            alert(
-              `Upload failed: File too large (${Math.round(file.size / 1024 / 1024)}MB)\n\nThis shouldn't happen with the new blob-first upload system. Please try refreshing the page and uploading again.`
-            );
-          } else if (error.message.includes("Network error")) {
-            alert(
-              `Upload failed: ${error.message}\n\nPlease check your internet connection and try again.`
-            );
-          } else if (error.message.includes("timeout")) {
-            alert(
-              `Upload failed: ${error.message}\n\nThe file upload timed out. The new blob-first system should handle this better - please try again.`
-            );
-          } else {
-            alert(`Upload failed: ${error.message}`);
-          }
+          alert(`Upload failed: ${error.message}\n\nPlease try again or contact support if the issue persists.`);
         }
       }
     }
@@ -705,13 +624,15 @@ export default function MyInfluencersPage() {
             </h3>
             <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
               Upload your custom LoRA models to create AI-generated content with
-              specific styles or characteristics. These models are private to
-              your account and only you can use them.
+              specific styles or characteristics. Files are stored securely in Vercel Blob and synced to ComfyUI.
             </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400">
-              <strong>Status indicators:</strong> Green = Ready to use, Yellow =
-              Needs setup, Red = Missing from ComfyUI
+            <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
+              <strong>Status indicators:</strong> Green = Ready to use, Yellow = Needs setup, Red = Missing from ComfyUI
             </p>
+            <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+              <p><strong>Sync Uploaded Files:</strong> Transfers files from Vercel Blob to ComfyUI (use this if files show as "pending" after upload)</p>
+              <p><strong>Sync with ComfyUI:</strong> Checks what files are already in ComfyUI and updates status</p>
+            </div>
           </div>
         </div>
       </div>
