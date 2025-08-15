@@ -50,7 +50,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  uploadMethod?: 'direct';
+  uploadMethod?: 'direct' | 'streaming';
 }
 
 interface UploadInstructions {
@@ -203,12 +203,12 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: 'direct' // Always direct with Vercel Blob
+          uploadMethod: 'streaming' // Use streaming to avoid 413 errors
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
 
-        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using direct client-side blob upload`);
+        console.log(`📦 Uploading ${file.name} (${file.size} bytes) using streaming upload to avoid 413 errors`);
 
         // Update progress to show upload starting
         setUploadProgress((prev) =>
@@ -219,24 +219,21 @@ export default function MyInfluencersPage() {
           )
         );
 
-        // Step 1: Upload directly to Vercel Blob from client using handleUploadUrl
-        const fileExtension = file.name.substring(file.name.lastIndexOf('.'));
-        const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
-        const timestamp = Date.now();
-        const uniquePath = `loras/client/${timestamp}_${baseName}${fileExtension}`;
+        // Upload using streaming endpoint to avoid 413 errors on large files
+        const displayName = file.name.replace(/\.[^/.]+$/, "");
         
-        console.log('☁️ Starting direct blob upload to:', uniquePath);
+        console.log('🚀 Starting streaming upload for large file...');
         
-        // Upload to server endpoint which will handle authentication and storage
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('fileName', file.name);
-        formData.append('displayName', file.name.replace(/\.[^/.]+$/, ""));
-        formData.append('description', '');
-        
-        const uploadResponse = await fetch('/api/user/influencers/upload-direct', {
+        // Use streaming endpoint that doesn't parse FormData (avoids 413 errors)
+        const uploadResponse = await fetch('/api/user/influencers/upload-url', {
           method: 'POST',
-          body: formData,
+          body: file,
+          headers: {
+            'X-Filename': file.name,
+            'X-Display-Name': displayName,
+            'X-Description': '',
+            'Content-Type': 'application/octet-stream'
+          }
         });
         
         const uploadResult = await uploadResponse.json();
@@ -245,7 +242,7 @@ export default function MyInfluencersPage() {
           throw new Error(uploadResult.error || `Upload failed for ${file.name}`);
         }
         
-        console.log('✅ Server-side blob upload completed:', uploadResult.blobUrl);
+        console.log('✅ Streaming upload completed:', uploadResult.blobUrl || 'No blob URL provided');
 
         // Update progress to completed - the server endpoint handles everything
         setUploadProgress((prev) =>
