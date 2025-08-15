@@ -206,11 +206,17 @@ export async function getUserImages(
   console.log('🖼️ Getting images for user:', clerkId);
   
   try {
+    const whereClause: any = {
+      clerkId
+    };
+    
+    // Only add jobId filter if it's explicitly provided
+    if (options.jobId) {
+      whereClause.jobId = options.jobId;
+    }
+    
     const images = await prisma.generatedImage.findMany({
-      where: {
-        clerkId,
-        jobId: options.jobId
-      },
+      where: whereClause,
       select: {
         id: true,
         clerkId: true,

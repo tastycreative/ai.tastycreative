@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     const statsOnly = searchParams.get('stats') === 'true';
     
     console.log('📋 Parameters:', { includeData, jobId, limit, offset, statsOnly });
+    console.log('🔍 Will fetch images for user with jobId filter:', jobId ? jobId : 'ALL JOBS');
     
     if (statsOnly) {
       const stats = await getImageStats(clerkId);
