@@ -212,8 +212,8 @@ export default function MyInfluencersPage() {
 
     setUploading(true);
     setUploadProgress([]);
-    let hasManualInstructions = false;
-    let manualInstructions: UploadInstructions | null = null;
+    const hasManualInstructions = false;
+    const manualInstructions: UploadInstructions | null = null;
 
     for (const file of selectedFiles) {
       try {
