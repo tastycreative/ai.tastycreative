@@ -51,7 +51,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback" | "chunked" | "blob-first";
+  uploadMethod?: "direct" | "streaming" | "client-blob" | "server-fallback" | "chunked" | "blob-first" | "client-direct";
 }
 
 interface UploadInstructions {
@@ -252,56 +252,118 @@ export default function MyInfluencersPage() {
         );
 
         if (isLargeFile) {
-          // Use authenticated chunked upload for large files (>50MB)
-          console.log("🔗 Starting authenticated chunked upload for large file...");
+          // Use direct client-side blob upload for large files (>50MB)
+          console.log("☁️ Starting direct client-side blob upload for large file...");
           
           setUploadProgress((prev) =>
             prev.map((item) =>
               item.fileName === file.name
-                ? { ...item, progress: 10, status: "uploading", uploadMethod: "chunked" }
+                ? { ...item, progress: 5, status: "uploading", uploadMethod: "client-direct" }
                 : item
             )
           );
 
-          // Use our chunked upload client for authenticated large file upload
-          console.log("📤 Starting chunked upload with authentication...");
-          
-          const chunkedUploadClient = new ChunkedUploadClient(apiClient);
-          
-          const uploadResult = await chunkedUploadClient.uploadFile({
-            file: file,
+          // Step 1: Get upload token and create database record
+          console.log("🎫 Getting upload token...");
+          const tokenResponse = await apiClient.post("/api/user/influencers/get-upload-token", {
+            fileName: file.name,
+            fileSize: file.size,
             displayName: displayName,
-            onProgress: (progress: number, currentChunk: number, totalChunks: number) => {
+            description: ""
+          });
+
+          if (!tokenResponse.ok) {
+            const errorData = await tokenResponse.json();
+            throw new Error(errorData.error || "Failed to get upload token");
+          }
+
+          const { influencerId, fileName: uniqueFileName, blobPath, uploadToken } = await tokenResponse.json();
+          console.log("✅ Got upload token and created database record");
+
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? { ...item, progress: 15, status: "uploading" }
+                : item
+            )
+          );
+
+          // Step 2: Upload directly to Vercel Blob (completely bypasses API)
+          console.log("☁️ Uploading directly to Vercel Blob...");
+          
+          // Import Vercel Blob client for direct upload
+          const { put } = await import('@vercel/blob');
+          
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? { ...item, progress: 20, status: "uploading" }
+                : item
+            )
+          );
+
+          try {
+            // Start progress simulation during upload
+            const progressInterval = setInterval(() => {
               setUploadProgress((prev) =>
                 prev.map((item) =>
-                  item.fileName === file.name
-                    ? { 
-                        ...item, 
-                        progress: 10 + Math.floor(progress * 0.9), // 10% to 100%
-                        status: "uploading" 
-                      }
+                  item.fileName === file.name && item.progress < 90
+                    ? { ...item, progress: Math.min(90, item.progress + 5) }
                     : item
                 )
               );
+            }, 2000);
+
+            // Direct client-side upload to Vercel Blob
+            const blobResult = await put(blobPath, file, {
+              access: 'public',
+              token: uploadToken,
+              contentType: file.type || 'application/octet-stream'
+            });
+
+            // Clear progress interval
+            clearInterval(progressInterval);
+
+            console.log("✅ File uploaded directly to Vercel Blob:", blobResult.url);
+
+            setUploadProgress((prev) =>
+              prev.map((item) =>
+                item.fileName === file.name
+                  ? { ...item, progress: 95, status: "uploading" }
+                  : item
+              )
+            );
+
+            // Step 3: Notify our server that upload is complete and trigger ComfyUI sync
+            console.log("📤 Notifying server of successful upload...");
+            const notifyResponse = await apiClient.post("/api/user/influencers/notify-upload-complete", {
+              influencerId: influencerId,
+              blobUrl: blobResult.url,
+              fileName: uniqueFileName
+            });
+
+            if (!notifyResponse.ok) {
+              const errorData = await notifyResponse.json();
+              console.warn("⚠️ Failed to complete upload process, but file is uploaded:", errorData.error);
+              // Don't throw here since the file is already uploaded
+            } else {
+              const notifyData = await notifyResponse.json();
+              console.log("✅ Upload process completed successfully:", notifyData);
             }
-          });
 
-          if (!uploadResult.success) {
-            throw new Error(uploadResult.error || "Chunked upload failed");
+            // Update progress to completed
+            setUploadProgress((prev) =>
+              prev.map((item) =>
+                item.fileName === file.name
+                  ? { ...item, progress: 100, status: "completed", uploadMethod: "client-direct" }
+                  : item
+              )
+            );
+
+          } catch (blobError) {
+            console.error("❌ Direct blob upload failed:", blobError);
+            throw new Error(`Direct blob upload failed: ${blobError instanceof Error ? blobError.message : 'Unknown error'}`);
           }
-
-          console.log("✅ Chunked upload completed:", uploadResult);
-
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? { ...item, progress: 100, status: "completed", uploadMethod: "chunked" }
-                : item
-            )
-          );
-
-          // Note: The chunked upload already handles the complete process
-          // including database updates and ComfyUI sync
         } else {
           // Use direct upload for smaller files (<50MB)
           console.log("🚀 Starting server-side upload...");
@@ -1087,7 +1149,7 @@ export default function MyInfluencersPage() {
               {/* Smart upload info */}
               <div className="mb-6 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  <strong>🚀 Smart Upload:</strong> Files larger than 50MB automatically use authenticated chunked upload. This prevents 413 errors and ensures reliable uploads for your large files with proper authentication.
+                  <strong>🚀 Smart Upload:</strong> Files larger than 50MB automatically use direct client-side upload to Vercel Blob. This completely bypasses all server-side limitations and API size restrictions, ensuring reliable uploads for files up to 500MB.
                 </p>
               </div>
 
@@ -1144,10 +1206,12 @@ export default function MyInfluencersPage() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span>🔐 Authenticated Upload</span>
+                          <span>☁️ Direct Blob Upload</span>
                           {progress.status === "uploading" && (
                             <span>
-                              {progress.uploadMethod === "chunked" 
+                              {progress.uploadMethod === "client-direct" 
+                                ? "Uploading directly to Vercel Blob..." 
+                                : progress.uploadMethod === "chunked" 
                                 ? "Chunked upload in progress..." 
                                 : "Processing with auth..."
                               }
