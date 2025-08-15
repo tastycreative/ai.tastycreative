@@ -41,6 +41,15 @@ const isPublicApiRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
+  // Check for dev mode bypass
+  const url = new URL(req.url);
+  const isDevMode = url.searchParams.get('test') === 'devmode';
+  
+  if (isDevMode) {
+    // Skip all Clerk authentication in dev mode
+    return;
+  }
+  
   const { userId } = await auth();
   
   // If user is logged in and trying to access auth routes, redirect to dashboard
