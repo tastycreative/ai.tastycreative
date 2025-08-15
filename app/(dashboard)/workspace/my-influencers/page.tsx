@@ -1,8 +1,9 @@
-// app/(dashboard)/workspace/my-influencers/page.tsx - Complete component with authentication
+// app/(dashboard)/workspace/my-influencers/page.tsx - Complete component with direct ComfyUI upload
 "use client";
 
 import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
+import { useAuth } from "@clerk/nextjs";
 import {
   Upload,
   Users,
@@ -74,8 +75,9 @@ export default function MyInfluencersPage() {
     useState<InfluencerLoRA | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  // ✅ Get the authenticated API client
+  // ✅ Get the authenticated API client and user
   const apiClient = useApiClient();
+  const { userId } = useAuth();
 
   // Fetch user's influencers on load
   useEffect(() => {
@@ -258,9 +260,120 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
-  // Upload influencers with direct ComfyUI upload only
+  // ✅ NEW FUNCTION: Upload directly to ComfyUI (no Vercel involvement for files)
+  const uploadDirectlyToComfyUI = async (file: File, displayName: string): Promise<{ success: boolean; uniqueFileName: string; comfyResult: any }> => {
+    const timestamp = Date.now();
+    const uniqueFileName = `${userId}_${timestamp}_${file.name}`;
+
+    console.log(`🎯 Uploading ${file.name} directly to ComfyUI as ${uniqueFileName}`);
+
+    // Create FormData for ComfyUI
+    const comfyFormData = new FormData();
+    comfyFormData.append("image", file, uniqueFileName);
+    comfyFormData.append("subfolder", "loras");
+
+    // Get ComfyUI URL from environment
+    const comfyUIUrl = process.env.NEXT_PUBLIC_COMFYUI_URL || "http://209.53.88.242:14753";
+    
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentage = Math.round((event.loaded / event.total) * 90); // Leave 10% for processing
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? { ...item, progress: Math.max(10, percentage) }
+                : item
+            )
+          );
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            console.log(`✅ ComfyUI upload successful for ${file.name}:`, result);
+            resolve({
+              success: true,
+              uniqueFileName,
+              comfyResult: result
+            });
+          } catch (e) {
+            console.log(`✅ ComfyUI upload successful for ${file.name} (no JSON response)`);
+            resolve({
+              success: true,
+              uniqueFileName,
+              comfyResult: { name: uniqueFileName }
+            });
+          }
+        } else {
+          console.error(`❌ ComfyUI upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`);
+          reject(new Error(`ComfyUI upload failed: ${xhr.status} ${xhr.statusText}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        console.error(`❌ Network error during ComfyUI upload for ${file.name}`);
+        reject(new Error('Network error during ComfyUI upload'));
+      });
+
+      xhr.addEventListener('timeout', () => {
+        console.error(`❌ Upload timeout for ${file.name}`);
+        reject(new Error('Upload timeout'));
+      });
+
+      // Set timeout for large files (30 minutes)
+      xhr.timeout = 30 * 60 * 1000;
+
+      // Upload to ComfyUI
+      console.log(`🚀 Starting XHR upload to ${comfyUIUrl}/upload/image`);
+      xhr.open('POST', `${comfyUIUrl}/upload/image`);
+      xhr.send(comfyFormData);
+    });
+  };
+
+  // ✅ NEW FUNCTION: Create database record (small API call, no file)
+  const createDatabaseRecord = async (uniqueFileName: string, file: File, displayName: string) => {
+    if (!apiClient) {
+      throw new Error("API client is not initialized.");
+    }
+    try {
+      console.log(`💾 Creating database record for ${uniqueFileName}`);
+      
+      const response = await apiClient.post("/api/user/influencers/create-record", {
+        name: displayName,
+        displayName: displayName,
+        fileName: uniqueFileName,
+        originalFileName: file.name,
+        fileSize: file.size,
+        uploadedAt: new Date().toISOString(),
+        syncStatus: "synced", // Already synced since we uploaded directly
+        isActive: true,
+        usageCount: 0,
+        comfyUIPath: `models/loras/${uniqueFileName}`,
+      });
+
+      if (!response.ok) {
+        console.warn("⚠️ Failed to create database record, but file was uploaded successfully");
+        throw new Error("Database record creation failed");
+      }
+
+      const result = await response.json();
+      console.log("✅ Database record created successfully:", result);
+      return result;
+    } catch (error) {
+      console.error("❌ Database record creation failed:", error);
+      throw error;
+    }
+  };
+
+  // ✅ UPDATED: Upload influencers with direct ComfyUI upload
   const uploadInfluencers = async () => {
-    if (selectedFiles.length === 0 || !apiClient) return;
+    if (selectedFiles.length === 0 || !apiClient || !userId) return;
 
     setUploading(true);
     setUploadProgress([]);
@@ -282,46 +395,29 @@ export default function MyInfluencersPage() {
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
-              ? { ...item, progress: 10, status: "uploading" }
+              ? { ...item, progress: 5, status: "uploading" }
               : item
           )
         );
 
         const displayName = file.name.replace(/\.[^/.]+$/, "");
 
-        // Use direct ComfyUI upload for all files
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("displayName", displayName);
+        // ✅ DIRECT UPLOAD TO COMFYUI - BYPASS VERCEL ENTIRELY FOR FILES
+        console.log("🚀 Starting direct ComfyUI upload...");
+        const uploadResult = await uploadDirectlyToComfyUI(file, displayName);
 
-        console.log("🎯 Starting direct ComfyUI upload...");
-
-        // Start progress simulation during upload
-        const progressInterval = setInterval(() => {
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name && item.progress < 90
-                ? { ...item, progress: Math.min(90, item.progress + 5) }
-                : item
-            )
-          );
-        }, 3000);
-
-        const directResponse = await apiClient.postFormData(
-          "/api/user/influencers/upload-direct-comfyui",
-          formData
+        // Update progress for processing
+        setUploadProgress((prev) =>
+          prev.map((item) =>
+            item.fileName === file.name
+              ? { ...item, progress: 95, status: "processing" }
+              : item
+          )
         );
 
-        // Clear progress interval
-        clearInterval(progressInterval);
-
-        if (!directResponse.ok) {
-          const errorData = await directResponse.json();
-          throw new Error(errorData.error || `Direct ComfyUI upload failed for ${file.name}`);
-        }
-
-        const directResult = await directResponse.json();
-        console.log("✅ Direct ComfyUI upload completed:", directResult);
+        // Create database record via Vercel API (small data, no file)
+        console.log("💾 Creating database record...");
+        await createDatabaseRecord(uploadResult.uniqueFileName, file, displayName);
 
         // Update progress to completed
         setUploadProgress((prev) =>
@@ -338,14 +434,10 @@ export default function MyInfluencersPage() {
         );
 
         // Show success message
-        alert(
-          `✅ Upload completed successfully!\n\n` +
-          `Your file "${file.name}" (${Math.round(file.size / 1024 / 1024)}MB) has been uploaded directly to ComfyUI.\n\n` +
-          `Your LoRA is ready for AI generation immediately!`
-        );
+        console.log(`✅ Complete upload pipeline finished for ${file.name}`);
 
       } catch (error) {
-        console.error("❌ Direct ComfyUI upload error:", error);
+        console.error("❌ Upload pipeline error:", error);
         setUploadProgress((prev) =>
           prev.map((item) =>
             item.fileName === file.name
@@ -360,9 +452,22 @@ export default function MyInfluencersPage() {
 
         // Show user-friendly error message
         if (error instanceof Error) {
-          alert(`Upload failed: ${error.message}\n\nPlease try again or contact support if the issue persists.`);
+          alert(`Upload failed for ${file.name}: ${error.message}\n\nPlease try again or contact support if the issue persists.`);
         }
       }
+    }
+
+    // Show final success message for all uploads
+    const completedUploads = uploadProgress.filter(p => p.status === "completed").length;
+    const failedUploads = uploadProgress.filter(p => p.status === "failed").length;
+    
+    if (completedUploads > 0) {
+      alert(
+        `🎉 Upload Results:\n\n` +
+        `✅ ${completedUploads} file(s) uploaded successfully\n` +
+        `${failedUploads > 0 ? `❌ ${failedUploads} file(s) failed\n` : ''}` +
+        `\nYour LoRA models are ready for AI generation immediately!`
+      );
     }
 
     // Refresh the influencers list
@@ -624,14 +729,14 @@ export default function MyInfluencersPage() {
             </h3>
             <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
               Upload your custom LoRA models to create AI-generated content with
-              specific styles or characteristics. Files are stored securely in Vercel Blob and synced to ComfyUI.
+              specific styles or characteristics. Files are uploaded directly to ComfyUI for immediate use.
             </p>
             <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
-              <strong>Status indicators:</strong> Green = Ready to use, Yellow = Needs setup, Red = Missing from ComfyUI
+              <strong>🚀 New:</strong> Direct ComfyUI upload bypasses all Vercel limits - supports files up to 500MB!
             </p>
             <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
-              <p><strong>Sync Uploaded Files:</strong> Transfers files from Vercel Blob to ComfyUI (use this if files show as "pending" after upload)</p>
-              <p><strong>Sync with ComfyUI:</strong> Checks what files are already in ComfyUI and updates status</p>
+              <p><strong>Status indicators:</strong> Green = Ready to use, Yellow = Needs setup, Red = Missing from ComfyUI</p>
+              <p><strong>Upload Process:</strong> Files go directly to ComfyUI, then metadata is saved to your account</p>
             </div>
           </div>
         </div>
@@ -661,8 +766,7 @@ export default function MyInfluencersPage() {
                   <span>Upload Your First Influencer</span>
                 </button>
                 <p className="text-xs text-gray-500">
-                  If you recently uploaded models, the list will automatically
-                  refresh.
+                  Direct upload to ComfyUI - up to 500MB supported!
                 </p>
               </div>
             </div>
@@ -1059,18 +1163,10 @@ export default function MyInfluencersPage() {
                 </div>
               </div>
 
-              {/* Note about the new upload process */}
-              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>✨ New:</strong> Files are now uploaded with proper
-                  authentication! Large files (up to 500MB) are fully supported.
-                </p>
-              </div>
-
-              {/* Smart upload info */}
-              <div className="mb-6 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              {/* New upload process info */}
+              <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  <strong>🚀 Smart Upload:</strong> Files larger than 50MB automatically use direct client-side upload to Vercel Blob. This completely bypasses all server-side limitations and API size restrictions, ensuring reliable uploads for files up to 500MB.
+                  <strong>🚀 Direct ComfyUI Upload:</strong> Files upload directly to ComfyUI bypassing all Vercel limits. Your 343MB files are fully supported!
                 </p>
               </div>
 
@@ -1115,6 +1211,9 @@ export default function MyInfluencersPage() {
                             {progress.status === "uploading" && (
                               <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                             )}
+                            {progress.status === "processing" && (
+                              <Loader2 className="w-4 h-4 animate-spin text-yellow-500" />
+                            )}
                             {progress.status === "completed" && (
                               <CheckCircle className="w-4 h-4 text-green-500" />
                             )}
@@ -1127,16 +1226,12 @@ export default function MyInfluencersPage() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span>☁️ Direct Blob Upload</span>
+                          <span>🎯 Direct ComfyUI Upload</span>
                           {progress.status === "uploading" && (
-                            <span>
-                              {progress.uploadMethod === "client-direct" 
-                                ? "Uploading directly to Vercel Blob..." 
-                                : progress.uploadMethod === "chunked" 
-                                ? "Chunked upload in progress..." 
-                                : "Processing with auth..."
-                              }
-                            </span>
+                            <span>Uploading directly to ComfyUI...</span>
+                          )}
+                          {progress.status === "processing" && (
+                            <span>Creating database record...</span>
                           )}
                         </div>
                         {progress.status !== "completed" && (
@@ -1176,7 +1271,7 @@ export default function MyInfluencersPage() {
                   disabled={uploading || selectedFiles.length === 0}
                   className="px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
                 >
-                  {uploading ? "Uploading..." : "Upload Influencers"}
+                  {uploading ? "Uploading to ComfyUI..." : "Upload Influencers"}
                 </button>
               </div>
             </div>
