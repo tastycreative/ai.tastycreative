@@ -280,7 +280,7 @@ export default function MyInfluencersPage() {
 
         // Step 4: Send blob URL to processing endpoint
         const processResponse = await fetch(
-          "/api/user/influencers/blob-complete",
+          "/api/user/influencers/process-blob",
           {
             method: "POST",
             headers: {
