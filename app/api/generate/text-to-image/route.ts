@@ -320,7 +320,8 @@ async function processCompletedJob(jobId: string, jobData: any): Promise<void> {
           pathInfo,
           {
             saveData: true, // Set to true to store actual image data
-            extractMetadata: true // Set to true to extract image metadata
+            extractMetadata: true, // Set to true to extract image metadata
+            saveToBlobStorage: true // Set to true to save to Vercel Blob
           }
         );
         

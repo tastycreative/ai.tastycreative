@@ -39,6 +39,7 @@ interface GeneratedImage {
   format?: string;
   url?: string; // Dynamically constructed ComfyUI URL
   dataUrl?: string; // Database-served image URL
+  blobUrl?: string; // Vercel Blob URL
   createdAt: Date | string;
   jobId: string;
 }
@@ -56,6 +57,7 @@ interface GeneratedVideo {
   format?: string;
   url?: string; // Dynamically constructed ComfyUI URL
   dataUrl?: string; // Database-served video URL
+  blobUrl?: string; // Vercel Blob URL
   createdAt: Date | string;
   jobId: string;
 }
@@ -112,6 +114,18 @@ export default function GeneratedContentPage() {
     fetchContent();
     fetchStats();
   }, []);
+
+  // Helper function to get the best available URL for an item
+  const getBestUrl = (item: ContentItem) => {
+    // Priority order: blobUrl (most reliable) -> dataUrl (database) -> url (ComfyUI)
+    return item.blobUrl || item.dataUrl || item.url;
+  };
+
+  // Helper function to get fallback URLs for error handling
+  const getFallbackUrls = (item: ContentItem) => {
+    const urls = [item.blobUrl, item.dataUrl, item.url].filter(Boolean);
+    return urls;
+  };
 
   const fetchContent = async () => {
     try {
@@ -297,13 +311,23 @@ export default function GeneratedContentPage() {
     filteredAndSortedContent().length / imagesPerPage
   );
 
-  // Download image with dynamic URL support
+  // Download image with Vercel Blob URL priority
   const downloadImage = async (image: GeneratedImage) => {
     try {
       console.log("📥 Downloading image:", image.filename);
 
+      // Priority 1: Vercel Blob URL (most reliable)
+      if (image.blobUrl) {
+        const link = document.createElement("a");
+        link.href = image.blobUrl;
+        link.download = image.filename;
+        link.click();
+        console.log("✅ Blob image downloaded");
+        return;
+      }
+
+      // Priority 2: Database URL
       if (image.dataUrl) {
-        // Priority 1: Download from database
         const response = await apiClient.get(image.dataUrl);
         if (response.ok) {
           const blob = await response.blob();
@@ -318,8 +342,8 @@ export default function GeneratedContentPage() {
         }
       }
 
+      // Priority 3: ComfyUI URL (fallback)
       if (image.url) {
-        // Priority 2: Download from ComfyUI (dynamic URL)
         const link = document.createElement("a");
         link.href = image.url;
         link.download = image.filename;
@@ -338,15 +362,18 @@ export default function GeneratedContentPage() {
     }
   };
 
-  // Share image with dynamic URL support
+  // Share image with Vercel Blob URL priority
   const shareImage = (image: GeneratedImage) => {
     let urlToShare = "";
 
-    if (image.dataUrl) {
-      // Priority 1: Share database URL (more reliable)
+    // Priority 1: Vercel Blob URL (most reliable and public)
+    if (image.blobUrl) {
+      urlToShare = image.blobUrl;
+    } else if (image.dataUrl) {
+      // Priority 2: Database URL (requires your domain)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
     } else if (image.url) {
-      // Priority 2: Share ComfyUI URL (dynamic)
+      // Priority 3: ComfyUI URL (may not be publicly accessible)
       urlToShare = image.url;
     } else {
       alert("No shareable URL available for this image");
@@ -428,12 +455,14 @@ export default function GeneratedContentPage() {
     );
   }
 
-  // Unified action functions
+  // Unified action functions with Vercel Blob priority
   const downloadItem = async (item: ContentItem) => {
     try {
-      const url = item.dataUrl || item.url;
+      // Use the best available URL
+      const url = getBestUrl(item);
       if (!url) {
         console.error("No URL available for download");
+        alert("No download URL available for this item");
         return;
       }
 
@@ -452,27 +481,42 @@ export default function GeneratedContentPage() {
       console.log(
         `${
           item.itemType === "video" ? "Video" : "Image"
-        } downloaded successfully`
+        } downloaded successfully from ${item.blobUrl ? 'Blob' : item.dataUrl ? 'Database' : 'ComfyUI'}`
       );
     } catch (error) {
       console.error("Download error:", error);
+      alert("Failed to download item");
     }
   };
 
   const shareItem = async (item: ContentItem) => {
     try {
+      const url = getBestUrl(item);
+      if (!url) {
+        alert("No shareable URL available for this item");
+        return;
+      }
+
+      // For Vercel Blob URLs, use them directly (they're public)
+      // For database URLs, prepend domain
+      const shareUrl = item.blobUrl ? item.blobUrl : 
+                     item.dataUrl ? `${window.location.origin}${item.dataUrl}` : 
+                     item.url || '';
+
       if (navigator.share) {
         await navigator.share({
           title: item.filename,
-          url: item.dataUrl || item.url,
+          url: shareUrl,
         });
         console.log("Shared successfully");
       } else {
-        await navigator.clipboard.writeText(item.dataUrl || item.url || "");
+        await navigator.clipboard.writeText(shareUrl);
+        alert("Link copied to clipboard!");
         console.log("Link copied to clipboard");
       }
     } catch (error) {
       console.error("Share error:", error);
+      alert("Failed to share item");
     }
   };
 
@@ -713,7 +757,7 @@ export default function GeneratedContentPage() {
                   <div className="relative aspect-square">
                     {item.itemType === "video" ? (
                       <video
-                        src={item.dataUrl || item.url}
+                        src={getBestUrl(item)}
                         className="w-full h-full object-cover cursor-pointer"
                         onClick={() => setSelectedItem(item)}
                         preload="metadata"
@@ -721,15 +765,10 @@ export default function GeneratedContentPage() {
                         onError={(e) => {
                           console.error("Video load error for:", item.filename);
 
-                          // Smart fallback logic
-                          const currentSrc = (e.target as HTMLVideoElement).src;
-
-                          if (currentSrc === item.dataUrl && item.url) {
-                            console.log("Falling back to ComfyUI URL");
-                            (e.target as HTMLVideoElement).src = item.url;
-                          } else if (currentSrc === item.url && item.dataUrl) {
-                            console.log("Falling back to database URL");
-                            (e.target as HTMLVideoElement).src = item.dataUrl;
+                          // Smart fallback logic with Vercel Blob priority
+                          const fallbacks = getFallbackUrls(item);
+                          if (fallbacks.length > 0 && fallbacks[0]) {
+                            (e.target as HTMLVideoElement).src = fallbacks[0];
                           } else {
                             console.error(
                               "All URLs failed for:",
@@ -742,22 +781,17 @@ export default function GeneratedContentPage() {
                       />
                     ) : (
                       <img
-                        src={item.dataUrl || item.url}
+                        src={getBestUrl(item)}
                         alt={item.filename}
                         className="w-full h-full object-cover cursor-pointer"
                         onClick={() => setSelectedItem(item)}
                         onError={(e) => {
                           console.error("Image load error for:", item.filename);
 
-                          // Smart fallback logic
-                          const currentSrc = (e.target as HTMLImageElement).src;
-
-                          if (currentSrc === item.dataUrl && item.url) {
-                            console.log("Falling back to ComfyUI URL");
-                            (e.target as HTMLImageElement).src = item.url;
-                          } else if (currentSrc === item.url && item.dataUrl) {
-                            console.log("Falling back to database URL");
-                            (e.target as HTMLImageElement).src = item.dataUrl;
+                          // Smart fallback logic with Vercel Blob priority
+                          const fallbacks = getFallbackUrls(item);
+                          if (fallbacks.length > 0 && fallbacks[0]) {
+                            (e.target as HTMLImageElement).src = fallbacks[0];
                           } else {
                             console.error(
                               "All URLs failed for:",
@@ -858,7 +892,7 @@ export default function GeneratedContentPage() {
                         {item.itemType === "video" ? (
                           <>
                             <video
-                              src={item.dataUrl || item.url}
+                              src={getBestUrl(item)}
                               className="w-full h-full object-cover cursor-pointer"
                               onClick={() => setSelectedItem(item)}
                               preload="metadata"
@@ -869,20 +903,9 @@ export default function GeneratedContentPage() {
                                   item.filename
                                 );
 
-                                const currentSrc = (
-                                  e.target as HTMLVideoElement
-                                ).src;
-
-                                if (currentSrc === item.dataUrl && item.url) {
-                                  console.log("Falling back to ComfyUI URL");
-                                  (e.target as HTMLVideoElement).src = item.url;
-                                } else if (
-                                  currentSrc === item.url &&
-                                  item.dataUrl
-                                ) {
-                                  console.log("Falling back to database URL");
-                                  (e.target as HTMLVideoElement).src =
-                                    item.dataUrl;
+                                const fallbacks = getFallbackUrls(item);
+                                if (fallbacks.length > 0 && fallbacks[0]) {
+                                  (e.target as HTMLVideoElement).src = fallbacks[0];
                                 } else {
                                   console.error(
                                     "All URLs failed for:",
@@ -901,7 +924,7 @@ export default function GeneratedContentPage() {
                           </>
                         ) : (
                           <img
-                            src={item.dataUrl || item.url}
+                            src={getBestUrl(item)}
                             alt={item.filename}
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => setSelectedItem(item)}
@@ -911,19 +934,9 @@ export default function GeneratedContentPage() {
                                 item.filename
                               );
 
-                              const currentSrc = (e.target as HTMLImageElement)
-                                .src;
-
-                              if (currentSrc === item.dataUrl && item.url) {
-                                console.log("Falling back to ComfyUI URL");
-                                (e.target as HTMLImageElement).src = item.url;
-                              } else if (
-                                currentSrc === item.url &&
-                                item.dataUrl
-                              ) {
-                                console.log("Falling back to database URL");
-                                (e.target as HTMLImageElement).src =
-                                  item.dataUrl;
+                              const fallbacks = getFallbackUrls(item);
+                              if (fallbacks.length > 0 && fallbacks[0]) {
+                                (e.target as HTMLImageElement).src = fallbacks[0];
                               } else {
                                 console.error(
                                   "All URLs failed for:",
@@ -1064,7 +1077,7 @@ export default function GeneratedContentPage() {
 
             {selectedItem.itemType === "video" ? (
               <video
-                src={selectedItem.dataUrl || selectedItem.url}
+                src={getBestUrl(selectedItem)}
                 className="max-w-full max-h-[80vh] object-contain rounded-lg"
                 controls
                 autoPlay
@@ -1074,17 +1087,9 @@ export default function GeneratedContentPage() {
                     selectedItem.filename
                   );
 
-                  const currentSrc = (e.target as HTMLVideoElement).src;
-
-                  if (currentSrc === selectedItem.dataUrl && selectedItem.url) {
-                    console.log("Modal falling back to ComfyUI URL");
-                    (e.target as HTMLVideoElement).src = selectedItem.url;
-                  } else if (
-                    currentSrc === selectedItem.url &&
-                    selectedItem.dataUrl
-                  ) {
-                    console.log("Modal falling back to database URL");
-                    (e.target as HTMLVideoElement).src = selectedItem.dataUrl;
+                  const fallbacks = getFallbackUrls(selectedItem);
+                  if (fallbacks.length > 0 && fallbacks[0]) {
+                    (e.target as HTMLVideoElement).src = fallbacks[0];
                   } else {
                     console.error(
                       "All modal URLs failed for:",
@@ -1095,7 +1100,7 @@ export default function GeneratedContentPage() {
               />
             ) : (
               <img
-                src={selectedItem.dataUrl || selectedItem.url}
+                src={getBestUrl(selectedItem)}
                 alt={selectedItem.filename}
                 className="max-w-full max-h-[80vh] object-contain rounded-lg"
                 onError={(e) => {
@@ -1104,17 +1109,9 @@ export default function GeneratedContentPage() {
                     selectedItem.filename
                   );
 
-                  const currentSrc = (e.target as HTMLImageElement).src;
-
-                  if (currentSrc === selectedItem.dataUrl && selectedItem.url) {
-                    console.log("Modal falling back to ComfyUI URL");
-                    (e.target as HTMLImageElement).src = selectedItem.url;
-                  } else if (
-                    currentSrc === selectedItem.url &&
-                    selectedItem.dataUrl
-                  ) {
-                    console.log("Modal falling back to database URL");
-                    (e.target as HTMLImageElement).src = selectedItem.dataUrl;
+                  const fallbacks = getFallbackUrls(selectedItem);
+                  if (fallbacks.length > 0 && fallbacks[0]) {
+                    (e.target as HTMLImageElement).src = fallbacks[0];
                   } else {
                     console.error(
                       "All modal URLs failed for:",
