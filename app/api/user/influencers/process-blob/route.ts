@@ -1,10 +1,9 @@
-// app/api/user/influencers/process-blob/route.ts - Complete LoRA upload after blob storage
-// Cache-busting rebuild: 2025-08-15-14:05
+// app/api/user/influencers/process-blob/route.ts - Proper Clerk integration
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server'; // ✅ Use Clerk's auth function
 import { v4 as uuidv4 } from 'uuid';
-import { getUserId, addUserInfluencer, type InfluencerLoRA } from '@/lib/database';
+import { addUserInfluencer, type InfluencerLoRA } from '@/lib/database';
 
-// GET method for testing/debugging
 export async function GET() {
   return NextResponse.json({ 
     message: "process-blob endpoint is working",
@@ -18,11 +17,13 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔄 === PROCESSING BLOB UPLOAD ===');
     
-    // Get user ID
-    const userId = await getUserId(request);
+    // ✅ Use Clerk's auth function directly
+    const { userId } = await auth();
+    
     if (!userId) {
+      console.error('❌ No user ID found');
       return NextResponse.json(
-        { success: false, error: 'Unauthorized: No user ID found' },
+        { success: false, error: 'Unauthorized: Please sign in' },
         { status: 401 }
       );
     }
@@ -34,6 +35,14 @@ export async function POST(request: NextRequest) {
     console.log('📁 File:', fileName);
     console.log('🔗 Blob URL:', blobUrl);
     console.log('📊 File Size:', fileSize);
+    
+    // Validate required fields
+    if (!blobUrl || !fileName) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required fields: blobUrl and fileName' },
+        { status: 400 }
+      );
+    }
     
     // Validate file type
     const validExtensions = ['.safetensors', '.pt', '.ckpt'];
@@ -66,7 +75,7 @@ export async function POST(request: NextRequest) {
         uploadedToComfyUI = true;
         console.log('✅ Successfully uploaded to ComfyUI');
       } else {
-        console.log('❌ Failed to upload to ComfyUI');
+        console.log('⚠️ Failed to upload to ComfyUI');
         comfyUIError = 'ComfyUI upload failed';
       }
     } catch (error) {
@@ -74,7 +83,7 @@ export async function POST(request: NextRequest) {
       comfyUIError = error instanceof Error ? error.message : 'Unknown error';
     }
     
-    // Create influencer metadata in database
+    // Create influencer metadata
     const influencer: InfluencerLoRA = {
       id: uuidv4(),
       clerkId: userId,
@@ -91,7 +100,7 @@ export async function POST(request: NextRequest) {
       comfyUIPath: uploadedToComfyUI ? `models/loras/${uniqueFileName}` : undefined
     };
     
-    // Add to database
+    // Save to database
     console.log('💾 Saving influencer to database...');
     await addUserInfluencer(userId, influencer);
     console.log('✅ Influencer saved to database');
@@ -104,10 +113,12 @@ export async function POST(request: NextRequest) {
         name: influencer.name,
         displayName: influencer.displayName,
         fileName: influencer.fileName,
+        originalFileName: influencer.originalFileName,
         fileSize: influencer.fileSize,
         uploadedAt: influencer.uploadedAt,
         isActive: influencer.isActive,
-        syncStatus: influencer.syncStatus
+        syncStatus: influencer.syncStatus,
+        description: influencer.description
       },
       uploadedToComfyUI,
       comfyUIError: comfyUIError || undefined,
@@ -130,48 +141,77 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to automatically upload LoRA to ComfyUI
+// Helper function to upload LoRA to ComfyUI
 async function uploadLoRAToComfyUI(blobUrl: string, fileName: string): Promise<boolean> {
   const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
   
   try {
     console.log(`📡 Downloading file from blob: ${blobUrl}`);
     
-    // Download the file from Vercel Blob
-    const blobResponse = await fetch(blobUrl);
+    // Download the file from Vercel Blob with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    const blobResponse = await fetch(blobUrl, {
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
     if (!blobResponse.ok) {
-      console.error('❌ Failed to download from blob:', blobResponse.status);
+      console.error('❌ Failed to download from blob:', blobResponse.status, blobResponse.statusText);
       return false;
     }
     
     const fileBuffer = await blobResponse.arrayBuffer();
     console.log(`✅ Downloaded file from blob (${fileBuffer.byteLength} bytes)`);
     
-    // Upload to ComfyUI
+    // Prepare form data for ComfyUI
     const formData = new FormData();
     formData.append('image', new Blob([fileBuffer]), fileName);
     formData.append('type', 'input');
     formData.append('subfolder', 'loras');
     
+    console.log(`📤 Uploading to ComfyUI: ${COMFYUI_URL}/upload/image`);
+    
+    // Upload to ComfyUI with timeout
+    const uploadController = new AbortController();
+    const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000); // 60 second timeout
+    
     const uploadResponse = await fetch(`${COMFYUI_URL}/upload/image`, {
       method: 'POST',
-      body: formData
+      body: formData,
+      signal: uploadController.signal
     });
+    
+    clearTimeout(uploadTimeoutId);
     
     if (uploadResponse.ok) {
       console.log('✅ Successfully uploaded to ComfyUI');
-      const responseText = await uploadResponse.text().catch(() => 'No response body');
-      console.log('📝 ComfyUI response:', responseText);
+      try {
+        const responseText = await uploadResponse.text();
+        console.log('📝 ComfyUI response:', responseText);
+      } catch (e) {
+        console.log('📝 ComfyUI response: (unable to read response body)');
+      }
       return true;
     } else {
-      console.error('❌ ComfyUI upload failed:', uploadResponse.status);
-      const responseText = await uploadResponse.text().catch(() => 'No response body');
-      console.error('❌ ComfyUI response:', responseText);
+      console.error('❌ ComfyUI upload failed:', uploadResponse.status, uploadResponse.statusText);
+      try {
+        const responseText = await uploadResponse.text();
+        console.error('❌ ComfyUI error response:', responseText);
+      } catch (e) {
+        console.error('❌ ComfyUI error: (unable to read error response)');
+      }
       return false;
     }
     
   } catch (error) {
-    console.error('❌ Error in uploadLoRAToComfyUI:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('❌ ComfyUI upload timeout');
+    } else {
+      console.error('❌ Error in uploadLoRAToComfyUI:', error);
+    }
     return false;
   }
 }
