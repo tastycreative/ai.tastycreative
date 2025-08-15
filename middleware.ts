@@ -31,7 +31,11 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/trpc/getTodos(.*)',
   '/api/debug(.*)',
   '/api/test(.*)',
-  '/api/user/influencers(.*)',
+]);
+
+// ✅ Special handling for API routes that need custom auth
+const isCustomAuthApiRoute = createRouteMatcher([
+  '/api/user/influencers(.*)', // These routes handle their own authentication
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -57,9 +61,19 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
   
-  // Protect API routes except public ones
-  if (req.nextUrl.pathname.startsWith('/api/') && !isPublicApiRoute(req)) {
-    // For API routes, check auth but don't call protect() which can cause method issues
+  // Handle API routes
+  if (req.nextUrl.pathname.startsWith('/api/')) {
+    // Skip middleware auth for routes that handle their own authentication
+    if (isCustomAuthApiRoute(req)) {
+      return; // Let the route handle authentication internally
+    }
+    
+    // Skip middleware auth for truly public API routes
+    if (isPublicApiRoute(req)) {
+      return;
+    }
+    
+    // For other API routes, check auth but don't call protect() to avoid method issues
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json(
