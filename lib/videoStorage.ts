@@ -1,7 +1,7 @@
 // lib/videoStorage.ts - Dynamic URL video management for NeonDB
 import { prisma } from './database';
 
-const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
+const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://211.21.50.84:15833';
 
 export interface GeneratedVideo {
   id: string;

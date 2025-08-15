@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { v4 as uuidv4 } from 'uuid';
 
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
+const COMFYUI_URL = process.env.COMFYUI_URL || 'http://211.21.50.84:15833';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 

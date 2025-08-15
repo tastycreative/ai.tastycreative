@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
-const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
+const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14967';
 
 export async function GET(request: NextRequest) {
   try {

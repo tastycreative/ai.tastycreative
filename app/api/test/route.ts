@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       userId: userId,
       environment: {
         nodeEnv: process.env.NODE_ENV,
-        comfyUIUrl: process.env.COMFYUI_URL || 'http://209.53.88.242:14753'
+        comfyUIUrl: process.env.COMFYUI_URL || 'http://211.21.50.84:15279'
       },
       headers: {
         'user-agent': request.headers.get('user-agent'),
