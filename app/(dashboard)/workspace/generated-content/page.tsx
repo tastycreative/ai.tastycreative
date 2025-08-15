@@ -113,8 +113,6 @@ export default function GeneratedContentPage() {
     fetchStats();
   }, []);
 
-  // Replace the fetchContent function in your app/(dashboard)/workspace/generated-content/page.tsx with this:
-
   const fetchContent = async () => {
     try {
       setLoading(true);
@@ -122,119 +120,94 @@ export default function GeneratedContentPage() {
 
       console.log("🖼️ Fetching user content for gallery...");
 
-      // Fetch regular images
+      // Fetch images
       console.log("📡 Fetching images from /api/images...");
       const imagesResponse = await apiClient.get("/api/images");
       console.log("📡 Images response status:", imagesResponse.status);
 
-      // Fetch regular videos
+      // Fetch videos
       console.log("📡 Fetching videos from /api/videos...");
       const videosResponse = await apiClient.get("/api/videos");
       console.log("📡 Videos response status:", videosResponse.status);
 
-      // NEW: Fetch all completed jobs to get their images
-      console.log("📡 Fetching completed jobs...");
-      const jobsResponse = await apiClient.get("/api/jobs?status=completed&limit=50");
-      console.log("📡 Jobs response status:", jobsResponse.status);
+      if (!imagesResponse.ok) {
+        console.error(
+          "❌ Images fetch failed:",
+          imagesResponse.status,
+          imagesResponse.statusText
+        );
+        const errorText = await imagesResponse.text();
+        console.error("❌ Images error details:", errorText);
+      }
+
+      if (!videosResponse.ok) {
+        console.error(
+          "❌ Videos fetch failed:",
+          videosResponse.status,
+          videosResponse.statusText
+        );
+        const errorText = await videosResponse.text();
+        console.error("❌ Videos error details:", errorText);
+      }
 
       if (!imagesResponse.ok || !videosResponse.ok) {
-        console.error(
-          "❌ Content fetch failed:",
-          imagesResponse.status,
-          videosResponse.status
+        throw new Error(
+          `Failed to fetch content: ${imagesResponse.status} / ${videosResponse.status}`
         );
       }
 
       const imagesData = await imagesResponse.json();
       const videosData = await videosResponse.json();
-      
-      let allImages: any[] = [];
-      let allVideos: any[] = [];
 
-      // Process regular images
+      console.log("📊 Gallery images data:", imagesData);
+      console.log("📊 Gallery videos data:", videosData);
+      console.log("📊 Raw images count:", imagesData.images?.length || 0);
+      console.log("📊 Raw videos count:", videosData.videos?.length || 0);
+
       if (imagesData.success && imagesData.images) {
-        console.log("✅ Regular images:", imagesData.images.length);
-        allImages = [...imagesData.images];
+        // Convert string dates to Date objects
+        const processedImages = imagesData.images.map((img: any) => ({
+          ...img,
+          createdAt: new Date(img.createdAt),
+          itemType: "image" as const,
+        }));
+
+        setImages(processedImages);
+        console.log("✅ Loaded", processedImages.length, "images");
       }
 
-      // Process job-generated images
-      if (jobsResponse.ok) {
-        const jobsData = await jobsResponse.json();
-        console.log("📊 Jobs data:", jobsData);
-        
-        if (jobsData.success && jobsData.jobs && Array.isArray(jobsData.jobs)) {
-          console.log("🔄 Processing", jobsData.jobs.length, "completed jobs for images...");
-          
-          // Fetch images for each completed job
-          for (const job of jobsData.jobs) {
-            if (job.status === 'completed' && job.id) {
-              try {
-                console.log("📸 Fetching images for job:", job.id);
-                const jobImagesResponse = await apiClient.get(`/api/jobs/${job.id}/images`);
-                
-                if (jobImagesResponse.ok) {
-                  const jobImagesData = await jobImagesResponse.json();
-                  
-                  if (jobImagesData.success && jobImagesData.images) {
-                    console.log("✅ Found", jobImagesData.images.length, "images for job:", job.id);
-                    
-                    // Add job context to images and avoid duplicates
-                    const existingIds = new Set(allImages.map(img => img.id));
-                    const newJobImages = jobImagesData.images
-                      .filter((img: any) => !existingIds.has(img.id))
-                      .map((img: any) => ({
-                        ...img,
-                        jobId: job.id, // Mark as job-generated
-                        generatedAt: job.createdAt, // Use job creation time
-                        source: 'text-to-image' // Mark the source
-                      }));
-                    
-                    allImages = [...allImages, ...newJobImages];
-                    console.log("📈 Total images now:", allImages.length);
-                  }
-                }
-              } catch (jobError) {
-                console.warn("⚠️ Failed to fetch images for job:", job.id, jobError);
-              }
-            }
-          }
-        }
-      } else {
-        console.log("ℹ️ Jobs endpoint not available or failed, using regular images only");
-      }
-
-      // Process videos
       if (videosData.success && videosData.videos) {
-        allVideos = videosData.videos;
+        // Convert string dates to Date objects
+        const processedVideos = videosData.videos.map((video: any) => ({
+          ...video,
+          createdAt: new Date(video.createdAt),
+          itemType: "video" as const,
+        }));
+
+        setVideos(processedVideos);
+        console.log("✅ Loaded", processedVideos.length, "videos");
       }
-
-      console.log("📊 Final counts:", { images: allImages.length, videos: allVideos.length });
-
-      // Convert dates and set state
-      const processedImages = allImages.map((img: any) => ({
-        ...img,
-        createdAt: new Date(img.createdAt || img.generatedAt || Date.now()),
-        itemType: "image" as const,
-      }));
-
-      const processedVideos = allVideos.map((video: any) => ({
-        ...video,
-        createdAt: new Date(video.createdAt),
-        itemType: "video" as const,
-      }));
-
-      setImages(processedImages);
-      setVideos(processedVideos);
 
       // Combine all content
-      const allItems = [
-        ...processedImages,
-        ...processedVideos,
+      const allItems: ContentItem[] = [
+        ...(imagesData.success && imagesData.images
+          ? imagesData.images.map((img: any) => ({
+              ...img,
+              createdAt: new Date(img.createdAt),
+              itemType: "image" as const,
+            }))
+          : []),
+        ...(videosData.success && videosData.videos
+          ? videosData.videos.map((video: any) => ({
+              ...video,
+              createdAt: new Date(video.createdAt),
+              itemType: "video" as const,
+            }))
+          : []),
       ];
 
       setAllContent(allItems);
-      console.log("✅ Total content items loaded:", allItems.length);
-      
+      console.log("✅ Combined", allItems.length, "content items");
     } catch (error) {
       console.error("💥 Error fetching content:", error);
       setError(
