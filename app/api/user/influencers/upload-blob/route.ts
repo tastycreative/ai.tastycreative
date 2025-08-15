@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     
     // Try to upload to ComfyUI
     let uploadedToComfyUI = false;
-    let instructions = null;
+    const instructions = null;
     
     try {
       console.log('🚀 Attempting to upload to ComfyUI...');
