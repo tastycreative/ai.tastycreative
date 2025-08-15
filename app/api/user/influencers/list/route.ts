@@ -7,7 +7,7 @@ import {
   type InfluencerLoRA 
 } from '@/lib/database';
 
-// GET /api/user/influencers - Fetch user's influencers
+// GET /api/user/influencers/list - Fetch user's influencers
 export async function GET(request: NextRequest) {
   try {
     const userId = await getUserId(request);
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
-    console.log('➕ === USER INFLUENCERS POST ===');
+    console.log('➕ === USER INFLUENCERS GET ===');
     console.log('👤 Fetching influencers for user:', userId);
     console.log('⏰ Timestamp:', new Date().toISOString());
     
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/user/influencers - Create new influencer (metadata only)
+// POST /api/user/influencers/list - Create new influencer (metadata only)
 export async function POST(request: NextRequest) {
   try {
     const userId = await getUserId(request);
