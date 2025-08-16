@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { apiClient } from "@/lib/apiClient";
+import { useApiClient } from "@/lib/apiClient";
 import MaskEditor from "@/components/MaskEditor";
 import {
   ImageIcon,
@@ -139,6 +139,8 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 };
 
 export default function StyleTransferPage() {
+  const apiClient = useApiClient();
+  
   const [params, setParams] = useState<StyleTransferParams>({
     prompt: "",
     width: 832,
@@ -241,6 +243,8 @@ export default function StyleTransferPage() {
 
   // Function to fetch images for a completed job
   const fetchJobImages = async (jobId: string): Promise<boolean> => {
+    if (!apiClient) return false;
+
     try {
       console.log('🖼️ Fetching database images for job:', jobId);
       
@@ -276,6 +280,8 @@ export default function StyleTransferPage() {
 
   // Function to fetch user image statistics
   const fetchImageStats = async () => {
+    if (!apiClient) return;
+    
     try {
       const response = await apiClient.get('/api/images?stats=true');
       
@@ -293,6 +299,8 @@ export default function StyleTransferPage() {
 
   // Function to download image with dynamic URL support
   const downloadDatabaseImage = async (image: DatabaseImage) => {
+    if (!apiClient) return;
+    
     try {
       console.log('📥 Downloading image:', image.filename);
       
@@ -359,6 +367,8 @@ export default function StyleTransferPage() {
   // Fetch available LoRA models on component mount
   useEffect(() => {
     const fetchLoRAModels = async () => {
+      if (!apiClient) return;
+      
       try {
         setLoadingLoRAs(true);
         console.log('=== FETCHING LORA MODELS ===');
@@ -404,7 +414,7 @@ export default function StyleTransferPage() {
     };
 
     fetchLoRAModels();
-  }, []);
+  }, [apiClient]);
 
   const generateRandomSeed = () => {
     const seed = Math.floor(Math.random() * 1000000000);
@@ -417,6 +427,8 @@ export default function StyleTransferPage() {
 
   // Upload reference image to server
   const uploadReferenceImageToServer = async (file: File, maskDataUrl?: string | null): Promise<{ filename: string; maskFilename?: string }> => {
+    if (!apiClient) throw new Error("API client not ready");
+    
     const formData = new FormData();
     formData.append('image', file);
     
@@ -455,6 +467,11 @@ export default function StyleTransferPage() {
 
   // Submit generation
   const handleGenerate = async () => {
+    if (!apiClient) {
+      alert("API client not ready. Please try again.");
+      return;
+    }
+    
     if (!params.prompt.trim()) {
       alert("Please enter a prompt");
       return;
@@ -527,6 +544,11 @@ export default function StyleTransferPage() {
 
   // Updated poll job status with database image fetching
   const pollJobStatus = async (jobId: string) => {
+    if (!apiClient) {
+      console.error("API client not ready for polling");
+      return;
+    }
+    
     console.log('=== STARTING JOB POLLING ===');
     console.log('Polling job ID:', jobId);
     
@@ -534,6 +556,8 @@ export default function StyleTransferPage() {
     let attempts = 0;
 
     const poll = async () => {
+      if (!apiClient) return;
+      
       try {
         attempts++;
         console.log(`Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`);
@@ -784,6 +808,20 @@ export default function StyleTransferPage() {
 
     return workflow;
   };
+
+  // Show loading state while API client initializes
+  if (!apiClient) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-center space-x-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            <p className="text-gray-600 dark:text-gray-400">Initializing API client...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
