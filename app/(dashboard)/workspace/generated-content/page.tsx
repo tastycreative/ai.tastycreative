@@ -306,8 +306,6 @@ export default function GeneratedContentPage() {
     }
   };
 
-
-
   // Filter and sort content
   const filteredAndSortedContent = () => {
     let filtered = [...allContent];
@@ -622,7 +620,6 @@ export default function GeneratedContentPage() {
               </p>
             </div>
           </div>
-
         </div>
       </div>
 
