@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { apiClient } from "@/lib/apiClient";
+import { useApiClient } from "@/lib/apiClient";
 import {
   ImageIcon,
   Wand2,
@@ -144,6 +144,8 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 };
 
 export default function FaceSwappingPage() {
+  const apiClient = useApiClient();
+  
   const [params, setParams] = useState<FaceSwapParams>({
     prompt: "Retain face. fit the face perfectly to the body. natural realistic eyes, match the skin tone of the body to the face",
     width: 832,
@@ -222,8 +224,10 @@ export default function FaceSwappingPage() {
 
   // Fetch image stats on mount
   useEffect(() => {
-    fetchImageStats();
-  }, []);
+    if (apiClient) {
+      fetchImageStats();
+    }
+  }, [apiClient]);
 
   // Handle original image upload
   const handleOriginalImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -480,6 +484,8 @@ export default function FaceSwappingPage() {
 
   // Function to fetch images for a completed job
   const fetchJobImages = async (jobId: string): Promise<boolean> => {
+    if (!apiClient) return false;
+    
     try {
       console.log('🖼️ Fetching database images for job:', jobId);
       
@@ -515,6 +521,11 @@ export default function FaceSwappingPage() {
 
   // Function to fetch user image statistics
   const fetchImageStats = async () => {
+    if (!apiClient) {
+      console.error("❌ API client not available for image stats");
+      return;
+    }
+
     try {
       const response = await apiClient.get('/api/images?stats=true');
       
@@ -532,6 +543,11 @@ export default function FaceSwappingPage() {
 
   // Function to download image with dynamic URL support
   const downloadDatabaseImage = async (image: DatabaseImage) => {
+    if (!apiClient) {
+      alert("API client not available");
+      return;
+    }
+
     try {
       console.log('📥 Downloading image:', image.filename);
       
@@ -597,6 +613,11 @@ export default function FaceSwappingPage() {
 
   // Fetch available LoRA models on component mount
   useEffect(() => {
+    if (!apiClient) {
+      console.log("⏳ API client not ready yet, skipping LoRA fetch");
+      return;
+    }
+
     const fetchLoRAModels = async () => {
       try {
         setLoadingLoRAs(true);
@@ -649,7 +670,7 @@ export default function FaceSwappingPage() {
     };
 
     fetchLoRAModels();
-  }, []);
+  }, [apiClient]);
 
   const generateRandomSeed = () => {
     const seed = Math.floor(Math.random() * 1000000000);
@@ -668,6 +689,10 @@ export default function FaceSwappingPage() {
 
   // Upload images to server (simple approach like style transfer)
   const uploadImagesToServer = async (originalFile: File, newFaceFile: File, maskDataUrl?: string | null): Promise<{ originalFilename: string; newFaceFilename: string; maskFilename?: string }> => {
+    if (!apiClient) {
+      throw new Error("API client not available");
+    }
+
     setUploadingImage(true);
     
     try {
@@ -727,6 +752,11 @@ export default function FaceSwappingPage() {
 
   // Submit generation
   const handleGenerate = async () => {
+    if (!apiClient) {
+      alert("API client not available - please try again");
+      return;
+    }
+
     if (!params.prompt.trim()) {
       alert("Please enter a prompt");
       return;
@@ -808,6 +838,12 @@ export default function FaceSwappingPage() {
 
   // Updated poll job status with database image fetching
   const pollJobStatus = async (jobId: string) => {
+    if (!apiClient) {
+      console.error("❌ API client not available for job polling");
+      setIsGenerating(false);
+      return;
+    }
+
     console.log('=== STARTING JOB POLLING ===');
     console.log('Polling job ID:', jobId);
     
@@ -1202,6 +1238,24 @@ export default function FaceSwappingPage() {
     console.log('📋 Workflow created with mask support:', !!maskFilename);
     return workflow;
   };
+
+  if (!apiClient) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Initializing...
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Setting up authentication for face swapping
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

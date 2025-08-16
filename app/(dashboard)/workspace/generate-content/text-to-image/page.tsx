@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { apiClient } from "@/lib/apiClient";
+import { useApiClient } from "@/lib/apiClient";
 import {
   ImageIcon,
   Wand2,
@@ -101,13 +101,14 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
     if (!createdAt) {
       return "Unknown time";
     }
-    
-    const date = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
-    
+
+    const date =
+      typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+
     if (isNaN(date.getTime())) {
       return "Invalid time";
     }
-    
+
     return date.toLocaleTimeString();
   } catch (error) {
     console.error("Error formatting date:", error);
@@ -116,6 +117,8 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 };
 
 export default function TextToImagePage() {
+  const apiClient = useApiClient();
+
   const [params, setParams] = useState<GenerationParams>({
     prompt: "",
     width: 832,
@@ -136,12 +139,14 @@ export default function TextToImagePage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [availableLoRAs, setAvailableLoRAs] = useState<LoRAModel[]>([
-    { fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }
+    { fileName: "None", displayName: "No LoRA (Base Model)", name: "none" },
   ]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
   // Database image states
-  const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>({});
+  const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
+    {}
+  );
   const [imageStats, setImageStats] = useState<any>(null);
 
   // Initialize empty job history on mount
@@ -153,118 +158,145 @@ export default function TextToImagePage() {
 
   // Fetch image stats on mount
   useEffect(() => {
-    fetchImageStats();
-  }, []);
+    if (apiClient) {
+      fetchImageStats();
+    }
+  }, [apiClient]);
 
   // Function to fetch images for a completed job
   const fetchJobImages = async (jobId: string): Promise<boolean> => {
     try {
-      console.log('🖼️ Fetching database images for job:', jobId);
-      
-      const response = await apiClient.get(`/api/jobs/${jobId}/images`);
-      console.log('📡 Image fetch response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Failed to fetch job images:', response.status, errorText);
+      if (!apiClient) {
+        console.error("API client is not available");
         return false;
       }
-      
+
+      console.log("🖼️ Fetching database images for job:", jobId);
+
+      const response = await apiClient.get(`/api/jobs/${jobId}/images`);
+      console.log("📡 Image fetch response status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          "Failed to fetch job images:",
+          response.status,
+          errorText
+        );
+        return false;
+      }
+
       const data = await response.json();
-      console.log('📊 Job images data:', data);
-      
+      console.log("📊 Job images data:", data);
+
       if (data.success && data.images && Array.isArray(data.images)) {
-        setJobImages(prev => ({
+        setJobImages((prev) => ({
           ...prev,
-          [jobId]: data.images
+          [jobId]: data.images,
         }));
-        console.log('✅ Updated job images state for job:', jobId, 'Images count:', data.images.length);
-        
+        console.log(
+          "✅ Updated job images state for job:",
+          jobId,
+          "Images count:",
+          data.images.length
+        );
+
         // Log sample image data for debugging
         if (data.images.length > 0) {
-          console.log('📸 Sample image:', {
+          console.log("📸 Sample image:", {
             filename: data.images[0].filename,
             hasDataUrl: !!data.images[0].dataUrl,
             hasUrl: !!data.images[0].url,
-            id: data.images[0].id
+            id: data.images[0].id,
           });
         }
-        
+
         return data.images.length > 0;
       } else {
-        console.warn('⚠️ Invalid response format:', data);
+        console.warn("⚠️ Invalid response format:", data);
         return false;
       }
-      
     } catch (error) {
-      console.error('💥 Error fetching job images:', error);
+      console.error("💥 Error fetching job images:", error);
       return false;
     }
   };
 
   // Function to fetch user image statistics
   const fetchImageStats = async () => {
+    if (!apiClient) {
+      console.error("❌ API client not available for image stats");
+      return;
+    }
+
     try {
-      const response = await apiClient.get('/api/images?stats=true');
-      
+      const response = await apiClient.get("/api/images?stats=true");
+
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setImageStats(data.stats);
-          console.log('📊 Image stats:', data.stats);
+          console.log("📊 Image stats:", data.stats);
         }
       }
     } catch (error) {
-      console.error('Error fetching image stats:', error);
+      console.error("Error fetching image stats:", error);
     }
   };
 
   // Function to download image with dynamic URL support
   const downloadDatabaseImage = async (image: DatabaseImage) => {
+    if (!apiClient) {
+      alert("API client not available");
+      return;
+    }
+
     try {
-      console.log('📥 Downloading image:', image.filename);
-      
+      console.log("📥 Downloading image:", image.filename);
+
       if (image.dataUrl) {
         // Priority 1: Download from database
         const response = await apiClient.get(image.dataUrl);
-        
+
         if (response.ok) {
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
-          
-          const link = document.createElement('a');
+
+          const link = document.createElement("a");
           link.href = url;
           link.download = image.filename;
           link.click();
-          
+
           URL.revokeObjectURL(url);
-          console.log('✅ Database image downloaded');
+          console.log("✅ Database image downloaded");
           return;
         }
       }
-      
+
       if (image.url) {
         // Priority 2: Download from ComfyUI (dynamic URL)
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = image.url;
         link.download = image.filename;
         link.click();
-        console.log('✅ ComfyUI image downloaded');
+        console.log("✅ ComfyUI image downloaded");
         return;
       }
-      
-      throw new Error('No download URL available');
-      
+
+      throw new Error("No download URL available");
     } catch (error) {
-      console.error('Error downloading image:', error);
-      alert('Failed to download image: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error("Error downloading image:", error);
+      alert(
+        "Failed to download image: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
     }
   };
 
   // Function to share image URL
   const shareImage = (image: DatabaseImage) => {
-    let urlToShare = '';
-    
+    let urlToShare = "";
+
     if (image.dataUrl) {
       // Priority 1: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
@@ -272,17 +304,17 @@ export default function TextToImagePage() {
       // Priority 2: Share ComfyUI URL (dynamic)
       urlToShare = image.url;
     } else {
-      alert('No shareable URL available for this image');
+      alert("No shareable URL available for this image");
       return;
     }
-    
+
     navigator.clipboard.writeText(urlToShare);
-    alert('Image URL copied to clipboard!');
+    alert("Image URL copied to clipboard!");
   };
 
   // Helper function for legacy URL downloads
   const downloadFromUrl = (url: string, filename: string) => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = filename;
     link.click();
@@ -290,49 +322,72 @@ export default function TextToImagePage() {
 
   // Fetch available LoRA models on component mount
   useEffect(() => {
+    if (!apiClient) {
+      console.log("⏳ API client not ready yet, skipping LoRA fetch");
+      return;
+    }
+
     const fetchLoRAModels = async () => {
       try {
         setLoadingLoRAs(true);
-        console.log('=== FETCHING LORA MODELS ===');
-        
+        console.log("=== FETCHING LORA MODELS ===");
+
         const response = await apiClient.get("/api/models/loras");
-        console.log('LoRA API response status:', response.status);
-        
+        console.log("LoRA API response status:", response.status);
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
-        console.log('LoRA API response data:', data);
+        console.log("LoRA API response data:", data);
 
         if (data.success && data.models && Array.isArray(data.models)) {
-          console.log('Available LoRA models:', data.models);
+          console.log("Available LoRA models:", data.models);
           setAvailableLoRAs(data.models);
-          
+
           // Set default LoRA if current selection isn't available
-          const currentLoRAExists = data.models.some((lora: LoRAModel) => lora.fileName === params.selectedLora);
+          const currentLoRAExists = data.models.some(
+            (lora: LoRAModel) => lora.fileName === params.selectedLora
+          );
           if (!currentLoRAExists) {
-            const defaultLora = data.models.find((lora: LoRAModel) => lora.fileName === "None")?.fileName || data.models[0]?.fileName || "None";
-            console.log('Setting default LoRA to:', defaultLora);
+            const defaultLora =
+              data.models.find((lora: LoRAModel) => lora.fileName === "None")
+                ?.fileName ||
+              data.models[0]?.fileName ||
+              "None";
+            console.log("Setting default LoRA to:", defaultLora);
             setParams((prev) => ({
               ...prev,
               selectedLora: defaultLora,
             }));
           }
         } else {
-          console.error('Invalid LoRA API response:', data);
-          setAvailableLoRAs([{ fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }]);
+          console.error("Invalid LoRA API response:", data);
+          setAvailableLoRAs([
+            {
+              fileName: "None",
+              displayName: "No LoRA (Base Model)",
+              name: "none",
+            },
+          ]);
         }
       } catch (error) {
-        console.error('Error fetching LoRA models:', error);
-        setAvailableLoRAs([{ fileName: 'None', displayName: 'No LoRA (Base Model)', name: 'none' }]);
+        console.error("Error fetching LoRA models:", error);
+        setAvailableLoRAs([
+          {
+            fileName: "None",
+            displayName: "No LoRA (Base Model)",
+            name: "none",
+          },
+        ]);
       } finally {
         setLoadingLoRAs(false);
       }
     };
 
     fetchLoRAModels();
-  }, []);
+  }, [apiClient]);
 
   const generateRandomSeed = () => {
     const seed = Math.floor(Math.random() * 1000000000);
@@ -345,6 +400,11 @@ export default function TextToImagePage() {
 
   // Submit generation
   const handleGenerate = async () => {
+    if (!apiClient) {
+      alert("API client not available - please try again");
+      return;
+    }
+
     if (!params.prompt.trim()) {
       alert("Please enter a prompt");
       return;
@@ -352,39 +412,39 @@ export default function TextToImagePage() {
 
     setIsGenerating(true);
     setCurrentJob(null);
-    
+
     try {
-      console.log('=== STARTING GENERATION ===');
-      console.log('Generation params:', params);
-      
+      console.log("=== STARTING GENERATION ===");
+      console.log("Generation params:", params);
+
       const workflow = createWorkflowJson(params);
-      console.log('Created workflow for submission');
-      
+      console.log("Created workflow for submission");
+
       const response = await apiClient.post("/api/generate/text-to-image", {
         workflow,
         params,
       });
 
-      console.log('Generation API response status:', response.status);
+      console.log("Generation API response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Generation failed:', response.status, errorText);
+        console.error("Generation failed:", response.status, errorText);
         throw new Error(`Generation failed: ${response.status} - ${errorText}`);
       }
 
       const { jobId } = await response.json();
-      console.log('Received job ID:', jobId);
+      console.log("Received job ID:", jobId);
 
       if (!jobId) {
-        throw new Error('No job ID received from server');
+        throw new Error("No job ID received from server");
       }
 
       const newJob: GenerationJob = {
         id: jobId,
         status: "pending",
         createdAt: new Date(),
-        progress: 0
+        progress: 0,
       };
 
       setCurrentJob(newJob);
@@ -392,7 +452,6 @@ export default function TextToImagePage() {
 
       // Start polling for job status
       pollJobStatus(jobId);
-      
     } catch (error) {
       console.error("Generation error:", error);
       setIsGenerating(false);
@@ -402,37 +461,46 @@ export default function TextToImagePage() {
 
   // Updated poll job status with database image fetching
   const pollJobStatus = async (jobId: string) => {
-    console.log('=== STARTING JOB POLLING ===');
-    console.log('Polling job ID:', jobId);
-    
+    if (!apiClient) {
+      console.error("❌ API client not available for job polling");
+      setIsGenerating(false);
+      return;
+    }
+
+    console.log("=== STARTING JOB POLLING ===");
+    console.log("Polling job ID:", jobId);
+
     const maxAttempts = 120; // 2 minutes
     let attempts = 0;
 
     const poll = async () => {
       try {
         attempts++;
-        console.log(`Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`);
-        
+        console.log(
+          `Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
+        );
+
         const response = await apiClient.get(`/api/jobs/${jobId}`);
-        console.log('Job status response:', response.status);
-        
+        console.log("Job status response:", response.status);
+
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Job status error:', response.status, errorText);
-          
+          console.error("Job status error:", response.status, errorText);
+
           if (response.status === 404) {
-            console.error('Job not found - this might be a storage issue');
-            if (attempts < 10) { // Retry a few times for new jobs
+            console.error("Job not found - this might be a storage issue");
+            if (attempts < 10) {
+              // Retry a few times for new jobs
               setTimeout(poll, 2000);
               return;
             }
           }
-          
+
           throw new Error(`Job status check failed: ${response.status}`);
         }
 
         const job = await response.json();
-        console.log('Job status data:', job);
+        console.log("Job status data:", job);
 
         // Handle date conversion safely
         if (job.createdAt && typeof job.createdAt === "string") {
@@ -441,36 +509,38 @@ export default function TextToImagePage() {
 
         setCurrentJob(job);
         setJobHistory((prev) =>
-          prev.map((j) => {
-            if (j?.id === jobId) {
-              return {
-                ...job,
-                createdAt: job.createdAt || j.createdAt
-              };
-            }
-            return j;
-          }).filter(Boolean)
+          prev
+            .map((j) => {
+              if (j?.id === jobId) {
+                return {
+                  ...job,
+                  createdAt: job.createdAt || j.createdAt,
+                };
+              }
+              return j;
+            })
+            .filter(Boolean)
         );
 
         if (job.status === "completed") {
-          console.log('Job completed successfully!');
+          console.log("Job completed successfully!");
           setIsGenerating(false);
-          
+
           // Fetch database images for completed job with retry logic
-          console.log('🔄 Attempting to fetch job images...');
+          console.log("🔄 Attempting to fetch job images...");
           const fetchSuccess = await fetchJobImages(jobId);
-          
+
           // If fetch failed or no images found, retry after a short delay
           if (!fetchSuccess) {
-            console.log('🔄 Retrying image fetch after delay...');
+            console.log("🔄 Retrying image fetch after delay...");
             setTimeout(() => {
               fetchJobImages(jobId);
             }, 3000);
           }
-          
+
           return;
         } else if (job.status === "failed") {
-          console.log('Job failed:', job.error);
+          console.log("Job failed:", job.error);
           setIsGenerating(false);
           return;
         }
@@ -479,26 +549,34 @@ export default function TextToImagePage() {
         if (attempts < maxAttempts) {
           setTimeout(poll, 1000);
         } else {
-          console.error('Polling timeout reached');
+          console.error("Polling timeout reached");
           setIsGenerating(false);
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            status: "failed" as const,
-            error: "Polling timeout - generation may still be running"
-          } : null);
+          setCurrentJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed" as const,
+                  error: "Polling timeout - generation may still be running",
+                }
+              : null
+          );
         }
       } catch (error) {
         console.error("Polling error:", error);
-        
+
         if (attempts < maxAttempts) {
           setTimeout(poll, 2000); // Retry with longer delay
         } else {
           setIsGenerating(false);
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            status: "failed" as const,
-            error: "Failed to get job status"
-          } : null);
+          setCurrentJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed" as const,
+                  error: "Failed to get job status",
+                }
+              : null
+          );
         }
       }
     };
@@ -619,44 +697,70 @@ export default function TextToImagePage() {
 
   // Manual job check
   const manualJobCheck = async () => {
-    if (!currentJob?.id) {
-      alert('No current job to check');
+    if (!apiClient) {
+      alert("API client not available");
       return;
     }
-    
+
+    if (!currentJob?.id) {
+      alert("No current job to check");
+      return;
+    }
+
     try {
-      console.log('=== MANUAL JOB CHECK ===');
-      console.log('Checking job:', currentJob.id);
-      
+      console.log("=== MANUAL JOB CHECK ===");
+      console.log("Checking job:", currentJob.id);
+
       const response = await apiClient.get(`/api/jobs/${currentJob.id}`);
-      console.log('Manual check response status:', response.status);
-      
+      console.log("Manual check response status:", response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Manual check failed:', errorText);
+        console.error("Manual check failed:", errorText);
         alert(`Job check failed: ${response.status} - ${errorText}`);
         return;
       }
-      
+
       const job = await response.json();
-      console.log('Manual check result:', job);
-      
+      console.log("Manual check result:", job);
+
       // Handle date conversion
       if (job.createdAt && typeof job.createdAt === "string") {
         job.createdAt = new Date(job.createdAt);
       }
-      
+
       setCurrentJob(job);
-      setJobHistory(prev => 
-        prev.map(j => j?.id === currentJob.id ? job : j).filter(Boolean)
+      setJobHistory((prev) =>
+        prev.map((j) => (j?.id === currentJob.id ? job : j)).filter(Boolean)
       );
-      
+
       alert(`Job Status: ${job.status}\nProgress: ${job.progress || 0}%`);
     } catch (error) {
-      console.error('Manual check error:', error);
-      alert('Manual check failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error("Manual check error:", error);
+      alert(
+        "Manual check failed: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
     }
   };
+
+  if (!apiClient) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              Initializing...
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Setting up authentication for text-to-image generation
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -719,7 +823,7 @@ export default function TextToImagePage() {
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 LoRA Model
               </label>
-              
+
               {loadingLoRAs ? (
                 <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -739,16 +843,22 @@ export default function TextToImagePage() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   {availableLoRAs.map((lora, index) => (
-                    <option key={`${lora.fileName}-${index}`} value={lora.fileName}>
+                    <option
+                      key={`${lora.fileName}-${index}`}
+                      value={lora.fileName}
+                    >
                       {lora.displayName}
                     </option>
                   ))}
                 </select>
               )}
-              
+
               {params.selectedLora !== "None" && (
                 <div className="text-xs text-blue-600 dark:text-blue-400">
-                  Using LoRA: {availableLoRAs.find(lora => lora.fileName === params.selectedLora)?.displayName || params.selectedLora}
+                  Using LoRA:{" "}
+                  {availableLoRAs.find(
+                    (lora) => lora.fileName === params.selectedLora
+                  )?.displayName || params.selectedLora}
                 </div>
               )}
             </div>
@@ -987,13 +1097,21 @@ export default function TextToImagePage() {
               </h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Total Images:</span>
-                  <span className="ml-2 font-medium">{imageStats.totalImages}</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Total Images:
+                  </span>
+                  <span className="ml-2 font-medium">
+                    {imageStats.totalImages}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Total Size:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Total Size:
+                  </span>
                   <span className="ml-2 font-medium">
-                    {Math.round(imageStats.totalSize / 1024 / 1024 * 100) / 100} MB
+                    {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
+                      100}{" "}
+                    MB
                   </span>
                 </div>
               </div>
@@ -1024,7 +1142,8 @@ export default function TextToImagePage() {
                     Status
                   </span>
                   <div className="flex items-center space-x-2">
-                    {(currentJob.status === "pending" || currentJob.status === "processing") && (
+                    {(currentJob.status === "pending" ||
+                      currentJob.status === "processing") && (
                       <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                     )}
                     {currentJob.status === "completed" && (
@@ -1059,131 +1178,183 @@ export default function TextToImagePage() {
                 )}
 
                 {/* Show loading or no images message for completed jobs */}
-                {currentJob.status === "completed" && 
-                 (!currentJob.resultUrls || currentJob.resultUrls.length === 0) &&
-                 (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0) && (
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Generated Images
-                    </h4>
-                    <div className="text-center py-8">
-                      <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Loading generated images...</span>
+                {currentJob.status === "completed" &&
+                  (!currentJob.resultUrls ||
+                    currentJob.resultUrls.length === 0) &&
+                  (!jobImages[currentJob.id] ||
+                    jobImages[currentJob.id].length === 0) && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Generated Images
+                      </h4>
+                      <div className="text-center py-8">
+                        <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">
+                            Loading generated images...
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => fetchJobImages(currentJob.id)}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                        >
+                          Refresh Images
+                        </button>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          If images don't appear automatically, click refresh
+                        </p>
                       </div>
-                      <button
-                        onClick={() => fetchJobImages(currentJob.id)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
-                      >
-                        Refresh Images
-                      </button>
-                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        If images don't appear automatically, click refresh
-                      </p>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Enhanced image display with dynamic URL support */}
-                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) || 
-                  (jobImages[currentJob.id] && jobImages[currentJob.id].length > 0)) && (
+                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
+                  (jobImages[currentJob.id] &&
+                    jobImages[currentJob.id].length > 0)) && (
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Generated Images
                     </h4>
-                    
+
                     <div className="grid grid-cols-1 gap-3">
                       {/* Show database images if available */}
-                      {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 ? (
-                        // Database images with dynamic URLs
-                        jobImages[currentJob.id].map((dbImage, index) => (
-                          <div key={`db-${dbImage.id}`} className="relative group">
-                            <img
-                              src={dbImage.dataUrl || dbImage.url}
-                              alt={`Generated image ${index + 1}`}
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                              onError={(e) => {
-                                console.error('Image load error for:', dbImage.filename);
-                                
-                                // Smart fallback logic
-                                const currentSrc = (e.target as HTMLImageElement).src;
-                                
-                                if (currentSrc === dbImage.dataUrl && dbImage.url) {
-                                  console.log('Falling back to ComfyUI URL');
-                                  (e.target as HTMLImageElement).src = dbImage.url;
-                                } else if (currentSrc === dbImage.url && dbImage.dataUrl) {
-                                  console.log('Falling back to database URL');
-                                  (e.target as HTMLImageElement).src = dbImage.dataUrl;
-                                } else {
-                                  console.error('All URLs failed for:', dbImage.filename);
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }
-                              }}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button 
-                                  onClick={() => downloadDatabaseImage(dbImage)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  title={`Download ${dbImage.filename} (${dbImage.fileSize ? `${Math.round(dbImage.fileSize / 1024)}KB` : 'Unknown size'})`}
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => shareImage(dbImage)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
+                      {jobImages[currentJob.id] &&
+                      jobImages[currentJob.id].length > 0
+                        ? // Database images with dynamic URLs
+                          jobImages[currentJob.id].map((dbImage, index) => (
+                            <div
+                              key={`db-${dbImage.id}`}
+                              className="relative group"
+                            >
+                              <img
+                                src={dbImage.dataUrl || dbImage.url}
+                                alt={`Generated image ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                onError={(e) => {
+                                  console.error(
+                                    "Image load error for:",
+                                    dbImage.filename
+                                  );
+
+                                  // Smart fallback logic
+                                  const currentSrc = (
+                                    e.target as HTMLImageElement
+                                  ).src;
+
+                                  if (
+                                    currentSrc === dbImage.dataUrl &&
+                                    dbImage.url
+                                  ) {
+                                    console.log("Falling back to ComfyUI URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.url;
+                                  } else if (
+                                    currentSrc === dbImage.url &&
+                                    dbImage.dataUrl
+                                  ) {
+                                    console.log("Falling back to database URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.dataUrl;
+                                  } else {
+                                    console.error(
+                                      "All URLs failed for:",
+                                      dbImage.filename
+                                    );
+                                    (
+                                      e.target as HTMLImageElement
+                                    ).style.display = "none";
+                                  }
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadDatabaseImage(dbImage)
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    title={`Download ${dbImage.filename} (${
+                                      dbImage.fileSize
+                                        ? `${Math.round(
+                                            dbImage.fileSize / 1024
+                                          )}KB`
+                                        : "Unknown size"
+                                    })`}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => shareImage(dbImage)}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Image metadata */}
+                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                  {dbImage.width && dbImage.height
+                                    ? `${dbImage.width}×${dbImage.height}`
+                                    : "Unknown size"}
+                                  {dbImage.fileSize &&
+                                    ` • ${Math.round(
+                                      dbImage.fileSize / 1024
+                                    )}KB`}
+                                  {dbImage.format &&
+                                    ` • ${dbImage.format.toUpperCase()}`}
+                                </div>
                               </div>
                             </div>
-                            
-                            {/* Image metadata */}
-                            <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                {dbImage.width && dbImage.height ? `${dbImage.width}×${dbImage.height}` : 'Unknown size'}
-                                {dbImage.fileSize && ` • ${Math.round(dbImage.fileSize / 1024)}KB`}
-                                {dbImage.format && ` • ${dbImage.format.toUpperCase()}`}
+                          ))
+                        : // Fallback to legacy URLs if no database images
+                          currentJob.resultUrls &&
+                          currentJob.resultUrls.length > 0 &&
+                          currentJob.resultUrls.map((url, index) => (
+                            <div
+                              key={`legacy-${currentJob.id}-${index}`}
+                              className="relative group"
+                            >
+                              <img
+                                src={url}
+                                alt={`Generated image ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                onError={(e) => {
+                                  console.error(
+                                    "Legacy image load error:",
+                                    url
+                                  );
+                                  (e.target as HTMLImageElement).style.display =
+                                    "none";
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadFromUrl(
+                                        url,
+                                        `generated-image-${index + 1}.png`
+                                      )
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(url);
+                                      alert("Image URL copied to clipboard!");
+                                    }}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
-                      ) : (
-                        // Fallback to legacy URLs if no database images
-                        currentJob.resultUrls && currentJob.resultUrls.length > 0 && 
-                        currentJob.resultUrls.map((url, index) => (
-                          <div key={`legacy-${currentJob.id}-${index}`} className="relative group">
-                            <img
-                              src={url}
-                              alt={`Generated image ${index + 1}`}
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                              onError={(e) => {
-                                console.error('Legacy image load error:', url);
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button 
-                                  onClick={() => downloadFromUrl(url, `generated-image-${index + 1}.png`)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(url);
-                                    alert('Image URL copied to clipboard!');
-                                  }}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                          ))}
                     </div>
                   </div>
                 )}
@@ -1206,44 +1377,47 @@ export default function TextToImagePage() {
                 Recent Generations
               </h3>
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {jobHistory.filter(job => job && job.id).slice(0, 10).map((job, index) => (
-                  <div
-                    key={job.id || `job-${index}`}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      {job.status === "completed" && (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      )}
-                      {job.status === "failed" && (
-                        <AlertCircle className="w-4 h-4 text-red-500" />
-                      )}
-                      {(job.status === "pending" ||
-                        job.status === "processing") && (
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {formatJobTime(job.createdAt)}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {job.status || 'unknown'}
-                        </p>
+                {jobHistory
+                  .filter((job) => job && job.id)
+                  .slice(0, 10)
+                  .map((job, index) => (
+                    <div
+                      key={job.id || `job-${index}`}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    >
+                      <div className="flex items-center space-x-3">
+                        {job.status === "completed" && (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        )}
+                        {job.status === "failed" && (
+                          <AlertCircle className="w-4 h-4 text-red-500" />
+                        )}
+                        {(job.status === "pending" ||
+                          job.status === "processing") && (
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {formatJobTime(job.createdAt)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                            {job.status || "unknown"}
+                          </p>
+                        </div>
                       </div>
+                      {job.resultUrls && job.resultUrls.length > 0 && (
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => fetchJobImages(job.id)}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                            title="Refresh images"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {job.resultUrls && job.resultUrls.length > 0 && (
-                      <div className="flex space-x-1">
-                        <button 
-                          onClick={() => fetchJobImages(job.id)}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                          title="Refresh images"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           )}

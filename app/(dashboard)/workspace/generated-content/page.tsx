@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { apiClient } from "@/lib/apiClient";
+import { useApiClient } from "@/lib/apiClient";
 import {
   ImageIcon,
   Download,
@@ -87,6 +87,8 @@ type SortBy = "newest" | "oldest" | "largest" | "smallest" | "name";
 type FilterBy = "all" | "images" | "videos";
 
 export default function GeneratedContentPage() {
+  const apiClient = useApiClient();
+  
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
@@ -109,27 +111,42 @@ export default function GeneratedContentPage() {
 
   // Fetch images and stats
   useEffect(() => {
-    fetchContent();
-    fetchStats();
-  }, []);
+    if (apiClient) {
+      fetchContent();
+      fetchStats();
+    }
+  }, [apiClient]);
 
   const fetchContent = async () => {
+    if (!apiClient) {
+      console.error("❌ API client not available");
+      setError("Authentication not ready");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      console.log("🖼️ Fetching user content for gallery...");
+      console.log("🖼️ === FETCHING CONTENT FOR GALLERY ===");
+      console.log("🌍 Environment:", process.env.NODE_ENV);
+      console.log("🔗 Origin:", window.location.origin);
+      console.log("⏰ Timestamp:", new Date().toISOString());
 
       // Fetch images
       console.log("📡 Fetching images from /api/images...");
       const imagesResponse = await apiClient.get("/api/images");
       console.log("📡 Images response status:", imagesResponse.status);
+      console.log("📡 Images response headers:", Object.fromEntries(imagesResponse.headers.entries()));
 
       // Fetch videos
       console.log("📡 Fetching videos from /api/videos...");
       const videosResponse = await apiClient.get("/api/videos");
       console.log("📡 Videos response status:", videosResponse.status);
+      console.log("📡 Videos response headers:", Object.fromEntries(videosResponse.headers.entries()));
 
+      // Enhanced error logging
       if (!imagesResponse.ok) {
         console.error(
           "❌ Images fetch failed:",
@@ -138,6 +155,14 @@ export default function GeneratedContentPage() {
         );
         const errorText = await imagesResponse.text();
         console.error("❌ Images error details:", errorText);
+        
+        // Try to parse as JSON for structured error
+        try {
+          const errorJson = JSON.parse(errorText);
+          console.error("❌ Images structured error:", errorJson);
+        } catch {
+          // Not JSON, just log as text
+        }
       }
 
       if (!videosResponse.ok) {
@@ -148,12 +173,20 @@ export default function GeneratedContentPage() {
         );
         const errorText = await videosResponse.text();
         console.error("❌ Videos error details:", errorText);
+        
+        // Try to parse as JSON for structured error
+        try {
+          const errorJson = JSON.parse(errorText);
+          console.error("❌ Videos structured error:", errorJson);
+        } catch {
+          // Not JSON, just log as text
+        }
       }
 
       if (!imagesResponse.ok || !videosResponse.ok) {
-        throw new Error(
-          `Failed to fetch content: ${imagesResponse.status} / ${videosResponse.status}`
-        );
+        const errorMessage = `Failed to fetch content: Images(${imagesResponse.status}) Videos(${videosResponse.status})`;
+        console.error("❌ Combined fetch error:", errorMessage);
+        throw new Error(errorMessage);
       }
 
       const imagesData = await imagesResponse.json();
@@ -174,6 +207,9 @@ export default function GeneratedContentPage() {
 
         setImages(processedImages);
         console.log("✅ Loaded", processedImages.length, "images");
+      } else {
+        console.warn("⚠️ Images data invalid or empty:", imagesData);
+        setImages([]);
       }
 
       if (videosData.success && videosData.videos) {
@@ -186,6 +222,9 @@ export default function GeneratedContentPage() {
 
         setVideos(processedVideos);
         console.log("✅ Loaded", processedVideos.length, "videos");
+      } else {
+        console.warn("⚠️ Videos data invalid or empty:", videosData);
+        setVideos([]);
       }
 
       // Combine all content
@@ -208,17 +247,33 @@ export default function GeneratedContentPage() {
 
       setAllContent(allItems);
       console.log("✅ Combined", allItems.length, "content items");
+      
+      if (allItems.length === 0) {
+        console.warn("⚠️ No content items found after processing");
+      }
     } catch (error) {
       console.error("💥 Error fetching content:", error);
+      console.error("💥 Error stack:", error instanceof Error ? error.stack : 'No stack');
       setError(
         error instanceof Error ? error.message : "Failed to load content"
       );
+      
+      // Set empty arrays on error
+      setImages([]);
+      setVideos([]);
+      setAllContent([]);
     } finally {
       setLoading(false);
+      console.log("🏁 Fetch content finished");
     }
   };
 
   const fetchStats = async () => {
+    if (!apiClient) {
+      console.error("❌ API client not available for stats");
+      return;
+    }
+
     try {
       const [imagesStatsResponse, videosStatsResponse] = await Promise.all([
         apiClient.get("/api/images?stats=true"),
@@ -240,6 +295,47 @@ export default function GeneratedContentPage() {
       }
     } catch (error) {
       console.error("Error fetching stats:", error);
+    }
+  };
+
+  // Debug function for troubleshooting Vercel deployment
+  const runDebugCheck = async () => {
+    if (!apiClient) {
+      alert("API client not available - authentication may not be ready");
+      return;
+    }
+
+    try {
+      console.log("🔍 Running debug check...");
+      const response = await apiClient.get("/api/debug/content");
+      console.log("🔍 Debug response:", response);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("🔍 Debug data:", data);
+        
+        // Show debug info in alert
+        const debugInfo = `
+Environment: ${data.debug?.environment || 'Unknown'}
+Authenticated: ${data.debug?.authenticated || false}
+User ID: ${data.debug?.clerkId || 'None'}
+Database Connected: ${data.debug?.database?.connected || false}
+Image Count: ${data.debug?.content?.imageCount || 0}
+Video Count: ${data.debug?.content?.videoCount || 0}
+DB Error: ${data.debug?.database?.error || 'None'}
+Image Error: ${data.debug?.content?.imageError || 'None'}
+Video Error: ${data.debug?.content?.videoError || 'None'}
+        `.trim();
+        
+        alert(`Debug Information:\n\n${debugInfo}`);
+      } else {
+        const errorText = await response.text();
+        console.error("🔍 Debug check failed:", errorText);
+        alert(`Debug check failed: ${response.status} ${response.statusText}\n\n${errorText}`);
+      }
+    } catch (error) {
+      console.error("🔍 Debug check error:", error);
+      alert(`Debug check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -299,6 +395,11 @@ export default function GeneratedContentPage() {
 
   // Download image with dynamic URL support
   const downloadImage = async (image: GeneratedImage) => {
+    if (!apiClient) {
+      alert("API client not available");
+      return;
+    }
+
     try {
       console.log("📥 Downloading image:", image.filename);
 
@@ -396,6 +497,22 @@ export default function GeneratedContentPage() {
     const d = new Date(date);
     return d.toLocaleDateString() + " " + d.toLocaleTimeString();
   };
+
+  if (!apiClient) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            Initializing...
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            Setting up authentication
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -537,13 +654,24 @@ export default function GeneratedContentPage() {
               </p>
             </div>
           </div>
-          <button
-            onClick={fetchContent}
-            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            title="Refresh gallery"
-          >
-            <RefreshCw className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={fetchContent}
+              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="Refresh gallery"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+            
+            {/* Debug button for troubleshooting Vercel deployment */}
+            <button
+              onClick={runDebugCheck}
+              className="px-3 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+              title="Run debug check"
+            >
+              Debug
+            </button>
+          </div>
         </div>
       </div>
 
