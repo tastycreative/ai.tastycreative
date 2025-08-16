@@ -31,27 +31,15 @@ export interface ImagePathInfo {
 
 // Helper function to construct ComfyUI URLs dynamically
 export function buildComfyUIUrl(pathInfo: ImagePathInfo): string {
-  // Use proxy endpoint for production to avoid mixed content issues
-  if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://')) {
-    const params = new URLSearchParams({
-      filename: pathInfo.filename,
-      subfolder: pathInfo.subfolder,
-      type: pathInfo.type
-    });
-    
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ai.tastycreative.xyz';
-    return `${appUrl}/api/proxy/comfyui/view?${params.toString()}`;
-  }
-  
-  // Use direct ComfyUI URL for local development
-  const baseUrl = COMFYUI_URL();
   const params = new URLSearchParams({
     filename: pathInfo.filename,
     subfolder: pathInfo.subfolder,
     type: pathInfo.type
   });
-  
-  return `${baseUrl}/view?${params.toString()}`;
+
+  // Always use proxy endpoint for image viewing to handle authentication properly
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return `${appUrl}/api/proxy/comfyui/view?${params.toString()}`;
 }
 
 // Helper function to parse ComfyUI URLs (for backward compatibility)
@@ -96,17 +84,25 @@ export async function saveImageToDatabase(
 
     // Download image data if requested
     if (options.saveData || options.extractMetadata) {
-      const imageUrl = buildComfyUIUrl(pathInfo);
-      console.log('📥 Downloading image from:', imageUrl);
+      // For server-side downloads, always use direct ComfyUI URL with authentication
+      const baseUrl = COMFYUI_URL();
+      const params = new URLSearchParams({
+        filename: pathInfo.filename,
+        subfolder: pathInfo.subfolder,
+        type: pathInfo.type
+      });
+      const directUrl = `${baseUrl}/view?${params.toString()}`;
       
-      // Add authentication for RunPod/ComfyUI server
+      console.log('� Downloading image from ComfyUI directly:', directUrl);
+      
       const headers: Record<string, string> = {};
       const runpodApiKey = process.env.RUNPOD_API_KEY;
       if (runpodApiKey) {
         headers['Authorization'] = `Bearer ${runpodApiKey}`;
+        console.log('🔐 Adding RunPod API key authentication');
       }
       
-      const response = await fetch(imageUrl, {
+      const response = await fetch(directUrl, {
         headers,
         signal: AbortSignal.timeout(30000) // 30 second timeout
       });
@@ -143,7 +139,7 @@ export async function saveImageToDatabase(
             downloadedAt: new Date().toISOString(),
             comfyUIInfo: pathInfo,
             originalSize: fileSize,
-            sourceUrl: imageUrl
+            sourceUrl: directUrl
           };
           
           console.log('📸 Extracted metadata:', { format, fileSize });
