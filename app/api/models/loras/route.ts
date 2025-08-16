@@ -60,11 +60,19 @@ export async function GET(request: NextRequest) {
     try {
       console.log('🔌 Attempting to connect to ComfyUI at:', `${COMFYUI_URL}/object_info`);
 
+      // Add authentication for RunPod/ComfyUI server
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+      };
+      
+      const runpodApiKey = process.env.RUNPOD_API_KEY;
+      if (runpodApiKey) {
+        headers['Authorization'] = `Bearer ${runpodApiKey}`;
+      }
+
       const response = await fetch(`${COMFYUI_URL}/object_info`, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
+        headers,
         signal: AbortSignal.timeout(10000) // 10 second timeout
       });
 

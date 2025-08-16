@@ -197,7 +197,15 @@ export async function POST(
       
       // Try to get updated status from ComfyUI
       try {
+        // Add authentication for RunPod/ComfyUI server
+        const headers: Record<string, string> = {};
+        const runpodApiKey = process.env.RUNPOD_API_KEY;
+        if (runpodApiKey) {
+          headers['Authorization'] = `Bearer ${runpodApiKey}`;
+        }
+        
         const historyResponse = await fetch(`${COMFYUI_URL}/history`, {
+          headers,
           signal: AbortSignal.timeout(10000)
         });
         

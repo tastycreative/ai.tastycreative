@@ -67,10 +67,18 @@ export async function POST(request: NextRequest) {
     console.log('📤 Uploading to ComfyUI:', filename);
 
     try {
+      // Add authentication for RunPod/ComfyUI server
+      const headers: Record<string, string> = {};
+      const runpodApiKey = process.env.RUNPOD_API_KEY;
+      if (runpodApiKey) {
+        headers['Authorization'] = `Bearer ${runpodApiKey}`;
+      }
+
       // Upload to ComfyUI's /upload/image endpoint
       const uploadResponse = await fetch(`${COMFYUI_URL}/upload/image`, {
         method: 'POST',
         body: uploadFormData,
+        headers,
         signal: AbortSignal.timeout(30000) // 30 second timeout
       });
 
@@ -107,6 +115,7 @@ export async function POST(request: NextRequest) {
           const maskUploadResponse = await fetch(`${COMFYUI_URL}/upload/image`, {
             method: 'POST',
             body: maskFormData,
+            headers,
             signal: AbortSignal.timeout(30000)
           });
 

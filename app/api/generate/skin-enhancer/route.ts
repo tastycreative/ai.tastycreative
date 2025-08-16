@@ -77,11 +77,19 @@ export async function POST(request: NextRequest) {
     try {
       console.log('🚀 Submitting skin enhancer to ComfyUI...');
       
+      // Add authentication for RunPod/ComfyUI server
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      const runpodApiKey = process.env.RUNPOD_API_KEY;
+      if (runpodApiKey) {
+        headers['Authorization'] = `Bearer ${runpodApiKey}`;
+      }
+      
       const comfyUIResponse = await fetch(`${COMFYUI_URL}/prompt`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           prompt: workflow,
           client_id: jobId,
