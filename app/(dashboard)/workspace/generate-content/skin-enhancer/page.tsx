@@ -102,7 +102,7 @@ const SCHEDULERS = [
 // Fixed enhancement LoRAs (from the workflow)
 const FIXED_ENHANCEMENT_LORAS = [
   { fileName: "real-humans-PublicPrompts.safetensors", strength: 1.0 },
-  { fileName: "more_details.safetensors", strength: 0.6 }
+  { fileName: "more_details.safetensors", strength: 0.6 },
 ];
 
 const formatJobTime = (createdAt: Date | string | undefined): string => {
@@ -110,13 +110,14 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
     if (!createdAt) {
       return "Unknown time";
     }
-    
-    const date = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
-    
+
+    const date =
+      typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+
     if (isNaN(date.getTime())) {
       return "Invalid time";
     }
-    
+
     return date.toLocaleTimeString();
   } catch (error) {
     console.error("Error formatting date:", error);
@@ -126,7 +127,7 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 
 export default function SkinEnhancerPage() {
   const apiClient = useApiClient();
-  
+
   const [params, setParams] = useState<EnhancementParams>({
     // Only show main prompt in UI
     prompt: "",
@@ -149,23 +150,26 @@ export default function SkinEnhancerPage() {
   const [jobHistory, setJobHistory] = useState<GenerationJob[]>([]);
 
   const [isGenerating, setIsGenerating] = useState(false);
-  const [availableInfluencerLoRAs, setAvailableInfluencerLoRAs] = useState<LoRAModel[]>([
-    { fileName: 'None', displayName: 'No Influencer LoRA', name: 'none' }
-  ]);
+  const [availableInfluencerLoRAs, setAvailableInfluencerLoRAs] = useState<
+    LoRAModel[]
+  >([{ fileName: "None", displayName: "No Influencer LoRA", name: "none" }]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
-
   // Database image states
-  const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>({});
+  const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
+    {}
+  );
   const [imageStats, setImageStats] = useState<any>(null);
-  
+
   // Comparison states
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonImages, setComparisonImages] = useState<{
     initial?: DatabaseImage;
     final?: DatabaseImage;
   }>({});
-  const [comparisonMode, setComparisonMode] = useState<'split' | 'overlay' | 'toggle'>('split');
+  const [comparisonMode, setComparisonMode] = useState<
+    "split" | "overlay" | "toggle"
+  >("split");
 
   // Initialize empty job history on mount
   useEffect(() => {
@@ -182,66 +186,78 @@ export default function SkinEnhancerPage() {
   // Function to fetch images for a completed job
   const fetchJobImages = async (jobId: string): Promise<boolean> => {
     if (!apiClient) return false;
-    
+
     try {
-      console.log('🖼️ Fetching database images for job:', jobId);
-      
+      console.log("🖼️ Fetching database images for job:", jobId);
+
       const response = await apiClient.get(`/api/jobs/${jobId}/images`);
-      console.log('📡 Image fetch response status:', response.status);
-      
+      console.log("📡 Image fetch response status:", response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Failed to fetch job images:', response.status, errorText);
+        console.error(
+          "Failed to fetch job images:",
+          response.status,
+          errorText
+        );
         return false;
       }
-      
+
       const data = await response.json();
-      console.log('📊 Job images data:', data);
-      
+      console.log("📊 Job images data:", data);
+
       if (data.success && data.images && Array.isArray(data.images)) {
-        setJobImages(prev => ({
+        setJobImages((prev) => ({
           ...prev,
-          [jobId]: data.images
+          [jobId]: data.images,
         }));
-        console.log('✅ Updated job images state for job:', jobId, 'Images count:', data.images.length);
-        
+        console.log(
+          "✅ Updated job images state for job:",
+          jobId,
+          "Images count:",
+          data.images.length
+        );
+
         // Set up comparison images for two-way comparison
-        const initialImage = data.images.find((img: DatabaseImage) => 
-          img.filename.includes('flux_initial') || img.filename.includes('initial')
+        const initialImage = data.images.find(
+          (img: DatabaseImage) =>
+            img.filename.includes("flux_initial") ||
+            img.filename.includes("initial")
         );
-        const finalImage = data.images.find((img: DatabaseImage) => 
-          img.filename.includes('skin_enhanced') && !img.filename.includes('intermediate')
+        const finalImage = data.images.find(
+          (img: DatabaseImage) =>
+            img.filename.includes("skin_enhanced") &&
+            !img.filename.includes("intermediate")
         );
-        
+
         if (initialImage && finalImage) {
           setComparisonImages({
             initial: initialImage,
-            final: finalImage
+            final: finalImage,
           });
-          console.log('🔄 Set up two-way comparison images:', { 
-            initial: initialImage.filename, 
-            final: finalImage.filename 
+          console.log("🔄 Set up two-way comparison images:", {
+            initial: initialImage.filename,
+            final: finalImage.filename,
           });
         } else if (data.images.length >= 2) {
           // Fallback: use first and last images
           setComparisonImages({
             initial: data.images[0],
-            final: data.images[data.images.length - 1]
+            final: data.images[data.images.length - 1],
           });
-          console.log('🔄 Set up two-way comparison images (fallback):', { 
-            initial: data.images[0].filename, 
-            final: data.images[data.images.length - 1].filename 
+          console.log("🔄 Set up two-way comparison images (fallback):", {
+            initial: data.images[0].filename,
+            final: data.images[data.images.length - 1].filename,
           });
         }
-        
+
         return data.images.length > 0;
       } else {
-        console.warn('⚠️ Invalid response format:', data);
+        console.warn("⚠️ Invalid response format:", data);
         return false;
       }
-      
     } catch (error) {
-      console.error('💥 Error fetching job images:', error);
+      console.error("💥 Error fetching job images:", error);
       return false;
     }
   };
@@ -249,70 +265,72 @@ export default function SkinEnhancerPage() {
   // Function to fetch user image statistics
   const fetchImageStats = async () => {
     if (!apiClient) return;
-    
+
     try {
-      const response = await apiClient.get('/api/images?stats=true');
-      
+      const response = await apiClient.get("/api/images?stats=true");
+
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setImageStats(data.stats);
-          console.log('📊 Image stats:', data.stats);
+          console.log("📊 Image stats:", data.stats);
         }
       }
     } catch (error) {
-      console.error('Error fetching image stats:', error);
+      console.error("Error fetching image stats:", error);
     }
   };
 
   // Function to download image with dynamic URL support
   const downloadDatabaseImage = async (image: DatabaseImage) => {
     if (!apiClient) return;
-    
+
     try {
-      console.log('📥 Downloading image:', image.filename);
-      
+      console.log("📥 Downloading image:", image.filename);
+
       if (image.dataUrl) {
         // Priority 1: Download from database
         const response = await apiClient.get(image.dataUrl);
-        
+
         if (response.ok) {
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
-          
-          const link = document.createElement('a');
+
+          const link = document.createElement("a");
           link.href = url;
           link.download = image.filename;
           link.click();
-          
+
           URL.revokeObjectURL(url);
-          console.log('✅ Database image downloaded');
+          console.log("✅ Database image downloaded");
           return;
         }
       }
-      
+
       if (image.url) {
         // Priority 2: Download from ComfyUI (dynamic URL)
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = image.url;
         link.download = image.filename;
         link.click();
-        console.log('✅ ComfyUI image downloaded');
+        console.log("✅ ComfyUI image downloaded");
         return;
       }
-      
-      throw new Error('No download URL available');
-      
+
+      throw new Error("No download URL available");
     } catch (error) {
-      console.error('Error downloading image:', error);
-      alert('Failed to download image: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error("Error downloading image:", error);
+      alert(
+        "Failed to download image: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
     }
   };
 
   // Function to share image URL
   const shareImage = (image: DatabaseImage) => {
-    let urlToShare = '';
-    
+    let urlToShare = "";
+
     if (image.dataUrl) {
       // Priority 1: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
@@ -320,17 +338,17 @@ export default function SkinEnhancerPage() {
       // Priority 2: Share ComfyUI URL (dynamic)
       urlToShare = image.url;
     } else {
-      alert('No shareable URL available for this image');
+      alert("No shareable URL available for this image");
       return;
     }
-    
+
     navigator.clipboard.writeText(urlToShare);
-    alert('Image URL copied to clipboard!');
+    alert("Image URL copied to clipboard!");
   };
 
   // Helper function for legacy URL downloads
   const downloadFromUrl = (url: string, filename: string) => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = filename;
     link.click();
@@ -340,42 +358,56 @@ export default function SkinEnhancerPage() {
   useEffect(() => {
     const fetchInfluencerLoRAModels = async () => {
       if (!apiClient) return;
-      
+
       try {
         setLoadingLoRAs(true);
-        console.log('=== FETCHING INFLUENCER LORA MODELS ===');
-        
+        console.log("=== FETCHING INFLUENCER LORA MODELS ===");
+
         const response = await apiClient.get("/api/models/loras");
-        console.log('LoRA API response status:', response.status);
-        
+        console.log("LoRA API response status:", response.status);
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
-        console.log('LoRA API response data:', data);
+        console.log("LoRA API response data:", data);
 
         if (data.success && data.models && Array.isArray(data.models)) {
-          console.log('Available influencer LoRA models:', data.models);
+          console.log("Available influencer LoRA models:", data.models);
           setAvailableInfluencerLoRAs(data.models);
-          
+
           // Set default LoRA if current selection isn't available
-          const currentLoRAExists = data.models.some((lora: LoRAModel) => lora.fileName === params.selectedInfluencerLora);
+          const currentLoRAExists = data.models.some(
+            (lora: LoRAModel) => lora.fileName === params.selectedInfluencerLora
+          );
           if (!currentLoRAExists) {
-            const defaultLora = data.models.find((lora: LoRAModel) => lora.fileName === "None")?.fileName || data.models[0]?.fileName || "None";
-            console.log('Setting default influencer LoRA to:', defaultLora);
+            const defaultLora =
+              data.models.find((lora: LoRAModel) => lora.fileName === "None")
+                ?.fileName ||
+              data.models[0]?.fileName ||
+              "None";
+            console.log("Setting default influencer LoRA to:", defaultLora);
             setParams((prev) => ({
               ...prev,
               selectedInfluencerLora: defaultLora,
             }));
           }
         } else {
-          console.error('Invalid LoRA API response:', data);
-          setAvailableInfluencerLoRAs([{ fileName: 'None', displayName: 'No Influencer LoRA', name: 'none' }]);
+          console.error("Invalid LoRA API response:", data);
+          setAvailableInfluencerLoRAs([
+            {
+              fileName: "None",
+              displayName: "No Influencer LoRA",
+              name: "none",
+            },
+          ]);
         }
       } catch (error) {
-        console.error('Error fetching influencer LoRA models:', error);
-        setAvailableInfluencerLoRAs([{ fileName: 'None', displayName: 'No Influencer LoRA', name: 'none' }]);
+        console.error("Error fetching influencer LoRA models:", error);
+        setAvailableInfluencerLoRAs([
+          { fileName: "None", displayName: "No Influencer LoRA", name: "none" },
+        ]);
       } finally {
         setLoadingLoRAs(false);
       }
@@ -396,20 +428,24 @@ export default function SkinEnhancerPage() {
   // Manual job status check (without starting continuous polling)
   const checkJobStatus = async (jobId: string) => {
     if (!apiClient) return;
-    
+
     try {
-      console.log('🔍 Manually checking job status for:', jobId);
-      
+      console.log("🔍 Manually checking job status for:", jobId);
+
       const response = await apiClient.get(`/api/jobs/${jobId}`);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Manual job status check failed:', response.status, errorText);
+        console.error(
+          "Manual job status check failed:",
+          response.status,
+          errorText
+        );
         return;
       }
 
       const job = await response.json();
-      console.log('📊 Manual job status result:', job);
+      console.log("📊 Manual job status result:", job);
 
       // Handle date conversion safely
       if (job.createdAt && typeof job.createdAt === "string") {
@@ -418,33 +454,32 @@ export default function SkinEnhancerPage() {
 
       setCurrentJob(job);
       setJobHistory((prev) =>
-        prev.map((j) => {
-          if (j?.id === jobId) {
-            return {
-              ...job,
-              createdAt: job.createdAt || j.createdAt
-            };
-          }
-          return j;
-        }).filter(Boolean)
+        prev
+          .map((j) => {
+            if (j?.id === jobId) {
+              return {
+                ...job,
+                createdAt: job.createdAt || j.createdAt,
+              };
+            }
+            return j;
+          })
+          .filter(Boolean)
       );
 
       // If job completed, try to fetch images
       if (job.status === "completed") {
-        console.log('✅ Job completed! Fetching images...');
+        console.log("✅ Job completed! Fetching images...");
         setIsGenerating(false);
         await fetchJobImages(jobId);
       } else if (job.status === "processing") {
-        console.log('⚙️ Job still processing, resuming polling...');
+        console.log("⚙️ Job still processing, resuming polling...");
         pollJobStatus(jobId); // Resume polling if still processing
       }
-      
     } catch (error) {
-      console.error('💥 Manual job status check error:', error);
+      console.error("💥 Manual job status check error:", error);
     }
   };
-
-
 
   // Submit enhancement
   const handleEnhance = async () => {
@@ -452,7 +487,7 @@ export default function SkinEnhancerPage() {
       alert("API client not ready. Please try again.");
       return;
     }
-    
+
     if (!params.prompt.trim()) {
       alert("Please enter a prompt");
       return;
@@ -460,39 +495,41 @@ export default function SkinEnhancerPage() {
 
     setIsGenerating(true);
     setCurrentJob(null);
-    
+
     try {
-      console.log('=== STARTING SKIN ENHANCEMENT ===');
-      console.log('Enhancement params:', params);
-      
+      console.log("=== STARTING SKIN ENHANCEMENT ===");
+      console.log("Enhancement params:", params);
+
       const workflow = createSkinEnhancerWorkflowJson(params);
-      console.log('Created skin enhancer workflow for submission');
-      
+      console.log("Created skin enhancer workflow for submission");
+
       const response = await apiClient.post("/api/generate/skin-enhancer", {
         workflow,
         params,
       });
 
-      console.log('Enhancement API response status:', response.status);
+      console.log("Enhancement API response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Enhancement failed:', response.status, errorText);
-        throw new Error(`Enhancement failed: ${response.status} - ${errorText}`);
+        console.error("Enhancement failed:", response.status, errorText);
+        throw new Error(
+          `Enhancement failed: ${response.status} - ${errorText}`
+        );
       }
 
       const { jobId } = await response.json();
-      console.log('Received job ID:', jobId);
+      console.log("Received job ID:", jobId);
 
       if (!jobId) {
-        throw new Error('No job ID received from server');
+        throw new Error("No job ID received from server");
       }
 
       const newJob: GenerationJob = {
         id: jobId,
         status: "pending",
         createdAt: new Date(),
-        progress: 0
+        progress: 0,
       };
 
       setCurrentJob(newJob);
@@ -500,7 +537,6 @@ export default function SkinEnhancerPage() {
 
       // Start polling for job status
       pollJobStatus(jobId);
-      
     } catch (error) {
       console.error("Enhancement error:", error);
       setIsGenerating(false);
@@ -514,40 +550,43 @@ export default function SkinEnhancerPage() {
       console.error("API client not ready for polling");
       return;
     }
-    
-    console.log('=== STARTING JOB POLLING ===');
-    console.log('Polling job ID:', jobId);
-    
+
+    console.log("=== STARTING JOB POLLING ===");
+    console.log("Polling job ID:", jobId);
+
     const maxAttempts = 300; // 5 minutes for complex skin enhancement workflow
     let attempts = 0;
 
     const poll = async () => {
       if (!apiClient) return;
-      
+
       try {
         attempts++;
-        console.log(`Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`);
-        
+        console.log(
+          `Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
+        );
+
         const response = await apiClient.get(`/api/jobs/${jobId}`);
-        console.log('Job status response:', response.status);
-        
+        console.log("Job status response:", response.status);
+
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Job status error:', response.status, errorText);
-          
+          console.error("Job status error:", response.status, errorText);
+
           if (response.status === 404) {
-            console.error('Job not found - this might be a storage issue');
-            if (attempts < 10) { // Retry a few times for new jobs
+            console.error("Job not found - this might be a storage issue");
+            if (attempts < 10) {
+              // Retry a few times for new jobs
               setTimeout(poll, 3000); // Longer delay for 404s
               return;
             }
           }
-          
+
           throw new Error(`Job status check failed: ${response.status}`);
         }
 
         const job = await response.json();
-        console.log('Job status data:', job);
+        console.log("Job status data:", job);
 
         // Handle date conversion safely
         if (job.createdAt && typeof job.createdAt === "string") {
@@ -556,36 +595,38 @@ export default function SkinEnhancerPage() {
 
         setCurrentJob(job);
         setJobHistory((prev) =>
-          prev.map((j) => {
-            if (j?.id === jobId) {
-              return {
-                ...job,
-                createdAt: job.createdAt || j.createdAt
-              };
-            }
-            return j;
-          }).filter(Boolean)
+          prev
+            .map((j) => {
+              if (j?.id === jobId) {
+                return {
+                  ...job,
+                  createdAt: job.createdAt || j.createdAt,
+                };
+              }
+              return j;
+            })
+            .filter(Boolean)
         );
 
         if (job.status === "completed") {
-          console.log('✅ Job completed successfully!');
+          console.log("✅ Job completed successfully!");
           setIsGenerating(false);
-          
+
           // Fetch database images for completed job with retry logic
-          console.log('🔄 Attempting to fetch job images...');
+          console.log("🔄 Attempting to fetch job images...");
           const fetchSuccess = await fetchJobImages(jobId);
-          
+
           // If fetch failed or no images found, retry after a short delay
           if (!fetchSuccess) {
-            console.log('🔄 Retrying image fetch after delay...');
+            console.log("🔄 Retrying image fetch after delay...");
             setTimeout(() => {
               fetchJobImages(jobId);
             }, 3000);
           }
-          
+
           return;
         } else if (job.status === "failed") {
-          console.log('❌ Job failed:', job.error);
+          console.log("❌ Job failed:", job.error);
           setIsGenerating(false);
           return;
         }
@@ -596,29 +637,46 @@ export default function SkinEnhancerPage() {
           const interval = attempts < 30 ? 2000 : attempts < 60 ? 3000 : 5000;
           setTimeout(poll, interval);
         } else {
-          console.error('⏰ Polling timeout reached after', maxAttempts, 'attempts');
+          console.error(
+            "⏰ Polling timeout reached after",
+            maxAttempts,
+            "attempts"
+          );
           setIsGenerating(false);
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            status: "failed" as const,
-            error: "Processing timeout - skin enhancement may still be running in the background. Check back later or try refreshing the page."
-          } : null);
+          setCurrentJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed" as const,
+                  error:
+                    "Processing timeout - skin enhancement may still be running in the background. Check back later or try refreshing the page.",
+                }
+              : null
+          );
         }
       } catch (error) {
         console.error("💥 Polling error:", error);
-        
+
         if (attempts < maxAttempts) {
           // Use exponential backoff for errors
-          const retryDelay = Math.min(2000 * Math.pow(1.5, Math.floor(attempts / 10)), 10000);
+          const retryDelay = Math.min(
+            2000 * Math.pow(1.5, Math.floor(attempts / 10)),
+            10000
+          );
           console.log(`🔄 Retrying in ${retryDelay}ms...`);
           setTimeout(poll, retryDelay);
         } else {
           setIsGenerating(false);
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            status: "failed" as const,
-            error: "Failed to get job status - please check your connection and try again"
-          } : null);
+          setCurrentJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed" as const,
+                  error:
+                    "Failed to get job status - please check your connection and try again",
+                }
+              : null
+          );
         }
       }
     };
@@ -634,318 +692,329 @@ export default function SkinEnhancerPage() {
 
     const workflow: any = {
       "8": {
-        "inputs": {
-          "samples": ["104", 0],
-          "vae": ["98", 0]
+        inputs: {
+          samples: ["104", 0],
+          vae: ["98", 0],
         },
-        "class_type": "VAEDecode"
+        class_type: "VAEDecode",
       },
       "8_save": {
-        "inputs": {
-          "images": ["8", 0],
-          "filename_prefix": "flux_initial"
+        inputs: {
+          images: ["8", 0],
+          filename_prefix: "flux_initial",
         },
-        "class_type": "SaveImage"
+        class_type: "SaveImage",
       },
       "28": {
-        "inputs": {
-          "images": ["8", 0],
-          "face": true,
-          "hair": true,
-          "body": true,
-          "clothes": false,
-          "accessories": false,
-          "background": false,
-          "confidence": 0.2,
-          "detail_method": "VITMatte(local)",
-          "detail_erode": 6,
-          "detail_dilate": 6,
-          "black_point": 0.01,
-          "white_point": 0.99,
-          "process_detail": true,
-          "device": "cuda",
-          "max_megapixels": 2
+        inputs: {
+          images: ["8", 0],
+          face: true,
+          hair: true,
+          body: true,
+          clothes: false,
+          accessories: false,
+          background: false,
+          confidence: 0.2,
+          detail_method: "VITMatte(local)",
+          detail_erode: 6,
+          detail_dilate: 6,
+          black_point: 0.01,
+          white_point: 0.99,
+          process_detail: true,
+          device: "cuda",
+          max_megapixels: 2,
         },
-        "class_type": "LayerMask: PersonMaskUltra V2"
+        class_type: "LayerMask: PersonMaskUltra V2",
       },
       "31": {
-        "inputs": {
-          "ckpt_name": "epicrealismXL_v8kiss.safetensors"
+        inputs: {
+          ckpt_name: "epicrealismXL_v8kiss.safetensors",
         },
-        "class_type": "CheckpointLoaderSimple"
+        class_type: "CheckpointLoaderSimple",
       },
       "35": {
-        "inputs": {
-          "text": "Blurred, out of focus, low resolution, pixelated, cartoonish, unrealistic, overexposed, underexposed, flat lighting, distorted, artifacts, noise, extra limbs, deformed features, plastic skin, airbrushed, CGI, over-saturated colors, watermarks, text.",
-          "clip": ["115_2", 1]
+        inputs: {
+          text: "Blurred, out of focus, low resolution, pixelated, cartoonish, unrealistic, overexposed, underexposed, flat lighting, distorted, artifacts, noise, extra limbs, deformed features, plastic skin, airbrushed, CGI, over-saturated colors, watermarks, text.",
+          clip: ["115_2", 1],
         },
-        "class_type": "CLIPTextEncode"
+        class_type: "CLIPTextEncode",
       },
       "37": {
-        "inputs": {
-          "pixels": ["8", 0],
-          "vae": ["31", 2]
+        inputs: {
+          pixels: ["8", 0],
+          vae: ["31", 2],
         },
-        "class_type": "VAEEncode"
+        class_type: "VAEEncode",
       },
       "38": {
-        "inputs": {
-          "samples": ["37", 0],
-          "mask": ["28", 1]
+        inputs: {
+          samples: ["37", 0],
+          mask: ["28", 1],
         },
-        "class_type": "SetLatentNoiseMask"
+        class_type: "SetLatentNoiseMask",
       },
       "39": {
-        "inputs": {
-          "samples": ["41", 0],
-          "vae": ["31", 2]
+        inputs: {
+          samples: ["41", 0],
+          vae: ["31", 2],
         },
-        "class_type": "VAEDecode"
+        class_type: "VAEDecode",
       },
       "41": {
-        "inputs": {
-          "seed": seed,
-          "steps": 25,
-          "cfg": 0.7,
-          "sampler_name": "dpmpp_2m",
-          "scheduler": "karras",
-          "denoise": 0.25,
-          "model": ["115_2", 0],
-          "positive": ["113", 0],
-          "negative": ["35", 0],
-          "latent_image": ["38", 0]
+        inputs: {
+          seed: seed,
+          steps: 25,
+          cfg: 0.7,
+          sampler_name: "dpmpp_2m",
+          scheduler: "karras",
+          denoise: 0.25,
+          model: ["115_2", 0],
+          positive: ["113", 0],
+          negative: ["35", 0],
+          latent_image: ["38", 0],
         },
-        "class_type": "KSampler"
+        class_type: "KSampler",
       },
       "58": {
-        "inputs": {
-          "model": ["59", 0],
-          "processor": ["60", 0],
-          "image": ["39", 0]
+        inputs: {
+          model: ["59", 0],
+          processor: ["60", 0],
+          image: ["39", 0],
         },
-        "class_type": "FaceParse(FaceParsing)"
+        class_type: "FaceParse(FaceParsing)",
       },
       "59": {
-        "inputs": {
-          "device": "cpu"
+        inputs: {
+          device: "cpu",
         },
-        "class_type": "FaceParsingModelLoader(FaceParsing)"
+        class_type: "FaceParsingModelLoader(FaceParsing)",
       },
       "60": {
-        "inputs": {},
-        "class_type": "FaceParsingProcessorLoader(FaceParsing)"
+        inputs: {},
+        class_type: "FaceParsingProcessorLoader(FaceParsing)",
       },
       "62": {
-        "inputs": {
-          "result": ["58", 1],
-          "background": false,
-          "skin": false,
-          "nose": false,
-          "eye_g": false,
-          "r_eye": true,
-          "l_eye": true,
-          "r_brow": false,
-          "l_brow": false,
-          "r_ear": false,
-          "l_ear": false,
-          "mouth": false,
-          "u_lip": false,
-          "l_lip": false,
-          "hair": false,
-          "hat": false,
-          "ear_r": false,
-          "neck_l": false,
-          "neck": false,
-          "cloth": false
+        inputs: {
+          result: ["58", 1],
+          background: false,
+          skin: false,
+          nose: false,
+          eye_g: false,
+          r_eye: true,
+          l_eye: true,
+          r_brow: false,
+          l_brow: false,
+          r_ear: false,
+          l_ear: false,
+          mouth: false,
+          u_lip: false,
+          l_lip: false,
+          hair: false,
+          hat: false,
+          ear_r: false,
+          neck_l: false,
+          neck: false,
+          cloth: false,
         },
-        "class_type": "FaceParsingResultsParser(FaceParsing)"
+        class_type: "FaceParsingResultsParser(FaceParsing)",
       },
       "66": {
-        "inputs": {
-          "mask": ["62", 0],
-          "expand": 10,
-          "incremental_expandrate": 0,
-          "tapered_corners": true,
-          "flip_input": false,
-          "blur_radius": 4,
-          "lerp_alpha": 1,
-          "decay_factor": 1,
-          "fill_holes": false
+        inputs: {
+          mask: ["62", 0],
+          expand: 10,
+          incremental_expandrate: 0,
+          tapered_corners: true,
+          flip_input: false,
+          blur_radius: 4,
+          lerp_alpha: 1,
+          decay_factor: 1,
+          fill_holes: false,
         },
-        "class_type": "GrowMaskWithBlur"
+        class_type: "GrowMaskWithBlur",
       },
       "82": {
-        "inputs": {
-          "image": ["39", 0],
-          "mask": ["84", 0],
-          "force_resize_width": 0,
-          "force_resize_height": 0
+        inputs: {
+          image: ["39", 0],
+          mask: ["84", 0],
+          force_resize_width: 0,
+          force_resize_height: 0,
         },
-        "class_type": "Cut By Mask"
+        class_type: "Cut By Mask",
       },
       "84": {
-        "inputs": {
-          "mask": ["66", 0]
+        inputs: {
+          mask: ["66", 0],
         },
-        "class_type": "MaskToImage"
+        class_type: "MaskToImage",
       },
       "86": {
-        "inputs": {
-          "destination": ["39", 0],
-          "source": ["82", 0],
-          "mask": ["66", 0],
-          "x": 0,
-          "y": 0,
-          "resize_source": false
+        inputs: {
+          destination: ["39", 0],
+          source: ["82", 0],
+          mask: ["66", 0],
+          x: 0,
+          y: 0,
+          resize_source: false,
         },
-        "class_type": "ImageCompositeMasked"
+        class_type: "ImageCompositeMasked",
       },
       "98": {
-        "inputs": {
-          "vae": ["102", 0],
-          "device": "cuda:0"
+        inputs: {
+          vae: ["102", 0],
+          device: "cuda:0",
         },
-        "class_type": "OverrideVAEDevice"
+        class_type: "OverrideVAEDevice",
       },
       "99": {
-        "inputs": {
-          "clip": ["119", 0],
-          "device": "cpu"
+        inputs: {
+          clip: ["119", 0],
+          device: "cpu",
         },
-        "class_type": "OverrideCLIPDevice"
+        class_type: "OverrideCLIPDevice",
       },
       "100": {
-        "inputs": {
-          "width": params.width,
-          "height": params.height,
-          "batch_size": params.batchSize
+        inputs: {
+          width: params.width,
+          height: params.height,
+          batch_size: params.batchSize,
         },
-        "class_type": "EmptyLatentImage"
+        class_type: "EmptyLatentImage",
       },
       "102": {
-        "inputs": {
-          "vae_name": "ae.safetensors"
+        inputs: {
+          vae_name: "ae.safetensors",
         },
-        "class_type": "VAELoader"
+        class_type: "VAELoader",
       },
       "103": {
-        "inputs": {
-          "conditioning": ["106", 0],
-          "guidance": 4
+        inputs: {
+          conditioning: ["106", 0],
+          guidance: 4,
         },
-        "class_type": "FluxGuidance"
+        class_type: "FluxGuidance",
       },
       "104": {
-        "inputs": {
-          "seed": seed,
-          "steps": 40,
-          "cfg": 1,
-          "sampler_name": "heun",
-          "scheduler": "beta",
-          "denoise": 1,
-          "model": ["108", 0],
-          "positive": ["103", 0],
-          "negative": ["107", 0],
-          "latent_image": ["100", 0]
+        inputs: {
+          seed: seed,
+          steps: 40,
+          cfg: 1,
+          sampler_name: "heun",
+          scheduler: "beta",
+          denoise: 1,
+          model: ["108", 0],
+          positive: ["103", 0],
+          negative: ["107", 0],
+          latent_image: ["100", 0],
         },
-        "class_type": "KSampler"
+        class_type: "KSampler",
       },
       "105": {
-        "inputs": {
-          "text": "",
-          "clip": ["108", 1]
+        inputs: {
+          text: "",
+          clip: ["108", 1],
         },
-        "class_type": "CLIPTextEncode"
+        class_type: "CLIPTextEncode",
       },
       "106": {
-        "inputs": {
-          "text": params.prompt, // Main user prompt (first prompt)
-          "clip": ["108", 1]
+        inputs: {
+          text: params.prompt, // Main user prompt (first prompt)
+          clip: ["108", 1],
         },
-        "class_type": "CLIPTextEncode"
+        class_type: "CLIPTextEncode",
       },
       "107": {
-        "inputs": {
-          "conditioning": ["105", 0]
+        inputs: {
+          conditioning: ["105", 0],
         },
-        "class_type": "ConditioningZeroOut"
+        class_type: "ConditioningZeroOut",
       },
       "108": {
-        "inputs": {
-          "model": ["118", 0],
-          "clip": ["99", 0],
-          "lora_name": useInfluencerLoRA ? params.selectedInfluencerLora : "TI - Girl Version.safetensors",
-          "strength_model": useInfluencerLoRA ? params.influencerLoraStrength : 0.95,
-          "strength_clip": useInfluencerLoRA ? params.influencerLoraStrength : 0.95
+        inputs: {
+          model: ["118", 0],
+          clip: ["99", 0],
+          lora_name: useInfluencerLoRA
+            ? params.selectedInfluencerLora
+            : "TI - Girl Version.safetensors",
+          strength_model: useInfluencerLoRA
+            ? params.influencerLoraStrength
+            : 0.95,
+          strength_clip: useInfluencerLoRA
+            ? params.influencerLoraStrength
+            : 0.95,
         },
-        "class_type": "LoraLoader"
+        class_type: "LoraLoader",
       },
       "113": {
-        "inputs": {
-          "text": "closeup photo of a young woman with natural skin imperfections, fine skin pores, and realistic skin tones, photorealistic, soft diffused lighting, subsurface scattering, hyper-detailed shading, dynamic shadows, 8K resolution, cinematic lighting, masterpiece, intricate details, shot on a DSLR with a 50mm lens.", // Fixed second prompt
-          "clip": ["115_2", 1]
+        inputs: {
+          text: "closeup photo of a young woman with natural skin imperfections, fine skin pores, and realistic skin tones, photorealistic, soft diffused lighting, subsurface scattering, hyper-detailed shading, dynamic shadows, 8K resolution, cinematic lighting, masterpiece, intricate details, shot on a DSLR with a 50mm lens.", // Fixed second prompt
+          clip: ["115_2", 1],
         },
-        "class_type": "CLIPTextEncode"
+        class_type: "CLIPTextEncode",
       },
       "114": {
-        "inputs": {
-          "images": ["86", 0],
-          "filename_prefix": "skin_enhanced"
+        inputs: {
+          images: ["86", 0],
+          filename_prefix: "skin_enhanced",
         },
-        "class_type": "SaveImage"
+        class_type: "SaveImage",
       },
       "115": {
-        "inputs": {
-          "model": ["31", 0],
-          "clip": ["31", 1],
-          "lora_name": "real-humans-PublicPrompts.safetensors",
-          "strength_model": 1.0,
-          "strength_clip": 1.0
+        inputs: {
+          model: ["31", 0],
+          clip: ["31", 1],
+          lora_name: "real-humans-PublicPrompts.safetensors",
+          strength_model: 1.0,
+          strength_clip: 1.0,
         },
-        "class_type": "LoraLoader"
+        class_type: "LoraLoader",
       },
       "115_2": {
-        "inputs": {
-          "model": ["115", 0],
-          "clip": ["115", 1],
-          "lora_name": "more_details.safetensors",
-          "strength_model": 0.6,
-          "strength_clip": 0.6
+        inputs: {
+          model: ["115", 0],
+          clip: ["115", 1],
+          lora_name: "more_details.safetensors",
+          strength_model: 0.6,
+          strength_clip: 0.6,
         },
-        "class_type": "LoraLoader"
+        class_type: "LoraLoader",
       },
       "118": {
-        "inputs": {
-          "unet_name": "flux1-dev.safetensors",
-          "weight_dtype": "default"
+        inputs: {
+          unet_name: "flux1-dev.safetensors",
+          weight_dtype: "default",
         },
-        "class_type": "UNETLoader"
+        class_type: "UNETLoader",
       },
       "119": {
-        "inputs": {
-          "clip_name1": "ViT-L-14-TEXT-detail-improved-hiT-GmP-HF.safetensors",
-          "clip_name2": "t5xxl_fp16.safetensors",
-          "type": "flux",
-          "device": "default"
+        inputs: {
+          clip_name1: "ViT-L-14-TEXT-detail-improved-hiT-GmP-HF.safetensors",
+          clip_name2: "t5xxl_fp16.safetensors",
+          type: "flux",
+          device: "default",
         },
-        "class_type": "DualCLIPLoader"
-      }
+        class_type: "DualCLIPLoader",
+      },
     };
 
-    console.log('📋 Skin enhancer workflow created with main prompt:', params.prompt);
+    console.log(
+      "📋 Skin enhancer workflow created with main prompt:",
+      params.prompt
+    );
     return workflow;
   };
 
   // Skin Comparison Component - Two-way comparison
-  const SkinComparisonViewer = ({ 
-    initial, 
-    final 
-  }: { 
-    initial: DatabaseImage; 
-    final: DatabaseImage; 
+  const SkinComparisonViewer = ({
+    initial,
+    final,
+  }: {
+    initial: DatabaseImage;
+    final: DatabaseImage;
   }) => {
     const [sliderPosition, setSliderPosition] = useState(50);
-    const [toggleState, setToggleState] = useState<'initial' | 'final'>('initial');
+    const [toggleState, setToggleState] = useState<"initial" | "final">(
+      "initial"
+    );
 
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -956,33 +1025,39 @@ export default function SkinEnhancerPage() {
           </h3>
           <div className="flex space-x-2">
             <button
-              onClick={() => setComparisonMode('split')}
-              className={`px-3 py-1 text-xs rounded ${comparisonMode === 'split' 
-                ? 'bg-green-500 text-white' 
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+              onClick={() => setComparisonMode("split")}
+              className={`px-3 py-1 text-xs rounded ${
+                comparisonMode === "split"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+              }`}
             >
               Split
             </button>
             <button
-              onClick={() => setComparisonMode('overlay')}
-              className={`px-3 py-1 text-xs rounded ${comparisonMode === 'overlay' 
-                ? 'bg-green-500 text-white' 
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+              onClick={() => setComparisonMode("overlay")}
+              className={`px-3 py-1 text-xs rounded ${
+                comparisonMode === "overlay"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+              }`}
             >
               Overlay
             </button>
             <button
-              onClick={() => setComparisonMode('toggle')}
-              className={`px-3 py-1 text-xs rounded ${comparisonMode === 'toggle' 
-                ? 'bg-green-500 text-white' 
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+              onClick={() => setComparisonMode("toggle")}
+              className={`px-3 py-1 text-xs rounded ${
+                comparisonMode === "toggle"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+              }`}
             >
               Toggle
             </button>
           </div>
         </div>
 
-        {comparisonMode === 'split' && (
+        {comparisonMode === "split" && (
           <div className="relative w-full max-w-4xl mx-auto">
             <div className="relative overflow-hidden rounded-lg">
               <div className="flex divide-x-2 divide-white">
@@ -1011,9 +1086,12 @@ export default function SkinEnhancerPage() {
           </div>
         )}
 
-        {comparisonMode === 'overlay' && (
+        {comparisonMode === "overlay" && (
           <div className="relative w-full max-w-2xl mx-auto">
-            <div className="relative overflow-hidden rounded-lg" style={{ aspectRatio: '1' }}>
+            <div
+              className="relative overflow-hidden rounded-lg"
+              style={{ aspectRatio: "1" }}
+            >
               {/* Final image (background) */}
               <img
                 src={final.dataUrl || final.url}
@@ -1026,11 +1104,11 @@ export default function SkinEnhancerPage() {
                 alt="Before enhancement"
                 className="absolute inset-0 w-full h-full object-cover"
                 style={{
-                  clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`
+                  clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
                 }}
               />
               {/* Slider line */}
-              <div 
+              <div
                 className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
                 style={{ left: `${sliderPosition}%` }}
               />
@@ -1060,41 +1138,46 @@ export default function SkinEnhancerPage() {
           </div>
         )}
 
-        {comparisonMode === 'toggle' && (
+        {comparisonMode === "toggle" && (
           <div className="relative w-full max-w-2xl mx-auto">
             <div className="relative overflow-hidden rounded-lg">
               <img
                 src={
-                  toggleState === 'initial' ? (initial.dataUrl || initial.url) :
-                  (final.dataUrl || final.url)
+                  toggleState === "initial"
+                    ? initial.dataUrl || initial.url
+                    : final.dataUrl || final.url
                 }
-                alt={`${toggleState === 'initial' ? 'Before' : 'After'} enhancement`}
+                alt={`${
+                  toggleState === "initial" ? "Before" : "After"
+                } enhancement`}
                 className="w-full rounded-lg"
               />
-              <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs text-white ${
-                toggleState === 'initial' ? 'bg-blue-500' : 'bg-green-500'
-              }`}>
-                {toggleState === 'initial' ? 'Before' : 'After'}
+              <div
+                className={`absolute top-2 left-2 px-2 py-1 rounded text-xs text-white ${
+                  toggleState === "initial" ? "bg-blue-500" : "bg-green-500"
+                }`}
+              >
+                {toggleState === "initial" ? "Before" : "After"}
               </div>
             </div>
             <div className="mt-4 flex justify-center space-x-2">
               <button
-                onClick={() => setToggleState('initial')}
+                onClick={() => setToggleState("initial")}
                 className={`px-3 py-2 rounded-lg flex items-center space-x-1 text-sm ${
-                  toggleState === 'initial' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30'
+                  toggleState === "initial"
+                    ? "bg-blue-500 text-white"
+                    : "bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
                 }`}
               >
                 <Eye className="w-4 h-4" />
                 <span>Before</span>
               </button>
               <button
-                onClick={() => setToggleState('final')}
+                onClick={() => setToggleState("final")}
                 className={`px-3 py-2 rounded-lg flex items-center space-x-1 text-sm ${
-                  toggleState === 'final' 
-                    ? 'bg-green-500 text-white' 
-                    : 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30'
+                  toggleState === "final"
+                    ? "bg-green-500 text-white"
+                    : "bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30"
                 }`}
               >
                 <Eye className="w-4 h-4" />
@@ -1132,7 +1215,9 @@ export default function SkinEnhancerPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-center space-x-3">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            <p className="text-gray-600 dark:text-gray-400">Initializing API client...</p>
+            <p className="text-gray-600 dark:text-gray-400">
+              Initializing API client...
+            </p>
           </div>
         </div>
       </div>
@@ -1200,7 +1285,7 @@ export default function SkinEnhancerPage() {
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Influencer Model (Optional)
               </label>
-              
+
               {loadingLoRAs ? (
                 <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1220,21 +1305,25 @@ export default function SkinEnhancerPage() {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   {availableInfluencerLoRAs.map((lora, index) => (
-                    <option key={`${lora.fileName}-${index}`} value={lora.fileName}>
+                    <option
+                      key={`${lora.fileName}-${index}`}
+                      value={lora.fileName}
+                    >
                       {lora.displayName}
                     </option>
                   ))}
                 </select>
               )}
-              
+
               {params.selectedInfluencerLora !== "None" && (
                 <div className="text-xs text-green-600 dark:text-green-400">
-                  Using influencer model: {availableInfluencerLoRAs.find(lora => lora.fileName === params.selectedInfluencerLora)?.displayName || params.selectedInfluencerLora}
+                  Using influencer model:{" "}
+                  {availableInfluencerLoRAs.find(
+                    (lora) => lora.fileName === params.selectedInfluencerLora
+                  )?.displayName || params.selectedInfluencerLora}
                 </div>
               )}
             </div>
-
-
 
             {/* Aspect Ratio */}
             <div className="space-y-3">
@@ -1256,15 +1345,13 @@ export default function SkinEnhancerPage() {
                     }`}
                   >
                     <div>{ratio.name}</div>
-                    <div className="text-xs opacity-75">{ratio.width}×{ratio.height}</div>
+                    <div className="text-xs opacity-75">
+                      {ratio.width}×{ratio.height}
+                    </div>
                   </button>
                 ))}
               </div>
             </div>
-
-
-
-
           </div>
 
           {/* Enhance Button */}
@@ -1297,13 +1384,21 @@ export default function SkinEnhancerPage() {
               </h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Total Images:</span>
-                  <span className="ml-2 font-medium">{imageStats.totalImages}</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Total Images:
+                  </span>
+                  <span className="ml-2 font-medium">
+                    {imageStats.totalImages}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Total Size:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Total Size:
+                  </span>
                   <span className="ml-2 font-medium">
-                    {Math.round(imageStats.totalSize / 1024 / 1024 * 100) / 100} MB
+                    {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
+                      100}{" "}
+                    MB
                   </span>
                 </div>
               </div>
@@ -1318,7 +1413,8 @@ export default function SkinEnhancerPage() {
                   Current Enhancement
                 </h3>
                 <div className="flex space-x-2">
-                  {(currentJob.status === "processing" || currentJob.status === "pending") && (
+                  {(currentJob.status === "processing" ||
+                    currentJob.status === "pending") && (
                     <button
                       onClick={() => checkJobStatus(currentJob.id)}
                       className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -1354,7 +1450,8 @@ export default function SkinEnhancerPage() {
                     Status
                   </span>
                   <div className="flex items-center space-x-2">
-                    {(currentJob.status === "pending" || currentJob.status === "processing") && (
+                    {(currentJob.status === "pending" ||
+                      currentJob.status === "processing") && (
                       <Loader2 className="w-4 h-4 animate-spin text-green-500" />
                     )}
                     {currentJob.status === "completed" && (
@@ -1365,7 +1462,8 @@ export default function SkinEnhancerPage() {
                     )}
                     <span className="text-sm font-medium capitalize">
                       {currentJob.status}
-                      {currentJob.status === "processing" && " (may take 3-5 minutes)"}
+                      {currentJob.status === "processing" &&
+                        " (may take 3-5 minutes)"}
                     </span>
                   </div>
                 </div>
@@ -1386,156 +1484,209 @@ export default function SkinEnhancerPage() {
                         style={{ width: `${currentJob.progress}%` }}
                       />
                     </div>
-                    {currentJob.status === "processing" && currentJob.progress < 90 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Skin enhancement is a complex process. Please be patient...
-                      </p>
-                    )}
+                    {currentJob.status === "processing" &&
+                      currentJob.progress < 90 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Skin enhancement is a complex process. Please be
+                          patient...
+                        </p>
+                      )}
                   </div>
                 )}
 
                 {/* Show loading or no images message for completed jobs */}
-                {currentJob.status === "completed" && 
-                 (!currentJob.resultUrls || currentJob.resultUrls.length === 0) &&
-                 (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0) && (
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Enhanced Images
-                    </h4>
-                    <div className="text-center py-8">
-                      <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Loading enhanced images...</span>
+                {currentJob.status === "completed" &&
+                  (!currentJob.resultUrls ||
+                    currentJob.resultUrls.length === 0) &&
+                  (!jobImages[currentJob.id] ||
+                    jobImages[currentJob.id].length === 0) && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Enhanced Images
+                      </h4>
+                      <div className="text-center py-8">
+                        <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">
+                            Loading enhanced images...
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => fetchJobImages(currentJob.id)}
+                          className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
+                        >
+                          Refresh Images
+                        </button>
                       </div>
-                      <button
-                        onClick={() => fetchJobImages(currentJob.id)}
-                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
-                      >
-                        Refresh Images
-                      </button>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Enhanced image display with dynamic URL support */}
-                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) || 
-                  (jobImages[currentJob.id] && jobImages[currentJob.id].length > 0)) && (
+                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
+                  (jobImages[currentJob.id] &&
+                    jobImages[currentJob.id].length > 0)) && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Enhanced Images
                       </h4>
-                      {(comparisonImages.initial && comparisonImages.final) && (
+                      {comparisonImages.initial && comparisonImages.final && (
                         <button
                           onClick={() => setShowComparison(!showComparison)}
                           className="px-3 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/30 flex items-center space-x-1 text-sm"
                         >
                           <ArrowRightLeft className="w-4 h-4" />
-                          <span>{showComparison ? 'Hide' : 'Show'} Two-Way Comparison</span>
+                          <span>
+                            {showComparison ? "Hide" : "Show"} Two-Way
+                            Comparison
+                          </span>
                         </button>
                       )}
                     </div>
 
                     {/* Show comparison if enabled */}
-                    {showComparison && comparisonImages.initial && comparisonImages.final && (
-                      <SkinComparisonViewer 
-                        initial={comparisonImages.initial}
-                        final={comparisonImages.final}
-                      />
-                    )}
-                    
+                    {showComparison &&
+                      comparisonImages.initial &&
+                      comparisonImages.final && (
+                        <SkinComparisonViewer
+                          initial={comparisonImages.initial}
+                          final={comparisonImages.final}
+                        />
+                      )}
+
                     <div className="grid grid-cols-1 gap-3">
                       {/* Show database images if available */}
-                      {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 ? (
-                        // Database images with dynamic URLs
-                        jobImages[currentJob.id].map((dbImage, index) => (
-                          <div key={`db-${dbImage.id}`} className="relative group">
-                            <img
-                              src={dbImage.dataUrl || dbImage.url}
-                              alt={`Enhanced image ${index + 1}`}
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                              onError={(e) => {
-                                console.error('Image load error for:', dbImage.filename);
-                                
-                                // Smart fallback logic
-                                const currentSrc = (e.target as HTMLImageElement).src;
-                                
-                                if (currentSrc === dbImage.dataUrl && dbImage.url) {
-                                  console.log('Falling back to ComfyUI URL');
-                                  (e.target as HTMLImageElement).src = dbImage.url;
-                                } else if (currentSrc === dbImage.url && dbImage.dataUrl) {
-                                  console.log('Falling back to database URL');
-                                  (e.target as HTMLImageElement).src = dbImage.dataUrl;
-                                } else {
-                                  console.error('All URLs failed for:', dbImage.filename);
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }
-                              }}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button 
-                                  onClick={() => downloadDatabaseImage(dbImage)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  title={`Download ${dbImage.filename}`}
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => shareImage(dbImage)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
+                      {jobImages[currentJob.id] &&
+                      jobImages[currentJob.id].length > 0
+                        ? // Database images with dynamic URLs
+                          jobImages[currentJob.id].map((dbImage, index) => (
+                            <div
+                              key={`db-${dbImage.id}`}
+                              className="relative group"
+                            >
+                              <img
+                                src={dbImage.dataUrl || dbImage.url}
+                                alt={`Enhanced image ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                onError={(e) => {
+                                  console.error(
+                                    "Image load error for:",
+                                    dbImage.filename
+                                  );
+
+                                  // Smart fallback logic
+                                  const currentSrc = (
+                                    e.target as HTMLImageElement
+                                  ).src;
+
+                                  if (
+                                    currentSrc === dbImage.dataUrl &&
+                                    dbImage.url
+                                  ) {
+                                    console.log("Falling back to ComfyUI URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.url;
+                                  } else if (
+                                    currentSrc === dbImage.url &&
+                                    dbImage.dataUrl
+                                  ) {
+                                    console.log("Falling back to database URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.dataUrl;
+                                  } else {
+                                    console.error(
+                                      "All URLs failed for:",
+                                      dbImage.filename
+                                    );
+                                    (
+                                      e.target as HTMLImageElement
+                                    ).style.display = "none";
+                                  }
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadDatabaseImage(dbImage)
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    title={`Download ${dbImage.filename}`}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => shareImage(dbImage)}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Image metadata */}
+                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                  {dbImage.width && dbImage.height
+                                    ? `${dbImage.width}×${dbImage.height}`
+                                    : "Unknown size"}
+                                  {dbImage.fileSize &&
+                                    ` • ${Math.round(
+                                      dbImage.fileSize / 1024
+                                    )}KB`}
+                                  {dbImage.format &&
+                                    ` • ${dbImage.format.toUpperCase()}`}
+                                </div>
                               </div>
                             </div>
-                            
-                            {/* Image metadata */}
-                            <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                {dbImage.width && dbImage.height ? `${dbImage.width}×${dbImage.height}` : 'Unknown size'}
-                                {dbImage.fileSize && ` • ${Math.round(dbImage.fileSize / 1024)}KB`}
-                                {dbImage.format && ` • ${dbImage.format.toUpperCase()}`}
+                          ))
+                        : // Fallback to legacy URLs if no database images
+                          currentJob.resultUrls &&
+                          currentJob.resultUrls.length > 0 &&
+                          currentJob.resultUrls.map((url, index) => (
+                            <div
+                              key={`legacy-${currentJob.id}-${index}`}
+                              className="relative group"
+                            >
+                              <img
+                                src={url}
+                                alt={`Enhanced image ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                onError={(e) => {
+                                  console.error(
+                                    "Legacy image load error:",
+                                    url
+                                  );
+                                  (e.target as HTMLImageElement).style.display =
+                                    "none";
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadFromUrl(
+                                        url,
+                                        `enhanced-image-${index + 1}.png`
+                                      )
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(url);
+                                      alert("Image URL copied to clipboard!");
+                                    }}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
-                      ) : (
-                        // Fallback to legacy URLs if no database images
-                        currentJob.resultUrls && currentJob.resultUrls.length > 0 && 
-                        currentJob.resultUrls.map((url, index) => (
-                          <div key={`legacy-${currentJob.id}-${index}`} className="relative group">
-                            <img
-                              src={url}
-                              alt={`Enhanced image ${index + 1}`}
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                              onError={(e) => {
-                                console.error('Legacy image load error:', url);
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button 
-                                  onClick={() => downloadFromUrl(url, `enhanced-image-${index + 1}.png`)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(url);
-                                    alert('Image URL copied to clipboard!');
-                                  }}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                          ))}
                     </div>
                   </div>
                 )}
@@ -1549,7 +1700,8 @@ export default function SkinEnhancerPage() {
                         </p>
                         {currentJob.error.includes("timeout") && (
                           <p className="text-xs text-red-500 dark:text-red-400">
-                            The job may still be processing. Try checking status or starting a new enhancement.
+                            The job may still be processing. Try checking status
+                            or starting a new enhancement.
                           </p>
                         )}
                       </div>
@@ -1575,44 +1727,47 @@ export default function SkinEnhancerPage() {
                 Recent Enhancements
               </h3>
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {jobHistory.filter(job => job && job.id).slice(0, 10).map((job, index) => (
-                  <div
-                    key={job.id || `job-${index}`}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      {job.status === "completed" && (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      )}
-                      {job.status === "failed" && (
-                        <AlertCircle className="w-4 h-4 text-red-500" />
-                      )}
-                      {(job.status === "pending" ||
-                        job.status === "processing") && (
-                        <Loader2 className="w-4 h-4 animate-spin text-green-500" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {formatJobTime(job.createdAt)}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {job.status || 'unknown'}
-                        </p>
+                {jobHistory
+                  .filter((job) => job && job.id)
+                  .slice(0, 10)
+                  .map((job, index) => (
+                    <div
+                      key={job.id || `job-${index}`}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    >
+                      <div className="flex items-center space-x-3">
+                        {job.status === "completed" && (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        )}
+                        {job.status === "failed" && (
+                          <AlertCircle className="w-4 h-4 text-red-500" />
+                        )}
+                        {(job.status === "pending" ||
+                          job.status === "processing") && (
+                          <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {formatJobTime(job.createdAt)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                            {job.status || "unknown"}
+                          </p>
+                        </div>
                       </div>
+                      {job.resultUrls && job.resultUrls.length > 0 && (
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => fetchJobImages(job.id)}
+                            className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
+                            title="Refresh images"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {job.resultUrls && job.resultUrls.length > 0 && (
-                      <div className="flex space-x-1">
-                        <button 
-                          onClick={() => fetchJobImages(job.id)}
-                          className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
-                          title="Refresh images"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           )}

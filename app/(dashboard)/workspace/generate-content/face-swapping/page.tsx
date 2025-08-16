@@ -93,7 +93,7 @@ const ASPECT_RATIOS = [
 
 const SAMPLERS = [
   "euler",
-  "euler_ancestral", 
+  "euler_ancestral",
   "heun",
   "dpm_2",
   "dpm_2_ancestral",
@@ -112,30 +112,23 @@ const SCHEDULERS = [
   "beta",
 ];
 
-const RESCALE_ALGORITHMS = [
-  "bislerp",
-  "bicubic",
-  "bilinear",
-  "nearest",
-];
+const RESCALE_ALGORITHMS = ["bislerp", "bicubic", "bilinear", "nearest"];
 
-const INPAINT_MODES = [
-  "forced size",
-  "resize canvas",
-];
+const INPAINT_MODES = ["forced size", "resize canvas"];
 
 const formatJobTime = (createdAt: Date | string | undefined): string => {
   try {
     if (!createdAt) {
       return "Unknown time";
     }
-    
-    const date = typeof createdAt === "string" ? new Date(createdAt) : createdAt;
-    
+
+    const date =
+      typeof createdAt === "string" ? new Date(createdAt) : createdAt;
+
     if (isNaN(date.getTime())) {
       return "Invalid time";
     }
-    
+
     return date.toLocaleTimeString();
   } catch (error) {
     console.error("Error formatting date:", error);
@@ -145,9 +138,10 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 
 export default function FaceSwappingPage() {
   const apiClient = useApiClient();
-  
+
   const [params, setParams] = useState<FaceSwapParams>({
-    prompt: "Retain face. fit the face perfectly to the body. natural realistic eyes, match the skin tone of the body to the face",
+    prompt:
+      "Retain face. fit the face perfectly to the body. natural realistic eyes, match the skin tone of the body to the face",
     width: 832,
     height: 1216,
     batchSize: 1,
@@ -180,33 +174,51 @@ export default function FaceSwappingPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [availableLoRAs, setAvailableLoRAs] = useState<LoRAModel[]>([
-    { fileName: 'comfyui_portrait_lora64.safetensors', displayName: 'Portrait LoRA', name: 'portrait_lora' },
-    { fileName: 'FLUX.1-Turbo-Alpha.safetensors', displayName: 'FLUX Turbo Alpha', name: 'flux_turbo' }
+    {
+      fileName: "comfyui_portrait_lora64.safetensors",
+      displayName: "Portrait LoRA",
+      name: "portrait_lora",
+    },
+    {
+      fileName: "FLUX.1-Turbo-Alpha.safetensors",
+      displayName: "FLUX Turbo Alpha",
+      name: "flux_turbo",
+    },
   ]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
   // Original image states (image with face to be replaced)
   const [originalImage, setOriginalImage] = useState<File | null>(null);
-  const [originalImagePreview, setOriginalImagePreview] = useState<string | null>(null);
+  const [originalImagePreview, setOriginalImagePreview] = useState<
+    string | null
+  >(null);
   const [maskData, setMaskData] = useState<string | null>(null);
   const [showMaskEditor, setShowMaskEditor] = useState(false);
-  const [uploadedOriginalFilename, setUploadedOriginalFilename] = useState<string | null>(null);
+  const [uploadedOriginalFilename, setUploadedOriginalFilename] = useState<
+    string | null
+  >(null);
 
   // New face image states
   const [newFaceImage, setNewFaceImage] = useState<File | null>(null);
-  const [newFaceImagePreview, setNewFaceImagePreview] = useState<string | null>(null);
-  const [uploadedNewFaceFilename, setUploadedNewFaceFilename] = useState<string | null>(null);
+  const [newFaceImagePreview, setNewFaceImagePreview] = useState<string | null>(
+    null
+  );
+  const [uploadedNewFaceFilename, setUploadedNewFaceFilename] = useState<
+    string | null
+  >(null);
 
   const [uploadingImage, setUploadingImage] = useState(false);
-  
+
   // Simple masking states
   const [isDrawing, setIsDrawing] = useState(false);
-  const [brushTool, setBrushTool] = useState<'brush' | 'eraser'>('brush');
+  const [brushTool, setBrushTool] = useState<"brush" | "eraser">("brush");
   const [brushSize, setBrushSize] = useState(20);
   const [showMask, setShowMask] = useState(true);
 
   // Database image states
-  const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>({});
+  const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
+    {}
+  );
   const [imageStats, setImageStats] = useState<any>(null);
 
   const originalFileInputRef = useRef<HTMLInputElement>(null);
@@ -230,23 +242,25 @@ export default function FaceSwappingPage() {
   }, [apiClient]);
 
   // Handle original image upload
-  const handleOriginalImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOriginalImageUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (file) {
       // Validate file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please select a valid image file');
+      if (!file.type.startsWith("image/")) {
+        alert("Please select a valid image file");
         return;
       }
 
       // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
-        alert('Image size must be less than 10MB');
+        alert("Image size must be less than 10MB");
         return;
       }
 
       setOriginalImage(file);
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -257,23 +271,25 @@ export default function FaceSwappingPage() {
   };
 
   // Handle new face image upload
-  const handleNewFaceImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNewFaceImageUpload = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (file) {
       // Validate file type
-      if (!file.type.startsWith('image/')) {
-        alert('Please select a valid image file');
+      if (!file.type.startsWith("image/")) {
+        alert("Please select a valid image file");
         return;
       }
 
       // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
-        alert('Image size must be less than 10MB');
+        alert("Image size must be less than 10MB");
         return;
       }
 
       setNewFaceImage(file);
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -290,7 +306,7 @@ export default function FaceSwappingPage() {
     setShowMaskEditor(false);
     setUploadedOriginalFilename(null);
     if (originalFileInputRef.current) {
-      originalFileInputRef.current.value = '';
+      originalFileInputRef.current.value = "";
     }
   };
 
@@ -299,79 +315,88 @@ export default function FaceSwappingPage() {
     const canvas = canvasRef.current;
     const maskCanvas = maskCanvasRef.current;
     const image = imageRef.current;
-    
+
     if (!canvas || !maskCanvas || !image || !originalImagePreview) return;
-    
+
     // Use the actual image dimensions for the canvas
     const { naturalWidth: width, naturalHeight: height } = image;
-    
+
     // Set canvas display size for UI (scaled down for editing)
     const maxDisplayWidth = 400;
     const maxDisplayHeight = 300;
     let displayWidth = width;
     let displayHeight = height;
-    
+
     if (width > maxDisplayWidth || height > maxDisplayHeight) {
-      const scale = Math.min(maxDisplayWidth / width, maxDisplayHeight / height);
+      const scale = Math.min(
+        maxDisplayWidth / width,
+        maxDisplayHeight / height
+      );
       displayWidth = width * scale;
       displayHeight = height * scale;
     }
-    
+
     // Set actual canvas size to match original image (for proper mask resolution)
-    [canvas, maskCanvas].forEach(c => {
-      c.width = width;           // Full resolution
-      c.height = height;         // Full resolution
-      c.style.width = `${displayWidth}px`;   // Display size
+    [canvas, maskCanvas].forEach((c) => {
+      c.width = width; // Full resolution
+      c.height = height; // Full resolution
+      c.style.width = `${displayWidth}px`; // Display size
       c.style.height = `${displayHeight}px`; // Display size
     });
-    
+
     // Draw image on main canvas at full resolution
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (ctx) {
       ctx.drawImage(image, 0, 0, width, height);
     }
-    
+
     // Initialize mask canvas
-    const maskCtx = maskCanvas.getContext('2d');
+    const maskCtx = maskCanvas.getContext("2d");
     if (maskCtx) {
-      maskCtx.fillStyle = 'rgba(0, 0, 0, 0)';
+      maskCtx.fillStyle = "rgba(0, 0, 0, 0)";
       maskCtx.fillRect(0, 0, width, height);
     }
-    
+
     updateMaskPreview();
   }, [originalImagePreview]);
 
   const updateMaskPreview = useCallback(() => {
     const canvas = canvasRef.current;
     const maskCanvas = maskCanvasRef.current;
-    
+
     if (!canvas || !maskCanvas || !imageRef.current) return;
-    
-    const ctx = canvas.getContext('2d');
+
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    
+
     // Clear and redraw image
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
-    
+
     if (showMask) {
       // Overlay mask with red tint
-      const maskCtx = maskCanvas.getContext('2d');
+      const maskCtx = maskCanvas.getContext("2d");
       if (maskCtx) {
-        const maskImageData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+        const maskImageData = maskCtx.getImageData(
+          0,
+          0,
+          maskCanvas.width,
+          maskCanvas.height
+        );
         const data = maskImageData.data;
-        
+
         ctx.globalAlpha = 0.5;
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-        
+        ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+
         for (let i = 0; i < data.length; i += 4) {
-          if (data[i + 3] > 0) { // If mask pixel has alpha > 0
+          if (data[i + 3] > 0) {
+            // If mask pixel has alpha > 0
             const x = (i / 4) % maskCanvas.width;
-            const y = Math.floor((i / 4) / maskCanvas.width);
+            const y = Math.floor(i / 4 / maskCanvas.width);
             ctx.fillRect(x, y, 1, 1);
           }
         }
-        
+
         ctx.globalAlpha = 1;
       }
     }
@@ -380,52 +405,63 @@ export default function FaceSwappingPage() {
   const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
-    
+
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;   // Scale from display to actual canvas
+    const scaleX = canvas.width / rect.width; // Scale from display to actual canvas
     const scaleY = canvas.height / rect.height; // Scale from display to actual canvas
-    
+
     return {
       x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
+      y: (e.clientY - rect.top) * scaleY,
     };
   };
 
-  const drawOnMask = useCallback((x: number, y: number) => {
-    const maskCanvas = maskCanvasRef.current;
-    const canvas = canvasRef.current;
-    if (!maskCanvas || !canvas) return;
-    
-    const ctx = maskCanvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Scale brush size based on canvas resolution vs display size
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaledBrushSize = brushSize * scaleX; // Scale brush to match resolution
-    
-    ctx.globalCompositeOperation = brushTool === 'brush' ? 'source-over' : 'destination-out';
-    ctx.fillStyle = brushTool === 'brush' ? 'white' : 'transparent';
-    ctx.beginPath();
-    ctx.arc(x, y, scaledBrushSize / 2, 0, 2 * Math.PI);
-    ctx.fill();
-    
-    updateMaskPreview();
-    generateMaskData();
-  }, [brushTool, brushSize, updateMaskPreview]);
+  const drawOnMask = useCallback(
+    (x: number, y: number) => {
+      const maskCanvas = maskCanvasRef.current;
+      const canvas = canvasRef.current;
+      if (!maskCanvas || !canvas) return;
+
+      const ctx = maskCanvas.getContext("2d");
+      if (!ctx) return;
+
+      // Scale brush size based on canvas resolution vs display size
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaledBrushSize = brushSize * scaleX; // Scale brush to match resolution
+
+      ctx.globalCompositeOperation =
+        brushTool === "brush" ? "source-over" : "destination-out";
+      ctx.fillStyle = brushTool === "brush" ? "white" : "transparent";
+      ctx.beginPath();
+      ctx.arc(x, y, scaledBrushSize / 2, 0, 2 * Math.PI);
+      ctx.fill();
+
+      updateMaskPreview();
+      generateMaskData();
+    },
+    [brushTool, brushSize, updateMaskPreview]
+  );
 
   const generateMaskData = useCallback(() => {
     const maskCanvas = maskCanvasRef.current;
     if (!maskCanvas) return;
-    
-    const ctx = maskCanvas.getContext('2d');
+
+    const ctx = maskCanvas.getContext("2d");
     if (!ctx) return;
-    
-    const imageData = ctx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-    const hasContent = imageData.data.some((_, i) => i % 4 === 3 && imageData.data[i] > 0);
-    
+
+    const imageData = ctx.getImageData(
+      0,
+      0,
+      maskCanvas.width,
+      maskCanvas.height
+    );
+    const hasContent = imageData.data.some(
+      (_, i) => i % 4 === 3 && imageData.data[i] > 0
+    );
+
     if (hasContent) {
-      const maskDataUrl = maskCanvas.toDataURL('image/png');
+      const maskDataUrl = maskCanvas.toDataURL("image/png");
       setMaskData(maskDataUrl);
     } else {
       setMaskData(null);
@@ -435,10 +471,10 @@ export default function FaceSwappingPage() {
   const clearMask = useCallback(() => {
     const maskCanvas = maskCanvasRef.current;
     if (!maskCanvas) return;
-    
-    const ctx = maskCanvas.getContext('2d');
+
+    const ctx = maskCanvas.getContext("2d");
     if (!ctx) return;
-    
+
     ctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
     updateMaskPreview();
     setMaskData(null);
@@ -476,45 +512,51 @@ export default function FaceSwappingPage() {
     setNewFaceImagePreview(null);
     setUploadedNewFaceFilename(null);
     if (newFaceFileInputRef.current) {
-      newFaceFileInputRef.current.value = '';
+      newFaceFileInputRef.current.value = "";
     }
   };
-
-
 
   // Function to fetch images for a completed job
   const fetchJobImages = async (jobId: string): Promise<boolean> => {
     if (!apiClient) return false;
-    
+
     try {
-      console.log('🖼️ Fetching database images for job:', jobId);
-      
+      console.log("🖼️ Fetching database images for job:", jobId);
+
       const response = await apiClient.get(`/api/jobs/${jobId}/images`);
-      console.log('📡 Image fetch response status:', response.status);
-      
+      console.log("📡 Image fetch response status:", response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Failed to fetch job images:', response.status, errorText);
+        console.error(
+          "Failed to fetch job images:",
+          response.status,
+          errorText
+        );
         return false;
       }
-      
+
       const data = await response.json();
-      console.log('📊 Job images data:', data);
-      
+      console.log("📊 Job images data:", data);
+
       if (data.success && data.images && Array.isArray(data.images)) {
-        setJobImages(prev => ({
+        setJobImages((prev) => ({
           ...prev,
-          [jobId]: data.images
+          [jobId]: data.images,
         }));
-        console.log('✅ Updated job images state for job:', jobId, 'Images count:', data.images.length);
+        console.log(
+          "✅ Updated job images state for job:",
+          jobId,
+          "Images count:",
+          data.images.length
+        );
         return data.images.length > 0;
       } else {
-        console.warn('⚠️ Invalid response format:', data);
+        console.warn("⚠️ Invalid response format:", data);
         return false;
       }
-      
     } catch (error) {
-      console.error('💥 Error fetching job images:', error);
+      console.error("💥 Error fetching job images:", error);
       return false;
     }
   };
@@ -527,17 +569,17 @@ export default function FaceSwappingPage() {
     }
 
     try {
-      const response = await apiClient.get('/api/images?stats=true');
-      
+      const response = await apiClient.get("/api/images?stats=true");
+
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setImageStats(data.stats);
-          console.log('📊 Image stats:', data.stats);
+          console.log("📊 Image stats:", data.stats);
         }
       }
     } catch (error) {
-      console.error('Error fetching image stats:', error);
+      console.error("Error fetching image stats:", error);
     }
   };
 
@@ -549,63 +591,65 @@ export default function FaceSwappingPage() {
     }
 
     try {
-      console.log('📥 Downloading image:', image.filename);
-      
+      console.log("📥 Downloading image:", image.filename);
+
       if (image.dataUrl) {
         const response = await apiClient.get(image.dataUrl);
-        
+
         if (response.ok) {
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
-          
-          const link = document.createElement('a');
+
+          const link = document.createElement("a");
           link.href = url;
           link.download = image.filename;
           link.click();
-          
+
           URL.revokeObjectURL(url);
-          console.log('✅ Database image downloaded');
+          console.log("✅ Database image downloaded");
           return;
         }
       }
-      
+
       if (image.url) {
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = image.url;
         link.download = image.filename;
         link.click();
-        console.log('✅ ComfyUI image downloaded');
+        console.log("✅ ComfyUI image downloaded");
         return;
       }
-      
-      throw new Error('No download URL available');
-      
+
+      throw new Error("No download URL available");
     } catch (error) {
-      console.error('Error downloading image:', error);
-      alert('Failed to download image: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      console.error("Error downloading image:", error);
+      alert(
+        "Failed to download image: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
     }
   };
 
   // Function to share image URL
   const shareImage = (image: DatabaseImage) => {
-    let urlToShare = '';
-    
+    let urlToShare = "";
+
     if (image.dataUrl) {
       urlToShare = `${window.location.origin}${image.dataUrl}`;
     } else if (image.url) {
       urlToShare = image.url;
     } else {
-      alert('No shareable URL available for this image');
+      alert("No shareable URL available for this image");
       return;
     }
-    
+
     navigator.clipboard.writeText(urlToShare);
-    alert('Image URL copied to clipboard!');
+    alert("Image URL copied to clipboard!");
   };
 
   // Helper function for legacy URL downloads
   const downloadFromUrl = (url: string, filename: string) => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = filename;
     link.click();
@@ -621,24 +665,27 @@ export default function FaceSwappingPage() {
     const fetchLoRAModels = async () => {
       try {
         setLoadingLoRAs(true);
-        console.log('=== FETCHING LORA MODELS ===');
-        
+        console.log("=== FETCHING LORA MODELS ===");
+
         const response = await apiClient.get("/api/models/loras");
-        console.log('LoRA API response status:', response.status);
-        
+        console.log("LoRA API response status:", response.status);
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
         const data = await response.json();
-        console.log('LoRA API response data:', data);
+        console.log("LoRA API response data:", data);
 
         if (data.success && data.models && Array.isArray(data.models)) {
-          console.log('Available LoRA models:', data.models);
+          console.log("Available LoRA models:", data.models);
           setAvailableLoRAs(data.models);
-          
+
           // Set default LoRA for face swapping (Portrait LoRA)
-          const portraitLora = data.models.find((lora: LoRAModel) => lora.fileName === "comfyui_portrait_lora64.safetensors");
+          const portraitLora = data.models.find(
+            (lora: LoRAModel) =>
+              lora.fileName === "comfyui_portrait_lora64.safetensors"
+          );
           if (portraitLora) {
             setParams((prev) => ({
               ...prev,
@@ -652,17 +699,33 @@ export default function FaceSwappingPage() {
             }));
           }
         } else {
-          console.error('Invalid LoRA API response:', data);
+          console.error("Invalid LoRA API response:", data);
           setAvailableLoRAs([
-            { fileName: 'comfyui_portrait_lora64.safetensors', displayName: 'Portrait LoRA', name: 'portrait_lora' },
-            { fileName: 'FLUX.1-Turbo-Alpha.safetensors', displayName: 'FLUX Turbo Alpha', name: 'flux_turbo' }
+            {
+              fileName: "comfyui_portrait_lora64.safetensors",
+              displayName: "Portrait LoRA",
+              name: "portrait_lora",
+            },
+            {
+              fileName: "FLUX.1-Turbo-Alpha.safetensors",
+              displayName: "FLUX Turbo Alpha",
+              name: "flux_turbo",
+            },
           ]);
         }
       } catch (error) {
-        console.error('Error fetching LoRA models:', error);
+        console.error("Error fetching LoRA models:", error);
         setAvailableLoRAs([
-          { fileName: 'comfyui_portrait_lora64.safetensors', displayName: 'Portrait LoRA', name: 'portrait_lora' },
-          { fileName: 'FLUX.1-Turbo-Alpha.safetensors', displayName: 'FLUX Turbo Alpha', name: 'flux_turbo' }
+          {
+            fileName: "comfyui_portrait_lora64.safetensors",
+            displayName: "Portrait LoRA",
+            name: "portrait_lora",
+          },
+          {
+            fileName: "FLUX.1-Turbo-Alpha.safetensors",
+            displayName: "FLUX Turbo Alpha",
+            name: "flux_turbo",
+          },
         ]);
       } finally {
         setLoadingLoRAs(false);
@@ -678,72 +741,86 @@ export default function FaceSwappingPage() {
   };
 
   const handleAspectRatioChange = (width: number, height: number) => {
-    setParams((prev) => ({ 
-      ...prev, 
-      width, 
+    setParams((prev) => ({
+      ...prev,
+      width,
       height,
       forceWidth: width,
-      forceHeight: height 
+      forceHeight: height,
     }));
   };
 
   // Upload images to server (simple approach like style transfer)
-  const uploadImagesToServer = async (originalFile: File, newFaceFile: File, maskDataUrl?: string | null): Promise<{ originalFilename: string; newFaceFilename: string; maskFilename?: string }> => {
+  const uploadImagesToServer = async (
+    originalFile: File,
+    newFaceFile: File,
+    maskDataUrl?: string | null
+  ): Promise<{
+    originalFilename: string;
+    newFaceFilename: string;
+    maskFilename?: string;
+  }> => {
     if (!apiClient) {
       throw new Error("API client not available");
     }
 
     setUploadingImage(true);
-    
+
     try {
       // Upload original image with mask (similar to style transfer)
-      console.log('📤 Uploading original image with mask...');
+      console.log("📤 Uploading original image with mask...");
       const originalFormData = new FormData();
-      originalFormData.append('image', originalFile);
-      
+      originalFormData.append("image", originalFile);
+
       // Add mask data if present
       if (maskDataUrl) {
         // Convert data URL to blob
         const maskResponse = await fetch(maskDataUrl);
         const maskBlob = await maskResponse.blob();
-        originalFormData.append('mask', maskBlob, 'mask.png');
+        originalFormData.append("mask", maskBlob, "mask.png");
       }
-      
-      const originalResponse = await apiClient.postFormData('/api/upload/image', originalFormData);
-      
+
+      const originalResponse = await apiClient.postFormData(
+        "/api/upload/image",
+        originalFormData
+      );
+
       if (!originalResponse.ok) {
         const errorData = await originalResponse.json();
-        throw new Error(errorData.error || 'Failed to upload original image');
+        throw new Error(errorData.error || "Failed to upload original image");
       }
-      
+
       const originalData = await originalResponse.json();
-      console.log('✅ Original image uploaded:', originalData.filename);
+      console.log("✅ Original image uploaded:", originalData.filename);
       if (originalData.maskFilename) {
-        console.log('✅ Mask uploaded:', originalData.maskFilename);
+        console.log("✅ Mask uploaded:", originalData.maskFilename);
       }
-      
+
       // Upload new face image
-      console.log('📤 Uploading new face image...');
+      console.log("📤 Uploading new face image...");
       const newFaceFormData = new FormData();
-      newFaceFormData.append('image', newFaceFile);
-      
-      const newFaceResponse = await apiClient.postFormData('/api/upload/image', newFaceFormData);
-      
+      newFaceFormData.append("image", newFaceFile);
+
+      const newFaceResponse = await apiClient.postFormData(
+        "/api/upload/image",
+        newFaceFormData
+      );
+
       if (!newFaceResponse.ok) {
         const errorData = await newFaceResponse.json();
-        throw new Error(errorData.error || 'Failed to upload new face image');
+        throw new Error(errorData.error || "Failed to upload new face image");
       }
-      
+
       const newFaceData = await newFaceResponse.json();
-      console.log('✅ New face image uploaded:', newFaceData.filename);
-      
+      console.log("✅ New face image uploaded:", newFaceData.filename);
+
       return {
         originalFilename: originalData.filename,
         newFaceFilename: newFaceData.filename,
-        maskFilename: originalData.maskFilename
+        maskFilename: originalData.maskFilename,
       };
     } catch (error) {
-      console.error('💥 Error uploading images:', error);
+      console.error("💥 Error uploading images:", error);
       throw error;
     } finally {
       setUploadingImage(false);
@@ -774,25 +851,36 @@ export default function FaceSwappingPage() {
 
     // Optional: Warn if no mask is applied
     if (!maskData) {
-      const proceed = confirm("No face mask has been applied. The entire image may be affected. Continue anyway?");
+      const proceed = confirm(
+        "No face mask has been applied. The entire image may be affected. Continue anyway?"
+      );
       if (!proceed) return;
     }
 
     setIsGenerating(true);
     setCurrentJob(null);
-    
+
     try {
-      console.log('=== STARTING FACE SWAP GENERATION ===');
-      console.log('Generation params:', params);
-      
+      console.log("=== STARTING FACE SWAP GENERATION ===");
+      console.log("Generation params:", params);
+
       // Upload both images
-      console.log('📤 Uploading images...');
-      const uploadResult = await uploadImagesToServer(originalImage, newFaceImage, maskData);
-      console.log('✅ Images uploaded:', uploadResult);
-      
-      const workflow = createWorkflowJson(params, uploadResult.originalFilename, uploadResult.newFaceFilename, uploadResult.maskFilename);
-      console.log('Created face swap workflow for submission');
-      
+      console.log("📤 Uploading images...");
+      const uploadResult = await uploadImagesToServer(
+        originalImage,
+        newFaceImage,
+        maskData
+      );
+      console.log("✅ Images uploaded:", uploadResult);
+
+      const workflow = createWorkflowJson(
+        params,
+        uploadResult.originalFilename,
+        uploadResult.newFaceFilename,
+        uploadResult.maskFilename
+      );
+      console.log("Created face swap workflow for submission");
+
       const response = await apiClient.post("/api/generate/face-swap", {
         workflow,
         params,
@@ -801,26 +889,26 @@ export default function FaceSwappingPage() {
         maskImage: uploadResult.maskFilename,
       });
 
-      console.log('Generation API response status:', response.status);
+      console.log("Generation API response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Generation failed:', response.status, errorText);
+        console.error("Generation failed:", response.status, errorText);
         throw new Error(`Generation failed: ${response.status} - ${errorText}`);
       }
 
       const { jobId } = await response.json();
-      console.log('Received job ID:', jobId);
+      console.log("Received job ID:", jobId);
 
       if (!jobId) {
-        throw new Error('No job ID received from server');
+        throw new Error("No job ID received from server");
       }
 
       const newJob: GenerationJob = {
         id: jobId,
         status: "pending",
         createdAt: new Date(),
-        progress: 0
+        progress: 0,
       };
 
       setCurrentJob(newJob);
@@ -828,7 +916,6 @@ export default function FaceSwappingPage() {
 
       // Start polling for job status
       pollJobStatus(jobId);
-      
     } catch (error) {
       console.error("Generation error:", error);
       setIsGenerating(false);
@@ -844,37 +931,40 @@ export default function FaceSwappingPage() {
       return;
     }
 
-    console.log('=== STARTING JOB POLLING ===');
-    console.log('Polling job ID:', jobId);
-    
+    console.log("=== STARTING JOB POLLING ===");
+    console.log("Polling job ID:", jobId);
+
     const maxAttempts = 120; // 2 minutes
     let attempts = 0;
 
     const poll = async () => {
       try {
         attempts++;
-        console.log(`Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`);
-        
+        console.log(
+          `Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
+        );
+
         const response = await apiClient.get(`/api/jobs/${jobId}`);
-        console.log('Job status response:', response.status);
-        
+        console.log("Job status response:", response.status);
+
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Job status error:', response.status, errorText);
-          
+          console.error("Job status error:", response.status, errorText);
+
           if (response.status === 404) {
-            console.error('Job not found - this might be a storage issue');
-            if (attempts < 10) { // Retry a few times for new jobs
+            console.error("Job not found - this might be a storage issue");
+            if (attempts < 10) {
+              // Retry a few times for new jobs
               setTimeout(poll, 2000);
               return;
             }
           }
-          
+
           throw new Error(`Job status check failed: ${response.status}`);
         }
 
         const job = await response.json();
-        console.log('Job status data:', job);
+        console.log("Job status data:", job);
 
         // Handle date conversion safely
         if (job.createdAt && typeof job.createdAt === "string") {
@@ -883,36 +973,38 @@ export default function FaceSwappingPage() {
 
         setCurrentJob(job);
         setJobHistory((prev) =>
-          prev.map((j) => {
-            if (j?.id === jobId) {
-              return {
-                ...job,
-                createdAt: job.createdAt || j.createdAt
-              };
-            }
-            return j;
-          }).filter(Boolean)
+          prev
+            .map((j) => {
+              if (j?.id === jobId) {
+                return {
+                  ...job,
+                  createdAt: job.createdAt || j.createdAt,
+                };
+              }
+              return j;
+            })
+            .filter(Boolean)
         );
 
         if (job.status === "completed") {
-          console.log('Job completed successfully!');
+          console.log("Job completed successfully!");
           setIsGenerating(false);
-          
+
           // Fetch database images for completed job with retry logic
-          console.log('🔄 Attempting to fetch job images...');
+          console.log("🔄 Attempting to fetch job images...");
           const fetchSuccess = await fetchJobImages(jobId);
-          
+
           // If fetch failed or no images found, retry after a short delay
           if (!fetchSuccess) {
-            console.log('🔄 Retrying image fetch after delay...');
+            console.log("🔄 Retrying image fetch after delay...");
             setTimeout(() => {
               fetchJobImages(jobId);
             }, 3000);
           }
-          
+
           return;
         } else if (job.status === "failed") {
-          console.log('Job failed:', job.error);
+          console.log("Job failed:", job.error);
           setIsGenerating(false);
           return;
         }
@@ -921,26 +1013,34 @@ export default function FaceSwappingPage() {
         if (attempts < maxAttempts) {
           setTimeout(poll, 1000);
         } else {
-          console.error('Polling timeout reached');
+          console.error("Polling timeout reached");
           setIsGenerating(false);
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            status: "failed" as const,
-            error: "Polling timeout - generation may still be running"
-          } : null);
+          setCurrentJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed" as const,
+                  error: "Polling timeout - generation may still be running",
+                }
+              : null
+          );
         }
       } catch (error) {
         console.error("Polling error:", error);
-        
+
         if (attempts < maxAttempts) {
           setTimeout(poll, 2000); // Retry with longer delay
         } else {
           setIsGenerating(false);
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            status: "failed" as const,
-            error: "Failed to get job status"
-          } : null);
+          setCurrentJob((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed" as const,
+                  error: "Failed to get job status",
+                }
+              : null
+          );
         }
       }
     };
@@ -950,7 +1050,12 @@ export default function FaceSwappingPage() {
   };
 
   // Create workflow JSON for face swapping - matches your ComfyUI workflow exactly
-  const createWorkflowJson = (params: FaceSwapParams, originalFilename: string, newFaceFilename: string, maskFilename?: string) => {
+  const createWorkflowJson = (
+    params: FaceSwapParams,
+    originalFilename: string,
+    newFaceFilename: string,
+    maskFilename?: string
+  ) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
 
     const workflow: any = {
@@ -1187,14 +1292,14 @@ export default function FaceSwappingPage() {
 
     // Add separate mask loading if mask file is provided
     if (maskFilename) {
-      console.log('🎭 Adding separate mask loading node for:', maskFilename);
+      console.log("🎭 Adding separate mask loading node for:", maskFilename);
       workflow["457"] = {
         inputs: {
           image: maskFilename,
         },
         class_type: "LoadImage",
       };
-      
+
       // Convert mask image to actual mask
       workflow["458"] = {
         inputs: {
@@ -1203,7 +1308,7 @@ export default function FaceSwappingPage() {
         },
         class_type: "ImageToMask",
       };
-      
+
       // Update the reference in InpaintCrop to use the uploaded mask
       workflow["411"].inputs.mask = ["458", 0];
     }
@@ -1224,7 +1329,9 @@ export default function FaceSwappingPage() {
     }
 
     // Add Turbo LoRA if available
-    const turboLora = availableLoRAs.find(lora => lora.fileName === "FLUX.1-Turbo-Alpha.safetensors");
+    const turboLora = availableLoRAs.find(
+      (lora) => lora.fileName === "FLUX.1-Turbo-Alpha.safetensors"
+    );
     if (turboLora) {
       // Update LoraLoader to handle second LoRA
       workflow["337"].inputs = {
@@ -1235,7 +1342,7 @@ export default function FaceSwappingPage() {
       };
     }
 
-    console.log('📋 Workflow created with mask support:', !!maskFilename);
+    console.log("📋 Workflow created with mask support:", !!maskFilename);
     return workflow;
   };
 
@@ -1270,7 +1377,8 @@ export default function FaceSwappingPage() {
               Face Swapping
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Swap faces between images using AI-powered inpainting with Flux Fill
+              Swap faces between images using AI-powered inpainting with Flux
+              Fill
             </p>
           </div>
         </div>
@@ -1316,18 +1424,18 @@ export default function FaceSwappingPage() {
                     {/* Image Preview and Mask Editor Toggle */}
                     <div className="flex items-center justify-between">
                       <h3 className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                        Original {maskData && '(Masked)'}
+                        Original {maskData && "(Masked)"}
                       </h3>
                       <div className="flex space-x-2">
                         <button
                           onClick={() => setShowMaskEditor(!showMaskEditor)}
                           className={`px-2 py-1 text-xs rounded transition-colors ${
                             showMaskEditor
-                              ? 'bg-blue-500 text-white'
-                              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                              ? "bg-blue-500 text-white"
+                              : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                           }`}
                         >
-                          {showMaskEditor ? 'Hide Mask' : 'Edit Mask'}
+                          {showMaskEditor ? "Hide Mask" : "Edit Mask"}
                         </button>
                       </div>
                     </div>
@@ -1341,22 +1449,22 @@ export default function FaceSwappingPage() {
                             {/* Tool Selection */}
                             <div className="flex space-x-1">
                               <button
-                                onClick={() => setBrushTool('brush')}
+                                onClick={() => setBrushTool("brush")}
                                 className={`p-2 rounded transition-colors ${
-                                  brushTool === 'brush'
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                  brushTool === "brush"
+                                    ? "bg-blue-500 text-white"
+                                    : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                                 }`}
                                 title="Brush - Paint mask"
                               >
                                 ✏️
                               </button>
                               <button
-                                onClick={() => setBrushTool('eraser')}
+                                onClick={() => setBrushTool("eraser")}
                                 className={`p-2 rounded transition-colors ${
-                                  brushTool === 'eraser'
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                  brushTool === "eraser"
+                                    ? "bg-blue-500 text-white"
+                                    : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                                 }`}
                                 title="Eraser - Remove mask"
                               >
@@ -1367,14 +1475,20 @@ export default function FaceSwappingPage() {
                             {/* Brush Size */}
                             <div className="flex items-center space-x-2">
                               <button
-                                onClick={() => setBrushSize(Math.max(5, brushSize - 5))}
+                                onClick={() =>
+                                  setBrushSize(Math.max(5, brushSize - 5))
+                                }
                                 className="p-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
                               >
                                 −
                               </button>
-                              <span className="text-sm w-8 text-center">{brushSize}</span>
+                              <span className="text-sm w-8 text-center">
+                                {brushSize}
+                              </span>
                               <button
-                                onClick={() => setBrushSize(Math.min(50, brushSize + 5))}
+                                onClick={() =>
+                                  setBrushSize(Math.min(50, brushSize + 5))
+                                }
                                 className="p-1 bg-gray-200 dark:bg-gray-700 rounded text-sm"
                               >
                                 +
@@ -1386,12 +1500,12 @@ export default function FaceSwappingPage() {
                               onClick={() => setShowMask(!showMask)}
                               className={`p-2 rounded transition-colors ${
                                 showMask
-                                  ? 'bg-green-500 text-white'
-                                  : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                  ? "bg-green-500 text-white"
+                                  : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                               }`}
-                              title={showMask ? 'Hide mask' : 'Show mask'}
+                              title={showMask ? "Hide mask" : "Show mask"}
                             >
-                              {showMask ? '👁️' : '🙈'}
+                              {showMask ? "👁️" : "🙈"}
                             </button>
                           </div>
 
@@ -1410,43 +1524,58 @@ export default function FaceSwappingPage() {
                           {/* Hidden image for loading */}
                           <img
                             ref={imageRef}
-                            style={{ display: 'none' }}
+                            style={{ display: "none" }}
                             alt="Reference"
                           />
-                          
+
                           {/* Main canvas (image + mask overlay) */}
                           <canvas
                             ref={canvasRef}
                             className="block max-w-full h-auto"
-                            style={{ 
-                              cursor: brushTool === 'brush' ? 'crosshair' : 'grab'
+                            style={{
+                              cursor:
+                                brushTool === "brush" ? "crosshair" : "grab",
                             }}
                             onMouseDown={handleMouseDown}
                             onMouseMove={handleMouseMove}
                             onMouseUp={handleMouseUp}
                             onMouseLeave={handleMouseUp}
                           />
-                          
+
                           {/* Hidden mask canvas */}
                           <canvas
                             ref={maskCanvasRef}
-                            style={{ display: 'none' }}
+                            style={{ display: "none" }}
                           />
-                          
+
                           {/* Tool indicator */}
                           <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-xs">
-                            {brushTool === 'brush' ? '✏️' : '🧽'} {brushSize}px
+                            {brushTool === "brush" ? "✏️" : "🧽"} {brushSize}px
                           </div>
                         </div>
 
                         {/* Instructions */}
                         <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 p-3 rounded">
-                          <p><strong>Manual Face Masking:</strong></p>
+                          <p>
+                            <strong>Manual Face Masking:</strong>
+                          </p>
                           <ul className="list-disc list-inside mt-1 space-y-1">
-                            <li>Use the <strong>brush</strong> to paint over the face you want to replace</li>
-                            <li>Use the <strong>eraser</strong> to remove mask areas</li>
-                            <li>Red overlay shows areas that will be replaced with the new face</li>
-                            <li>Only paint the face area - avoid hair, background, and clothing</li>
+                            <li>
+                              Use the <strong>brush</strong> to paint over the
+                              face you want to replace
+                            </li>
+                            <li>
+                              Use the <strong>eraser</strong> to remove mask
+                              areas
+                            </li>
+                            <li>
+                              Red overlay shows areas that will be replaced with
+                              the new face
+                            </li>
+                            <li>
+                              Only paint the face area - avoid hair, background,
+                              and clothing
+                            </li>
                           </ul>
                         </div>
                       </div>
@@ -1468,11 +1597,14 @@ export default function FaceSwappingPage() {
                     {/* Mask Status */}
                     {maskData ? (
                       <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-                        ✅ Face mask ready - White areas will be replaced with the new face
+                        ✅ Face mask ready - White areas will be replaced with
+                        the new face
                       </div>
                     ) : (
                       <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 p-2 rounded">
-                        💡 <strong>Face Swap Tip:</strong> Click "Edit Mask" and paint over the face you want to replace. Only the masked areas will be swapped.
+                        💡 <strong>Face Swap Tip:</strong> Click "Edit Mask" and
+                        paint over the face you want to replace. Only the masked
+                        areas will be swapped.
                       </div>
                     )}
                   </div>
@@ -1555,7 +1687,13 @@ export default function FaceSwappingPage() {
                   Generation Prompt
                 </label>
                 <button
-                  onClick={() => setParams((prev) => ({ ...prev, prompt: "Retain face. fit the face perfectly to the body. natural realistic eyes, match the skin tone of the body to the face" }))}
+                  onClick={() =>
+                    setParams((prev) => ({
+                      ...prev,
+                      prompt:
+                        "Retain face. fit the face perfectly to the body. natural realistic eyes, match the skin tone of the body to the face",
+                    }))
+                  }
                   className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
                 >
                   Reset
@@ -1618,12 +1756,14 @@ export default function FaceSwappingPage() {
                     }))
                   }
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                    params.teaCacheEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'
+                    params.teaCacheEnabled
+                      ? "bg-blue-600"
+                      : "bg-gray-200 dark:bg-gray-700"
                   }`}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      params.teaCacheEnabled ? 'translate-x-6' : 'translate-x-1'
+                      params.teaCacheEnabled ? "translate-x-6" : "translate-x-1"
                     }`}
                   />
                 </button>
@@ -1855,7 +1995,13 @@ export default function FaceSwappingPage() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || !params.prompt.trim() || !originalImage || !newFaceImage || uploadingImage}
+            disabled={
+              isGenerating ||
+              !params.prompt.trim() ||
+              !originalImage ||
+              !newFaceImage ||
+              uploadingImage
+            }
             className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
           >
             {isGenerating ? (
@@ -1887,13 +2033,21 @@ export default function FaceSwappingPage() {
               </h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Total Images:</span>
-                  <span className="ml-2 font-medium">{imageStats.totalImages}</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Total Images:
+                  </span>
+                  <span className="ml-2 font-medium">
+                    {imageStats.totalImages}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Total Size:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Total Size:
+                  </span>
                   <span className="ml-2 font-medium">
-                    {Math.round(imageStats.totalSize / 1024 / 1024 * 100) / 100} MB
+                    {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
+                      100}{" "}
+                    MB
                   </span>
                 </div>
               </div>
@@ -1924,7 +2078,8 @@ export default function FaceSwappingPage() {
                     Status
                   </span>
                   <div className="flex items-center space-x-2">
-                    {(currentJob.status === "pending" || currentJob.status === "processing") && (
+                    {(currentJob.status === "pending" ||
+                      currentJob.status === "processing") && (
                       <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
                     )}
                     {currentJob.status === "completed" && (
@@ -1959,128 +2114,174 @@ export default function FaceSwappingPage() {
                 )}
 
                 {/* Show loading or no images message for completed jobs */}
-                {currentJob.status === "completed" && 
-                 (!currentJob.resultUrls || currentJob.resultUrls.length === 0) &&
-                 (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0) && (
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Generated Images
-                    </h4>
-                    <div className="text-center py-8">
-                      <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Loading generated images...</span>
+                {currentJob.status === "completed" &&
+                  (!currentJob.resultUrls ||
+                    currentJob.resultUrls.length === 0) &&
+                  (!jobImages[currentJob.id] ||
+                    jobImages[currentJob.id].length === 0) && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Generated Images
+                      </h4>
+                      <div className="text-center py-8">
+                        <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">
+                            Loading generated images...
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => fetchJobImages(currentJob.id)}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                        >
+                          Refresh Images
+                        </button>
                       </div>
-                      <button
-                        onClick={() => fetchJobImages(currentJob.id)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
-                      >
-                        Refresh Images
-                      </button>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Enhanced image display with dynamic URL support */}
-                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) || 
-                  (jobImages[currentJob.id] && jobImages[currentJob.id].length > 0)) && (
+                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
+                  (jobImages[currentJob.id] &&
+                    jobImages[currentJob.id].length > 0)) && (
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       Generated Images
                     </h4>
-                    
+
                     <div className="grid grid-cols-1 gap-3">
                       {/* Show database images if available */}
-                      {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 ? (
-                        // Database images with dynamic URLs
-                        jobImages[currentJob.id].map((dbImage, index) => (
-                          <div key={`db-${dbImage.id}`} className="relative group">
-                            <img
-                              src={dbImage.dataUrl || dbImage.url}
-                              alt={`Face swap result ${index + 1}`}
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                              onError={(e) => {
-                                console.error('Image load error for:', dbImage.filename);
-                                
-                                // Smart fallback logic
-                                const currentSrc = (e.target as HTMLImageElement).src;
-                                
-                                if (currentSrc === dbImage.dataUrl && dbImage.url) {
-                                  console.log('Falling back to ComfyUI URL');
-                                  (e.target as HTMLImageElement).src = dbImage.url;
-                                } else if (currentSrc === dbImage.url && dbImage.dataUrl) {
-                                  console.log('Falling back to database URL');
-                                  (e.target as HTMLImageElement).src = dbImage.dataUrl;
-                                } else {
-                                  console.error('All URLs failed for:', dbImage.filename);
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }
-                              }}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button 
-                                  onClick={() => downloadDatabaseImage(dbImage)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  title={`Download ${dbImage.filename}`}
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => shareImage(dbImage)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
+                      {jobImages[currentJob.id] &&
+                      jobImages[currentJob.id].length > 0
+                        ? // Database images with dynamic URLs
+                          jobImages[currentJob.id].map((dbImage, index) => (
+                            <div
+                              key={`db-${dbImage.id}`}
+                              className="relative group"
+                            >
+                              <img
+                                src={dbImage.dataUrl || dbImage.url}
+                                alt={`Face swap result ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                onError={(e) => {
+                                  console.error(
+                                    "Image load error for:",
+                                    dbImage.filename
+                                  );
+
+                                  // Smart fallback logic
+                                  const currentSrc = (
+                                    e.target as HTMLImageElement
+                                  ).src;
+
+                                  if (
+                                    currentSrc === dbImage.dataUrl &&
+                                    dbImage.url
+                                  ) {
+                                    console.log("Falling back to ComfyUI URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.url;
+                                  } else if (
+                                    currentSrc === dbImage.url &&
+                                    dbImage.dataUrl
+                                  ) {
+                                    console.log("Falling back to database URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.dataUrl;
+                                  } else {
+                                    console.error(
+                                      "All URLs failed for:",
+                                      dbImage.filename
+                                    );
+                                    (
+                                      e.target as HTMLImageElement
+                                    ).style.display = "none";
+                                  }
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadDatabaseImage(dbImage)
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    title={`Download ${dbImage.filename}`}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => shareImage(dbImage)}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Image metadata */}
+                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                  {dbImage.width && dbImage.height
+                                    ? `${dbImage.width}×${dbImage.height}`
+                                    : "Unknown size"}
+                                  {dbImage.fileSize &&
+                                    ` • ${Math.round(
+                                      dbImage.fileSize / 1024
+                                    )}KB`}
+                                  {dbImage.format &&
+                                    ` • ${dbImage.format.toUpperCase()}`}
+                                </div>
                               </div>
                             </div>
-                            
-                            {/* Image metadata */}
-                            <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                {dbImage.width && dbImage.height ? `${dbImage.width}×${dbImage.height}` : 'Unknown size'}
-                                {dbImage.fileSize && ` • ${Math.round(dbImage.fileSize / 1024)}KB`}
-                                {dbImage.format && ` • ${dbImage.format.toUpperCase()}`}
+                          ))
+                        : // Fallback to legacy URLs if no database images
+                          currentJob.resultUrls &&
+                          currentJob.resultUrls.length > 0 &&
+                          currentJob.resultUrls.map((url, index) => (
+                            <div
+                              key={`legacy-${currentJob.id}-${index}`}
+                              className="relative group"
+                            >
+                              <img
+                                src={url}
+                                alt={`Face swap result ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                onError={(e) => {
+                                  console.error(
+                                    "Legacy image load error:",
+                                    url
+                                  );
+                                  (e.target as HTMLImageElement).style.display =
+                                    "none";
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadFromUrl(
+                                        url,
+                                        `face-swap-${index + 1}.png`
+                                      )
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(url);
+                                      alert("Image URL copied to clipboard!");
+                                    }}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
-                      ) : (
-                        // Fallback to legacy URLs if no database images
-                        currentJob.resultUrls && currentJob.resultUrls.length > 0 && 
-                        currentJob.resultUrls.map((url, index) => (
-                          <div key={`legacy-${currentJob.id}-${index}`} className="relative group">
-                            <img
-                              src={url}
-                              alt={`Face swap result ${index + 1}`}
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                              onError={(e) => {
-                                console.error('Legacy image load error:', url);
-                                (e.target as HTMLImageElement).style.display = 'none';
-                              }}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button 
-                                  onClick={() => downloadFromUrl(url, `face-swap-${index + 1}.png`)}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(url);
-                                    alert('Image URL copied to clipboard!');
-                                  }}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                          ))}
                     </div>
                   </div>
                 )}
@@ -2103,44 +2304,47 @@ export default function FaceSwappingPage() {
                 Recent Face Swaps
               </h3>
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {jobHistory.filter(job => job && job.id).slice(0, 10).map((job, index) => (
-                  <div
-                    key={job.id || `job-${index}`}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      {job.status === "completed" && (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      )}
-                      {job.status === "failed" && (
-                        <AlertCircle className="w-4 h-4 text-red-500" />
-                      )}
-                      {(job.status === "pending" ||
-                        job.status === "processing") && (
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {formatJobTime(job.createdAt)}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {job.status || 'unknown'}
-                        </p>
+                {jobHistory
+                  .filter((job) => job && job.id)
+                  .slice(0, 10)
+                  .map((job, index) => (
+                    <div
+                      key={job.id || `job-${index}`}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    >
+                      <div className="flex items-center space-x-3">
+                        {job.status === "completed" && (
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        )}
+                        {job.status === "failed" && (
+                          <AlertCircle className="w-4 h-4 text-red-500" />
+                        )}
+                        {(job.status === "pending" ||
+                          job.status === "processing") && (
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {formatJobTime(job.createdAt)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                            {job.status || "unknown"}
+                          </p>
+                        </div>
                       </div>
+                      {job.resultUrls && job.resultUrls.length > 0 && (
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => fetchJobImages(job.id)}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                            title="Refresh images"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {job.resultUrls && job.resultUrls.length > 0 && (
-                      <div className="flex space-x-1">
-                        <button 
-                          onClick={() => fetchJobImages(job.id)}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                          title="Refresh images"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           )}
