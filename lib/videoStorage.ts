@@ -33,27 +33,15 @@ export interface VideoPathInfo {
 
 // Helper function to construct ComfyUI video URLs dynamically
 export function buildComfyUIVideoUrl(pathInfo: VideoPathInfo): string {
-  // Use proxy endpoint for production to avoid mixed content issues
-  if (process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_APP_URL?.startsWith('https://')) {
-    const params = new URLSearchParams({
-      filename: pathInfo.filename,
-      subfolder: pathInfo.subfolder,
-      type: pathInfo.type
-    });
-    
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ai.tastycreative.xyz';
-    return `${appUrl}/api/proxy/comfyui/view?${params.toString()}`;
-  }
-  
-  // Use direct ComfyUI URL for local development
-  const baseUrl = COMFYUI_URL();
   const params = new URLSearchParams({
     filename: pathInfo.filename,
     subfolder: pathInfo.subfolder,
     type: pathInfo.type
   });
-  
-  return `${baseUrl}/view?${params.toString()}`;
+
+  // Always use proxy endpoint for video viewing to handle authentication properly
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  return `${appUrl}/api/proxy/comfyui/view?${params.toString()}`;
 }
 
 // Helper function to parse ComfyUI video URLs (for backward compatibility)
@@ -127,10 +115,26 @@ export async function saveVideoToDatabase(
 
     // Download video data if requested
     if (options.saveData || options.extractMetadata) {
-      const videoUrl = buildComfyUIVideoUrl(pathInfo);
-      console.log('📥 Downloading video from:', videoUrl);
+      // For server-side downloads, always use direct ComfyUI URL with authentication
+      const baseUrl = COMFYUI_URL();
+      const params = new URLSearchParams({
+        filename: pathInfo.filename,
+        subfolder: pathInfo.subfolder,
+        type: pathInfo.type
+      });
+      const directUrl = `${baseUrl}/view?${params.toString()}`;
       
-      const response = await fetch(videoUrl, {
+      console.log('📥 Downloading video from ComfyUI directly:', directUrl);
+      
+      const headers: Record<string, string> = {};
+      const runpodApiKey = process.env.RUNPOD_API_KEY;
+      if (runpodApiKey) {
+        headers['Authorization'] = `Bearer ${runpodApiKey}`;
+        console.log('🔐 Adding RunPod API key authentication');
+      }
+      
+      const response = await fetch(directUrl, {
+        headers,
         signal: AbortSignal.timeout(60000) // 60 second timeout for videos
       });
       
@@ -162,7 +166,7 @@ export async function saveVideoToDatabase(
             downloadedAt: new Date().toISOString(),
             comfyUIInfo: pathInfo,
             originalSize: fileSize,
-            sourceUrl: videoUrl,
+            sourceUrl: directUrl,
             videoMetadata
           };
           
