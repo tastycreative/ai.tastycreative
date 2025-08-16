@@ -18,7 +18,6 @@ import {
   X,
   Loader2,
   AlertCircle,
-  RefreshCw,
   SortAsc,
   SortDesc,
   MoreVertical,
@@ -88,7 +87,7 @@ type FilterBy = "all" | "images" | "videos";
 
 export default function GeneratedContentPage() {
   const apiClient = useApiClient();
-  
+
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
@@ -138,13 +137,19 @@ export default function GeneratedContentPage() {
       console.log("📡 Fetching images from /api/images...");
       const imagesResponse = await apiClient.get("/api/images");
       console.log("📡 Images response status:", imagesResponse.status);
-      console.log("📡 Images response headers:", Object.fromEntries(imagesResponse.headers.entries()));
+      console.log(
+        "📡 Images response headers:",
+        Object.fromEntries(imagesResponse.headers.entries())
+      );
 
       // Fetch videos
       console.log("📡 Fetching videos from /api/videos...");
       const videosResponse = await apiClient.get("/api/videos");
       console.log("📡 Videos response status:", videosResponse.status);
-      console.log("📡 Videos response headers:", Object.fromEntries(videosResponse.headers.entries()));
+      console.log(
+        "📡 Videos response headers:",
+        Object.fromEntries(videosResponse.headers.entries())
+      );
 
       // Enhanced error logging
       if (!imagesResponse.ok) {
@@ -155,7 +160,7 @@ export default function GeneratedContentPage() {
         );
         const errorText = await imagesResponse.text();
         console.error("❌ Images error details:", errorText);
-        
+
         // Try to parse as JSON for structured error
         try {
           const errorJson = JSON.parse(errorText);
@@ -173,7 +178,7 @@ export default function GeneratedContentPage() {
         );
         const errorText = await videosResponse.text();
         console.error("❌ Videos error details:", errorText);
-        
+
         // Try to parse as JSON for structured error
         try {
           const errorJson = JSON.parse(errorText);
@@ -247,17 +252,20 @@ export default function GeneratedContentPage() {
 
       setAllContent(allItems);
       console.log("✅ Combined", allItems.length, "content items");
-      
+
       if (allItems.length === 0) {
         console.warn("⚠️ No content items found after processing");
       }
     } catch (error) {
       console.error("💥 Error fetching content:", error);
-      console.error("💥 Error stack:", error instanceof Error ? error.stack : 'No stack');
+      console.error(
+        "💥 Error stack:",
+        error instanceof Error ? error.stack : "No stack"
+      );
       setError(
         error instanceof Error ? error.message : "Failed to load content"
       );
-      
+
       // Set empty arrays on error
       setImages([]);
       setVideos([]);
@@ -298,46 +306,7 @@ export default function GeneratedContentPage() {
     }
   };
 
-  // Debug function for troubleshooting Vercel deployment
-  const runDebugCheck = async () => {
-    if (!apiClient) {
-      alert("API client not available - authentication may not be ready");
-      return;
-    }
 
-    try {
-      console.log("🔍 Running debug check...");
-      const response = await apiClient.get("/api/debug/content");
-      console.log("🔍 Debug response:", response);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log("🔍 Debug data:", data);
-        
-        // Show debug info in alert
-        const debugInfo = `
-Environment: ${data.debug?.environment || 'Unknown'}
-Authenticated: ${data.debug?.authenticated || false}
-User ID: ${data.debug?.clerkId || 'None'}
-Database Connected: ${data.debug?.database?.connected || false}
-Image Count: ${data.debug?.content?.imageCount || 0}
-Video Count: ${data.debug?.content?.videoCount || 0}
-DB Error: ${data.debug?.database?.error || 'None'}
-Image Error: ${data.debug?.content?.imageError || 'None'}
-Video Error: ${data.debug?.content?.videoError || 'None'}
-        `.trim();
-        
-        alert(`Debug Information:\n\n${debugInfo}`);
-      } else {
-        const errorText = await response.text();
-        console.error("🔍 Debug check failed:", errorText);
-        alert(`Debug check failed: ${response.status} ${response.statusText}\n\n${errorText}`);
-      }
-    } catch (error) {
-      console.error("🔍 Debug check error:", error);
-      alert(`Debug check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
 
   // Filter and sort content
   const filteredAndSortedContent = () => {
@@ -537,7 +506,6 @@ Video Error: ${data.debug?.content?.videoError || 'None'}
             onClick={fetchContent}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center space-x-2 mx-auto"
           >
-            <RefreshCw className="w-4 h-4" />
             <span>Retry</span>
           </button>
         </div>
@@ -654,24 +622,7 @@ Video Error: ${data.debug?.content?.videoError || 'None'}
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={fetchContent}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-              title="Refresh gallery"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-            
-            {/* Debug button for troubleshooting Vercel deployment */}
-            <button
-              onClick={runDebugCheck}
-              className="px-3 py-2 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-              title="Run debug check"
-            >
-              Debug
-            </button>
-          </div>
+
         </div>
       </div>
 

@@ -108,7 +108,7 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 
 export default function ImageToVideoPage() {
   const apiClient = useApiClient();
-  
+
   const [params, setParams] = useState<GenerationParams>({
     prompt: "",
     negativePrompt:
@@ -154,7 +154,7 @@ export default function ImageToVideoPage() {
   // Fetch video statistics
   const fetchVideoStats = async () => {
     if (!apiClient) return;
-    
+
     try {
       const response = await apiClient.get("/api/videos?stats=true");
 
@@ -173,7 +173,7 @@ export default function ImageToVideoPage() {
   // Fetch videos for a completed job
   const fetchJobVideos = async (jobId: string): Promise<boolean> => {
     if (!apiClient) return false;
-    
+
     try {
       console.log("🎬 Fetching database videos for job:", jobId);
 
@@ -478,7 +478,7 @@ export default function ImageToVideoPage() {
       alert("API client not ready. Please try again.");
       return;
     }
-    
+
     if (!params.prompt.trim()) {
       alert("Please enter a prompt");
       return;
@@ -544,7 +544,7 @@ export default function ImageToVideoPage() {
       console.error("API client not ready for polling");
       return;
     }
-    
+
     console.log("=== STARTING I2V JOB POLLING ===");
     console.log("Polling I2V job ID:", jobId);
 
@@ -553,7 +553,7 @@ export default function ImageToVideoPage() {
 
     const poll = async () => {
       if (!apiClient) return;
-      
+
       try {
         attempts++;
         console.log(
@@ -664,7 +664,7 @@ export default function ImageToVideoPage() {
   // Download video
   const downloadVideo = async (video: DatabaseVideo) => {
     if (!apiClient) return;
-    
+
     try {
       console.log("📥 Downloading video:", video.filename);
 
@@ -729,7 +729,9 @@ export default function ImageToVideoPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-center space-x-3">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-            <p className="text-gray-600 dark:text-gray-400">Initializing API client...</p>
+            <p className="text-gray-600 dark:text-gray-400">
+              Initializing API client...
+            </p>
           </div>
         </div>
       </div>
