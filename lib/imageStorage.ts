@@ -99,7 +99,15 @@ export async function saveImageToDatabase(
       const imageUrl = buildComfyUIUrl(pathInfo);
       console.log('📥 Downloading image from:', imageUrl);
       
+      // Add authentication for RunPod/ComfyUI server
+      const headers: Record<string, string> = {};
+      const runpodApiKey = process.env.RUNPOD_API_KEY;
+      if (runpodApiKey) {
+        headers['Authorization'] = `Bearer ${runpodApiKey}`;
+      }
+      
       const response = await fetch(imageUrl, {
+        headers,
         signal: AbortSignal.timeout(30000) // 30 second timeout
       });
       
