@@ -532,6 +532,20 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
             user_id = f'training_{job_id}'
             logger.info(f"⚠️ Error getting user ID: {e}, using fallback: {user_id}")
         
+        # Try to extract user ID from webhook URL as additional fallback
+        if user_id.startswith('training_') and webhook_url:
+            try:
+                # The webhook URL might contain training job info we can use
+                # Extract training job ID from webhook URL: /api/webhooks/training2/{jobId}
+                import re
+                match = re.search(r'/training2/([^/?]+)', webhook_url)
+                if match:
+                    training_job_db_id = match.group(1)
+                    logger.info(f"📋 Extracted training job DB ID from webhook: {training_job_db_id}")
+                    # We could use this to look up the training job, but we already tried that above
+            except Exception as e:
+                logger.info(f"⚠️ Could not extract info from webhook URL: {e}")
+        
         # Use same filename format as influencer tab: user_timestamp_originalname
         unique_filename = f"{user_id}_{timestamp}_{model_filename}"
         
@@ -591,7 +605,8 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
             'comfyui_path': f'models/loras/{unique_filename}',
             'sync_status': 'synced',  # Already synced since uploaded directly to ComfyUI
             'training_steps': str(step),
-            'final_loss': None  # Could extract from training logs if needed
+            'final_loss': None,  # Could extract from training logs if needed
+            'user_id': user_id if not user_id.startswith('training_') else None  # Only pass real user IDs
         }
         
         # Send small JSON payload to create database record
