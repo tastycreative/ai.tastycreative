@@ -1,3 +1,4 @@
+// app/api/models/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserId } from '@/lib/database';
 import { PrismaClient } from '@/lib/generated/prisma';

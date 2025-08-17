@@ -33,6 +33,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/test(.*)',
   '/api/webhooks(.*)',  // ✅ Add webhooks as public API routes
   '/api/webhook-test(.*)', // ✅ Also add your test webhook
+  '/api/models/upload-from-training(.*)', // ✅ Add training upload endpoint
 ]);
 
 // ✅ Special handling for API routes that need custom auth

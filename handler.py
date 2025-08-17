@@ -346,6 +346,65 @@ def collect_output_files(output_path: Path) -> Dict[str, List[Dict]]:
         "log_files": log_files
     }
 
+def upload_model_to_storage(model_file_data: bytes, model_filename: str, job_id: str, job_input: Dict, step: int, webhook_url: str) -> bool:
+    """Upload model file to your storage with simplified single upload"""
+    try:
+        logger.info("🚀 Starting model upload to your storage...")
+        
+        # Extract base URL from webhook URL
+        # webhook_url is like: https://your-domain.com/api/webhooks/training2/job_id
+        base_url = webhook_url.split('/api/webhooks')[0]
+        upload_url = f"{base_url}/api/models/upload-from-training"
+        
+        logger.info(f"📤 Uploading to: {upload_url}")
+        logger.info(f"📦 Model file: {model_filename} ({len(model_file_data)} bytes = {len(model_file_data) / 1024 / 1024:.1f}MB)")
+        
+        # Prepare multipart form data (single upload, not chunked)
+        files = {
+            'file': (model_filename, model_file_data, 'application/octet-stream')
+        }
+        
+        data = {
+            'job_id': job_id,
+            'model_name': job_input['name'],
+            'training_steps': str(step),
+            'final_loss': None  # Could extract from training logs if needed
+        }
+        
+        # Upload with extended timeout for large files
+        logger.info("📡 Sending upload request...")
+        response = requests.post(
+            upload_url, 
+            files=files, 
+            data=data,
+            timeout=600,  # 10 minute timeout for large files
+            headers={
+                'User-Agent': 'RunPod-Training-Handler/1.0'
+            }
+        )
+        
+        logger.info(f"📋 Upload response: {response.status_code}")
+        
+        if response.status_code == 200:
+            response_data = response.json()
+            logger.info("✅ Model uploaded successfully to your storage!")
+            logger.info(f"📂 LoRA created: {response_data.get('lora', {}).get('name', 'Unknown')}")
+            return True
+        else:
+            logger.error(f"❌ Model upload failed: {response.status_code}")
+            logger.error(f"❌ Response: {response.text}")
+            return False
+            
+    except requests.exceptions.Timeout:
+        logger.error(f"❌ Model upload timeout after 10 minutes")
+        return False
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Model upload request error: {e}")
+        return False
+    except Exception as upload_error:
+        logger.error(f"❌ Model upload error: {upload_error}")
+        return False
+
 def handler(job):
     """Enhanced RunPod handler with full error handling"""
     job_input = job['input']
@@ -550,49 +609,17 @@ def handler(job):
                         except Exception as e:
                             logger.error(f"❌ Failed to read model file: {e}")
             
-            # Upload model file to your storage via API
+            # Upload model file to your storage
             model_upload_success = False
             if model_file_data and webhook_url:
-                try:
-                    logger.info("🚀 Uploading model to your storage...")
-                    
-                    # Extract base URL from webhook URL
-                    # webhook_url is like: https://your-domain.com/api/webhooks/training/job_id
-                    base_url = webhook_url.split('/api/webhooks')[0]
-                    upload_url = f"{base_url}/api/models/upload-from-training"
-                    
-                    # Prepare multipart form data
-                    import requests
-                    
-                    files = {
-                        'file': (model_filename, model_file_data, 'application/octet-stream')
-                    }
-                    
-                    data = {
-                        'job_id': job_id,
-                        'model_name': job_input['name'],
-                        'training_steps': step,
-                        'final_loss': None  # Could extract from training logs if needed
-                    }
-                    
-                    response = requests.post(
-                        upload_url, 
-                        files=files, 
-                        data=data,
-                        timeout=120,  # 2 minute timeout for large files
-                        headers={
-                            'User-Agent': 'RunPod-Training-Handler/1.0'
-                        }
-                    )
-                    
-                    if response.status_code == 200:
-                        logger.info("✅ Model uploaded successfully to your storage!")
-                        model_upload_success = True
-                    else:
-                        logger.error(f"❌ Model upload failed: {response.status_code} - {response.text}")
-                        
-                except Exception as upload_error:
-                    logger.error(f"❌ Model upload error: {upload_error}")
+                model_upload_success = upload_model_to_storage(
+                    model_file_data, 
+                    model_filename, 
+                    job_id, 
+                    job_input, 
+                    step, 
+                    webhook_url
+                )
             
             # Prepare sample URLs (these would need to be uploaded to your storage)
             sample_urls = [f"/training/{job_id}/samples/{f['filename']}" for f in output_files['sample_files']]
@@ -632,7 +659,8 @@ def handler(job):
                 'output_files': output_files,
                 'training_steps': step,
                 'job_id': job_id,
-                'model_name': job_input['name']
+                'model_name': job_input['name'],
+                'model_uploaded': model_upload_success
             }
             
         else:

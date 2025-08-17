@@ -3,19 +3,45 @@
 
 set -e
 
-VERSION=${1:-"v1.0.1"}
+VERSION=${1:-"v1.0.2"}
 REGISTRY="rfldln01/ai-toolkit-trainer"
+PLATFORM=${2:-"linux/amd64"}  # Default to AMD64 for RunPod
+BUILD_LOCAL=${3:-"false"}     # Option to build locally without pushing
 
-echo "🐳 Building Docker image for RunPod (AMD64 architecture)"
+if [[ "$PLATFORM" == "linux/arm64" ]]; then
+    ARCH_SUFFIX="arm64"
+    echo "🐳 Building Docker image for local Mac (ARM64 architecture)"
+elif [[ "$PLATFORM" == "linux/amd64" ]]; then
+    ARCH_SUFFIX="amd64"
+    echo "🐳 Building Docker image for RunPod (AMD64 architecture)"
+else
+    echo "❌ Unsupported platform: $PLATFORM"
+    exit 1
+fi
+
 echo "📦 Version: $VERSION"
-echo "🏷️ Tag: $REGISTRY:$VERSION-amd64"
+echo "🏷️ Tag: $REGISTRY:$VERSION-$ARCH_SUFFIX"
 
-# Build for Linux AMD64 (RunPod architecture) and push
-docker buildx build \
-  --platform linux/amd64 \
-  --tag "$REGISTRY:$VERSION-amd64" \
-  --push \
-  .
+# Build command
+if [[ "$BUILD_LOCAL" == "true" ]]; then
+    echo "🏠 Building locally without push..."
+    docker buildx build \
+      --platform "$PLATFORM" \
+      --tag "$REGISTRY:$VERSION-$ARCH_SUFFIX" \
+      --load \
+      .
+    echo "✅ Docker image built locally!"
+    echo "🚀 Run locally with: docker run -it $REGISTRY:$VERSION-$ARCH_SUFFIX"
+else
+    echo "☁️ Building and pushing to registry..."
+    docker buildx build \
+      --platform "$PLATFORM" \
+      --tag "$REGISTRY:$VERSION-$ARCH_SUFFIX" \
+      --push \
+      .
+    echo "✅ Docker image built and pushed successfully!"
+    echo "🚀 Use this image in RunPod: $REGISTRY:$VERSION-$ARCH_SUFFIX"
+fi
 
 echo "✅ Docker image built and pushed successfully!"
 echo "🚀 Use this image in RunPod: $REGISTRY:$VERSION-amd64"
