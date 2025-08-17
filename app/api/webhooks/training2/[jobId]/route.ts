@@ -29,8 +29,9 @@ interface CustomWebhookPayload {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
+  const params = await context.params;
   console.log(`🔍 GET request to training webhook for job: ${params.jobId}`);
   
   return NextResponse.json({
@@ -44,11 +45,12 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
   const startTime = Date.now();
   
   try {
+    const params = await context.params;
     const jobId = params.jobId;
     console.log(`\n=== 🔔 TRAINING WEBHOOK RECEIVED ===`);
     console.log(`📋 Job ID: ${jobId}`);
@@ -231,12 +233,21 @@ export async function POST(
     console.error('💥 Webhook processing error:', error);
     console.error(`❌ Failed after ${processingTime}ms`);
     
+    // Get jobId for error response
+    let jobId: string;
+    try {
+      const params = await context.params;
+      jobId = params.jobId;
+    } catch {
+      jobId = 'unknown';
+    }
+    
     // Return error response but still with 200 status to prevent retries
     return NextResponse.json({
       success: false,
       error: 'Internal server error during webhook processing',
       details: error instanceof Error ? error.message : 'Unknown error',
-      jobId: params.jobId,
+      jobId,
       processingTime: `${processingTime}ms`,
       timestamp: new Date().toISOString()
     });
@@ -246,8 +257,9 @@ export async function POST(
 // Handle other HTTP methods with clear error messages
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
+  const params = await context.params;
   return NextResponse.json(
     { 
       error: 'Method not allowed',
@@ -260,8 +272,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
+  const params = await context.params;
   return NextResponse.json(
     { 
       error: 'Method not allowed',
@@ -274,8 +287,9 @@ export async function DELETE(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
+  const params = await context.params;
   return NextResponse.json(
     { 
       error: 'Method not allowed',
