@@ -1,11 +1,19 @@
+// app/api/upload/training-images/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { v4 as uuidv4 } from 'uuid';
-import { put } from '@vercel/blob';
+import { v2 as cloudinary } from 'cloudinary';
 import path from 'path';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file (Vercel limit)
-const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB total (Conservative for Vercel)
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file
+const MAX_TOTAL_SIZE = 50 * 1024 * 1024; // 50MB total
 const MAX_FILES_PER_BATCH = 5; // Limit concurrent uploads
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
@@ -15,6 +23,13 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
+    // DEBUG: Check if env variables are loaded
+    console.log('=== CLOUDINARY DEBUG ===');
+    console.log('Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'MISSING');
+    console.log('API Key:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'MISSING');
+    console.log('API Secret:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'MISSING');
+    console.log('========================');
+
     const { userId: clerkId } = await auth();
     
     if (!clerkId) {
@@ -69,23 +84,42 @@ export async function POST(request: NextRequest) {
         const timestamp = Date.now();
         const uniqueId = uuidv4().substring(0, 6);
         const extension = path.extname(file.name).toLowerCase() || '.jpg';
-        const filename = `upload_${timestamp}_${uniqueId}${extension}`;
+        const filename = `upload_${timestamp}_${uniqueId}`;
 
-        // Upload to Vercel Blob storage
-        const blob = await put(filename, file, {
-          access: 'public',
-          token: process.env.BLOB_READ_WRITE_TOKEN,
+        // Convert file to buffer for Cloudinary
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+
+        // Upload to Cloudinary (simplified for debugging)
+        const result = await new Promise<any>((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            {
+              resource_type: 'image',
+              public_id: filename,
+              folder: 'training-images', // Simplified folder name
+              // Remove transformations for now to isolate the issue
+            },
+            (error, result) => {
+              if (error) {
+                console.error('Cloudinary upload error:', error);
+                reject(error);
+              } else {
+                resolve(result);
+              }
+            }
+          ).end(buffer);
         });
 
         uploadedImages.push({
-          filename,
+          filename: result.public_id,
           originalName: file.name,
           size: file.size,
           type: file.type,
-          url: blob.url
+          url: result.secure_url,
+          cloudinaryId: result.public_id, // Store for potential deletion later
         });
 
-        console.log(`✅ Saved training image ${i + 1}: ${filename} to blob storage`);
+        console.log(`✅ Saved training image ${i + 1}: ${filename} to Cloudinary`);
       } catch (error) {
         console.error(`❌ Failed to upload ${file.name}:`, error);
         // Continue with other files instead of failing completely
