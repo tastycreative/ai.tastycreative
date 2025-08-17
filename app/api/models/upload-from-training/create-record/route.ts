@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
       sync_status,
       training_steps,
       final_loss,
-      user_id  // Add user_id parameter
+      user_id  // Handler-provided user ID (may be fallback)
     } = body;
 
     if (!job_id || !model_name || !file_name || !file_size) {
@@ -33,51 +33,60 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log(`🔍 Looking for training job with RunPod ID: ${job_id}`);
+    console.log(`🔍 Looking for training job with database ID: ${job_id}`);
 
-    // Find the training job
-    const trainingJob = await TrainingJobsDB.getTrainingJobByRunPodId(job_id);
+    // FIXED: Use database ID lookup instead of RunPod ID lookup
+    const trainingJob = await TrainingJobsDB.getTrainingJobById(job_id);
     
     if (!trainingJob) {
-      console.log(`⚠️ Training job not found for RunPod ID: ${job_id}`);
-      console.log('🆘 Creating LoRA record without training job link (handler fallback)');
+      console.log(`⚠️ Training job not found for database ID: ${job_id}`);
       
-      // Create a direct LoRA record without training job reference
-      // This is a fallback for when RunPod jobs aren't properly linked in database
-      const lora = await prisma.influencerLoRA.create({
-        data: {
-          // Use the user_id from handler if provided, otherwise fallback
-          clerkId: user_id || 'user_fallback', 
-          name: model_name,
-          displayName: model_name,
-          fileName: file_name,
-          originalFileName: original_file_name || file_name,
-          fileSize: parseInt(file_size.toString()),
-          description: `LoRA trained via RunPod${training_steps ? ` - ${training_steps} steps` : ''}${final_loss ? `, final loss: ${final_loss}` : ''}`,
-          ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
-          ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
-          ...(comfyui_path && { comfyUIPath: comfyui_path }),
-          syncStatus: sync_status || 'synced', // Mark as synced since it's already uploaded
-          isActive: true
-        }
-      });
+      // Only create fallback record if we have a real user ID from handler
+      if (user_id && !user_id.startsWith('training_')) {
+        console.log('🆘 Creating LoRA record with handler-provided user ID (fallback mode)');
+        
+        const lora = await prisma.influencerLoRA.create({
+          data: {
+            clerkId: user_id,
+            name: model_name,
+            displayName: model_name,
+            fileName: file_name,
+            originalFileName: original_file_name || file_name,
+            fileSize: parseInt(file_size.toString()),
+            description: `LoRA trained via RunPod${training_steps ? ` - ${training_steps} steps` : ''}${final_loss ? `, final loss: ${final_loss}` : ''}`,
+            ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
+            ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
+            ...(comfyui_path && { comfyUIPath: comfyui_path }),
+            syncStatus: sync_status || 'SYNCED', // Mark as synced since it's already uploaded
+            isActive: true
+          }
+        });
 
-      await prisma.$disconnect();
+        await prisma.$disconnect();
 
-      console.log(`✅ Created fallback LoRA record: ${lora.id}`);
+        console.log(`✅ Created fallback LoRA record: ${lora.id} for user ${user_id}`);
 
-      return NextResponse.json({
-        success: true,
-        message: 'LoRA record created successfully (fallback mode)',
-        lora: {
-          id: lora.id,
-          name: lora.name,
-          fileName: lora.fileName,
-          fileSize: lora.fileSize,
-          isActive: lora.isActive,
-          comfyUIPath: lora.comfyUIPath || undefined
-        }
-      });
+        return NextResponse.json({
+          success: true,
+          message: 'LoRA record created successfully (fallback mode)',
+          lora: {
+            id: lora.id,
+            name: lora.name,
+            fileName: lora.fileName,
+            fileSize: lora.fileSize,
+            isActive: lora.isActive,
+            clerkId: lora.clerkId,
+            comfyUIPath: lora.comfyUIPath || undefined
+          }
+        });
+      } else {
+        console.error(`❌ Cannot create LoRA record: No valid user ID (got: ${user_id})`);
+        await prisma.$disconnect();
+        return NextResponse.json({ 
+          error: 'Training job not found and no valid user ID provided',
+          details: `Database ID: ${job_id}, User ID: ${user_id}`
+        }, { status: 404 });
+      }
     }
 
     console.log(`✅ Found training job: ${trainingJob.id} for user ${trainingJob.clerkId}`);
@@ -109,7 +118,7 @@ export async function POST(request: NextRequest) {
           ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
           ...(comfyui_path && { comfyUIPath: comfyui_path }),
           description: description,
-          syncStatus: sync_status || 'PENDING',
+          syncStatus: sync_status || 'SYNCED',
           isActive: true,
           updatedAt: new Date()
         }
@@ -130,7 +139,7 @@ export async function POST(request: NextRequest) {
           ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
           ...(comfyui_path && { comfyUIPath: comfyui_path }),
           trainingJobId: trainingJob.id,
-          syncStatus: sync_status || 'PENDING',
+          syncStatus: sync_status || 'SYNCED',
           isActive: true
         }
       });
@@ -159,6 +168,7 @@ export async function POST(request: NextRequest) {
         fileName: lora.fileName,
         fileSize: lora.fileSize,
         isActive: lora.isActive,
+        clerkId: lora.clerkId,
         cloudinaryUrl: lora.cloudinaryUrl || undefined,
         comfyUIPath: lora.comfyUIPath || undefined
       }

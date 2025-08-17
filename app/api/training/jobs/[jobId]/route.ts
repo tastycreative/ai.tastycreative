@@ -23,8 +23,9 @@ export async function GET(
       console.log(`🔍 Looking up training job: ${jobId}`);
     }
 
-    // Get training job by RunPod ID
-    const trainingJob = await TrainingJobsDB.getTrainingJobByRunPodId(jobId);
+    // FIXED: Use database ID lookup instead of RunPod ID lookup
+    // The webhook passes the database training job ID, not the RunPod job ID
+    const trainingJob = await TrainingJobsDB.getTrainingJobById(jobId);
     
     if (!trainingJob) {
       console.log(`❌ Training job not found: ${jobId}`);

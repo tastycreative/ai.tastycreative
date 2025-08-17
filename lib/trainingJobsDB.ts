@@ -122,6 +122,35 @@ export class TrainingJobsDB {
   }
 
   /**
+   * Get training job by database ID (not RunPod ID)
+   * This is used by the training completion webhook
+   * FIXED: Added this method to resolve user ID lookup issue
+   */
+  static async getTrainingJobById(jobId: string): Promise<TrainingJobData | null> {
+    try {
+      console.log(`🔍 Looking up training job by database ID: ${jobId}`);
+      
+      const job = await prisma.trainingJob.findUnique({
+        where: { id: jobId },
+        include: {
+          trainingImages: true
+        }
+      });
+
+      if (job) {
+        console.log(`✅ Found training job: ${job.id} for user ${job.clerkId}`);
+      } else {
+        console.log(`❌ No training job found with database ID: ${jobId}`);
+      }
+
+      return job as any;
+    } catch (error) {
+      console.error('Error getting training job by database ID:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get all training jobs for a user
    */
   static async getUserTrainingJobs(clerkId: string): Promise<TrainingJobData[]> {
