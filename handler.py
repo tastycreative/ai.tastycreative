@@ -346,149 +346,6 @@ def collect_output_files(output_path: Path) -> Dict[str, List[Dict]]:
         "log_files": log_files
     }
 
-def upload_model_file(model_file_data, model_filename, job_id, step, job_input, webhook_url):
-    """Upload model file directly to ComfyUI and create database record via API"""
-    try:
-        logger.info("🚀 Starting direct upload to ComfyUI...")
-        logger.info(f"📦 Model file: {model_filename} ({len(model_file_data)} bytes = {len(model_file_data) / 1024 / 1024:.1f}MB)")
-        
-        # Safely get model name from job_input
-        model_name = "unknown_model"
-        if isinstance(job_input, dict) and 'name' in job_input:
-            model_name = job_input['name']
-        elif isinstance(job_input, str):
-            model_name = job_input
-        
-        # Generate unique filename with timestamp (similar to your influencer tab approach)
-        timestamp = int(time.time() * 1000)
-        unique_filename = f"{model_name}_{timestamp}_{model_filename}"
-        
-        # Step 1: Upload directly to ComfyUI
-        logger.info("🎯 Uploading to ComfyUI...")
-        
-        # Get ComfyUI URL from environment (same as your frontend)
-        comfyui_url = os.environ.get('COMFYUI_URL', 'http://209.53.88.242:14753')
-        upload_url = f"{comfyui_url}/upload/image"
-        
-        # Generate unique filename with timestamp
-        timestamp = int(time.time() * 1000)
-        
-        # Safely get model name from job_input
-        model_name = "unknown_model"
-        if isinstance(job_input, dict) and 'name' in job_input:
-            model_name = job_input['name']
-        elif isinstance(job_input, str):
-            model_name = job_input
-        
-        unique_filename = f"{model_name}_{timestamp}_{model_filename}"
-        
-        # Prepare Cloudinary upload data
-        import hashlib
-        api_key = os.environ.get('CLOUDINARY_API_KEY')
-        api_secret = os.environ.get('CLOUDINARY_API_SECRET')
-        cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
-        
-        if not all([api_key, api_secret, cloud_name]):
-            logger.error("❌ Missing Cloudinary credentials in environment variables")
-            return False
-        
-        # Create signature for Cloudinary (required for authenticated uploads)
-        public_id = f"lora-models/{job_id}/{unique_filename.replace('.safetensors', '')}"
-        params_to_sign = {
-            'public_id': public_id,
-            'resource_type': 'raw',
-            'timestamp': str(timestamp)
-        }
-        
-        # Create signature string
-        signature_string = '&'.join([f"{k}={v}" for k, v in sorted(params_to_sign.items())]) + api_secret
-        signature = hashlib.sha1(signature_string.encode('utf-8')).hexdigest()
-        
-        # Prepare multipart form data for Cloudinary
-        files = {
-            'file': (unique_filename, model_file_data, 'application/octet-stream')
-        }
-        
-        data = {
-            'api_key': api_key,
-            'signature': signature,
-            'timestamp': str(timestamp),
-            'public_id': public_id,
-            'resource_type': 'raw',
-            'folder': f'lora-models/{job_id}'
-        }
-        
-        # Upload to Cloudinary with extended timeout
-        logger.info("📡 Uploading to Cloudinary...")
-        cloudinary_response = requests.post(
-            cloudinary_url,
-            files=files,
-            data=data,
-            timeout=1800,  # 30 minute timeout for large files
-            headers={'User-Agent': 'RunPod-Training-Handler/1.0'}
-        )
-        
-        logger.info(f"� Cloudinary response: {cloudinary_response.status_code}")
-        
-        if cloudinary_response.status_code != 200:
-            logger.error(f"❌ Cloudinary upload failed: {cloudinary_response.status_code}")
-            logger.error(f"❌ Response: {cloudinary_response.text}")
-            return False
-        
-        cloudinary_result = cloudinary_response.json()
-        cloudinary_url_result = cloudinary_result['secure_url']
-        cloudinary_public_id = cloudinary_result['public_id']
-        
-        logger.info(f"✅ Uploaded to Cloudinary: {cloudinary_url_result}")
-        
-        # Step 2: Create database record via small API call (no file data)
-        logger.info("💾 Creating database record...")
-        
-        # Extract base URL from webhook URL
-        base_url = webhook_url.split('/api/webhooks')[0]
-        db_record_url = f"{base_url}/api/models/upload-from-training/create-record"
-        
-        record_data = {
-            'job_id': job_id,
-            'model_name': model_name,
-            'file_name': unique_filename,
-            'original_file_name': model_filename,
-            'file_size': len(model_file_data),
-            'cloudinary_url': cloudinary_url_result,
-            'cloudinary_public_id': cloudinary_public_id,
-            'training_steps': str(step),
-            'final_loss': None  # Could extract from training logs if needed
-        }
-        
-        # Send small JSON payload to create database record
-        db_response = requests.post(
-            db_record_url,
-            json=record_data,
-            timeout=60,
-            headers={
-                'User-Agent': 'RunPod-Training-Handler/1.0',
-                'Content-Type': 'application/json'
-            }
-        )
-        
-        logger.info(f"📋 Database record response: {db_response.status_code}")
-        
-        if db_response.status_code == 200:
-            response_data = db_response.json()
-            logger.info("✅ Model uploaded and database record created successfully!")
-            logger.info(f"📂 LoRA created: {response_data.get('lora', {}).get('name', 'Unknown')}")
-            return True
-        else:
-            logger.error(f"❌ Database record creation failed: {db_response.status_code}")
-            logger.error(f"❌ Response: {db_response.text}")
-            # Even if DB record fails, the file is uploaded to Cloudinary
-            logger.info("⚠️ File uploaded to Cloudinary but database record failed")
-            return False
-            
-    except requests.exceptions.Timeout:
-        logger.error(f"❌ Upload timeout (this may take a while for large files)")
-        return False
-
 def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job_input, webhook_url):
     """Upload model file directly to ComfyUI and create database record via API"""
     try:
@@ -502,14 +359,15 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
         elif isinstance(job_input, str):
             model_name = job_input
         
-        # Generate unique filename with timestamp (same format as influencer tab)
+        # Generate unique filename with timestamp
         timestamp = int(time.time() * 1000)
         
-        # Get training job info to extract user ID for consistent naming
+        # FIXED: Get user ID from training job lookup instead of fallback
         logger.info("🔍 Getting training job info for user ID...")
         base_url = webhook_url.split('/api/webhooks')[0]
         job_info_url = f"{base_url}/api/training/jobs/{job_id}"
         
+        user_id = None
         try:
             job_info_response = requests.get(
                 job_info_url,
@@ -520,34 +378,24 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
             if job_info_response.status_code == 200:
                 job_info = job_info_response.json()
                 if job_info.get('success') and 'job' in job_info:
-                    user_id = job_info['job'].get('clerkId', f'training_{job_id}')
+                    user_id = job_info['job'].get('clerkId')
                     logger.info(f"✅ Found user ID: {user_id}")
                 else:
-                    user_id = f'training_{job_id}'
-                    logger.info(f"⚠️ Invalid job info response, using fallback: {user_id}")
+                    logger.warning(f"⚠️ Invalid job info response: {job_info}")
             else:
-                user_id = f'training_{job_id}'
-                logger.info(f"⚠️ Job info request failed ({job_info_response.status_code}), using fallback: {user_id}")
+                logger.warning(f"⚠️ Job info request failed: {job_info_response.status_code}")
+                logger.warning(f"⚠️ Response: {job_info_response.text}")
         except Exception as e:
+            logger.warning(f"⚠️ Error getting user ID from job info: {e}")
+        
+        # If we still don't have a user ID, use the training job ID as fallback
+        if not user_id:
             user_id = f'training_{job_id}'
-            logger.info(f"⚠️ Error getting user ID: {e}, using fallback: {user_id}")
+            logger.warning(f"⚠️ Using fallback user ID: {user_id}")
         
-        # Try to extract user ID from webhook URL as additional fallback
-        if user_id.startswith('training_') and webhook_url:
-            try:
-                # The webhook URL might contain training job info we can use
-                # Extract training job ID from webhook URL: /api/webhooks/training2/{jobId}
-                import re
-                match = re.search(r'/training2/([^/?]+)', webhook_url)
-                if match:
-                    training_job_db_id = match.group(1)
-                    logger.info(f"📋 Extracted training job DB ID from webhook: {training_job_db_id}")
-                    # We could use this to look up the training job, but we already tried that above
-            except Exception as e:
-                logger.info(f"⚠️ Could not extract info from webhook URL: {e}")
-        
-        # Use same filename format as influencer tab: user_timestamp_originalname
+        # Use correct filename format: user_timestamp_originalname
         unique_filename = f"{user_id}_{timestamp}_{model_filename}"
+        logger.info(f"📝 Generated filename: {unique_filename}")
         
         # Step 1: Upload directly to ComfyUI
         logger.info("🎯 Uploading to ComfyUI...")
