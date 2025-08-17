@@ -13,7 +13,15 @@ export async function GET(
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
     }
 
-    console.log(`🔍 Looking up training job: ${jobId}`);
+    // Check if this is an internal call from RunPod handler
+    const userAgent = request.headers.get('user-agent') || '';
+    const isRunPodHandler = userAgent.includes('RunPod-Training-Handler');
+    
+    if (isRunPodHandler) {
+      console.log(`🤖 RunPod handler requesting job info: ${jobId}`);
+    } else {
+      console.log(`🔍 Looking up training job: ${jobId}`);
+    }
 
     // Get training job by RunPod ID
     const trainingJob = await TrainingJobsDB.getTrainingJobByRunPodId(jobId);
