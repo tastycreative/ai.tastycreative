@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
       comfyui_path,
       sync_status,
       training_steps,
-      final_loss
+      final_loss,
+      user_id  // Add user_id parameter
     } = body;
 
     if (!job_id || !model_name || !file_name || !file_size) {
@@ -38,7 +39,45 @@ export async function POST(request: NextRequest) {
     const trainingJob = await TrainingJobsDB.getTrainingJobByRunPodId(job_id);
     
     if (!trainingJob) {
-      throw new Error(`Training job not found for ID: ${job_id}`);
+      console.log(`⚠️ Training job not found for RunPod ID: ${job_id}`);
+      console.log('🆘 Creating LoRA record without training job link (handler fallback)');
+      
+      // Create a direct LoRA record without training job reference
+      // This is a fallback for when RunPod jobs aren't properly linked in database
+      const lora = await prisma.influencerLoRA.create({
+        data: {
+          // Use the user_id from handler if provided, otherwise fallback
+          clerkId: user_id || 'user_fallback', 
+          name: model_name,
+          displayName: model_name,
+          fileName: file_name,
+          originalFileName: original_file_name || file_name,
+          fileSize: parseInt(file_size.toString()),
+          description: `LoRA trained via RunPod${training_steps ? ` - ${training_steps} steps` : ''}${final_loss ? `, final loss: ${final_loss}` : ''}`,
+          ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
+          ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
+          ...(comfyui_path && { comfyUIPath: comfyui_path }),
+          syncStatus: sync_status || 'synced', // Mark as synced since it's already uploaded
+          isActive: true
+        }
+      });
+
+      await prisma.$disconnect();
+
+      console.log(`✅ Created fallback LoRA record: ${lora.id}`);
+
+      return NextResponse.json({
+        success: true,
+        message: 'LoRA record created successfully (fallback mode)',
+        lora: {
+          id: lora.id,
+          name: lora.name,
+          fileName: lora.fileName,
+          fileSize: lora.fileSize,
+          isActive: lora.isActive,
+          comfyUIPath: lora.comfyUIPath || undefined
+        }
+      });
     }
 
     console.log(`✅ Found training job: ${trainingJob.id} for user ${trainingJob.clerkId}`);
