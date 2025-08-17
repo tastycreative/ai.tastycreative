@@ -7,7 +7,7 @@ const isProtectedRoute = createRouteMatcher([
   '/billing(.*)',
   '/team(.*)',
   '/workspace(.*)',
-  '/api/webhooks(.*)',
+  // Removed '/api/webhooks(.*)' - webhooks need to be public for external services
 ]);
 
 const isPublicRoute = createRouteMatcher([
@@ -31,6 +31,8 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/trpc/getTodos(.*)',
   '/api/debug(.*)',
   '/api/test(.*)',
+  '/api/webhooks(.*)',  // ✅ Add webhooks as public API routes
+  '/api/webhook-test(.*)', // ✅ Also add your test webhook
 ]);
 
 // ✅ Special handling for API routes that need custom auth
@@ -68,7 +70,7 @@ export default clerkMiddleware(async (auth, req) => {
       return; // Let the route handle authentication internally
     }
     
-    // Skip middleware auth for truly public API routes
+    // Skip middleware auth for truly public API routes (including webhooks)
     if (isPublicApiRoute(req)) {
       return;
     }
