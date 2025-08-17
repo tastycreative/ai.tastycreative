@@ -346,63 +346,129 @@ def collect_output_files(output_path: Path) -> Dict[str, List[Dict]]:
         "log_files": log_files
     }
 
-def upload_model_to_storage(model_file_data: bytes, model_filename: str, job_id: str, job_input: Dict, step: int, webhook_url: str) -> bool:
-    """Upload model file to your storage with simplified single upload"""
+def upload_model_file(model_file_data, model_filename, job_id, step, job_input, webhook_url):
+    """Upload model file directly to Cloudinary and create database record via API"""
     try:
-        logger.info("🚀 Starting model upload to your storage...")
-        
-        # Extract base URL from webhook URL
-        # webhook_url is like: https://your-domain.com/api/webhooks/training2/job_id
-        base_url = webhook_url.split('/api/webhooks')[0]
-        upload_url = f"{base_url}/api/models/upload-from-training"
-        
-        logger.info(f"📤 Uploading to: {upload_url}")
+        logger.info("🚀 Starting direct upload to Cloudinary...")
         logger.info(f"📦 Model file: {model_filename} ({len(model_file_data)} bytes = {len(model_file_data) / 1024 / 1024:.1f}MB)")
         
-        # Prepare multipart form data (single upload, not chunked)
+        # Step 1: Upload directly to Cloudinary
+        logger.info("☁️ Uploading to Cloudinary...")
+        
+        # Cloudinary upload URL and credentials (you'll need to set these as environment variables in RunPod)
+        cloudinary_url = "https://api.cloudinary.com/v1_1/{cloud_name}/raw/upload".format(
+            cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME')
+        )
+        
+        # Generate unique filename with timestamp
+        timestamp = int(time.time() * 1000)
+        unique_filename = f"{job_input['name']}_{timestamp}_{model_filename}"
+        
+        # Prepare Cloudinary upload data
+        import hashlib
+        api_key = os.environ.get('CLOUDINARY_API_KEY')
+        api_secret = os.environ.get('CLOUDINARY_API_SECRET')
+        cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
+        
+        if not all([api_key, api_secret, cloud_name]):
+            logger.error("❌ Missing Cloudinary credentials in environment variables")
+            return False
+        
+        # Create signature for Cloudinary (required for authenticated uploads)
+        public_id = f"lora-models/{job_id}/{unique_filename.replace('.safetensors', '')}"
+        params_to_sign = {
+            'public_id': public_id,
+            'resource_type': 'raw',
+            'timestamp': str(timestamp)
+        }
+        
+        # Create signature string
+        signature_string = '&'.join([f"{k}={v}" for k, v in sorted(params_to_sign.items())]) + api_secret
+        signature = hashlib.sha1(signature_string.encode('utf-8')).hexdigest()
+        
+        # Prepare multipart form data for Cloudinary
         files = {
-            'file': (model_filename, model_file_data, 'application/octet-stream')
+            'file': (unique_filename, model_file_data, 'application/octet-stream')
         }
         
         data = {
+            'api_key': api_key,
+            'signature': signature,
+            'timestamp': str(timestamp),
+            'public_id': public_id,
+            'resource_type': 'raw',
+            'folder': f'lora-models/{job_id}'
+        }
+        
+        # Upload to Cloudinary with extended timeout
+        logger.info("📡 Uploading to Cloudinary...")
+        cloudinary_response = requests.post(
+            cloudinary_url,
+            files=files,
+            data=data,
+            timeout=1800,  # 30 minute timeout for large files
+            headers={'User-Agent': 'RunPod-Training-Handler/1.0'}
+        )
+        
+        logger.info(f"� Cloudinary response: {cloudinary_response.status_code}")
+        
+        if cloudinary_response.status_code != 200:
+            logger.error(f"❌ Cloudinary upload failed: {cloudinary_response.status_code}")
+            logger.error(f"❌ Response: {cloudinary_response.text}")
+            return False
+        
+        cloudinary_result = cloudinary_response.json()
+        cloudinary_url_result = cloudinary_result['secure_url']
+        cloudinary_public_id = cloudinary_result['public_id']
+        
+        logger.info(f"✅ Uploaded to Cloudinary: {cloudinary_url_result}")
+        
+        # Step 2: Create database record via small API call (no file data)
+        logger.info("💾 Creating database record...")
+        
+        # Extract base URL from webhook URL
+        base_url = webhook_url.split('/api/webhooks')[0]
+        db_record_url = f"{base_url}/api/models/upload-from-training/create-record"
+        
+        record_data = {
             'job_id': job_id,
             'model_name': job_input['name'],
+            'file_name': unique_filename,
+            'original_file_name': model_filename,
+            'file_size': len(model_file_data),
+            'cloudinary_url': cloudinary_url_result,
+            'cloudinary_public_id': cloudinary_public_id,
             'training_steps': str(step),
             'final_loss': None  # Could extract from training logs if needed
         }
         
-        # Upload with extended timeout for large files
-        logger.info("📡 Sending upload request...")
-        response = requests.post(
-            upload_url, 
-            files=files, 
-            data=data,
-            timeout=600,  # 10 minute timeout for large files
+        # Send small JSON payload to create database record
+        db_response = requests.post(
+            db_record_url,
+            json=record_data,
+            timeout=60,
             headers={
-                'User-Agent': 'RunPod-Training-Handler/1.0'
+                'User-Agent': 'RunPod-Training-Handler/1.0',
+                'Content-Type': 'application/json'
             }
         )
         
-        logger.info(f"📋 Upload response: {response.status_code}")
+        logger.info(f"📋 Database record response: {db_response.status_code}")
         
-        if response.status_code == 200:
-            response_data = response.json()
-            logger.info("✅ Model uploaded successfully to your storage!")
+        if db_response.status_code == 200:
+            response_data = db_response.json()
+            logger.info("✅ Model uploaded and database record created successfully!")
             logger.info(f"📂 LoRA created: {response_data.get('lora', {}).get('name', 'Unknown')}")
             return True
         else:
-            logger.error(f"❌ Model upload failed: {response.status_code}")
-            logger.error(f"❌ Response: {response.text}")
+            logger.error(f"❌ Database record creation failed: {db_response.status_code}")
+            logger.error(f"❌ Response: {db_response.text}")
+            # Even if DB record fails, the file is uploaded to Cloudinary
+            logger.info("⚠️ File uploaded to Cloudinary but database record failed")
             return False
             
     except requests.exceptions.Timeout:
-        logger.error(f"❌ Model upload timeout after 10 minutes")
-        return False
-    except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Model upload request error: {e}")
-        return False
-    except Exception as upload_error:
-        logger.error(f"❌ Model upload error: {upload_error}")
+        logger.error(f"❌ Upload timeout (this may take a while for large files)")
         return False
 
 def handler(job):
@@ -612,7 +678,7 @@ def handler(job):
             # Upload model file to your storage
             model_upload_success = False
             if model_file_data and webhook_url:
-                model_upload_success = upload_model_to_storage(
+                model_upload_success = upload_model_file(
                     model_file_data, 
                     model_filename, 
                     job_id, 
