@@ -502,9 +502,38 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
         elif isinstance(job_input, str):
             model_name = job_input
         
-        # Generate unique filename with timestamp (similar to your influencer tab approach)
+        # Generate unique filename with timestamp (same format as influencer tab)
         timestamp = int(time.time() * 1000)
-        unique_filename = f"{model_name}_{timestamp}_{model_filename}"
+        
+        # Get training job info to extract user ID for consistent naming
+        logger.info("🔍 Getting training job info for user ID...")
+        base_url = webhook_url.split('/api/webhooks')[0]
+        job_info_url = f"{base_url}/api/training/jobs/{job_id}"
+        
+        try:
+            job_info_response = requests.get(
+                job_info_url,
+                timeout=30,
+                headers={'User-Agent': 'RunPod-Training-Handler/1.0'}
+            )
+            
+            if job_info_response.status_code == 200:
+                job_info = job_info_response.json()
+                if job_info.get('success') and 'job' in job_info:
+                    user_id = job_info['job'].get('clerkId', f'training_{job_id}')
+                    logger.info(f"✅ Found user ID: {user_id}")
+                else:
+                    user_id = f'training_{job_id}'
+                    logger.info(f"⚠️ Invalid job info response, using fallback: {user_id}")
+            else:
+                user_id = f'training_{job_id}'
+                logger.info(f"⚠️ Job info request failed ({job_info_response.status_code}), using fallback: {user_id}")
+        except Exception as e:
+            user_id = f'training_{job_id}'
+            logger.info(f"⚠️ Error getting user ID: {e}, using fallback: {user_id}")
+        
+        # Use same filename format as influencer tab: user_timestamp_originalname
+        unique_filename = f"{user_id}_{timestamp}_{model_filename}"
         
         # Step 1: Upload directly to ComfyUI
         logger.info("🎯 Uploading to ComfyUI...")
