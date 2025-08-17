@@ -20,13 +20,15 @@ export async function POST(request: NextRequest) {
       file_size,
       cloudinary_url,
       cloudinary_public_id,
+      comfyui_path,
+      sync_status,
       training_steps,
       final_loss
     } = body;
 
-    if (!job_id || !model_name || !file_name || !file_size || !cloudinary_url) {
+    if (!job_id || !model_name || !file_name || !file_size) {
       return NextResponse.json({ 
-        error: 'Missing required fields: job_id, model_name, file_name, file_size, cloudinary_url' 
+        error: 'Missing required fields: job_id, model_name, file_name, file_size' 
       }, { status: 400 });
     }
 
@@ -64,10 +66,11 @@ export async function POST(request: NextRequest) {
         data: {
           fileName: file_name,
           fileSize: parseInt(file_size.toString()),
-          cloudinaryUrl: cloudinary_url,
-          cloudinaryPublicId: cloudinary_public_id,
+          ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
+          ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
+          ...(comfyui_path && { comfyUIPath: comfyui_path }),
           description: description,
-          syncStatus: 'PENDING', // Will need to sync to ComfyUI
+          syncStatus: sync_status || 'PENDING',
           isActive: true,
           updatedAt: new Date()
         }
@@ -84,10 +87,11 @@ export async function POST(request: NextRequest) {
           originalFileName: original_file_name || file_name,
           fileSize: parseInt(file_size.toString()),
           description: description,
-          cloudinaryUrl: cloudinary_url,
-          cloudinaryPublicId: cloudinary_public_id,
+          ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
+          ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
+          ...(comfyui_path && { comfyUIPath: comfyui_path }),
           trainingJobId: trainingJob.id,
-          syncStatus: 'PENDING', // Will need to sync to ComfyUI
+          syncStatus: sync_status || 'PENDING',
           isActive: true
         }
       });
@@ -99,7 +103,7 @@ export async function POST(request: NextRequest) {
       status: 'COMPLETED',
       progress: 100,
       completedAt: new Date(),
-      finalModelUrl: cloudinary_url,
+      finalModelUrl: cloudinary_url || comfyui_path || '',
       ...(final_loss && { loss: parseFloat(final_loss) })
     });
 
@@ -116,7 +120,8 @@ export async function POST(request: NextRequest) {
         fileName: lora.fileName,
         fileSize: lora.fileSize,
         isActive: lora.isActive,
-        cloudinaryUrl: cloudinary_url
+        cloudinaryUrl: lora.cloudinaryUrl || undefined,
+        comfyUIPath: lora.comfyUIPath || undefined
       }
     });
 
