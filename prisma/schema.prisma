@@ -40,10 +40,12 @@ model InfluencerLoRA {
   fileSize         Int
   uploadedAt       DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
-  description      String?
-  thumbnailUrl     String?
+  description        String?
+  thumbnailUrl       String?
+  cloudinaryUrl      String?    // Cloudinary storage URL
+  cloudinaryPublicId String?    // Cloudinary public ID for management
   // blobUrl          String?    // Vercel Blob storage URL - temporarily disabled
-  isActive         Boolean    @default(true)
+  isActive           Boolean    @default(true)
   usageCount       Int        @default(0)
   comfyUIPath      String?
   syncStatus       SyncStatus @default(PENDING)
