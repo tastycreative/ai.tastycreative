@@ -34,6 +34,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/webhooks(.*)',  // ✅ Add webhooks as public API routes
   '/api/webhook-test(.*)', // ✅ Also add your test webhook
   '/api/models/upload-from-training(.*)', // ✅ Add training upload endpoint
+  '/api/training/jobs(.*)', // ✅ Add training jobs endpoint for RunPod handler
 ]);
 
 // ✅ Special handling for API routes that need custom auth
