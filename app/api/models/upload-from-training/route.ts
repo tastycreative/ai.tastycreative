@@ -280,7 +280,7 @@ async function processCompleteModel(
           cloudinaryUrl: cloudinaryResult.secure_url,
           cloudinaryPublicId: cloudinaryResult.public_id,
           description: description,
-          syncStatus: 'pending', // Will need to sync to ComfyUI
+          syncStatus: 'PENDING', // Will need to sync to ComfyUI
           isActive: true,
           updatedAt: new Date()
         }
@@ -300,7 +300,7 @@ async function processCompleteModel(
           cloudinaryUrl: cloudinaryResult.secure_url,
           cloudinaryPublicId: cloudinaryResult.public_id,
           trainingJobId: trainingJob.id,
-          syncStatus: 'pending', // Will need to sync to ComfyUI
+          syncStatus: 'PENDING', // Will need to sync to ComfyUI
           isActive: true
         }
       });
