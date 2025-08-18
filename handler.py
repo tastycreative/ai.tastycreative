@@ -451,7 +451,7 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
             'original_file_name': model_filename,
             'file_size': len(model_file_data),
             'comfyui_path': f'models/loras/{unique_filename}',
-            'sync_status': 'synced',  # Already synced since uploaded directly to ComfyUI
+            'sync_status': 'SYNCED',  # FIXED: Use proper enum value that matches database
             'training_steps': str(step),
             'final_loss': None,  # Could extract from training logs if needed
             'user_id': user_id if not user_id.startswith('training_') else None  # Only pass real user IDs
