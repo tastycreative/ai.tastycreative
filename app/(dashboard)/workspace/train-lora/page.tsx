@@ -106,6 +106,57 @@ export default function TrainLoRAPage() {
     setSamplePrompts(prev => prev.filter((_, i) => i !== index));
   };
 
+  // Chunked upload function to handle large batches of images
+  const uploadImagesInChunks = async (images: Array<{ file: File; caption: string }>) => {
+    const CHUNK_SIZE = 5; // Upload 5 images per batch to avoid 413 errors
+    const chunks = [];
+    
+    // Split images into chunks
+    for (let i = 0; i < images.length; i += CHUNK_SIZE) {
+      chunks.push(images.slice(i, i + CHUNK_SIZE));
+    }
+    
+    console.log(`📦 Uploading ${images.length} images in ${chunks.length} chunks (${CHUNK_SIZE} per chunk)`);
+    
+    const allUploadedImages = [];
+    
+    // Upload each chunk
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const chunkNumber = i + 1;
+      
+      console.log(`📤 Uploading chunk ${chunkNumber}/${chunks.length} (${chunk.length} images)`);
+      
+      const formData = new FormData();
+      chunk.forEach((img) => {
+        formData.append('images', img.file);
+      });
+      
+      const uploadResponse = await fetch('/api/upload/training-images', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        throw new Error(`Failed to upload chunk ${chunkNumber}: ${errorText}`);
+      }
+      
+      const chunkResult = await uploadResponse.json();
+      console.log(`✅ Chunk ${chunkNumber} uploaded: ${chunkResult.count} images`);
+      
+      // Add uploaded images to the complete list
+      allUploadedImages.push(...chunkResult.images);
+      
+      // Small delay between chunks to avoid overwhelming the server
+      if (i < chunks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    return { images: allUploadedImages, count: allUploadedImages.length };
+  };
+
   const handleStartTraining = async () => {
     if (!jobName.trim()) {
       alert('Please enter a job name');
@@ -123,32 +174,24 @@ export default function TrainLoRAPage() {
     }
 
     try {
-      // First, upload all training images
+      // Upload training images in chunks to avoid 413 payload limits
       console.log('📤 Uploading training images...');
-      const formData = new FormData();
-      images.forEach((img, index) => {
-        formData.append('images', img.file);
+      const uploadedImages = await uploadImagesInChunks(images);
+      console.log('✅ All images uploaded:', uploadedImages);
+
+      // Create image files array with the uploaded URLs (maintain original order)
+      const uploadedImageFiles = uploadedImages.images.map((img: any, index: number) => {
+        // Find the original image that corresponds to this uploaded image
+        const originalIndex = images.findIndex(original => 
+          original.file.name === img.originalName
+        );
+        return {
+          filename: img.filename,
+          caption: originalIndex >= 0 ? images[originalIndex].caption || '' : '',
+          url: img.url,
+          subfolder: ''
+        };
       });
-
-      const uploadResponse = await fetch('/api/upload/training-images', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('Failed to upload training images');
-      }
-
-      const uploadResult = await uploadResponse.json();
-      console.log('✅ Images uploaded:', uploadResult);
-
-      // Create image files array with the uploaded URLs
-      const uploadedImageFiles = uploadResult.images.map((img: any, index: number) => ({
-        filename: img.filename,
-        caption: images[index]?.caption || '',
-        url: img.url,
-        subfolder: ''
-      }));
 
       // Now create the training job with uploaded image URLs
       const preset = trainingPresets[selectedPreset];
