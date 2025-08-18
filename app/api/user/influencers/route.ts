@@ -1,45 +1,60 @@
-// app/api/user/influencers/route.ts - Main influencers API endpoints
+// app/api/user/influencers/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserId, getUserInfluencers } from '@/lib/database';
+import { auth } from '@clerk/nextjs/server';
+import { PrismaClient } from '@/lib/generated/prisma';
+
+const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getUserId(request);
+    const { userId } = await auth();
+    
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized: No user ID found' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('📖 === FETCHING USER INFLUENCERS ===');
-    console.log('👤 User ID:', userId);
+    console.log(`🔍 Fetching influencers for user: ${userId}`);
 
-    // Get user's influencers from database
-    const influencers = await getUserInfluencers(userId);
-    
-    console.log(`✅ Found ${influencers.length} influencers for user ${userId}`);
+    const influencers = await prisma.influencerLoRA.findMany({
+      where: { clerkId: userId },
+      orderBy: { uploadedAt: 'desc' }
+    });
+
+    console.log(`✅ Found ${influencers.length} influencers`);
+
+    // Map database fields to frontend interface
+    const mappedInfluencers = influencers.map(influencer => ({
+      id: influencer.id,
+      userId: influencer.clerkId, // Map clerkId to userId for frontend compatibility
+      name: influencer.name,
+      displayName: influencer.displayName,
+      fileName: influencer.fileName,
+      originalFileName: influencer.originalFileName,
+      fileSize: influencer.fileSize,
+      uploadedAt: influencer.uploadedAt.toISOString(),
+      description: influencer.description,
+      thumbnailUrl: influencer.thumbnailUrl,
+      isActive: influencer.isActive,
+      usageCount: influencer.usageCount,
+      // Map enum values to lowercase for frontend compatibility
+      syncStatus: influencer.syncStatus?.toLowerCase() as "pending" | "synced" | "missing" | "error",
+      lastUsedAt: influencer.lastUsedAt?.toISOString(),
+      comfyUIPath: influencer.comfyUIPath
+    }));
 
     return NextResponse.json({
       success: true,
-      influencers,
-      metadata: {
-        total: influencers.length,
-        active: influencers.filter(inf => inf.isActive).length,
-        synced: influencers.filter(inf => inf.syncStatus === 'synced').length,
-        pending: influencers.filter(inf => inf.syncStatus === 'pending').length
-      }
+      influencers: mappedInfluencers
     });
 
   } catch (error) {
-    console.error('💥 Error fetching influencers:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to fetch influencers',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    console.error('❌ Error fetching influencers:', error);
+    
+    return NextResponse.json({
+      error: 'Failed to fetch influencers',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  } finally {
+    await prisma.$disconnect();
   }
 }

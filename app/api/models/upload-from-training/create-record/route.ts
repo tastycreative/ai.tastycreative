@@ -45,43 +45,49 @@ export async function POST(request: NextRequest) {
       if (user_id && !user_id.startsWith('training_')) {
         console.log('🆘 Creating LoRA record with handler-provided user ID (fallback mode)');
         
-        const lora = await prisma.influencerLoRA.create({
-          data: {
-            clerkId: user_id,
-            name: model_name,
-            displayName: model_name,
-            fileName: file_name,
-            originalFileName: original_file_name || file_name,
-            fileSize: parseInt(file_size.toString()),
-            description: `LoRA trained via RunPod${training_steps ? ` - ${training_steps} steps` : ''}${final_loss ? `, final loss: ${final_loss}` : ''}`,
-            ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
-            ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
-            ...(comfyui_path && { comfyUIPath: comfyui_path }),
-            syncStatus: sync_status || 'SYNCED', // Mark as synced since it's already uploaded
-            isActive: true
-          }
-        });
+        try {
+          const lora = await prisma.influencerLoRA.create({
+            data: {
+              clerkId: user_id,
+              name: model_name,
+              displayName: model_name,
+              fileName: file_name,
+              originalFileName: original_file_name || file_name,
+              fileSize: parseInt(file_size.toString()),
+              description: `LoRA trained via RunPod${training_steps ? ` - ${training_steps} steps` : ''}${final_loss ? `, final loss: ${final_loss}` : ''}`,
+              ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
+              ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
+              ...(comfyui_path && { comfyUIPath: comfyui_path }),
+              syncStatus: 'SYNCED', // FIXED: Use proper enum value
+              isActive: true,
+              usageCount: 0
+            }
+          });
 
-        await prisma.$disconnect();
+          console.log(`✅ Created fallback LoRA record: ${lora.id} for user ${user_id}`);
 
-        console.log(`✅ Created fallback LoRA record: ${lora.id} for user ${user_id}`);
-
-        return NextResponse.json({
-          success: true,
-          message: 'LoRA record created successfully (fallback mode)',
-          lora: {
-            id: lora.id,
-            name: lora.name,
-            fileName: lora.fileName,
-            fileSize: lora.fileSize,
-            isActive: lora.isActive,
-            clerkId: lora.clerkId,
-            comfyUIPath: lora.comfyUIPath || undefined
-          }
-        });
+          return NextResponse.json({
+            success: true,
+            message: 'LoRA record created successfully (fallback mode)',
+            lora: {
+              id: lora.id,
+              name: lora.name,
+              fileName: lora.fileName,
+              fileSize: lora.fileSize,
+              isActive: lora.isActive,
+              clerkId: lora.clerkId,
+              comfyUIPath: lora.comfyUIPath || undefined
+            }
+          });
+        } catch (dbError) {
+          console.error(`❌ Database error creating fallback record:`, dbError);
+          return NextResponse.json({ 
+            error: 'Database error creating LoRA record',
+            details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+          }, { status: 500 });
+        }
       } else {
         console.error(`❌ Cannot create LoRA record: No valid user ID (got: ${user_id})`);
-        await prisma.$disconnect();
         return NextResponse.json({ 
           error: 'Training job not found and no valid user ID provided',
           details: `Database ID: ${job_id}, User ID: ${user_id}`
@@ -91,102 +97,111 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ Found training job: ${trainingJob.id} for user ${trainingJob.clerkId}`);
 
-    // Validate file type
-    if (!file_name.endsWith('.safetensors')) {
-      throw new Error('Only .safetensors files are allowed');
-    }
-
-    // Check if LoRA entry already exists
-    let lora = await prisma.influencerLoRA.findFirst({
-      where: {
-        clerkId: trainingJob.clerkId,
-        trainingJobId: trainingJob.id
+    try {
+      // Validate file type
+      if (!file_name.endsWith('.safetensors')) {
+        throw new Error('Only .safetensors files are allowed');
       }
-    });
 
-    const displayName = trainingJob.description || trainingJob.name || model_name;
-    const description = `LoRA trained from ${model_name}${training_steps ? ` - ${training_steps} steps` : ''}${final_loss ? `, final loss: ${final_loss}` : ''}`;
-
-    if (lora) {
-      // Update existing LoRA
-      lora = await prisma.influencerLoRA.update({
-        where: { id: lora.id },
-        data: {
-          fileName: file_name,
-          fileSize: parseInt(file_size.toString()),
-          ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
-          ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
-          ...(comfyui_path && { comfyUIPath: comfyui_path }),
-          description: description,
-          syncStatus: sync_status || 'SYNCED',
-          isActive: true,
-          updatedAt: new Date()
-        }
-      });
-      console.log(`✅ Updated existing LoRA: ${lora.id}`);
-    } else {
-      // Create new LoRA entry
-      lora = await prisma.influencerLoRA.create({
-        data: {
+      // Check if LoRA entry already exists
+      let lora = await prisma.influencerLoRA.findFirst({
+        where: {
           clerkId: trainingJob.clerkId,
-          name: model_name,
-          displayName: displayName,
-          fileName: file_name,
-          originalFileName: original_file_name || file_name,
-          fileSize: parseInt(file_size.toString()),
-          description: description,
-          ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
-          ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
-          ...(comfyui_path && { comfyUIPath: comfyui_path }),
-          trainingJobId: trainingJob.id,
-          syncStatus: sync_status || 'SYNCED',
-          isActive: true
+          trainingJobId: trainingJob.id
         }
       });
-      console.log(`✅ Created new LoRA: ${lora.id}`);
-    }
 
-    // Update training job with completion details
-    await TrainingJobsDB.updateTrainingJob(trainingJob.id, {
-      status: 'COMPLETED',
-      progress: 100,
-      completedAt: new Date(),
-      finalModelUrl: cloudinary_url || comfyui_path || '',
-      ...(final_loss && { loss: parseFloat(final_loss) })
-    });
+      const displayName = trainingJob.description || trainingJob.name || model_name;
+      const description = `LoRA trained from ${model_name}${training_steps ? ` - ${training_steps} steps` : ''}${final_loss ? `, final loss: ${final_loss}` : ''}`;
 
-    await prisma.$disconnect();
-
-    console.log('🎉 Database record created successfully!');
-
-    return NextResponse.json({
-      success: true,
-      message: 'Database record created successfully',
-      lora: {
-        id: lora.id,
-        name: lora.name,
-        fileName: lora.fileName,
-        fileSize: lora.fileSize,
-        isActive: lora.isActive,
-        clerkId: lora.clerkId,
-        cloudinaryUrl: lora.cloudinaryUrl || undefined,
-        comfyUIPath: lora.comfyUIPath || undefined
+      if (lora) {
+        // Update existing LoRA
+        lora = await prisma.influencerLoRA.update({
+          where: { id: lora.id },
+          data: {
+            fileName: file_name,
+            fileSize: parseInt(file_size.toString()),
+            ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
+            ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
+            ...(comfyui_path && { comfyUIPath: comfyui_path }),
+            description: description,
+            syncStatus: 'SYNCED', // FIXED: Use proper enum value
+            isActive: true,
+            updatedAt: new Date()
+          }
+        });
+        console.log(`✅ Updated existing LoRA: ${lora.id}`);
+      } else {
+        // Create new LoRA entry
+        lora = await prisma.influencerLoRA.create({
+          data: {
+            clerkId: trainingJob.clerkId,
+            name: model_name,
+            displayName: displayName,
+            fileName: file_name,
+            originalFileName: original_file_name || file_name,
+            fileSize: parseInt(file_size.toString()),
+            description: description,
+            ...(cloudinary_url && { cloudinaryUrl: cloudinary_url }),
+            ...(cloudinary_public_id && { cloudinaryPublicId: cloudinary_public_id }),
+            ...(comfyui_path && { comfyUIPath: comfyui_path }),
+            trainingJobId: trainingJob.id,
+            syncStatus: 'SYNCED', // FIXED: Use proper enum value
+            isActive: true,
+            usageCount: 0
+          }
+        });
+        console.log(`✅ Created new LoRA: ${lora.id}`);
       }
-    });
+
+      // Update training job with completion details
+      await TrainingJobsDB.updateTrainingJob(trainingJob.id, {
+        status: 'COMPLETED',
+        progress: 100,
+        completedAt: new Date(),
+        finalModelUrl: cloudinary_url || comfyui_path || '',
+        ...(final_loss && { loss: parseFloat(final_loss) })
+      });
+
+      console.log('🎉 Database record created successfully!');
+
+      return NextResponse.json({
+        success: true,
+        message: 'Database record created successfully',
+        lora: {
+          id: lora.id,
+          name: lora.name,
+          fileName: lora.fileName,
+          fileSize: lora.fileSize,
+          isActive: lora.isActive,
+          clerkId: lora.clerkId,
+          cloudinaryUrl: lora.cloudinaryUrl || undefined,
+          comfyUIPath: lora.comfyUIPath || undefined
+        }
+      });
+
+    } catch (dbError) {
+      console.error('❌ Database operation error:', dbError);
+      return NextResponse.json({
+        error: 'Database operation failed',
+        details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+      }, { status: 500 });
+    }
 
   } catch (error) {
     console.error('💥 Database record creation error:', error);
     
+    return NextResponse.json({
+      error: 'Failed to create database record',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  } finally {
+    // Always disconnect Prisma
     try {
       await prisma.$disconnect();
     } catch (disconnectError) {
       console.error('❌ Prisma disconnect error:', disconnectError);
     }
-
-    return NextResponse.json({
-      error: 'Failed to create database record',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
   }
 }
 
