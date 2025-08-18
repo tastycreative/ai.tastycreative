@@ -38,6 +38,15 @@ export default function TrainLoRAPage() {
   const [images, setImages] = useState<ImageFile[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   
+  // Upload progress state
+  const [uploadProgress, setUploadProgress] = useState({
+    isUploading: false,
+    currentChunk: 0,
+    totalChunks: 0,
+    uploadedImages: 0,
+    totalImages: 0
+  });
+  
   // Advanced settings
   const [advancedSettings, setAdvancedSettings] = useState({
     steps: 1500,
@@ -118,6 +127,15 @@ export default function TrainLoRAPage() {
     
     console.log(`📦 Uploading ${images.length} images in ${chunks.length} chunks (${CHUNK_SIZE} per chunk)`);
     
+    // Initialize progress
+    setUploadProgress({
+      isUploading: true,
+      currentChunk: 0,
+      totalChunks: chunks.length,
+      uploadedImages: 0,
+      totalImages: images.length
+    });
+    
     const allUploadedImages = [];
     
     // Upload each chunk
@@ -126,6 +144,12 @@ export default function TrainLoRAPage() {
       const chunkNumber = i + 1;
       
       console.log(`📤 Uploading chunk ${chunkNumber}/${chunks.length} (${chunk.length} images)`);
+      
+      // Update progress
+      setUploadProgress(prev => ({
+        ...prev,
+        currentChunk: chunkNumber
+      }));
       
       const formData = new FormData();
       chunk.forEach((img) => {
@@ -139,6 +163,7 @@ export default function TrainLoRAPage() {
       
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text();
+        setUploadProgress(prev => ({ ...prev, isUploading: false }));
         throw new Error(`Failed to upload chunk ${chunkNumber}: ${errorText}`);
       }
       
@@ -148,11 +173,20 @@ export default function TrainLoRAPage() {
       // Add uploaded images to the complete list
       allUploadedImages.push(...chunkResult.images);
       
+      // Update progress
+      setUploadProgress(prev => ({
+        ...prev,
+        uploadedImages: allUploadedImages.length
+      }));
+      
       // Small delay between chunks to avoid overwhelming the server
       if (i < chunks.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
+    
+    // Reset progress
+    setUploadProgress(prev => ({ ...prev, isUploading: false }));
     
     return { images: allUploadedImages, count: allUploadedImages.length };
   };
@@ -664,6 +698,31 @@ export default function TrainLoRAPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Upload Progress Display */}
+        {uploadProgress.isUploading && (
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-blue-800 dark:text-blue-200">
+                Uploading Images...
+              </h4>
+              <span className="text-sm text-blue-600 dark:text-blue-300">
+                Chunk {uploadProgress.currentChunk} of {uploadProgress.totalChunks}
+              </span>
+            </div>
+            <div className="mb-2">
+              <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(uploadProgress.uploadedImages / uploadProgress.totalImages) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              Uploaded {uploadProgress.uploadedImages} of {uploadProgress.totalImages} images
+            </p>
           </div>
         )}
 
