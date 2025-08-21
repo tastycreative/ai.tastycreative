@@ -1,15 +1,19 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { trpc } from '@/lib/trpc-client';
-import { trainingPresets, type TrainingPreset, type CreateTrainingJobInput } from '@/lib/validations/training';
-import { 
-  Upload, 
-  Settings, 
-  Play, 
-  Cpu, 
-  Zap, 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { trpc } from "@/lib/trpc-client";
+import {
+  trainingPresets,
+  type TrainingPreset,
+  type CreateTrainingJobInput,
+} from "@/lib/validations/training";
+import {
+  Upload,
+  Settings,
+  Play,
+  Cpu,
+  Zap,
   Clock,
   Image as ImageIcon,
   FileText,
@@ -17,8 +21,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Plus
-} from 'lucide-react';
+  Plus,
+} from "lucide-react";
 
 interface ImageFile {
   file: File;
@@ -29,24 +33,25 @@ interface ImageFile {
 export default function TrainLoRAPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
-  
+
   // Form state
-  const [jobName, setJobName] = useState('');
-  const [description, setDescription] = useState('');
-  const [triggerWord, setTriggerWord] = useState('');
-  const [selectedPreset, setSelectedPreset] = useState<TrainingPreset>('character');
+  const [jobName, setJobName] = useState("");
+  const [description, setDescription] = useState("");
+  const [triggerWord, setTriggerWord] = useState("");
+  const [selectedPreset, setSelectedPreset] =
+    useState<TrainingPreset>("character");
   const [images, setImages] = useState<ImageFile[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  
+
   // Upload progress state
   const [uploadProgress, setUploadProgress] = useState({
     isUploading: false,
     currentChunk: 0,
     totalChunks: 0,
     uploadedImages: 0,
-    totalImages: 0
+    totalImages: 0,
   });
-  
+
   // Advanced settings
   const [advancedSettings, setAdvancedSettings] = useState({
     steps: 1500,
@@ -60,9 +65,9 @@ export default function TrainLoRAPage() {
 
   // Sample prompts
   const [samplePrompts, setSamplePrompts] = useState([
-    'a photo of a person',
-    'portrait of a person, professional lighting',
-    'a person in casual clothes, outdoor setting'
+    "a photo of a person",
+    "portrait of a person, professional lighting",
+    "a person in casual clothes, outdoor setting",
   ]);
 
   const createTrainingJobMutation = trpc.createTrainingJob.useMutation({
@@ -70,9 +75,9 @@ export default function TrainLoRAPage() {
       router.push(`/workspace/training-jobs/${data.trainingJobId}`);
     },
     onError: (error) => {
-      console.error('Training job creation failed:', error);
+      console.error("Training job creation failed:", error);
       // Handle error - show toast notification
-    }
+    },
   });
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,15 +85,15 @@ export default function TrainLoRAPage() {
     if (!files) return;
 
     Array.from(files).forEach((file) => {
-      if (file.type.startsWith('image/')) {
+      if (file.type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onload = (e) => {
           const newImage: ImageFile = {
             file,
-            caption: '',
+            caption: "",
             preview: e.target?.result as string,
           };
-          setImages(prev => [...prev, newImage]);
+          setImages((prev) => [...prev, newImage]);
         };
         reader.readAsDataURL(file);
       }
@@ -96,232 +101,263 @@ export default function TrainLoRAPage() {
   };
 
   const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+    setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const updateImageCaption = (index: number, caption: string) => {
-    setImages(prev => prev.map((img, i) => i === index ? { ...img, caption } : img));
+    setImages((prev) =>
+      prev.map((img, i) => (i === index ? { ...img, caption } : img))
+    );
   };
 
   const addSamplePrompt = () => {
-    setSamplePrompts(prev => [...prev, '']);
+    setSamplePrompts((prev) => [...prev, ""]);
   };
 
   const updateSamplePrompt = (index: number, prompt: string) => {
-    setSamplePrompts(prev => prev.map((p, i) => i === index ? prompt : p));
+    setSamplePrompts((prev) => prev.map((p, i) => (i === index ? prompt : p)));
   };
 
   const removeSamplePrompt = (index: number) => {
-    setSamplePrompts(prev => prev.filter((_, i) => i !== index));
+    setSamplePrompts((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Chunked upload function to handle large batches of images
-  const uploadImagesInChunks = async (images: Array<{ file: File; caption: string }>) => {
+  const uploadImagesInChunks = async (
+    images: Array<{ file: File; caption: string }>
+  ) => {
     const CHUNK_SIZE = 5; // Upload 5 images per batch to avoid 413 errors
     const chunks = [];
-    
+
     // Split images into chunks
     for (let i = 0; i < images.length; i += CHUNK_SIZE) {
       chunks.push(images.slice(i, i + CHUNK_SIZE));
     }
-    
-    console.log(`📦 Uploading ${images.length} images in ${chunks.length} chunks (${CHUNK_SIZE} per chunk)`);
-    
+
+    console.log(
+      `📦 Uploading ${images.length} images in ${chunks.length} chunks (${CHUNK_SIZE} per chunk)`
+    );
+
     // Initialize progress
     setUploadProgress({
       isUploading: true,
       currentChunk: 0,
       totalChunks: chunks.length,
       uploadedImages: 0,
-      totalImages: images.length
+      totalImages: images.length,
     });
-    
+
     const allUploadedImages = [];
-    
+
     // Upload each chunk
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       const chunkNumber = i + 1;
-      
-      console.log(`📤 Uploading chunk ${chunkNumber}/${chunks.length} (${chunk.length} images)`);
-      
+
+      console.log(
+        `📤 Uploading chunk ${chunkNumber}/${chunks.length} (${chunk.length} images)`
+      );
+
       // Update progress
-      setUploadProgress(prev => ({
+      setUploadProgress((prev) => ({
         ...prev,
-        currentChunk: chunkNumber
+        currentChunk: chunkNumber,
       }));
-      
+
       const formData = new FormData();
       chunk.forEach((img) => {
-        formData.append('images', img.file);
+        formData.append("images", img.file);
       });
-      
-      const uploadResponse = await fetch('/api/upload/training-images', {
-        method: 'POST',
+
+      const uploadResponse = await fetch("/api/upload/training-images", {
+        method: "POST",
         body: formData,
       });
-      
+
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text();
-        setUploadProgress(prev => ({ ...prev, isUploading: false }));
+        setUploadProgress((prev) => ({ ...prev, isUploading: false }));
         throw new Error(`Failed to upload chunk ${chunkNumber}: ${errorText}`);
       }
-      
+
       const chunkResult = await uploadResponse.json();
-      console.log(`✅ Chunk ${chunkNumber} uploaded: ${chunkResult.count} images`);
-      
+      console.log(
+        `✅ Chunk ${chunkNumber} uploaded: ${chunkResult.count} images`
+      );
+
       // Add uploaded images to the complete list
       allUploadedImages.push(...chunkResult.images);
-      
+
       // Update progress
-      setUploadProgress(prev => ({
+      setUploadProgress((prev) => ({
         ...prev,
-        uploadedImages: allUploadedImages.length
+        uploadedImages: allUploadedImages.length,
       }));
-      
+
       // Small delay between chunks to avoid overwhelming the server
       if (i < chunks.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
-    
+
     // Reset progress
-    setUploadProgress(prev => ({ ...prev, isUploading: false }));
-    
+    setUploadProgress((prev) => ({ ...prev, isUploading: false }));
+
     return { images: allUploadedImages, count: allUploadedImages.length };
   };
 
   const handleStartTraining = async () => {
     if (!jobName.trim()) {
-      alert('Please enter a job name');
+      alert("Please enter a job name");
       return;
     }
 
     if (images.length === 0) {
-      alert('Please upload at least one image');
+      alert("Please upload at least one image");
       return;
     }
 
-    if (samplePrompts.filter(p => p.trim()).length === 0) {
-      alert('Please add at least one sample prompt');
+    if (samplePrompts.filter((p) => p.trim()).length === 0) {
+      alert("Please add at least one sample prompt");
       return;
     }
 
     try {
       // Upload training images in chunks to avoid 413 payload limits
-      console.log('📤 Uploading training images...');
+      console.log("📤 Uploading training images...");
       const uploadedImages = await uploadImagesInChunks(images);
-      console.log('✅ All images uploaded:', uploadedImages);
+      console.log("✅ All images uploaded:", uploadedImages);
 
       // Create image files array with the uploaded URLs (maintain original order)
-      const uploadedImageFiles = uploadedImages.images.map((img: any, index: number) => {
-        // Find the original image that corresponds to this uploaded image
-        const originalIndex = images.findIndex(original => 
-          original.file.name === img.originalName
-        );
-        return {
-          filename: img.filename,
-          caption: originalIndex >= 0 ? images[originalIndex].caption || '' : '',
-          url: img.url,
-          subfolder: ''
-        };
-      });
+      const uploadedImageFiles = uploadedImages.images.map(
+        (img: any, index: number) => {
+          // Find the original image that corresponds to this uploaded image
+          const originalIndex = images.findIndex(
+            (original) => original.file.name === img.originalName
+          );
+          return {
+            filename: img.filename,
+            caption:
+              originalIndex >= 0 ? images[originalIndex].caption || "" : "",
+            url: img.url,
+            subfolder: "",
+          };
+        }
+      );
 
       // Now create the training job with uploaded image URLs
       const preset = trainingPresets[selectedPreset];
-      
+
       const trainingConfig = {
         name: jobName,
         trigger_word: triggerWord || null,
         network: {
-          type: 'lora' as const,
-          linear: showAdvanced ? advancedSettings.networkRank : preset.config.network.linear,
-          linear_alpha: showAdvanced ? advancedSettings.networkAlpha : preset.config.network.linear_alpha,
-          conv: showAdvanced ? (advancedSettings.networkRank / 2) : preset.config.network.conv,
-          conv_alpha: showAdvanced ? (advancedSettings.networkAlpha / 2) : preset.config.network.conv_alpha,
+          type: "lora" as const,
+          linear: showAdvanced
+            ? advancedSettings.networkRank
+            : preset.config.network.linear,
+          linear_alpha: showAdvanced
+            ? advancedSettings.networkAlpha
+            : preset.config.network.linear_alpha,
+          conv: showAdvanced
+            ? advancedSettings.networkRank / 2
+            : preset.config.network.conv,
+          conv_alpha: showAdvanced
+            ? advancedSettings.networkAlpha / 2
+            : preset.config.network.conv_alpha,
           lokr_full_rank: true,
           lokr_factor: -1,
-          network_kwargs: { ignore_if_contains: [] }
+          network_kwargs: { ignore_if_contains: [] },
         },
         save: {
-          dtype: 'bf16' as const,
+          dtype: "bf16" as const,
           save_every: showAdvanced ? advancedSettings.saveEvery : 250,
           max_step_saves_to_keep: 4,
-          save_format: 'diffusers' as const,
-          push_to_hub: false
+          save_format: "diffusers" as const,
+          push_to_hub: false,
         },
         train: {
-          batch_size: showAdvanced ? advancedSettings.batchSize : preset.config.train.batch_size,
-          steps: showAdvanced ? advancedSettings.steps : preset.config.train.steps,
+          batch_size: showAdvanced
+            ? advancedSettings.batchSize
+            : preset.config.train.batch_size,
+          steps: showAdvanced
+            ? advancedSettings.steps
+            : preset.config.train.steps,
           gradient_accumulation: 1, // Fixed to match ai-toolkit exactly
           linear_timesteps: false,
           train_unet: true,
           train_text_encoder: false,
           gradient_checkpointing: true,
-          noise_scheduler: 'flowmatch' as const,
-          optimizer: 'adamw8bit' as const,
-          timestep_type: 'sigmoid' as const,
+          noise_scheduler: "flowmatch" as const,
+          optimizer: "adamw8bit" as const,
+          timestep_type: "sigmoid" as const,
           content_or_style: preset.config.train.content_or_style,
-          lr: showAdvanced ? advancedSettings.learningRate : preset.config.train.lr,
+          lr: showAdvanced
+            ? advancedSettings.learningRate
+            : preset.config.train.lr,
           optimizer_params: { weight_decay: 0.0001 },
           unload_text_encoder: false,
           cache_text_embeddings: false,
           skip_first_sample: false,
           disable_sampling: false,
-          dtype: 'bf16' as const,
+          dtype: "bf16" as const,
           diff_output_preservation: false,
           diff_output_preservation_multiplier: 1,
-          diff_output_preservation_class: 'person',
-          ema_config: { use_ema: false, ema_decay: 0.99 }
+          diff_output_preservation_class: "person",
+          ema_config: { use_ema: false, ema_decay: 0.99 },
         },
         model: {
-          name_or_path: 'black-forest-labs/FLUX.1-dev',
+          name_or_path: "black-forest-labs/FLUX.1-dev",
           quantize: true,
-          qtype: 'qfloat8' as const,
+          qtype: "qfloat8" as const,
           quantize_te: true,
-          qtype_te: 'qfloat8' as const,
-          arch: 'flux' as const,
+          qtype_te: "qfloat8" as const,
+          arch: "flux" as const,
           low_vram: false,
-          model_kwargs: {}
+          model_kwargs: {},
         },
         sample: {
-          sampler: 'flowmatch' as const,
+          sampler: "flowmatch" as const,
           sample_every: showAdvanced ? advancedSettings.sampleEvery : 250,
           width: 1024,
           height: 1024,
-          samples: samplePrompts.filter(p => p.trim()).map(prompt => ({ prompt })),
-          neg: '',
+          samples: samplePrompts
+            .filter((p) => p.trim())
+            .map((prompt) => ({ prompt })),
+          neg: "",
           seed: 42,
           walk_seed: true,
           guidance_scale: 4,
           sample_steps: 25,
           num_frames: 1,
-          fps: 1
-        }
+          fps: 1,
+        },
       };
 
-      const datasets = [{
-        folder_path: '/workspace/training_data/images',
-        control_path: null,
-        mask_path: null,
-        mask_min_value: 0.1,
-        default_caption: '',
-        caption_ext: 'txt',
-        caption_dropout_rate: 0.05,
-        cache_latents_to_disk: false,
-        is_reg: false,
-        network_weight: 1,
-        resolution: [512, 768, 1024],
-        controls: [],
-        shrink_video_to_frames: true,
-        num_frames: 1,
-        do_i2v: true
-      }];
+      const datasets = [
+        {
+          folder_path: "/workspace/training_data/images",
+          control_path: null,
+          mask_path: null,
+          mask_min_value: 0.1,
+          default_caption: "",
+          caption_ext: "txt",
+          caption_dropout_rate: 0.05,
+          cache_latents_to_disk: false,
+          is_reg: false,
+          network_weight: 1,
+          resolution: [512, 768, 1024],
+          controls: [],
+          shrink_video_to_frames: true,
+          num_frames: 1,
+          do_i2v: true,
+        },
+      ];
 
       const imageFiles = images.map((img) => ({
         filename: img.file.name,
         caption: img.caption,
-        subfolder: ''
+        subfolder: "",
       }));
 
       const input: CreateTrainingJobInput = {
@@ -329,21 +365,21 @@ export default function TrainLoRAPage() {
         description,
         config: trainingConfig,
         datasets,
-        imageFiles: uploadedImageFiles
+        imageFiles: uploadedImageFiles,
       };
 
       await createTrainingJobMutation.mutateAsync(input);
     } catch (error) {
-      console.error('Failed to start training:', error);
-      alert('Failed to start training. Please try again.');
+      console.error("Failed to start training:", error);
+      alert("Failed to start training. Please try again.");
     }
   };
 
   const steps = [
-    { id: 1, name: 'Basic Info', icon: FileText },
-    { id: 2, name: 'Upload Images', icon: ImageIcon },
-    { id: 3, name: 'Configure Training', icon: Settings },
-    { id: 4, name: 'Review & Start', icon: Play }
+    { id: 1, name: "Basic Info", icon: FileText },
+    { id: 2, name: "Upload Images", icon: ImageIcon },
+    { id: 3, name: "Configure Training", icon: Settings },
+    { id: 4, name: "Review & Start", icon: Play },
   ];
 
   return (
@@ -354,7 +390,8 @@ export default function TrainLoRAPage() {
           Train Custom LoRA Model
         </h1>
         <p className="text-lg text-gray-600 dark:text-gray-400">
-          Create a personalized AI model by training on your own images using RunPod's powerful infrastructure
+          Create a personalized AI model by training on your own images using
+          RunPod's powerful infrastructure
         </p>
       </div>
 
@@ -364,21 +401,28 @@ export default function TrainLoRAPage() {
           const Icon = step.icon;
           const isActive = currentStep === step.id;
           const isCompleted = currentStep > step.id;
-          
+
           return (
             <div key={step.id} className="flex flex-col items-center space-y-2">
-              <div className={`
+              <div
+                className={`
                 w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors
-                ${isActive 
-                  ? 'bg-blue-600 border-blue-600 text-white' 
-                  : isCompleted 
-                    ? 'bg-green-600 border-green-600 text-white'
-                    : 'border-gray-300 text-gray-400'
+                ${
+                  isActive
+                    ? "bg-blue-600 border-blue-600 text-white"
+                    : isCompleted
+                    ? "bg-green-600 border-green-600 text-white"
+                    : "border-gray-300 text-gray-400"
                 }
-              `}>
+              `}
+              >
                 <Icon className="w-6 h-6" />
               </div>
-              <span className={`text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-500'}`}>
+              <span
+                className={`text-sm font-medium ${
+                  isActive ? "text-blue-600" : "text-gray-500"
+                }`}
+              >
                 {step.name}
               </span>
             </div>
@@ -391,9 +435,11 @@ export default function TrainLoRAPage() {
         {currentStep === 1 && (
           <div className="space-y-6">
             <h2 className="text-2xl font-semibold mb-6">Basic Information</h2>
-            
+
             <div>
-              <label className="block text-sm font-medium mb-2">Job Name *</label>
+              <label className="block text-sm font-medium mb-2">
+                Job Name *
+              </label>
               <input
                 type="text"
                 value={jobName}
@@ -404,7 +450,9 @@ export default function TrainLoRAPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Description (Optional)</label>
+              <label className="block text-sm font-medium mb-2">
+                Description (Optional)
+              </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -415,7 +463,9 @@ export default function TrainLoRAPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Trigger Word (Optional)</label>
+              <label className="block text-sm font-medium mb-2">
+                Trigger Word (Optional)
+              </label>
               <input
                 type="text"
                 value={triggerWord}
@@ -429,7 +479,9 @@ export default function TrainLoRAPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Training Preset</label>
+              <label className="block text-sm font-medium mb-2">
+                Training Preset
+              </label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(trainingPresets).map(([key, preset]) => (
                   <div
@@ -437,9 +489,10 @@ export default function TrainLoRAPage() {
                     onClick={() => setSelectedPreset(key as TrainingPreset)}
                     className={`
                       p-4 border-2 rounded-lg cursor-pointer transition-colors
-                      ${selectedPreset === key 
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' 
-                        : 'border-gray-300 dark:border-gray-600 hover:border-blue-300'
+                      ${
+                        selectedPreset === key
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                          : "border-gray-300 dark:border-gray-600 hover:border-blue-300"
                       }
                     `}
                   >
@@ -456,13 +509,16 @@ export default function TrainLoRAPage() {
 
         {currentStep === 2 && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-semibold mb-6">Upload Training Images</h2>
-            
+            <h2 className="text-2xl font-semibold mb-6">
+              Upload Training Images
+            </h2>
+
             <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
               <Upload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium mb-2">Upload Images</h3>
               <p className="text-gray-500 mb-4">
-                Select 10-100 high-quality images. Supported formats: JPG, PNG, WebP
+                Select 10-100 high-quality images. Supported formats: JPG, PNG,
+                WebP
               </p>
               <input
                 type="file"
@@ -504,7 +560,9 @@ export default function TrainLoRAPage() {
                         type="text"
                         placeholder="Caption (optional)"
                         value={image.caption}
-                        onChange={(e) => updateImageCaption(index, e.target.value)}
+                        onChange={(e) =>
+                          updateImageCaption(index, e.target.value)
+                        }
                         className="w-full mt-2 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
                       />
                     </div>
@@ -521,9 +579,12 @@ export default function TrainLoRAPage() {
 
             {/* Sample Prompts */}
             <div>
-              <label className="block text-sm font-medium mb-2">Sample Prompts</label>
+              <label className="block text-sm font-medium mb-2">
+                Sample Prompts
+              </label>
               <p className="text-sm text-gray-500 mb-4">
-                These prompts will be used to generate sample images during training
+                These prompts will be used to generate sample images during
+                training
               </p>
               <div className="space-y-2">
                 {samplePrompts.map((prompt, index) => (
@@ -531,7 +592,9 @@ export default function TrainLoRAPage() {
                     <input
                       type="text"
                       value={prompt}
-                      onChange={(e) => updateSamplePrompt(index, e.target.value)}
+                      onChange={(e) =>
+                        updateSamplePrompt(index, e.target.value)
+                      }
                       placeholder={`Sample prompt ${index + 1}`}
                       className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
                     />
@@ -561,7 +624,11 @@ export default function TrainLoRAPage() {
                 onClick={() => setShowAdvanced(!showAdvanced)}
                 className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
               >
-                {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {showAdvanced ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
                 Advanced Settings
               </button>
             </div>
@@ -571,28 +638,36 @@ export default function TrainLoRAPage() {
               <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Training Steps</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Training Steps
+                    </label>
                     <input
                       type="number"
                       value={advancedSettings.steps}
-                      onChange={(e) => setAdvancedSettings(prev => ({
-                        ...prev,
-                        steps: parseInt(e.target.value) || 1500
-                      }))}
+                      onChange={(e) =>
+                        setAdvancedSettings((prev) => ({
+                          ...prev,
+                          steps: parseInt(e.target.value) || 1500,
+                        }))
+                      }
                       min="100"
                       max="10000"
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Learning Rate</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Learning Rate
+                    </label>
                     <input
                       type="number"
                       value={advancedSettings.learningRate}
-                      onChange={(e) => setAdvancedSettings(prev => ({
-                        ...prev,
-                        learningRate: parseFloat(e.target.value) || 0.0001
-                      }))}
+                      onChange={(e) =>
+                        setAdvancedSettings((prev) => ({
+                          ...prev,
+                          learningRate: parseFloat(e.target.value) || 0.0001,
+                        }))
+                      }
                       step="0.00001"
                       min="0.00001"
                       max="0.01"
@@ -600,28 +675,36 @@ export default function TrainLoRAPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Network Rank</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Network Rank
+                    </label>
                     <input
                       type="number"
                       value={advancedSettings.networkRank}
-                      onChange={(e) => setAdvancedSettings(prev => ({
-                        ...prev,
-                        networkRank: parseInt(e.target.value) || 32
-                      }))}
+                      onChange={(e) =>
+                        setAdvancedSettings((prev) => ({
+                          ...prev,
+                          networkRank: parseInt(e.target.value) || 32,
+                        }))
+                      }
                       min="8"
                       max="128"
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Sample Every (Steps)</label>
+                    <label className="block text-sm font-medium mb-2">
+                      Sample Every (Steps)
+                    </label>
                     <input
                       type="number"
                       value={advancedSettings.sampleEvery}
-                      onChange={(e) => setAdvancedSettings(prev => ({
-                        ...prev,
-                        sampleEvery: parseInt(e.target.value) || 250
-                      }))}
+                      onChange={(e) =>
+                        setAdvancedSettings((prev) => ({
+                          ...prev,
+                          sampleEvery: parseInt(e.target.value) || 250,
+                        }))
+                      }
                       min="50"
                       max="1000"
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
@@ -635,30 +718,46 @@ export default function TrainLoRAPage() {
 
         {currentStep === 4 && (
           <div className="space-y-6">
-            <h2 className="text-2xl font-semibold mb-6">Review & Start Training</h2>
+            <h2 className="text-2xl font-semibold mb-6">
+              Review & Start Training
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Training Summary</h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Job Name:</span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Job Name:
+                    </span>
                     <span>{jobName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Preset:</span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Preset:
+                    </span>
                     <span>{trainingPresets[selectedPreset].name}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Images:</span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Images:
+                    </span>
                     <span>{images.length}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Steps:</span>
-                    <span>{showAdvanced ? advancedSettings.steps : trainingPresets[selectedPreset].config.train.steps}</span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Steps:
+                    </span>
+                    <span>
+                      {showAdvanced
+                        ? advancedSettings.steps
+                        : trainingPresets[selectedPreset].config.train.steps}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Estimated Time:</span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Estimated Time:
+                    </span>
                     <span>~2-4 hours</span>
                   </div>
                 </div>
@@ -691,9 +790,10 @@ export default function TrainLoRAPage() {
                     Training Process
                   </h4>
                   <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                    Your images will be uploaded to RunPod, training will start automatically, 
-                    and you'll receive progress updates. The final LoRA model will be available 
-                    for download once training completes.
+                    Your images will be uploaded to RunPod, training will start
+                    automatically, and you'll receive progress updates. The
+                    final LoRA model will be available for download once
+                    training completes.
                   </p>
                 </div>
               </div>
@@ -709,19 +809,27 @@ export default function TrainLoRAPage() {
                 Uploading Images...
               </h4>
               <span className="text-sm text-blue-600 dark:text-blue-300">
-                Chunk {uploadProgress.currentChunk} of {uploadProgress.totalChunks}
+                Chunk {uploadProgress.currentChunk} of{" "}
+                {uploadProgress.totalChunks}
               </span>
             </div>
             <div className="mb-2">
               <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(uploadProgress.uploadedImages / uploadProgress.totalImages) * 100}%` }}
+                  style={{
+                    width: `${
+                      (uploadProgress.uploadedImages /
+                        uploadProgress.totalImages) *
+                      100
+                    }%`,
+                  }}
                 ></div>
               </div>
             </div>
             <p className="text-sm text-blue-700 dark:text-blue-300">
-              Uploaded {uploadProgress.uploadedImages} of {uploadProgress.totalImages} images
+              Uploaded {uploadProgress.uploadedImages} of{" "}
+              {uploadProgress.totalImages} images
             </p>
           </div>
         )}
@@ -736,16 +844,16 @@ export default function TrainLoRAPage() {
               Previous
             </button>
           )}
-          
+
           {currentStep < 4 ? (
             <button
               onClick={() => {
                 if (currentStep === 1 && !jobName.trim()) {
-                  alert('Please enter a job name');
+                  alert("Please enter a job name");
                   return;
                 }
                 if (currentStep === 2 && images.length === 0) {
-                  alert('Please upload at least one image');
+                  alert("Please upload at least one image");
                   return;
                 }
                 setCurrentStep(currentStep + 1);
