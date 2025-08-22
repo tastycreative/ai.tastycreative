@@ -35,6 +35,8 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/webhook-test(.*)', // ✅ Also add your test webhook
   '/api/models/upload-from-training(.*)', // ✅ Add training upload endpoint
   '/api/training/jobs(.*)', // ✅ Add training jobs endpoint for RunPod handler
+  '/api/proxy(.*)', // ✅ Add proxy routes as public (needed for image loading)
+  '/api/instagram(.*)', // ✅ Add Instagram API routes as public
 ]);
 
 // ✅ Special handling for API routes that need custom auth
