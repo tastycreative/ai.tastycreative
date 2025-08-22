@@ -23,6 +23,10 @@ import {
   Shuffle,
   Sparkles,
   BarChart3,
+  Instagram,
+  Wand2,
+  PlayCircle,
+  Bot,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -113,6 +117,27 @@ const navigation: (NavItem | NavSection)[] = [
     ],
   },
   {
+    name: "AI Tools",
+    collapsible: true,
+    items: [
+      {
+        name: "Instagram Extractor",
+        href: "/workspace/ai-tools/instagram-extractor",
+        icon: Instagram,
+      },
+      {
+        name: "Style Transfer Prompts",
+        href: "/workspace/ai-tools/style-transfer-prompts",
+        icon: Wand2,
+      },
+      {
+        name: "Video Prompts",
+        href: "/workspace/ai-tools/video-prompts",
+        icon: PlayCircle,
+      },
+    ],
+  },
+  {
     name: "Settings",
     href: "/settings",
     icon: Settings,
@@ -139,9 +164,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [workspaceOpen, setWorkspaceOpen] = useState(true);
-  const [generateContentOpen, setGenerateContentOpen] = useState(true);
-  const [trainModelsOpen, setTrainModelsOpen] = useState(true);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [generateContentOpen, setGenerateContentOpen] = useState(false);
+  const [aiToolsOpen, setAiToolsOpen] = useState(false);
+  const [trainModelsOpen, setTrainModelsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
   const { signOut } = useClerk();
@@ -217,6 +243,7 @@ export default function DashboardLayout({
   const renderNavSection = (section: NavSection) => {
     const isWorkspaceSection = section.name === "Workspace";
     const isGenerateContentSection = section.name === "Generate Content";
+    const isAiToolsSection = section.name === "AI Tools";
     const isTrainModelsSection = section.name === "Train Models";
 
     // Determine if section is expanded
@@ -225,6 +252,8 @@ export default function DashboardLayout({
       isExpanded = workspaceOpen;
     } else if (isGenerateContentSection) {
       isExpanded = generateContentOpen;
+    } else if (isAiToolsSection) {
+      isExpanded = aiToolsOpen;
     } else if (isTrainModelsSection) {
       isExpanded = trainModelsOpen;
     }
@@ -233,6 +262,7 @@ export default function DashboardLayout({
     const getSectionIcon = () => {
       if (isWorkspaceSection) return Users;
       if (isGenerateContentSection) return PlusCircle;
+      if (isAiToolsSection) return Bot;
       if (isTrainModelsSection) return Settings;
       return Users; // fallback
     };
@@ -245,6 +275,8 @@ export default function DashboardLayout({
         setWorkspaceOpen(!workspaceOpen);
       } else if (isGenerateContentSection) {
         setGenerateContentOpen(!generateContentOpen);
+      } else if (isAiToolsSection) {
+        setAiToolsOpen(!aiToolsOpen);
       } else if (isTrainModelsSection) {
         setTrainModelsOpen(!trainModelsOpen);
       }
