@@ -67,12 +67,23 @@ export async function GET(
       }
     }
     
-    // Return image data as response
-    return new NextResponse(imageData.data, {
+    // Return image data as response (convert Buffer to ArrayBuffer for NextResponse)
+    // Always convert to Uint8Array, then get ArrayBuffer slice
+    const uint8 = (imageData.data instanceof Uint8Array)
+      ? imageData.data
+      : new Uint8Array(imageData.data);
+    let imageBody: ArrayBuffer;
+    if (uint8.byteOffset === 0 && uint8.byteLength === uint8.buffer.byteLength && uint8.buffer instanceof ArrayBuffer) {
+      imageBody = uint8.buffer;
+    } else {
+      // Copy to a new ArrayBuffer to guarantee type
+      imageBody = Uint8Array.from(uint8).buffer;
+    }
+    return new NextResponse(imageBody, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Length': imageData.data.length.toString(),
+        'Content-Length': String(uint8.byteLength),
         'Content-Disposition': `inline; filename="${imageData.filename}"`,
         'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
         'Last-Modified': new Date().toUTCString()
