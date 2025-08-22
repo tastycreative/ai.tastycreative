@@ -735,7 +735,7 @@ function parseInstagramDataAlternative(post: any, originalUrl: string): Instagra
   if (post.media && Array.isArray(post.media)) {
     post.media.forEach((media: any) => {
       if (media.type === "image" || media.type === "GraphImage") {
-        let imageUrl = media.url || media.display_url || media.src;
+  const imageUrl = media.url || media.display_url || media.src;
         
         if (imageUrl && isImageUrl(imageUrl)) {
           images.push({
