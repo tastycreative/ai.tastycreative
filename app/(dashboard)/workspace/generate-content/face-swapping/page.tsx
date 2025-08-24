@@ -1365,41 +1365,68 @@ export default function FaceSwappingPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
-            <Users className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Face Swapping
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Swap faces between images using AI-powered inpainting with Flux
-              Fill
-            </p>
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Enhanced Header with Gradient Background */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20 rounded-2xl shadow-lg border border-blue-100 dark:border-gray-700">
+        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        <div className="relative p-8">
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <div className="p-4 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-2xl shadow-lg">
+                <Users className="w-8 h-8 text-white" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white dark:border-gray-900"></div>
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 dark:from-white dark:via-blue-200 dark:to-purple-200 bg-clip-text text-transparent mb-2">
+                Face Swapping Studio
+              </h1>
+              <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
+                Transform faces between images using advanced AI inpainting with
+                Flux Fill technology
+              </p>
+              <div className="flex items-center space-x-4 mt-3">
+                <div className="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                  <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                  AI-Powered Processing
+                </div>
+                <div className="flex items-center text-sm text-purple-600 dark:text-purple-400">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full mr-2"></div>
+                  High-Quality Results
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel - Controls */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Image Uploads */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Enhanced Left Panel - Controls */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* Enhanced Image Uploads Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Original Image Upload */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="space-y-4">
+            {/* Enhanced Original Image Upload */}
+            <div className="group relative overflow-hidden bg-gradient-to-br from-white via-gray-50 to-blue-50 dark:from-gray-800 dark:via-gray-800 dark:to-blue-900/20 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-transparent to-blue-100/20 dark:to-blue-900/10"></div>
+              <div className="relative p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Original Image (Face to Replace)
-                  </label>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+                      <ImageIconLucide className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                        Original Image
+                      </label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Face to replace
+                      </p>
+                    </div>
+                  </div>
                   {originalImage && (
                     <button
                       onClick={removeOriginalImage}
-                      className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300"
+                      className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300 font-medium px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       Remove
                     </button>
@@ -1409,15 +1436,20 @@ export default function FaceSwappingPage() {
                 {!originalImagePreview ? (
                   <div
                     onClick={() => originalFileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 cursor-pointer transition-colors"
+                    className="group relative border-2 border-dashed border-blue-300 dark:border-blue-600 rounded-2xl p-8 text-center hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-all duration-300 bg-gradient-to-br from-blue-50/50 to-transparent dark:from-blue-900/10 dark:to-transparent hover:from-blue-100/70 dark:hover:from-blue-800/20"
                   >
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-gray-600 dark:text-gray-400 mb-1 text-sm">
-                      Upload original image
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      PNG, JPG, WebP (max 10MB)
-                    </p>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="relative">
+                      <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg mx-auto mb-4 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Upload className="w-8 h-8 text-white" />
+                      </div>
+                      <p className="text-gray-700 dark:text-gray-300 mb-2 font-medium">
+                        Upload original image
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        PNG, JPG, WebP • Max 10MB
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1620,17 +1652,28 @@ export default function FaceSwappingPage() {
               </div>
             </div>
 
-            {/* New Face Image Upload */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="space-y-4">
+            {/* Enhanced New Face Image Upload */}
+            <div className="group relative overflow-hidden bg-gradient-to-br from-white via-gray-50 to-purple-50 dark:from-gray-800 dark:via-gray-800 dark:to-purple-900/20 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-transparent to-purple-100/20 dark:to-purple-900/10"></div>
+              <div className="relative p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    New Face Image
-                  </label>
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+                      <Users className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                        New Face Image
+                      </label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Face to use
+                      </p>
+                    </div>
+                  </div>
                   {newFaceImage && (
                     <button
                       onClick={removeNewFaceImage}
-                      className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300"
+                      className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300 font-medium px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       Remove
                     </button>
@@ -1640,15 +1683,20 @@ export default function FaceSwappingPage() {
                 {!newFaceImagePreview ? (
                   <div
                     onClick={() => newFaceFileInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 cursor-pointer transition-colors"
+                    className="group relative border-2 border-dashed border-purple-300 dark:border-purple-600 rounded-2xl p-8 text-center hover:border-purple-500 dark:hover:border-purple-400 cursor-pointer transition-all duration-300 bg-gradient-to-br from-purple-50/50 to-transparent dark:from-purple-900/10 dark:to-transparent hover:from-purple-100/70 dark:hover:from-purple-800/20"
                   >
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-gray-600 dark:text-gray-400 mb-1 text-sm">
-                      Upload new face
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      PNG, JPG, WebP (max 10MB)
-                    </p>
+                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-purple-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <div className="relative">
+                      <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg mx-auto mb-4 flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Upload className="w-8 h-8 text-white" />
+                      </div>
+                      <p className="text-gray-700 dark:text-gray-300 mb-2 font-medium">
+                        Upload new face
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        PNG, JPG, WebP • Max 10MB
+                      </p>
+                    </div>
                   </div>
                 ) : (
                   <div className="relative">
@@ -1679,13 +1727,23 @@ export default function FaceSwappingPage() {
             </div>
           </div>
 
-          {/* Prompt Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          {/* Enhanced Prompt Input */}
+          <div className="bg-gradient-to-br from-white via-gray-50 to-indigo-50 dark:from-gray-800 dark:via-gray-800 dark:to-indigo-900/20 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl transition-all duration-300">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Generation Prompt
-                </label>
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg">
+                    <Wand2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                      Generation Prompt
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Describe the face swapping result
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={() =>
                     setParams((prev) => ({
@@ -1694,9 +1752,9 @@ export default function FaceSwappingPage() {
                         "Retain face. fit the face perfectly to the body. natural realistic eyes, match the skin tone of the body to the face",
                     }))
                   }
-                  className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium px-3 py-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
                 >
-                  Reset
+                  Use Default
                 </button>
               </div>
               <textarea
@@ -1705,8 +1763,15 @@ export default function FaceSwappingPage() {
                   setParams((prev) => ({ ...prev, prompt: e.target.value }))
                 }
                 placeholder="Instructions for face swapping..."
-                className="w-full h-24 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                className="w-full h-28 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none bg-white/80 dark:bg-gray-700/80 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 backdrop-blur-sm transition-all"
               />
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>
+                  💡 Tip: Be specific about face integration and skin tone
+                  matching
+                </span>
+                <span>{params.prompt.length}/500</span>
+              </div>
             </div>
           </div>
 
@@ -1992,35 +2057,104 @@ export default function FaceSwappingPage() {
             )}
           </div>
 
-          {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={
-              isGenerating ||
-              !params.prompt.trim() ||
-              !originalImage ||
-              !newFaceImage ||
-              uploadingImage
-            }
-            className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Swapping Faces...</span>
-              </>
-            ) : uploadingImage ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Uploading Images...</span>
-              </>
-            ) : (
-              <>
-                <Users className="w-5 h-5" />
-                <span>Swap Faces</span>
-              </>
-            )}
-          </button>
+          {/* Enhanced Generate Button */}
+          <div className="relative">
+            <button
+              onClick={handleGenerate}
+              disabled={
+                isGenerating ||
+                !params.prompt.trim() ||
+                !originalImage ||
+                !newFaceImage ||
+                uploadingImage
+              }
+              className="group relative w-full py-6 px-8 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 hover:from-blue-600 hover:via-indigo-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-2xl shadow-2xl transition-all duration-300 overflow-hidden"
+            >
+              {/* Animated Background */}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+              {/* Button Content */}
+              <div className="relative flex items-center justify-center space-x-3">
+                {isGenerating ? (
+                  <>
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-lg">Swapping Faces...</span>
+                    {currentJob?.progress && (
+                      <span className="text-sm opacity-80">
+                        {currentJob.progress}%
+                      </span>
+                    )}
+                  </>
+                ) : uploadingImage ? (
+                  <>
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-lg">Uploading Images...</span>
+                  </>
+                ) : (
+                  <>
+                    <Users className="w-6 h-6" />
+                    <span className="text-lg">Swap Faces</span>
+                    <div className="ml-2 px-2 py-1 bg-white/20 rounded-lg text-sm font-normal">
+                      AI-Powered
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Shimmer Effect */}
+              {!isGenerating && !uploadingImage && (
+                <div className="absolute inset-0 -skew-x-12 translate-x-full group-hover:translate-x-0 bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-1000"></div>
+              )}
+            </button>
+
+            {/* Status Indicators */}
+            <div className="mt-3 flex items-center justify-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+              <div
+                className={`flex items-center space-x-1 ${
+                  originalImage ? "text-green-600 dark:text-green-400" : ""
+                }`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    originalImage
+                      ? "bg-green-400"
+                      : "bg-gray-300 dark:bg-gray-600"
+                  }`}
+                ></div>
+                <span>Original Image</span>
+              </div>
+              <div
+                className={`flex items-center space-x-1 ${
+                  newFaceImage ? "text-green-600 dark:text-green-400" : ""
+                }`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    newFaceImage
+                      ? "bg-green-400"
+                      : "bg-gray-300 dark:bg-gray-600"
+                  }`}
+                ></div>
+                <span>New Face</span>
+              </div>
+              <div
+                className={`flex items-center space-x-1 ${
+                  params.prompt.trim()
+                    ? "text-green-600 dark:text-green-400"
+                    : ""
+                }`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    params.prompt.trim()
+                      ? "bg-green-400"
+                      : "bg-gray-300 dark:bg-gray-600"
+                  }`}
+                ></div>
+                <span>Prompt</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Right Panel - Results */}

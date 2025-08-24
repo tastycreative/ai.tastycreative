@@ -763,37 +763,68 @@ export default function TextToImagePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg">
-            <ImageIcon className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Text to Image
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Generate stunning images from text descriptions using Flux AI
-            </p>
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Enhanced Header with Gradient Background */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-blue-900/20 rounded-2xl shadow-lg border border-purple-100 dark:border-gray-700">
+        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+        <div className="relative p-8">
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <div className="p-4 bg-gradient-to-br from-purple-500 via-blue-500 to-indigo-600 rounded-2xl shadow-lg">
+                <ImageIcon className="w-8 h-8 text-white" />
+              </div>
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white dark:border-gray-900"></div>
+            </div>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-blue-800 dark:from-white dark:via-purple-200 dark:to-blue-200 bg-clip-text text-transparent mb-2">
+                Text to Image Studio
+              </h1>
+              <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
+                Generate stunning images from text descriptions using advanced
+                Flux AI technology
+              </p>
+              <div className="flex items-center space-x-4 mt-3">
+                <div className="flex items-center text-sm text-purple-600 dark:text-purple-400">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full mr-2"></div>
+                  Flux AI Engine
+                </div>
+                <div className="flex items-center text-sm text-blue-600 dark:text-blue-400">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full mr-2"></div>
+                  LoRA Support
+                </div>
+                <div className="flex items-center text-sm text-indigo-600 dark:text-indigo-400">
+                  <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
+                  High Resolution
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel - Controls */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Prompt Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Enhanced Left Panel - Controls */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* Enhanced Prompt Input */}
+          <div className="bg-gradient-to-br from-white via-gray-50 to-purple-50 dark:from-gray-800 dark:via-gray-800 dark:to-purple-900/20 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl transition-all duration-300">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Prompt
-                </label>
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+                    <Wand2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                      Creative Prompt
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Describe your vision in detail
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
-                  className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium px-3 py-1 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
                 >
                   Clear
                 </button>
@@ -804,10 +835,13 @@ export default function TextToImagePage() {
                   setParams((prev) => ({ ...prev, prompt: e.target.value }))
                 }
                 placeholder="Describe the image you want to generate..."
-                className="w-full h-32 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                className="w-full h-36 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-white/80 dark:bg-gray-700/80 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 backdrop-blur-sm transition-all"
               />
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {params.prompt.length}/1000 characters
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>
+                  💡 Tip: Be specific about style, lighting, and composition
+                </span>
+                <span>{params.prompt.length}/1000</span>
               </div>
             </div>
           </div>
@@ -1067,24 +1101,89 @@ export default function TextToImagePage() {
             )}
           </div>
 
-          {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating || !params.prompt.trim()}
-            className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              <>
-                <Wand2 className="w-5 h-5" />
-                <span>Generate Image</span>
-              </>
-            )}
-          </button>
+          {/* Enhanced Generate Button */}
+          <div className="relative">
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating || !params.prompt.trim()}
+              className="group relative w-full py-6 px-8 bg-gradient-to-r from-purple-500 via-blue-500 to-indigo-600 hover:from-purple-600 hover:via-blue-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-2xl shadow-2xl transition-all duration-300 overflow-hidden"
+            >
+              {/* Animated Background */}
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+              {/* Button Content */}
+              <div className="relative flex items-center justify-center space-x-3">
+                {isGenerating ? (
+                  <>
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-lg">Generating...</span>
+                    {currentJob?.progress && (
+                      <span className="text-sm opacity-80">
+                        {currentJob.progress}%
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-6 h-6" />
+                    <span className="text-lg">Generate Image</span>
+                    <div className="ml-2 px-2 py-1 bg-white/20 rounded-lg text-sm font-normal">
+                      {params.selectedLora !== "None"
+                        ? "LoRA Enhanced"
+                        : "Base Model"}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Shimmer Effect */}
+              {!isGenerating && (
+                <div className="absolute inset-0 -skew-x-12 translate-x-full group-hover:translate-x-0 bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-1000"></div>
+              )}
+            </button>
+
+            {/* Status Indicators */}
+            <div className="mt-3 flex items-center justify-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+              <div
+                className={`flex items-center space-x-1 ${
+                  params.prompt.trim()
+                    ? "text-green-600 dark:text-green-400"
+                    : ""
+                }`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    params.prompt.trim()
+                      ? "bg-green-400"
+                      : "bg-gray-300 dark:bg-gray-600"
+                  }`}
+                ></div>
+                <span>Prompt Ready</span>
+              </div>
+              <div
+                className={`flex items-center space-x-1 ${
+                  params.selectedLora !== "None"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-gray-500"
+                }`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    params.selectedLora !== "None"
+                      ? "bg-blue-400"
+                      : "bg-gray-300 dark:bg-gray-600"
+                  }`}
+                ></div>
+                <span>LoRA Model</span>
+              </div>
+              <div className="flex items-center space-x-1 text-purple-600 dark:text-purple-400">
+                <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                <span>
+                  Size: {params.width}×{params.height}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Right Panel - Results */}
