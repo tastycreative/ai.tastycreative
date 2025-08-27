@@ -739,41 +739,20 @@ export default function ImageToVideoPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* Enhanced Header with Gradient Background */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-pink-900/20 rounded-2xl shadow-lg border border-purple-100 dark:border-gray-700">
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-        <div className="relative p-8">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <div className="p-4 bg-gradient-to-br from-purple-500 via-pink-500 to-indigo-600 rounded-2xl shadow-lg">
-                <Video className="w-8 h-8 text-white" />
-              </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white dark:border-gray-900"></div>
-            </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-pink-800 dark:from-white dark:via-purple-200 dark:to-pink-200 bg-clip-text text-transparent mb-2">
-                Image to Video Studio
-              </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
-                Transform static images into dynamic videos using WAN 2.2 AI
-                technology
-              </p>
-              <div className="flex items-center space-x-4 mt-3">
-                <div className="flex items-center text-sm text-purple-600 dark:text-purple-400">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full mr-2"></div>
-                  WAN 2.2 Engine
-                </div>
-                <div className="flex items-center text-sm text-pink-600 dark:text-pink-400">
-                  <div className="w-2 h-2 bg-pink-400 rounded-full mr-2"></div>
-                  High-Quality Motion
-                </div>
-                <div className="flex items-center text-sm text-indigo-600 dark:text-indigo-400">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-                  Multiple Formats
-                </div>
-              </div>
-            </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg">
+            <Video className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Image to Video
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Transform static images into dynamic videos using WAN 2.2 AI
+            </p>
           </div>
         </div>
       </div>

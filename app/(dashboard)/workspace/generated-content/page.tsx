@@ -18,17 +18,13 @@ import {
   X,
   Loader2,
   AlertCircle,
+  RefreshCw,
   SortAsc,
   SortDesc,
   MoreVertical,
   Video,
   Play,
   Pause,
-  RefreshCw,
-  Star,
-  Heart,
-  Clock,
-  TrendingUp,
 } from "lucide-react";
 
 // Types
@@ -121,6 +117,18 @@ export default function GeneratedContentPage() {
     }
   }, [apiClient]);
 
+  // Auto-refresh content every 30 seconds to catch new generations
+  useEffect(() => {
+    if (!apiClient) return;
+
+    const interval = setInterval(() => {
+      console.log("🔄 Auto-refreshing generated content...");
+      fetchContent();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [apiClient]);
+
   const fetchContent = async () => {
     if (!apiClient) {
       console.error("❌ API client not available");
@@ -138,9 +146,11 @@ export default function GeneratedContentPage() {
       console.log("🔗 Origin:", window.location.origin);
       console.log("⏰ Timestamp:", new Date().toISOString());
 
-      // Fetch images
+      // Fetch images with more detailed parameters
       console.log("📡 Fetching images from /api/images...");
-      const imagesResponse = await apiClient.get("/api/images");
+      const imagesResponse = await apiClient.get(
+        "/api/images?includeData=false&limit=100"
+      );
       console.log("📡 Images response status:", imagesResponse.status);
       console.log(
         "📡 Images response headers:",
@@ -149,7 +159,9 @@ export default function GeneratedContentPage() {
 
       // Fetch videos
       console.log("📡 Fetching videos from /api/videos...");
-      const videosResponse = await apiClient.get("/api/videos");
+      const videosResponse = await apiClient.get(
+        "/api/videos?includeData=false&limit=100"
+      );
       console.log("📡 Videos response status:", videosResponse.status);
       console.log(
         "📡 Videos response headers:",
@@ -207,6 +219,26 @@ export default function GeneratedContentPage() {
       console.log("📊 Raw images count:", imagesData.images?.length || 0);
       console.log("📊 Raw videos count:", videosData.videos?.length || 0);
 
+      // Debug individual images
+      if (
+        imagesData.success &&
+        imagesData.images &&
+        imagesData.images.length > 0
+      ) {
+        console.log("🖼️ Sample image data:", imagesData.images[0]);
+        imagesData.images.forEach((img: any, index: number) => {
+          console.log(`🖼️ Image ${index + 1}:`, {
+            id: img.id,
+            filename: img.filename,
+            jobId: img.jobId,
+            hasDataUrl: !!img.dataUrl,
+            hasUrl: !!img.url,
+            createdAt: img.createdAt,
+            fileSize: img.fileSize,
+          });
+        });
+      }
+
       if (imagesData.success && imagesData.images) {
         // Convert string dates to Date objects
         const processedImages = imagesData.images.map((img: any) => ({
@@ -260,6 +292,21 @@ export default function GeneratedContentPage() {
 
       if (allItems.length === 0) {
         console.warn("⚠️ No content items found after processing");
+        console.log("🔍 Debug info:", {
+          imagesSuccess: imagesData.success,
+          imagesLength: imagesData.images?.length || 0,
+          videosSuccess: videosData.success,
+          videosLength: videosData.videos?.length || 0,
+        });
+      } else {
+        console.log("📋 Content breakdown:", {
+          images: allItems.filter((item) => item.itemType === "image").length,
+          videos: allItems.filter((item) => item.itemType === "video").length,
+          total: allItems.length,
+          mostRecent: allItems[0]
+            ? new Date(allItems[0].createdAt).toLocaleString()
+            : "none",
+        });
       }
     } catch (error) {
       console.error("💥 Error fetching content:", error);
@@ -472,17 +519,31 @@ export default function GeneratedContentPage() {
 
   if (!apiClient) {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-          <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full inline-flex items-center justify-center mb-4">
-            <Loader2 className="w-8 h-8 animate-spin text-white" />
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center space-y-6">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-emerald-200 dark:border-emerald-800 border-t-emerald-600 dark:border-t-emerald-400 rounded-full animate-spin mx-auto"></div>
+            <ImageIcon className="absolute inset-0 w-8 h-8 text-teal-500 animate-pulse m-auto" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            Initializing...
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            Setting up authentication and connecting to your content
-          </p>
+          <div className="space-y-2">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Loading Your Gallery
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 max-w-md">
+              Setting up authentication to view your generated content...
+            </p>
+          </div>
+          <div className="flex items-center justify-center space-x-2 text-sm text-teal-600 dark:text-teal-400">
+            <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"></div>
+            <div
+              className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"
+              style={{ animationDelay: "0.1s" }}
+            ></div>
+            <div
+              className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"
+              style={{ animationDelay: "0.2s" }}
+            ></div>
+          </div>
         </div>
       </div>
     );
@@ -491,19 +552,11 @@ export default function GeneratedContentPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <div className="text-center p-8 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-          <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full inline-flex items-center justify-center mb-4 animate-pulse">
-            <ImageIcon className="w-8 h-8 text-white" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            Loading Your Gallery
-          </h3>
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
           <p className="text-gray-600 dark:text-gray-400">
-            Fetching your AI-generated images and videos...
+            Loading your images...
           </p>
-          <div className="flex justify-center mt-4">
-            <Loader2 className="w-5 h-5 animate-spin text-emerald-500" />
-          </div>
         </div>
       </div>
     );
@@ -512,20 +565,14 @@ export default function GeneratedContentPage() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <div className="text-center p-8 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/30 rounded-xl shadow-lg border border-red-200 dark:border-red-700 max-w-md">
-          <div className="p-4 bg-red-500 rounded-full inline-flex items-center justify-center mb-4">
-            <AlertCircle className="w-8 h-8 text-white" />
-          </div>
-          <h3 className="text-xl font-semibold text-red-900 dark:text-red-100 mb-2">
-            Something went wrong
-          </h3>
-          <p className="text-red-700 dark:text-red-300 mb-6">{error}</p>
+        <div className="text-center">
+          <AlertCircle className="w-8 h-8 mx-auto mb-4 text-red-500" />
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <button
             onClick={fetchContent}
-            className="inline-flex items-center space-x-2 px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:shadow-lg"
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center space-x-2 mx-auto"
           >
-            <RefreshCw className="w-4 h-4" />
-            <span>Try Again</span>
+            <span>Retry</span>
           </button>
         </div>
       </div>
@@ -625,113 +672,112 @@ export default function GeneratedContentPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-teal-600/10 rounded-full blur-xl" />
-        <div className="relative flex items-center justify-between">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl shadow-lg border border-emerald-200 dark:border-teal-800 p-6 text-white">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="p-3 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl shadow-lg">
-              <ImageIcon className="w-7 h-7 text-white" />
+            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+              <ImageIcon className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                Generated Content
-              </h1>
-              <p className="text-gray-600 dark:text-gray-300 text-lg">
+              <h1 className="text-3xl font-bold">Generated Content</h1>
+              <p className="text-emerald-100">
                 View and manage your AI-generated images and videos
               </p>
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="hidden md:flex items-center space-x-3">
+          <div className="flex items-center space-x-3">
             <button
-              onClick={fetchContent}
-              className="flex items-center space-x-2 px-4 py-2 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/30 transition-colors"
+              onClick={() => {
+                fetchContent();
+                fetchStats();
+              }}
+              disabled={loading}
+              className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-medium rounded-xl shadow-sm transition-all backdrop-blur-sm"
+              title="Refresh content"
             >
-              <RefreshCw className="w-4 h-4" />
-              <span className="hidden sm:inline">Refresh</span>
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>Refresh</span>
             </button>
-            {allContent.length > 0 && (
-              <span className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full text-sm font-medium">
-                {allContent.length} items
-              </span>
-            )}
+
+            <div className="text-right bg-white/10 rounded-xl p-3 backdrop-blur-sm">
+              <div className="text-2xl font-bold text-white">
+                {allContent.length}
+              </div>
+              <div className="text-sm text-emerald-100">Total Items</div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Enhanced Stats */}
+      {/* Stats */}
       {(imageStats || videoStats) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {imageStats && (
             <>
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl p-6 border border-blue-200 dark:border-blue-800 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 bg-blue-500 rounded-lg">
-                    <FileImage className="w-5 h-5 text-white" />
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-2">
+                  <FileImage className="w-5 h-5 text-blue-500" />
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Total Images
+                    </p>
+                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {imageStats.totalImages}
+                    </p>
                   </div>
-                  <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-blue-600 dark:text-blue-300 mb-1">
-                    Total Images
-                  </p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                    {imageStats.totalImages.toLocaleString()}
-                  </p>
                 </div>
               </div>
-              <div className="bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20 rounded-xl p-6 border border-green-200 dark:border-green-800 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 bg-green-500 rounded-lg">
-                    <Download className="w-5 h-5 text-white" />
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-2">
+                  <Download className="w-5 h-5 text-green-500" />
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Images Size
+                    </p>
+                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
+                        100}{" "}
+                      MB
+                    </p>
                   </div>
-                  <Heart className="w-4 h-4 text-green-600 dark:text-green-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-green-600 dark:text-green-300 mb-1">
-                    Total Size
-                  </p>
-                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">
-                    {(imageStats.totalSize / 1024 / 1024).toFixed(1)} MB
-                  </p>
                 </div>
               </div>
             </>
           )}
           {videoStats && (
             <>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-6 border border-purple-200 dark:border-purple-800 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 bg-purple-500 rounded-lg">
-                    <Video className="w-5 h-5 text-white" />
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-2">
+                  <Video className="w-5 h-5 text-purple-500" />
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Total Videos
+                    </p>
+                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {videoStats.totalVideos}
+                    </p>
                   </div>
-                  <Play className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-purple-600 dark:text-purple-300 mb-1">
-                    Total Videos
-                  </p>
-                  <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                    {videoStats.totalVideos.toLocaleString()}
-                  </p>
                 </div>
               </div>
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-xl p-6 border border-orange-200 dark:border-orange-800 hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="p-2 bg-orange-500 rounded-lg">
-                    <Clock className="w-5 h-5 text-white" />
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-2">
+                  <Download className="w-5 h-5 text-orange-500" />
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Videos Size
+                    </p>
+                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {Math.round((videoStats.totalSize / 1024 / 1024) * 100) /
+                        100}{" "}
+                      MB
+                    </p>
                   </div>
-                  <TrendingUp className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-orange-600 dark:text-orange-300 mb-1">
-                    Video Size
-                  </p>
-                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">
-                    {(videoStats.totalSize / 1024 / 1024).toFixed(1)} MB
-                  </p>
                 </div>
               </div>
             </>
@@ -739,69 +785,55 @@ export default function GeneratedContentPage() {
         </div>
       )}
 
-      {/* Enhanced Controls */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-          {/* Search and Filter Row */}
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-            {/* Enhanced Search */}
-            <div className="relative flex-1 min-w-0 sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by filename..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Content Type Filter */}
-            <div className="flex items-center space-x-2">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <select
-                value={filterBy}
-                onChange={(e) => setFilterBy(e.target.value as FilterBy)}
-                className="px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              >
-                <option value="all">All Content ({allContent.length})</option>
-                <option value="images">Images Only ({images.length})</option>
-                <option value="videos">Videos Only ({videos.length})</option>
-              </select>
-            </div>
+      {/* Controls */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+          {/* Search */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search images..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
 
-          {/* Controls Row */}
-          <div className="flex items-center justify-between sm:justify-end space-x-3">
-            {/* Sort Options */}
+          {/* Controls */}
+          <div className="flex items-center space-x-2">
+            {/* Filter */}
+            <select
+              value={filterBy}
+              onChange={(e) => setFilterBy(e.target.value as FilterBy)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            >
+              <option value="all">All Content</option>
+              <option value="images">Images Only</option>
+              <option value="videos">Videos Only</option>
+            </select>
+
+            {/* Sort */}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
             >
-              <option value="newest">⏰ Newest First</option>
-              <option value="oldest">🕐 Oldest First</option>
-              <option value="largest">📏 Largest First</option>
-              <option value="smallest">📐 Smallest First</option>
-              <option value="name">🔤 Name A-Z</option>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="largest">Largest First</option>
+              <option value="smallest">Smallest First</option>
+              <option value="name">Name</option>
             </select>
 
-            {/* View Mode Toggle */}
-            <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-700">
+            {/* View Mode */}
+            <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`p-2.5 transition-all ${
+                className={`p-2 ${
                   viewMode === "grid"
-                    ? "bg-emerald-500 text-white shadow-sm"
-                    : "bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+                    ? "bg-blue-500 text-white"
+                    : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                 }`}
                 title="Grid view"
               >
@@ -809,10 +841,10 @@ export default function GeneratedContentPage() {
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`p-2.5 transition-all ${
+                className={`p-2 ${
                   viewMode === "list"
-                    ? "bg-emerald-500 text-white shadow-sm"
-                    : "bg-transparent text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600"
+                    ? "bg-blue-500 text-white"
+                    : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                 }`}
                 title="List view"
               >
@@ -821,106 +853,20 @@ export default function GeneratedContentPage() {
             </div>
           </div>
         </div>
-
-        {/* Results Summary */}
-        {(searchQuery || filterBy !== "all") && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-              <span>
-                {filteredAndSortedContent().length} items
-                {searchQuery && ` matching "${searchQuery}"`}
-                {filterBy !== "all" && ` (${filterBy} only)`}
-              </span>
-              {(searchQuery || filterBy !== "all") && (
-                <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setFilterBy("all");
-                  }}
-                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 font-medium"
-                >
-                  Clear filters
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Enhanced Empty State */}
+      {/* Content */}
       {filteredAndSortedContent().length === 0 ? (
-        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 text-center relative overflow-hidden">
-          <div className="absolute top-0 left-1/2 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl transform -translate-x-1/2" />
-          <div className="relative flex flex-col items-center space-y-6">
-            {/* Dynamic Icon based on state */}
-            <div className="p-6 bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 rounded-full border border-emerald-200 dark:border-emerald-700">
-              {searchQuery || filterBy !== "all" ? (
-                <Search className="w-12 h-12 text-emerald-500 dark:text-emerald-400" />
-              ) : (
-                <ImageIcon className="w-12 h-12 text-emerald-500 dark:text-emerald-400" />
-              )}
-            </div>
-
-            {/* Content */}
-            <div className="max-w-md">
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                {searchQuery || filterBy !== "all"
-                  ? "No matching content"
-                  : "No content generated yet"}
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 text-lg leading-relaxed mb-6">
-                {searchQuery || filterBy !== "all"
-                  ? "Try adjusting your filters or search query to find what you're looking for."
-                  : "Start generating AI content to build your personal gallery. Your images and videos will appear here."}
-              </p>
-
-              {/* Action Buttons */}
-              <div className="space-y-4">
-                {searchQuery || filterBy !== "all" ? (
-                  <button
-                    onClick={() => {
-                      setSearchQuery("");
-                      setFilterBy("all");
-                    }}
-                    className="inline-flex items-center space-x-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:shadow-lg"
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                    <span>Clear filters</span>
-                  </button>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Quick Action Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                      <button className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:shadow-lg transform hover:scale-105">
-                        <ImageIcon className="w-5 h-5" />
-                        <span>Generate Images</span>
-                      </button>
-                      <button className="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 hover:shadow-lg transform hover:scale-105">
-                        <Video className="w-5 h-5" />
-                        <span>Generate Videos</span>
-                      </button>
-                    </div>
-
-                    {/* Features */}
-                    <div className="flex flex-wrap justify-center gap-4 mt-6 text-sm text-gray-600 dark:text-gray-400">
-                      <div className="flex items-center space-x-1">
-                        <Star className="w-4 h-4 text-emerald-500" />
-                        <span>High-quality AI content</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Download className="w-4 h-4 text-blue-500" />
-                        <span>Easy download & share</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Eye className="w-4 h-4 text-purple-500" />
-                        <span>Preview & organize</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+        <div className="text-center py-12">
+          <ImageIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            No content found
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            {searchQuery || filterBy !== "all"
+              ? "Try adjusting your filters or search query"
+              : "Start generating content to see it here"}
+          </p>
         </div>
       ) : (
         <>

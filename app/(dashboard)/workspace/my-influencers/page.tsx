@@ -25,6 +25,8 @@ import {
   Copy,
   Calendar,
   HardDrive,
+  BarChart3,
+  Sparkles,
 } from "lucide-react";
 
 // Types
@@ -78,6 +80,11 @@ export default function MyInfluencersPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [comfyUIStatus, setComfyUIStatus] = useState<{
+    status: string;
+    url: string;
+    lastChecked?: Date;
+  } | null>(null);
   const [showInstructions, setShowInstructions] =
     useState<UploadInstructions | null>(null);
   const [selectedInfluencer, setSelectedInfluencer] =
@@ -272,6 +279,53 @@ export default function MyInfluencersPage() {
     setSelectedFiles(validFiles);
   };
 
+  // Check ComfyUI status
+  const checkComfyUIStatus = async () => {
+    try {
+      const response = await apiClient!.get("/api/env-check");
+      if (response.ok) {
+        const data = await response.json();
+        setComfyUIStatus({
+          status: data.comfyuiStatus,
+          url: data.comfyuiUrl,
+          lastChecked: new Date(),
+        });
+      }
+    } catch (error) {
+      console.error("Failed to check ComfyUI status:", error);
+      setComfyUIStatus({
+        status: "check-failed",
+        url: "unknown",
+        lastChecked: new Date(),
+      });
+    }
+  };
+
+  // ✅ Helper function to get ComfyUI URL from server
+  const getComfyUIUrl = async (): Promise<string> => {
+    try {
+      const response = await apiClient!.get("/api/env-check");
+      if (response.ok) {
+        const data = await response.json();
+        // The server should provide the ComfyUI URL
+        return (
+          data.comfyuiUrl ||
+          process.env.NEXT_PUBLIC_COMFYUI_URL ||
+          "http://localhost:8188"
+        );
+      }
+    } catch (error) {
+      console.warn("Could not fetch ComfyUI URL from server, using defaults");
+    }
+
+    // Fallback to environment variables
+    return (
+      process.env.NEXT_PUBLIC_COMFYUI_URL ||
+      process.env.NEXT_PUBLIC_RUNPOD_URL ||
+      "http://localhost:8188"
+    );
+  };
+
   // ✅ NEW FUNCTION: Upload directly to ComfyUI (no Vercel involvement for files)
   const uploadDirectlyToComfyUI = async (
     file: File,
@@ -288,14 +342,33 @@ export default function MyInfluencersPage() {
       `🎯 Uploading ${file.name} directly to ComfyUI as ${uniqueFileName}`
     );
 
+    // Get ComfyUI URL from server first
+    const comfyUIUrl = await getComfyUIUrl();
+    console.log(`🔗 ComfyUI URL: ${comfyUIUrl}`);
+
+    // First, let's test if ComfyUI is accessible
+    try {
+      console.log("🔍 Testing ComfyUI connection...");
+      const testResponse = await fetch(`${comfyUIUrl}/system_stats`, {
+        method: "GET",
+        mode: "cors",
+        headers: {
+          Accept: "application/json",
+        },
+      });
+      console.log(`📊 ComfyUI connection test: ${testResponse.status}`);
+      if (!testResponse.ok) {
+        console.warn(`⚠️ ComfyUI system_stats returned ${testResponse.status}`);
+      }
+    } catch (testError) {
+      console.warn("⚠️ ComfyUI connection test failed:", testError);
+      // Continue anyway, might be a CORS issue with GET but POST might work
+    }
+
     // Create FormData for ComfyUI
     const comfyFormData = new FormData();
     comfyFormData.append("image", file, uniqueFileName);
     comfyFormData.append("subfolder", "loras");
-
-    // Get ComfyUI URL from environment
-    const comfyUIUrl =
-      process.env.NEXT_PUBLIC_COMFYUI_URL || "http://209.53.88.242:14753";
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -304,6 +377,7 @@ export default function MyInfluencersPage() {
       xhr.upload.addEventListener("progress", (event) => {
         if (event.lengthComputable) {
           const percentage = Math.round((event.loaded / event.total) * 90); // Leave 10% for processing
+          console.log(`📊 Upload progress for ${file.name}: ${percentage}%`);
           setUploadProgress((prev) =>
             prev.map((item) =>
               item.fileName === file.name
@@ -314,7 +388,14 @@ export default function MyInfluencersPage() {
         }
       });
 
+      xhr.addEventListener("loadstart", () => {
+        console.log(`🚀 Upload started for ${file.name}`);
+      });
+
       xhr.addEventListener("load", () => {
+        console.log(
+          `📥 Upload load event for ${file.name}, status: ${xhr.status}`
+        );
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const result = JSON.parse(xhr.responseText);
@@ -338,34 +419,176 @@ export default function MyInfluencersPage() {
             });
           }
         } else {
-          console.error(
-            `❌ ComfyUI upload failed for ${file.name}: ${xhr.status} ${xhr.statusText}`
+          const errorMsg = `ComfyUI upload failed: ${xhr.status} ${
+            xhr.statusText
+          }${xhr.responseText ? ` - ${xhr.responseText}` : ""}`;
+          console.error(`❌ ${errorMsg}`);
+          reject(new Error(errorMsg));
+        }
+      });
+
+      xhr.addEventListener("error", (event) => {
+        console.error(
+          `❌ Network error during ComfyUI upload for ${file.name}:`,
+          event
+        );
+        console.error(
+          `XHR readyState: ${xhr.readyState}, status: ${xhr.status}`
+        );
+
+        let errorMessage = "Network error during ComfyUI upload";
+
+        // Provide more specific error messages
+        if (xhr.status === 0) {
+          errorMessage += " - Connection failed. Possible causes:";
+          errorMessage += "\n• ComfyUI server is not running";
+          errorMessage += "\n• CORS policy blocking the request";
+          errorMessage += "\n• Firewall/network blocking the connection";
+          errorMessage += "\n• Invalid ComfyUI URL or port";
+        } else if (xhr.status === 404) {
+          errorMessage +=
+            " - Upload endpoint not found. ComfyUI may not support file uploads via this API.";
+        } else if (xhr.status === 403) {
+          errorMessage += " - Access forbidden. Check ComfyUI authentication.";
+        } else if (xhr.status >= 500) {
+          errorMessage += " - ComfyUI server error. Check server logs.";
+        } else if (xhr.status >= 400) {
+          errorMessage += ` - Client error (${xhr.status})`;
+        }
+
+        reject(new Error(errorMessage));
+      });
+
+      xhr.addEventListener("timeout", () => {
+        console.error(
+          `❌ Upload timeout for ${file.name} after ${xhr.timeout}ms`
+        );
+        reject(
+          new Error(
+            `Upload timeout after ${
+              xhr.timeout / 1000
+            }s. Large files may need more time.`
+          )
+        );
+      });
+
+      xhr.addEventListener("abort", () => {
+        console.error(`❌ Upload aborted for ${file.name}`);
+        reject(new Error("Upload was aborted"));
+      });
+
+      // Set timeout for large files (60 minutes)
+      xhr.timeout = 60 * 60 * 1000;
+
+      // Upload to ComfyUI
+      const uploadUrl = `${comfyUIUrl}/upload/image`;
+      console.log(`🚀 Starting XHR upload to ${uploadUrl}`);
+      console.log(
+        `📁 File details: ${file.name} (${Math.round(
+          file.size / 1024 / 1024
+        )}MB)`
+      );
+
+      xhr.open("POST", uploadUrl);
+
+      // Add authentication headers if available
+      const runpodApiKey = process.env.NEXT_PUBLIC_RUNPOD_API_KEY;
+      if (runpodApiKey) {
+        console.log("🔑 Adding RunPod authentication");
+        xhr.setRequestHeader("Authorization", `Bearer ${runpodApiKey}`);
+      }
+
+      // Add error handling for the send operation
+      try {
+        xhr.send(comfyFormData);
+        console.log("📤 XHR send initiated successfully");
+      } catch (sendError) {
+        console.error("❌ Error during XHR send:", sendError);
+        reject(
+          new Error(
+            `Failed to initiate upload: ${
+              sendError instanceof Error ? sendError.message : "Unknown error"
+            }`
+          )
+        );
+      }
+    });
+  };
+
+  // ✅ FALLBACK: Upload to Vercel Blob if ComfyUI fails
+  const uploadToVercelBlob = async (
+    file: File,
+    displayName: string
+  ): Promise<{
+    success: boolean;
+    uniqueFileName: string;
+    blobUrl: string;
+  }> => {
+    const timestamp = Date.now();
+    const uniqueFileName = `${userId}_${timestamp}_${file.name}`;
+
+    console.log(
+      `💾 Fallback: Uploading ${file.name} to Vercel Blob as ${uniqueFileName}`
+    );
+
+    const response = await apiClient!.post("/api/user/influencers/upload", {
+      fileName: uniqueFileName,
+      originalFileName: file.name,
+      fileSize: file.size,
+      displayName: displayName,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get upload URL: ${response.status}`);
+    }
+
+    const { uploadUrl, blobUrl } = await response.json();
+
+    // Upload to Vercel Blob
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener("progress", (event) => {
+        if (event.lengthComputable) {
+          const percentage = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? {
+                    ...item,
+                    progress: percentage,
+                    uploadMethod: "server-fallback",
+                  }
+                : item
+            )
           );
+        }
+      });
+
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          console.log(`✅ Vercel Blob upload successful for ${file.name}`);
+          resolve({
+            success: true,
+            uniqueFileName,
+            blobUrl,
+          });
+        } else {
           reject(
-            new Error(`ComfyUI upload failed: ${xhr.status} ${xhr.statusText}`)
+            new Error(
+              `Vercel Blob upload failed: ${xhr.status} ${xhr.statusText}`
+            )
           );
         }
       });
 
       xhr.addEventListener("error", () => {
-        console.error(
-          `❌ Network error during ComfyUI upload for ${file.name}`
-        );
-        reject(new Error("Network error during ComfyUI upload"));
+        reject(new Error("Network error during Vercel Blob upload"));
       });
 
-      xhr.addEventListener("timeout", () => {
-        console.error(`❌ Upload timeout for ${file.name}`);
-        reject(new Error("Upload timeout"));
-      });
-
-      // Set timeout for large files (30 minutes)
-      xhr.timeout = 30 * 60 * 1000;
-
-      // Upload to ComfyUI
-      console.log(`🚀 Starting XHR upload to ${comfyUIUrl}/upload/image`);
-      xhr.open("POST", `${comfyUIUrl}/upload/image`);
-      xhr.send(comfyFormData);
+      xhr.open("PUT", uploadUrl);
+      xhr.setRequestHeader("Content-Type", file.type);
+      xhr.send(file);
     });
   };
 
@@ -373,7 +596,9 @@ export default function MyInfluencersPage() {
   const createDatabaseRecord = async (
     uniqueFileName: string,
     file: File,
-    displayName: string
+    displayName: string,
+    syncStatus: "synced" | "pending" = "pending",
+    comfyUIPath?: string
   ) => {
     if (!apiClient) {
       throw new Error("API client is not initialized.");
@@ -390,10 +615,14 @@ export default function MyInfluencersPage() {
           originalFileName: file.name,
           fileSize: file.size,
           uploadedAt: new Date().toISOString(),
-          syncStatus: "synced", // Already synced since we uploaded directly
+          syncStatus: syncStatus,
           isActive: true,
           usageCount: 0,
-          comfyUIPath: `models/loras/${uniqueFileName}`,
+          comfyUIPath:
+            comfyUIPath ||
+            (syncStatus === "synced"
+              ? `models/loras/${uniqueFileName}`
+              : undefined),
         }
       );
 
@@ -413,7 +642,7 @@ export default function MyInfluencersPage() {
     }
   };
 
-  // ✅ UPDATED: Upload influencers with direct ComfyUI upload
+  // ✅ UPDATED: Upload influencers with direct ComfyUI upload and fallback
   const uploadInfluencers = async () => {
     if (selectedFiles.length === 0 || !apiClient || !userId) return;
 
@@ -432,10 +661,10 @@ export default function MyInfluencersPage() {
         setUploadProgress((prev) => [...prev, progressItem]);
 
         console.log(
-          `🎯 Uploading ${file.name} (${Math.round(
-            file.size / 1024 / 1024
-          )}MB) directly to ComfyUI`
+          `🎯 Uploading ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`
         );
+
+        const displayName = file.name.replace(/\.[^/.]+$/, "");
 
         // Update progress to show upload starting
         setUploadProgress((prev) =>
@@ -446,27 +675,105 @@ export default function MyInfluencersPage() {
           )
         );
 
-        const displayName = file.name.replace(/\.[^/.]+$/, "");
+        let uploadResult;
+        let syncStatus: "synced" | "pending" = "pending";
+        let comfyUIPath: string | undefined;
 
-        // ✅ DIRECT UPLOAD TO COMFYUI - BYPASS VERCEL ENTIRELY FOR FILES
-        console.log("🚀 Starting direct ComfyUI upload...");
-        const uploadResult = await uploadDirectlyToComfyUI(file, displayName);
+        try {
+          // ✅ TRY DIRECT UPLOAD TO COMFYUI FIRST
+          console.log("🚀 Attempting direct ComfyUI upload...");
+          uploadResult = await uploadDirectlyToComfyUI(file, displayName);
+          syncStatus = "synced";
+          comfyUIPath = `models/loras/${uploadResult.uniqueFileName}`;
 
-        // Update progress for processing
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? { ...item, progress: 95, status: "processing" }
-              : item
-          )
-        );
+          console.log(`✅ Direct ComfyUI upload successful for ${file.name}`);
+
+          // Update progress for processing
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? {
+                    ...item,
+                    progress: 95,
+                    status: "processing",
+                    uploadMethod: "direct-comfyui",
+                  }
+                : item
+            )
+          );
+        } catch (comfyError) {
+          console.warn(
+            `⚠️ Direct ComfyUI upload failed for ${file.name}:`,
+            comfyError
+          );
+
+          // Show user what went wrong
+          setUploadProgress((prev) =>
+            prev.map((item) =>
+              item.fileName === file.name
+                ? {
+                    ...item,
+                    progress: 5,
+                    status: "uploading",
+                    uploadMethod: "server-fallback",
+                  }
+                : item
+            )
+          );
+
+          try {
+            // ✅ FALLBACK TO VERCEL BLOB
+            console.log("💾 Falling back to Vercel Blob upload...");
+            const blobResult = await uploadToVercelBlob(file, displayName);
+            uploadResult = {
+              success: true,
+              uniqueFileName: blobResult.uniqueFileName,
+              comfyResult: { blobUrl: blobResult.blobUrl },
+            };
+            syncStatus = "pending"; // Will need manual sync later
+
+            console.log(`✅ Vercel Blob fallback successful for ${file.name}`);
+
+            // Update progress for processing
+            setUploadProgress((prev) =>
+              prev.map((item) =>
+                item.fileName === file.name
+                  ? {
+                      ...item,
+                      progress: 95,
+                      status: "processing",
+                      uploadMethod: "server-fallback",
+                    }
+                  : item
+              )
+            );
+          } catch (blobError) {
+            console.error(
+              `❌ Both upload methods failed for ${file.name}:`,
+              blobError
+            );
+            const comfyErrorMsg =
+              comfyError instanceof Error
+                ? comfyError.message
+                : "Unknown ComfyUI error";
+            const blobErrorMsg =
+              blobError instanceof Error
+                ? blobError.message
+                : "Unknown Vercel error";
+            throw new Error(
+              `All upload methods failed. ComfyUI: ${comfyErrorMsg}. Vercel: ${blobErrorMsg}`
+            );
+          }
+        }
 
         // Create database record via Vercel API (small data, no file)
         console.log("💾 Creating database record...");
         await createDatabaseRecord(
           uploadResult.uniqueFileName,
           file,
-          displayName
+          displayName,
+          syncStatus,
+          comfyUIPath
         );
 
         // Update progress to completed
@@ -477,7 +784,6 @@ export default function MyInfluencersPage() {
                   ...item,
                   progress: 100,
                   status: "completed",
-                  uploadMethod: "direct-comfyui",
                 }
               : item
           )
@@ -518,12 +824,30 @@ export default function MyInfluencersPage() {
     ).length;
 
     if (completedUploads > 0) {
-      alert(
-        `🎉 Upload Results:\n\n` +
-          `✅ ${completedUploads} file(s) uploaded successfully\n` +
-          `${failedUploads > 0 ? `❌ ${failedUploads} file(s) failed\n` : ""}` +
-          `\nYour LoRA models are ready for AI generation immediately!`
-      );
+      const directUploads = uploadProgress.filter(
+        (p) => p.status === "completed" && p.uploadMethod === "direct-comfyui"
+      ).length;
+      const fallbackUploads = uploadProgress.filter(
+        (p) => p.status === "completed" && p.uploadMethod === "server-fallback"
+      ).length;
+
+      let message = `🎉 Upload Results:\n\n✅ ${completedUploads} file(s) uploaded successfully\n`;
+
+      if (directUploads > 0) {
+        message += `🎯 ${directUploads} uploaded directly to ComfyUI (ready immediately!)\n`;
+      }
+      if (fallbackUploads > 0) {
+        message += `💾 ${fallbackUploads} uploaded to storage (will sync to ComfyUI next)\n`;
+      }
+      if (failedUploads > 0) {
+        message += `❌ ${failedUploads} file(s) failed\n`;
+      }
+
+      if (fallbackUploads > 0) {
+        message += `\n🔧 Some files need to be synced to ComfyUI. Click "Sync Uploaded Files" to complete the process.`;
+      }
+
+      alert(message);
     }
 
     // Refresh the influencers list
@@ -651,20 +975,34 @@ export default function MyInfluencersPage() {
     setShowDetailsModal(true);
   };
 
-  // Enhanced loading states
+  // Enhanced loading state if API client isn't ready
   if (!apiClient) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center p-8 bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-purple-900/20 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-          <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full inline-flex items-center justify-center mb-4">
-            <Loader2 className="w-8 h-8 animate-spin text-white" />
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="text-center space-y-6">
+          <div className="relative">
+            <div className="w-20 h-20 border-4 border-purple-200 dark:border-purple-800 border-t-purple-600 dark:border-t-purple-400 rounded-full animate-spin mx-auto"></div>
+            <Users className="absolute inset-0 w-8 h-8 text-pink-500 animate-pulse m-auto" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            Initializing Authentication
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            Setting up secure access to your LoRA models...
-          </p>
+          <div className="space-y-2">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Setting Up Your Influencer Studio
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 max-w-md">
+              Preparing your personal LoRA model management system...
+            </p>
+          </div>
+          <div className="flex items-center justify-center space-x-2 text-sm text-pink-600 dark:text-pink-400">
+            <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce"></div>
+            <div
+              className="w-2 h-2 bg-pink-500 rounded-full animate-bounce"
+              style={{ animationDelay: "0.1s" }}
+            ></div>
+            <div
+              className="w-2 h-2 bg-pink-500 rounded-full animate-bounce"
+              style={{ animationDelay: "0.2s" }}
+            ></div>
+          </div>
         </div>
       </div>
     );
@@ -673,20 +1011,7 @@ export default function MyInfluencersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-center p-8 bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-purple-900/20 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-          <div className="p-4 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full inline-flex items-center justify-center mb-4 animate-pulse">
-            <Users className="w-8 h-8 text-white" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            Loading Your Influencers
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            Fetching your personal LoRA models...
-          </p>
-          <div className="flex justify-center mt-4">
-            <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
-          </div>
-        </div>
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
       </div>
     );
   }
@@ -704,153 +1029,94 @@ export default function MyInfluencersPage() {
   return (
     <div className="space-y-6">
       {/* Enhanced Header */}
-      <div className="bg-gradient-to-br from-white to-purple-50 dark:from-gray-800 dark:to-purple-900/20 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/10 to-pink-600/10 rounded-full blur-xl" />
-        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg border border-purple-200 dark:border-pink-800 p-6 text-white">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl shadow-lg">
-              <Users className="w-7 h-7 text-white" />
+            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+              <Users className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                My Influencers
-              </h1>
-              <p className="text-gray-600 dark:text-gray-300 text-lg">
+              <h1 className="text-3xl font-bold">My Influencers</h1>
+              <p className="text-purple-100">
                 Manage your personal LoRA models for AI-generated content
               </p>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
-            {/* Status Indicator */}
-            {influencers.length > 0 && (
-              <div className="flex items-center space-x-2 px-3 py-2 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-lg border border-white/20 dark:border-gray-700/20">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {syncedCount} ready
-                </span>
-              </div>
-            )}
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={syncWithComfyUI}
+              disabled={syncing}
+              className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-medium rounded-xl shadow-sm transition-all backdrop-blur-sm"
+              title="Sync existing ComfyUI models with database"
+            >
+              {syncing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              <span>Sync Models</span>
+            </button>
 
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={syncWithComfyUI}
-                disabled={syncing}
-                className="flex items-center space-x-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
-              >
-                {syncing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
-                <span className="hidden sm:inline">Sync with ComfyUI</span>
-                <span className="sm:hidden">Sync</span>
-              </button>
-
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-medium rounded-lg shadow-sm transition-all duration-200 hover:shadow-md transform hover:scale-105"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Add Influencer</span>
-                <span className="sm:hidden">Add</span>
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                setShowUploadModal(true);
+                checkComfyUIStatus();
+              }}
+              className="flex items-center space-x-2 px-6 py-3 bg-white text-purple-600 hover:bg-gray-50 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Add Influencer</span>
+            </button>
           </div>
         </div>
       </div>
 
       {/* Enhanced Stats Card */}
       {influencers.length > 0 && (
-        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-purple-500/10 to-pink-600/10 rounded-full blur-lg" />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                Your LoRA Models Status
-              </h3>
-              <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                <Clock className="w-4 h-4" />
-                <span>Last updated: {new Date().toLocaleTimeString()}</span>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-2">
+              <BarChart3 className="w-5 h-5 text-indigo-500" />
+              <span>Models Status Overview</span>
+            </h3>
+            <span className="text-sm text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
+              Updated {new Date().toLocaleTimeString()}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                {influencers.length}
+              </div>
+              <div className="text-sm text-blue-700 dark:text-blue-300 font-medium mt-1">
+                Your Models
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-600">
-                <div className="flex items-center justify-center mb-2">
-                  <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg">
-                    <Users className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                  {influencers.length}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                  Your Models
-                </div>
+            <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800">
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                {syncedCount}
               </div>
-              <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/30 rounded-xl border border-green-200 dark:border-green-700">
-                <div className="flex items-center justify-center mb-2">
-                  <div className="p-2 bg-green-500 rounded-lg">
-                    <CheckCircle className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-                <div className="text-3xl font-bold text-green-700 dark:text-green-300 mb-1">
-                  {syncedCount}
-                </div>
-                <div className="text-sm text-green-600 dark:text-green-400 font-medium">
-                  Ready to Use
-                </div>
-              </div>
-              <div className="text-center p-4 bg-gradient-to-br from-yellow-50 to-orange-100 dark:from-yellow-900/20 dark:to-orange-900/30 rounded-xl border border-yellow-200 dark:border-yellow-700">
-                <div className="flex items-center justify-center mb-2">
-                  <div className="p-2 bg-yellow-500 rounded-lg">
-                    <Clock className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-                <div className="text-3xl font-bold text-yellow-700 dark:text-yellow-300 mb-1">
-                  {pendingCount}
-                </div>
-                <div className="text-sm text-yellow-600 dark:text-yellow-400 font-medium">
-                  Need Setup
-                </div>
-              </div>
-              <div className="text-center p-4 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-900/30 rounded-xl border border-red-200 dark:border-red-700">
-                <div className="flex items-center justify-center mb-2">
-                  <div className="p-2 bg-red-500 rounded-lg">
-                    <AlertCircle className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-                <div className="text-3xl font-bold text-red-700 dark:text-red-300 mb-1">
-                  {missingCount}
-                </div>
-                <div className="text-sm text-red-600 dark:text-red-400 font-medium">
-                  Missing
-                </div>
+              <div className="text-sm text-green-700 dark:text-green-300 font-medium mt-1">
+                Ready to Use
               </div>
             </div>
-
-            {/* Progress Bar */}
-            {syncedCount > 0 && (
-              <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                    Setup Progress
-                  </span>
-                  <span className="text-sm font-bold text-green-700 dark:text-green-300">
-                    {Math.round((syncedCount / influencers.length) * 100)}%
-                  </span>
-                </div>
-                <div className="w-full bg-green-200 dark:bg-green-800 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
-                    style={{
-                      width: `${(syncedCount / influencers.length) * 100}%`,
-                    }}
-                  />
-                </div>
+            <div className="text-center p-4 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
+              <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
+                {pendingCount}
               </div>
-            )}
+              <div className="text-sm text-yellow-700 dark:text-yellow-300 font-medium mt-1">
+                Need Setup
+              </div>
+            </div>
+            <div className="text-center p-4 bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 rounded-xl border border-red-200 dark:border-red-800">
+              <div className="text-3xl font-bold text-red-600 dark:text-red-400">
+                {missingCount}
+              </div>
+              <div className="text-sm text-red-700 dark:text-red-300 font-medium mt-1">
+                Missing
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -865,68 +1131,37 @@ export default function MyInfluencersPage() {
         </div>
       )}
 
-      {/* Enhanced Info Card */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-20 h-20 bg-blue-400/10 rounded-full blur-xl" />
-        <div className="relative flex items-start space-x-4">
-          <div className="p-3 bg-blue-500 rounded-xl shadow-sm">
-            <Info className="w-6 h-6 text-white" />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-bold text-blue-900 dark:text-blue-100 mb-2 text-lg">
+      {/* Info Card */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+          <div>
+            <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
               About Your Personal Influencer LoRA Models
             </h3>
-            <p className="text-blue-800 dark:text-blue-200 mb-4 leading-relaxed">
+            <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
               Upload your custom LoRA models to create AI-generated content with
-              specific styles or characteristics. Files are uploaded directly to
-              ComfyUI for immediate use.
+              specific styles or characteristics. We try direct ComfyUI upload
+              first, with automatic fallback to secure storage.
             </p>
-
-            {/* Highlight Box */}
-            <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-300 dark:border-green-700 rounded-lg p-4 mb-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-sm font-semibold text-green-800 dark:text-green-200">
-                  🚀 Direct ComfyUI Upload
-                </span>
-              </div>
-              <p className="text-sm text-green-700 dark:text-green-300">
-                Bypass all Vercel limits - supports files up to 500MB with
-                instant availability!
+            <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
+              <strong>🚀 Smart Upload:</strong> Direct ComfyUI upload (ready
+              immediately) or fallback to secure storage (sync later)
+            </p>
+            <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+              <p>
+                <strong>Status indicators:</strong> Green = Ready to use, Yellow
+                = Needs setup, Red = Missing from ComfyUI
               </p>
-            </div>
-
-            {/* Status Guide */}
-            <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-4 mb-4">
-              <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 text-sm">
-                Status Indicators:
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
-                  <span className="text-blue-700 dark:text-blue-300">
-                    Ready to use
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                  <span className="text-blue-700 dark:text-blue-300">
-                    Needs setup
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-red-500 rounded-full" />
-                  <span className="text-blue-700 dark:text-blue-300">
-                    Missing from ComfyUI
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Process Info */}
-            <div className="text-sm text-blue-700 dark:text-blue-300">
-              <strong>Upload Process:</strong> Files go directly to ComfyUI,
-              then metadata is saved to your account for tracking.
+              <p>
+                <strong>Upload Process:</strong> 1) Try direct ComfyUI upload,
+                2) Fallback to secure storage if needed, 3) Use "Sync Uploaded
+                Files" to complete transfer
+              </p>
+              <p>
+                <strong>Troubleshooting:</strong> If direct upload fails due to
+                network issues, files are safely stored and can be synced later
+              </p>
             </div>
           </div>
         </div>
@@ -934,58 +1169,69 @@ export default function MyInfluencersPage() {
 
       {/* Enhanced Empty State */}
       {influencers.length === 0 ? (
-        <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-12 text-center relative overflow-hidden">
-          <div className="absolute top-0 left-1/2 w-40 h-40 bg-purple-500/5 rounded-full blur-3xl transform -translate-x-1/2" />
-          <div className="relative flex flex-col items-center space-y-6">
-            {/* Icon */}
-            <div className="p-6 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 rounded-full border border-purple-200 dark:border-purple-700">
-              <User className="w-12 h-12 text-purple-500 dark:text-purple-400" />
+        <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl shadow-sm border-2 border-dashed border-purple-200 dark:border-purple-800 p-12 text-center">
+          <div className="flex flex-col items-center space-y-6">
+            <div className="relative">
+              <div className="p-6 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-800/50 dark:to-pink-800/50 rounded-2xl">
+                <Users className="w-12 h-12 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center">
+                <Plus className="w-4 h-4 text-white" />
+              </div>
             </div>
 
-            {/* Content */}
-            <div className="max-w-md">
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                No Personal Influencers Yet
+            <div className="space-y-4 max-w-md">
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Your Influencer Collection Awaits
               </h3>
-              <p className="text-gray-600 dark:text-gray-400 text-lg leading-relaxed mb-6">
-                Upload your first LoRA model to get started with personalized AI
-                generation. Your models will be private to your account.
+              <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                Upload your first LoRA model to unlock personalized AI
+                generation. Each model becomes your unique creative tool for
+                stunning, consistent results.
               </p>
 
-              {/* Features */}
-              <div className="space-y-3 mb-8">
-                <div className="flex items-center justify-center space-x-2 text-green-600 dark:text-green-400">
-                  <CheckCircle className="w-5 h-5" />
-                  <span className="text-sm font-medium">
-                    Direct upload to ComfyUI
-                  </span>
+              <div className="grid grid-cols-3 gap-4 py-4">
+                <div className="text-center">
+                  <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Upload className="w-4 h-4 text-green-600 dark:text-green-400" />
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Smart Upload
+                  </p>
                 </div>
-                <div className="flex items-center justify-center space-x-2 text-blue-600 dark:text-blue-400">
-                  <Clock className="w-5 h-5" />
-                  <span className="text-sm font-medium">
-                    Ready for immediate use
-                  </span>
+                <div className="text-center">
+                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Settings className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Auto Sync
+                  </p>
                 </div>
-                <div className="flex items-center justify-center space-x-2 text-purple-600 dark:text-purple-400">
-                  <HardDrive className="w-5 h-5" />
-                  <span className="text-sm font-medium">
-                    Up to 500MB per file
-                  </span>
+                <div className="text-center">
+                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <ImageIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Generate
+                  </p>
                 </div>
               </div>
 
-              {/* CTA Button */}
               <button
-                onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center space-x-3 px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white font-bold rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl transform hover:scale-105"
+                onClick={() => {
+                  setShowUploadModal(true);
+                  checkComfyUIStatus();
+                }}
+                className="inline-flex items-center space-x-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
               >
                 <Upload className="w-5 h-5" />
-                <span>Upload Your First LoRA</span>
+                <span>Upload Your First Influencer</span>
+                <Sparkles className="w-5 h-5" />
               </button>
 
-              {/* Help Text */}
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
-                Supported formats: .safetensors, .pt, .ckpt
+              <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                ✨ Supports .safetensors, .pt, .ckpt • Up to 500MB • Direct
+                ComfyUI integration
               </p>
             </div>
           </div>
@@ -1381,12 +1627,58 @@ export default function MyInfluencersPage() {
                 </div>
               </div>
 
+              {/* ComfyUI Status Indicator */}
+              {comfyUIStatus && (
+                <div
+                  className={`mb-4 p-3 rounded-lg border ${
+                    comfyUIStatus.status === "connected"
+                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                      : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      {comfyUIStatus.status === "connected" ? (
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-yellow-600" />
+                      )}
+                      <span
+                        className={`text-sm font-medium ${
+                          comfyUIStatus.status === "connected"
+                            ? "text-green-800 dark:text-green-200"
+                            : "text-yellow-800 dark:text-yellow-200"
+                        }`}
+                      >
+                        ComfyUI Status:{" "}
+                        {comfyUIStatus.status === "connected"
+                          ? "Ready for direct upload"
+                          : "Will use fallback storage"}
+                      </span>
+                    </div>
+                    <button
+                      onClick={checkComfyUIStatus}
+                      className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  {comfyUIStatus.status !== "connected" && (
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                      Files will be uploaded to secure storage and can be synced
+                      to ComfyUI later.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* New upload process info */}
               <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  <strong>🚀 Direct ComfyUI Upload:</strong> Files upload
-                  directly to ComfyUI bypassing all Vercel limits. Your 343MB
-                  files are fully supported!
+                  <strong>🚀 Smart Upload Process:</strong> We'll try direct
+                  ComfyUI upload first (ready immediately!). If that fails due
+                  to network issues, files are safely uploaded to secure storage
+                  and can be synced to ComfyUI later.
                 </p>
               </div>
 
@@ -1446,10 +1738,21 @@ export default function MyInfluencersPage() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span>🎯 Direct ComfyUI Upload</span>
-                          {progress.status === "uploading" && (
-                            <span>Uploading directly to ComfyUI...</span>
-                          )}
+                          <span>
+                            {progress.uploadMethod === "direct-comfyui" &&
+                              "🎯 Direct ComfyUI Upload"}
+                            {progress.uploadMethod === "server-fallback" &&
+                              "💾 Secure Storage Upload"}
+                            {!progress.uploadMethod && "🚀 Smart Upload"}
+                          </span>
+                          {progress.status === "uploading" &&
+                            progress.uploadMethod === "direct-comfyui" && (
+                              <span>Uploading directly to ComfyUI...</span>
+                            )}
+                          {progress.status === "uploading" &&
+                            progress.uploadMethod === "server-fallback" && (
+                              <span>Uploading to secure storage...</span>
+                            )}
                           {progress.status === "processing" && (
                             <span>Creating database record...</span>
                           )}

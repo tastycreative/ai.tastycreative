@@ -1225,41 +1225,20 @@ export default function SkinEnhancerPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* Enhanced Header with Gradient Background */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-gray-900 dark:via-green-900/20 dark:to-emerald-900/20 rounded-2xl shadow-lg border border-green-100 dark:border-gray-700">
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-        <div className="relative p-8">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <div className="p-4 bg-gradient-to-br from-green-500 via-emerald-500 to-teal-600 rounded-2xl shadow-lg">
-                <Sparkles className="w-8 h-8 text-white" />
-              </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white dark:border-gray-900"></div>
-            </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-green-800 to-emerald-800 dark:from-white dark:via-green-200 dark:to-emerald-200 bg-clip-text text-transparent mb-2">
-                Skin Enhancement Studio
-              </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
-                Enhance skin texture and details in your photos using advanced
-                AI technology
-              </p>
-              <div className="flex items-center space-x-4 mt-3">
-                <div className="flex items-center text-sm text-green-600 dark:text-green-400">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-                  AI Enhancement
-                </div>
-                <div className="flex items-center text-sm text-emerald-600 dark:text-emerald-400">
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></div>
-                  Natural Results
-                </div>
-                <div className="flex items-center text-sm text-teal-600 dark:text-teal-400">
-                  <div className="w-2 h-2 bg-teal-400 rounded-full mr-2"></div>
-                  Detail Preservation
-                </div>
-              </div>
-            </div>
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Skin Enhancer
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Enhance skin texture and details in your photos using AI
+            </p>
           </div>
         </div>
       </div>
