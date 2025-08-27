@@ -206,49 +206,31 @@ export default function InstagramExtractorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-pink-50/30 to-purple-50/50 dark:from-gray-900 dark:via-pink-950/10 dark:to-purple-950/20">
+    <div className="min-h-screen bg-gradient-to-br from-white to-gray-50/50 dark:bg-gradient-to-br dark:from-black dark:to-gray-900/30">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Enhanced Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-500 to-indigo-600 rounded-3xl shadow-2xl mb-6 transform hover:scale-105 transition-all">
-            <Instagram className="w-10 h-10 text-white" />
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center mb-4">
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-3 rounded-2xl shadow-lg">
+              <Instagram className="h-8 w-8 text-white" />
+            </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 dark:from-pink-400 dark:via-purple-400 dark:to-indigo-400 bg-clip-text text-transparent mb-4">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 dark:from-pink-400 dark:to-purple-400 bg-clip-text text-transparent mb-2">
             Instagram Image Extractor
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
-            Extract and download high-quality images from any Instagram post
-            instantly. Simply paste the URL and get professional-grade images
-            with full metadata.
+          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            Extract and download all images from any Instagram post. Simply
+            paste the URL and get high-quality images instantly.
           </p>
-          <div className="flex items-center justify-center space-x-2 mt-4">
-            <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-              Secure & Fast Extraction
-            </span>
-            <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse delay-75"></div>
-          </div>
         </div>
 
-        {/* Enhanced URL Input Form */}
-        <div className="bg-gradient-to-br from-white via-pink-50/20 to-purple-50/30 dark:from-gray-800 dark:via-pink-950/10 dark:to-purple-950/20 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/30 rounded-3xl shadow-2xl p-8 mb-10">
-          <div className="space-y-6">
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 rounded-2xl mb-4">
-                <Instagram className="w-6 h-6 text-pink-600 dark:text-pink-400" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Paste Instagram URL
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Enter any Instagram post or reel URL to extract images
-              </p>
-            </div>
-
+        {/* URL Input Form */}
+        <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/30 p-6 mb-8">
+          <div className="space-y-4">
             <div>
               <label
                 htmlFor="instagram-url"
-                className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
                 Instagram Post URL
               </label>
@@ -259,80 +241,56 @@ export default function InstagramExtractorPage() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://www.instagram.com/p/..."
-                  className="w-full px-6 py-4 pr-14 border-2 border-gray-300 dark:border-gray-600 rounded-2xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all font-medium text-lg"
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                   disabled={isLoading}
                 />
-                <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-gradient-to-br from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 rounded-lg flex items-center justify-center">
-                  <Instagram className="w-4 h-4 text-pink-600 dark:text-pink-400" />
-                </div>
+                <Instagram className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               </div>
             </div>
 
             {error && (
-              <div className="bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 border-2 border-red-200 dark:border-red-800 rounded-2xl p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">
-                        Extraction Failed
-                      </h3>
-                      <p className="text-sm text-red-700 dark:text-red-300">
-                        {error}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setError("")}
-                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200 p-1"
-                  >
-                    <span className="sr-only">Dismiss</span>×
-                  </button>
+              <div className="flex items-center justify-between text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                  <span className="text-sm">{error}</span>
                 </div>
+                <button
+                  onClick={() => setError("")}
+                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
+                >
+                  <span className="sr-only">Dismiss</span>×
+                </button>
               </div>
             )}
 
             {success && (
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-2xl p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-green-800 dark:text-green-200 mb-1">
-                        Success!
-                      </h3>
-                      <p className="text-sm text-green-700 dark:text-green-300">
-                        {success}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSuccess("")}
-                    className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200 p-1"
-                  >
-                    <span className="sr-only">Dismiss</span>×
-                  </button>
+              <div className="flex items-center justify-between text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle className="h-5 w-5 flex-shrink-0" />
+                  <span className="text-sm">{success}</span>
                 </div>
+                <button
+                  onClick={() => setSuccess("")}
+                  className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200"
+                >
+                  <span className="sr-only">Dismiss</span>×
+                </button>
               </div>
             )}
 
             <button
               onClick={handleExtract}
               disabled={isLoading || !url.trim()}
-              className="w-full bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-600 hover:from-pink-600 hover:via-purple-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-4 px-8 rounded-2xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center space-x-3 shadow-xl hover:shadow-2xl transform hover:scale-105"
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl"
             >
               {isLoading ? (
                 <>
-                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <Loader2 className="h-5 w-5 animate-spin" />
                   <span>Extracting Images...</span>
                 </>
               ) : (
                 <>
-                  <ImageIcon className="w-6 h-6" />
+                  <ImageIcon className="h-5 w-5" />
                   <span>Extract Images</span>
                 </>
               )}

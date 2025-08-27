@@ -20,11 +20,8 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
-  ChevronLeft,
-  ChevronRight,
   X,
   Plus,
-  Brain,
 } from "lucide-react";
 
 interface ImageFile {
@@ -387,230 +384,141 @@ export default function TrainLoRAPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-8">
-      {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20 rounded-2xl shadow-lg border border-blue-100 dark:border-gray-700">
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-        <div className="relative p-8 text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-2xl shadow-lg mb-6">
-            <Brain className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-800 dark:from-white dark:via-blue-200 dark:to-purple-200 bg-clip-text text-transparent mb-4">
-            Train Custom LoRA Model
-          </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed max-w-2xl mx-auto">
-            Create a personalized AI model by training on your own images using
-            RunPod's powerful infrastructure
-          </p>
-          <div className="flex items-center justify-center space-x-6 mt-6">
-            <div className="flex items-center text-sm text-blue-600 dark:text-blue-400">
-              <div className="w-2 h-2 bg-blue-400 rounded-full mr-2"></div>
-              RunPod Infrastructure
-            </div>
-            <div className="flex items-center text-sm text-indigo-600 dark:text-indigo-400">
-              <div className="w-2 h-2 bg-indigo-400 rounded-full mr-2"></div>
-              Custom Training
-            </div>
-            <div className="flex items-center text-sm text-purple-600 dark:text-purple-400">
-              <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-              High Quality Results
-            </div>
-          </div>
-        </div>
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          Train Custom LoRA Model
+        </h1>
+        <p className="text-lg text-gray-600 dark:text-gray-400">
+          Create a personalized AI model by training on your own images using
+          RunPod's powerful infrastructure
+        </p>
       </div>
 
-      {/* Enhanced Progress Steps */}
-      <div className="relative">
-        <div className="flex justify-between items-center">
-          {steps.map((step, index) => {
-            const Icon = step.icon;
-            const isActive = currentStep === step.id;
-            const isCompleted = currentStep > step.id;
+      {/* Progress Steps */}
+      <div className="flex justify-between mb-8">
+        {steps.map((step) => {
+          const Icon = step.icon;
+          const isActive = currentStep === step.id;
+          const isCompleted = currentStep > step.id;
 
-            return (
+          return (
+            <div key={step.id} className="flex flex-col items-center space-y-2">
               <div
-                key={step.id}
-                className="flex flex-col items-center relative z-10"
+                className={`
+                w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors
+                ${
+                  isActive
+                    ? "bg-blue-600 border-blue-600 text-white"
+                    : isCompleted
+                    ? "bg-green-600 border-green-600 text-white"
+                    : "border-gray-300 text-gray-400"
+                }
+              `}
               >
-                {/* Connection Line */}
-                {index < steps.length - 1 && (
-                  <div className="absolute top-6 left-1/2 w-full h-0.5 bg-gray-200 dark:bg-gray-700 -z-10">
-                    <div
-                      className={`h-full transition-all duration-500 ${
-                        currentStep > step.id
-                          ? "bg-gradient-to-r from-blue-500 to-purple-600"
-                          : "bg-gray-200 dark:bg-gray-700"
-                      }`}
-                      style={{ width: currentStep > step.id ? "100%" : "0%" }}
-                    />
-                  </div>
-                )}
-
-                <div
-                  className={`
-                    w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 shadow-lg
-                    ${
-                      isActive
-                        ? "bg-gradient-to-br from-blue-500 to-indigo-600 border-blue-500 text-white shadow-blue-500/25"
-                        : isCompleted
-                        ? "bg-gradient-to-br from-green-500 to-green-600 border-green-500 text-white shadow-green-500/25"
-                        : "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500"
-                    }
-                  `}
-                >
-                  <Icon className="w-6 h-6" />
-                </div>
-                <div className="mt-3 text-center">
-                  <span
-                    className={`text-sm font-medium transition-colors ${
-                      isActive
-                        ? "text-blue-600 dark:text-blue-400"
-                        : isCompleted
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-gray-500 dark:text-gray-400"
-                    }`}
-                  >
-                    {step.name}
-                  </span>
-                  {isActive && (
-                    <div className="mt-1 w-2 h-2 bg-blue-500 rounded-full mx-auto animate-pulse"></div>
-                  )}
-                </div>
+                <Icon className="w-6 h-6" />
               </div>
-            );
-          })}
-        </div>
+              <span
+                className={`text-sm font-medium ${
+                  isActive ? "text-blue-600" : "text-gray-500"
+                }`}
+              >
+                {step.name}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Enhanced Step Content */}
-      <div className="bg-gradient-to-br from-white via-gray-50 to-blue-50/30 dark:from-gray-800 dark:via-gray-800 dark:to-blue-900/10 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8">
+      {/* Step Content */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
         {currentStep === 1 && (
-          <div className="space-y-8">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg mb-4">
-                <FileText className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                Basic Information
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Let's start with the basics for your LoRA training
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold mb-6">Basic Information</h2>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Job Name *
+              </label>
+              <input
+                type="text"
+                value={jobName}
+                onChange={(e) => setJobName(e.target.value)}
+                placeholder="e.g., my_character_v1"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Description (Optional)
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe what this model is for..."
+                rows={3}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Trigger Word (Optional)
+              </label>
+              <input
+                type="text"
+                value={triggerWord}
+                onChange={(e) => setTriggerWord(e.target.value)}
+                placeholder="e.g., ohwx person"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                A unique word to activate your trained model in prompts
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Job Name *
-                </label>
-                <input
-                  type="text"
-                  value={jobName}
-                  onChange={(e) => setJobName(e.target.value)}
-                  placeholder="e.g., my_character_v1"
-                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Description (Optional)
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe what this model is for..."
-                  rows={3}
-                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Trigger Word (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={triggerWord}
-                  onChange={(e) => setTriggerWord(e.target.value)}
-                  placeholder="e.g., ohwx person"
-                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
-                />
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 flex items-center">
-                  <Info className="w-4 h-4 mr-1" />A unique word to activate
-                  your trained model in prompts
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Training Preset
-                </label>
-                <div className="grid grid-cols-1 gap-3">
-                  {Object.entries(trainingPresets).map(([key, preset]) => (
-                    <div
-                      key={key}
-                      onClick={() => setSelectedPreset(key as TrainingPreset)}
-                      className={`
-                        p-4 border-2 rounded-xl cursor-pointer text-left transition-all hover:shadow-md
-                        ${
-                          selectedPreset === key
-                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                            : "border-gray-200 dark:border-gray-600 hover:border-gray-300"
-                        }
-                      `}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div
-                          className={`w-3 h-3 rounded-full mt-1 ${
-                            selectedPreset === key
-                              ? "bg-blue-500"
-                              : "bg-gray-300"
-                          }`}
-                        />
-                        <div>
-                          <h4 className="font-semibold text-gray-900 dark:text-white">
-                            {preset.name}
-                          </h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            {preset.description}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Training Preset
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(trainingPresets).map(([key, preset]) => (
+                  <div
+                    key={key}
+                    onClick={() => setSelectedPreset(key as TrainingPreset)}
+                    className={`
+                      p-4 border-2 rounded-lg cursor-pointer transition-colors
+                      ${
+                        selectedPreset === key
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                          : "border-gray-300 dark:border-gray-600 hover:border-blue-300"
+                      }
+                    `}
+                  >
+                    <h3 className="font-medium">{preset.name}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      {preset.description}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         )}
 
         {currentStep === 2 && (
-          <div className="space-y-8">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl shadow-lg mb-4">
-                <Upload className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                Upload Training Images
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                High-quality images are key to successful LoRA training
-              </p>
-            </div>
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold mb-6">
+              Upload Training Images
+            </h2>
 
-            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl p-8 text-center hover:border-purple-400 transition-colors group">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 rounded-2xl mb-4 group-hover:scale-105 transition-transform">
-                <Upload className="w-10 h-10 text-purple-600 dark:text-purple-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                Upload Images
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Select 10-100 high-quality images for optimal results
-                <br />
-                <span className="text-sm">
-                  Supported formats: JPG, PNG, WebP
-                </span>
+            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+              <Upload className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium mb-2">Upload Images</h3>
+              <p className="text-gray-500 mb-4">
+                Select 10-100 high-quality images. Supported formats: JPG, PNG,
+                WebP
               </p>
               <input
                 type="file"
@@ -622,58 +530,41 @@ export default function TrainLoRAPage() {
               />
               <label
                 htmlFor="image-upload"
-                className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 cursor-pointer transform hover:scale-105 transition-all shadow-lg font-semibold"
+                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
               >
-                <Upload className="w-5 h-5 mr-2" />
                 Choose Images
               </label>
             </div>
 
-            {/* Enhanced Image Grid */}
+            {/* Image Grid */}
             {images.length > 0 && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Uploaded Images ({images.length})
-                  </h3>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {images.length < 10
-                      ? "Add more images for better results"
-                      : images.length > 50
-                      ? "Great collection!"
-                      : "Good amount of images"}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">
+                  Uploaded Images ({images.length})
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {images.map((image, index) => (
-                    <div
-                      key={index}
-                      className="relative group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-all"
-                    >
+                    <div key={index} className="relative group">
                       <img
                         src={image.preview}
                         alt={`Upload ${index + 1}`}
-                        className="w-full h-36 object-cover"
+                        className="w-full h-32 object-cover rounded-lg"
                       />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <button
-                          onClick={() => removeImage(index)}
-                          className="bg-red-500 hover:bg-red-600 text-white rounded-full p-2 transform hover:scale-110 transition-all shadow-lg"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="p-3">
-                        <input
-                          type="text"
-                          placeholder="Caption (optional)"
-                          value={image.caption}
-                          onChange={(e) =>
-                            updateImageCaption(index, e.target.value)
-                          }
-                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
-                        />
-                      </div>
+                      <button
+                        onClick={() => removeImage(index)}
+                        className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <input
+                        type="text"
+                        placeholder="Caption (optional)"
+                        value={image.caption}
+                        onChange={(e) =>
+                          updateImageCaption(index, e.target.value)
+                        }
+                        className="w-full mt-2 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700"
+                      />
                     </div>
                   ))}
                 </div>
@@ -683,101 +574,71 @@ export default function TrainLoRAPage() {
         )}
 
         {currentStep === 3 && (
-          <div className="space-y-8">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl shadow-lg mb-4">
-                <Settings className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                Configure Training
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Fine-tune your model's training parameters
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold mb-6">Configure Training</h2>
+
+            {/* Sample Prompts */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Sample Prompts
+              </label>
+              <p className="text-sm text-gray-500 mb-4">
+                These prompts will be used to generate sample images during
+                training
               </p>
-            </div>
-
-            {/* Enhanced Sample Prompts */}
-            <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-700/50 dark:to-blue-900/10 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
-              <div className="flex items-center mb-4">
-                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center mr-3">
-                  <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Sample Prompts
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    These prompts will generate sample images during training
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {samplePrompts.map((prompt, index) => (
-                  <div key={index} className="flex gap-3">
-                    <div className="flex-1 relative">
-                      <input
-                        type="text"
-                        value={prompt}
-                        onChange={(e) =>
-                          updateSamplePrompt(index, e.target.value)
-                        }
-                        placeholder={`Sample prompt ${
-                          index + 1
-                        } - e.g., "a portrait of ${
-                          triggerWord || "[trigger]"
-                        } person"`}
-                        className="w-full pl-4 pr-12 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
-                      />
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
-                        {prompt.length}/200
-                      </div>
-                    </div>
+                  <div key={index} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={prompt}
+                      onChange={(e) =>
+                        updateSamplePrompt(index, e.target.value)
+                      }
+                      placeholder={`Sample prompt ${index + 1}`}
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                    />
                     {samplePrompts.length > 1 && (
                       <button
                         onClick={() => removeSamplePrompt(index)}
-                        className="flex items-center justify-center w-12 h-12 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                        className="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                       >
-                        <X className="w-5 h-5" />
+                        <X className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 ))}
                 <button
                   onClick={addSamplePrompt}
-                  className="flex items-center justify-center gap-2 w-full py-3 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl border-2 border-dashed border-indigo-200 dark:border-indigo-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all font-medium"
+                  className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"
                 >
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-4 h-4" />
                   Add Sample Prompt
                 </button>
               </div>
             </div>
 
-            {/* Enhanced Advanced Settings Toggle */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+            {/* Advanced Settings Toggle */}
+            <div>
               <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold transition-colors"
+                className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
               >
-                <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
-                  {showAdvanced ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                </div>
-                Advanced Training Settings
-                <span className="text-sm text-gray-500 dark:text-gray-400 font-normal">
-                  (Optional - defaults work well)
-                </span>
+                {showAdvanced ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
+                Advanced Settings
               </button>
             </div>
-            {/* Enhanced Advanced Settings Panel */}
+
+            {/* Advanced Settings Panel */}
             {showAdvanced && (
-              <div className="bg-gradient-to-br from-gray-50 to-indigo-50/30 dark:from-gray-700/50 dark:to-indigo-900/10 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Training Steps
                     </label>
                     <input
@@ -791,11 +652,11 @@ export default function TrainLoRAPage() {
                       }
                       min="100"
                       max="10000"
-                      className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Learning Rate
                     </label>
                     <input
@@ -810,11 +671,11 @@ export default function TrainLoRAPage() {
                       step="0.00001"
                       min="0.00001"
                       max="0.01"
-                      className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Network Rank
                     </label>
                     <input
@@ -828,11 +689,11 @@ export default function TrainLoRAPage() {
                       }
                       min="8"
                       max="128"
-                      className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    <label className="block text-sm font-medium mb-2">
                       Sample Every (Steps)
                     </label>
                     <input
@@ -846,7 +707,7 @@ export default function TrainLoRAPage() {
                       }
                       min="50"
                       max="1000"
-                      className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
                     />
                   </div>
                 </div>
@@ -856,148 +717,84 @@ export default function TrainLoRAPage() {
         )}
 
         {currentStep === 4 && (
-          <div className="space-y-8">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl shadow-lg mb-4">
-                <Play className="w-8 h-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                Review & Start Training
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Everything looks good? Let's start training your LoRA model!
-              </p>
-            </div>
+          <div className="space-y-6">
+            <h2 className="text-2xl font-semibold mb-6">
+              Review & Start Training
+            </h2>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Enhanced Training Summary */}
-              <div className="bg-gradient-to-br from-gray-50 to-green-50/30 dark:from-gray-700/50 dark:to-green-900/10 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
-                <div className="flex items-center mb-4">
-                  <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center mr-3">
-                    <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Training Summary
-                  </h3>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center py-3 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Training Summary</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">
                       Job Name:
                     </span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {jobName}
-                    </span>
+                    <span>{jobName}</span>
                   </div>
-                  <div className="flex justify-between items-center py-3 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">
                       Preset:
                     </span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {trainingPresets[selectedPreset].name}
-                    </span>
+                    <span>{trainingPresets[selectedPreset].name}</span>
                   </div>
-                  <div className="flex justify-between items-center py-3 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">
                       Images:
                     </span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {images.length} images
-                    </span>
+                    <span>{images.length}</span>
                   </div>
-                  <div className="flex justify-between items-center py-3 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">
-                      Training Steps:
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">
+                      Steps:
                     </span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
+                    <span>
                       {showAdvanced
                         ? advancedSettings.steps
                         : trainingPresets[selectedPreset].config.train.steps}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-3">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">
                       Estimated Time:
                     </span>
-                    <span className="font-semibold text-green-600 dark:text-green-400">
-                      ~2-4 hours
-                    </span>
+                    <span>~2-4 hours</span>
                   </div>
                 </div>
               </div>
 
-              {/* Enhanced Requirements */}
-              <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-700/50 dark:to-blue-900/10 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
-                <div className="flex items-center mb-4">
-                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mr-3">
-                    <Cpu className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Requirements</h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm text-green-600">
+                    <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                    RunPod GPU Instance
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Infrastructure
-                  </h3>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <div>
-                      <div className="font-semibold text-green-800 dark:text-green-200">
-                        RunPod GPU Instance
-                      </div>
-                      <div className="text-sm text-green-600 dark:text-green-400">
-                        High-performance cloud GPU ready
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm text-green-600">
+                    <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                    AI-Toolkit Environment
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <div>
-                      <div className="font-semibold text-green-800 dark:text-green-200">
-                        AI-Toolkit Environment
-                      </div>
-                      <div className="text-sm text-green-600 dark:text-green-400">
-                        Optimized training environment
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <Info className="w-5 h-5 text-blue-600" />
-                    <div>
-                      <div className="font-semibold text-blue-800 dark:text-blue-200">
-                        Automatic Monitoring
-                      </div>
-                      <div className="text-sm text-blue-600 dark:text-blue-400">
-                        Real-time progress tracking
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm text-blue-600">
+                    <Info className="w-4 h-4" />
+                    Training will be monitored automatically
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Enhanced Process Info */}
-            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border-2 border-yellow-200 dark:border-yellow-700 rounded-2xl p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Zap className="w-6 h-6 text-white" />
-                </div>
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-yellow-600 mt-0.5" />
                 <div>
-                  <h4 className="text-xl font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
-                    Training Process Overview
+                  <h4 className="font-medium text-yellow-800 dark:text-yellow-200">
+                    Training Process
                   </h4>
-                  <p className="text-yellow-700 dark:text-yellow-300 leading-relaxed">
-                    Your images will be uploaded to RunPod's secure cloud
-                    infrastructure, training will start automatically using our
-                    optimized AI-Toolkit environment, and you'll receive
-                    real-time progress updates. The final LoRA model will be
-                    available for download once training completes successfully.
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                    Your images will be uploaded to RunPod, training will start
+                    automatically, and you'll receive progress updates. The
+                    final LoRA model will be available for download once
+                    training completes.
                   </p>
-                  <div className="flex items-center gap-2 mt-4 text-sm text-yellow-600 dark:text-yellow-400">
-                    <Clock className="w-4 h-4" />
-                    <span>
-                      Training typically completes within 2-4 hours depending on
-                      complexity
-                    </span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1037,18 +834,15 @@ export default function TrainLoRAPage() {
           </div>
         )}
 
-        {/* Enhanced Navigation Buttons */}
-        <div className="flex justify-between items-center pt-8 border-t border-gray-200 dark:border-gray-700">
-          {currentStep > 1 ? (
+        {/* Navigation Buttons */}
+        <div className="flex justify-between pt-8 border-t border-gray-200 dark:border-gray-700">
+          {currentStep > 1 && (
             <button
               onClick={() => setCurrentStep(currentStep - 1)}
-              className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all font-medium"
+              className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
             >
-              <ChevronLeft className="w-4 h-4" />
               Previous
             </button>
-          ) : (
-            <div></div>
           )}
 
           {currentStep < 4 ? (
@@ -1064,25 +858,24 @@ export default function TrainLoRAPage() {
                 }
                 setCurrentStep(currentStep + 1);
               }}
-              className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all font-semibold"
+              className="ml-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Next
-              <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             <button
               onClick={handleStartTraining}
               disabled={createTrainingJobMutation.isPending}
-              className="flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-green-500 via-green-600 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:via-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-105 transition-all font-bold text-lg"
+              className="ml-auto flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {createTrainingJobMutation.isPending ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   Starting Training...
                 </>
               ) : (
                 <>
-                  <Zap className="w-6 h-6" />
+                  <Zap className="w-5 h-5" />
                   Start Training
                 </>
               )}

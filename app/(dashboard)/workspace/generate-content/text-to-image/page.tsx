@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
+import Link from "next/link";
 import {
   ImageIcon,
   Wand2,
@@ -16,6 +17,9 @@ import {
   Sliders,
   Copy,
   RefreshCw,
+  ExternalLink,
+  User,
+  ChevronDown,
 } from "lucide-react";
 
 // Types
@@ -459,7 +463,7 @@ export default function TextToImagePage() {
     }
   };
 
-  // Updated poll job status with database image fetching
+  // Updated poll job status with database image fetching and gallery refresh notification
   const pollJobStatus = async (jobId: string) => {
     if (!apiClient) {
       console.error("❌ API client not available for job polling");
@@ -470,7 +474,7 @@ export default function TextToImagePage() {
     console.log("=== STARTING JOB POLLING ===");
     console.log("Polling job ID:", jobId);
 
-    const maxAttempts = 120; // 2 minutes
+    const maxAttempts = 300; // 5 minutes
     let attempts = 0;
 
     const poll = async () => {
@@ -538,10 +542,32 @@ export default function TextToImagePage() {
             }, 3000);
           }
 
+          // Refresh image stats after completion
+          console.log("📊 Refreshing image stats after generation completion");
+          await fetchImageStats();
+
+          // Show success notification with gallery link
+          if (fetchSuccess) {
+            const viewGallery = confirm(
+              "🎉 Image generation completed! Your new images are ready to view.\n\nWould you like to go to the Generated Content gallery now?"
+            );
+            if (viewGallery) {
+              window.open("/dashboard/workspace/generated-content", "_blank");
+            }
+          } else {
+            const viewGallery = confirm(
+              "✅ Image generation completed! Images are being processed.\n\nWould you like to go to the Generated Content gallery to check for them?"
+            );
+            if (viewGallery) {
+              window.open("/dashboard/workspace/generated-content", "_blank");
+            }
+          }
+
           return;
         } else if (job.status === "failed") {
           console.log("Job failed:", job.error);
           setIsGenerating(false);
+          alert(`❌ Generation failed: ${job.error || "Unknown error"}`);
           return;
         }
 
@@ -560,6 +586,9 @@ export default function TextToImagePage() {
                 }
               : null
           );
+          alert(
+            "⏰ Generation polling timed out. Your images may still be processing in the background."
+          );
         }
       } catch (error) {
         console.error("Polling error:", error);
@@ -576,6 +605,9 @@ export default function TextToImagePage() {
                   error: "Failed to get job status",
                 }
               : null
+          );
+          alert(
+            "❌ Failed to get generation status. Please check the Generated Content gallery manually."
           );
         }
       }
@@ -746,16 +778,32 @@ export default function TextToImagePage() {
 
   if (!apiClient) {
     return (
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-center min-h-96">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Initializing...
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Setting up authentication for text-to-image generation
-            </p>
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-center min-h-[600px]">
+          <div className="text-center space-y-6">
+            <div className="relative">
+              <div className="w-20 h-20 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mx-auto"></div>
+              <Sparkles className="absolute inset-0 w-8 h-8 text-purple-500 animate-pulse m-auto" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Preparing Your Studio
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                Setting up the AI workspace for text-to-image generation...
+              </p>
+            </div>
+            <div className="flex items-center justify-center space-x-2 text-sm text-purple-600 dark:text-purple-400">
+              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+              <div
+                className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
+                style={{ animationDelay: "0.1s" }}
+              ></div>
+              <div
+                className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
+                style={{ animationDelay: "0.2s" }}
+              ></div>
+            </div>
           </div>
         </div>
       </div>
@@ -763,68 +811,47 @@ export default function TextToImagePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
-      {/* Enhanced Header with Gradient Background */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-blue-900/20 rounded-2xl shadow-lg border border-purple-100 dark:border-gray-700">
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-        <div className="relative p-8">
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Enhanced Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-xl shadow-lg border border-blue-200 dark:border-purple-800 p-6 text-white">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="relative">
-              <div className="p-4 bg-gradient-to-br from-purple-500 via-blue-500 to-indigo-600 rounded-2xl shadow-lg">
-                <ImageIcon className="w-8 h-8 text-white" />
-              </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white dark:border-gray-900"></div>
+            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
+              <ImageIcon className="w-8 h-8 text-white" />
             </div>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 via-purple-800 to-blue-800 dark:from-white dark:via-purple-200 dark:to-blue-200 bg-clip-text text-transparent mb-2">
-                Text to Image Studio
-              </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
-                Generate stunning images from text descriptions using advanced
-                Flux AI technology
+            <div>
+              <h1 className="text-3xl font-bold">Text to Image</h1>
+              <p className="text-blue-100">
+                Transform your ideas into stunning visuals with FLUX AI
               </p>
-              <div className="flex items-center space-x-4 mt-3">
-                <div className="flex items-center text-sm text-purple-600 dark:text-purple-400">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full mr-2"></div>
-                  Flux AI Engine
-                </div>
-                <div className="flex items-center text-sm text-blue-600 dark:text-blue-400">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full mr-2"></div>
-                  LoRA Support
-                </div>
-                <div className="flex items-center text-sm text-indigo-600 dark:text-indigo-400">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-                  High Resolution
-                </div>
-              </div>
             </div>
           </div>
+
+          {imageStats && (
+            <div className="text-right bg-white/10 rounded-lg p-3 backdrop-blur-sm">
+              <div className="text-2xl font-bold text-white">
+                {imageStats.totalImages}
+              </div>
+              <div className="text-sm text-blue-100">Images Generated</div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Enhanced Left Panel - Controls */}
-        <div className="lg:col-span-2 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Panel - Controls */}
+        <div className="lg:col-span-2 space-y-6">
           {/* Enhanced Prompt Input */}
-          <div className="bg-gradient-to-br from-white via-gray-50 to-purple-50 dark:from-gray-800 dark:via-gray-800 dark:to-purple-900/20 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl transition-all duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
-                    <Wand2 className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                      Creative Prompt
-                    </label>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Describe your vision in detail
-                    </p>
-                  </div>
-                </div>
+                <label className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+                  <Sparkles className="w-5 h-5 text-purple-500" />
+                  <span>Your Creative Vision</span>
+                </label>
                 <button
                   onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
-                  className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium px-3 py-1 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                  className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium"
                 >
                   Clear
                 </button>
@@ -834,127 +861,160 @@ export default function TextToImagePage() {
                 onChange={(e) =>
                   setParams((prev) => ({ ...prev, prompt: e.target.value }))
                 }
-                placeholder="Describe the image you want to generate..."
-                className="w-full h-36 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-white/80 dark:bg-gray-700/80 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 backdrop-blur-sm transition-all"
+                placeholder="Describe your dream image in detail... e.g., 'A majestic mountain landscape at sunset with vibrant colors'"
+                className="w-full h-32 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
               />
-              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                <span>
-                  💡 Tip: Be specific about style, lighting, and composition
-                </span>
-                <span>{params.prompt.length}/1000</span>
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {params.prompt.length}/1000 characters
+                </div>
+                <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                  💡 Tip: Be specific and descriptive for best results
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Basic Settings */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Settings
+          {/* Enhanced Basic Settings */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center space-x-2">
+              <Settings className="w-5 h-5 text-blue-500" />
+              <span>Generation Settings</span>
             </h3>
 
-            {/* LoRA Model Selection */}
+            {/* Enhanced LoRA Model Selection */}
             <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                LoRA Model
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center space-x-2">
+                <User className="w-4 h-4 text-green-500" />
+                <span>Style Model (LoRA)</span>
               </label>
 
               {loadingLoRAs ? (
-                <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm text-gray-500">
-                    Loading LoRA models...
+                <div className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700/50">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Loading your style models...
                   </span>
                 </div>
               ) : (
-                <select
-                  value={params.selectedLora}
-                  onChange={(e) =>
-                    setParams((prev) => ({
-                      ...prev,
-                      selectedLora: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {availableLoRAs.map((lora, index) => (
-                    <option
-                      key={`${lora.fileName}-${index}`}
-                      value={lora.fileName}
-                    >
-                      {lora.displayName}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={params.selectedLora}
+                    onChange={(e) =>
+                      setParams((prev) => ({
+                        ...prev,
+                        selectedLora: e.target.value,
+                      }))
+                    }
+                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all appearance-none"
+                  >
+                    {availableLoRAs.map((lora, index) => (
+                      <option
+                        key={`${lora.fileName}-${index}`}
+                        value={lora.fileName}
+                      >
+                        {lora.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
               )}
 
               {params.selectedLora !== "None" && (
-                <div className="text-xs text-blue-600 dark:text-blue-400">
-                  Using LoRA:{" "}
-                  {availableLoRAs.find(
-                    (lora) => lora.fileName === params.selectedLora
-                  )?.displayName || params.selectedLora}
+                <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="text-sm text-green-700 dark:text-green-300 font-medium">
+                    Using:{" "}
+                    {availableLoRAs.find(
+                      (lora) => lora.fileName === params.selectedLora
+                    )?.displayName || params.selectedLora}
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Aspect Ratio */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Aspect Ratio
+            {/* Enhanced Aspect Ratio */}
+            <div className="space-y-4 mb-6">
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center space-x-2">
+                <Settings className="w-4 h-4 text-blue-500" />
+                <span>Image Dimensions</span>
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {ASPECT_RATIOS.map((ratio) => (
                   <button
                     key={ratio.name}
                     onClick={() =>
                       handleAspectRatioChange(ratio.width, ratio.height)
                     }
-                    className={`p-3 rounded-lg border text-sm font-medium transition-all ${
+                    className={`group p-4 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${
                       params.width === ratio.width &&
                       params.height === ratio.height
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                        : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400"
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-lg scale-105"
+                        : "border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-900/10"
                     }`}
                   >
-                    <div>{ratio.name}</div>
-                    <div className="text-xs opacity-75">{ratio.ratio}</div>
+                    <div className="font-semibold">{ratio.name}</div>
+                    <div className="text-xs opacity-75 mt-1">{ratio.ratio}</div>
+                    <div className="text-xs opacity-60 mt-1">
+                      {ratio.width}×{ratio.height}
+                    </div>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Batch Size */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Number of Images: {params.batchSize}
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="4"
-                value={params.batchSize}
-                onChange={(e) =>
-                  setParams((prev) => ({
-                    ...prev,
-                    batchSize: parseInt(e.target.value),
-                  }))
-                }
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>1</span>
-                <span>4</span>
+            {/* Enhanced Batch Size */}
+            <div className="space-y-4 mb-6">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center space-x-2">
+                  <Copy className="w-4 h-4 text-orange-500" />
+                  <span>Number of Images</span>
+                </label>
+                <div className="bg-orange-100 dark:bg-orange-900/30 px-3 py-1 rounded-full">
+                  <span className="text-sm font-bold text-orange-700 dark:text-orange-300">
+                    {params.batchSize}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <input
+                  type="range"
+                  min="1"
+                  max="4"
+                  value={params.batchSize}
+                  onChange={(e) =>
+                    setParams((prev) => ({
+                      ...prev,
+                      batchSize: parseInt(e.target.value),
+                    }))
+                  }
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                  <span>1 image</span>
+                  <span>4 images</span>
+                </div>
               </div>
             </div>
 
-            {/* Advanced Settings Toggle */}
-            <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center space-x-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-            >
-              <Sliders className="w-4 h-4" />
-              <span>{showAdvanced ? "Hide" : "Show"} Advanced Settings</span>
-            </button>
+            {/* Enhanced Advanced Settings Toggle */}
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="flex items-center justify-between w-full p-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <div className="flex items-center space-x-2">
+                  <Sliders className="w-4 h-4 text-indigo-500" />
+                  <span>Advanced Settings</span>
+                </div>
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${
+                    showAdvanced ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            </div>
 
             {/* Advanced Settings */}
             {showAdvanced && (
@@ -1102,87 +1162,35 @@ export default function TextToImagePage() {
           </div>
 
           {/* Enhanced Generate Button */}
-          <div className="relative">
+          <div className="sticky bottom-4">
             <button
               onClick={handleGenerate}
               disabled={isGenerating || !params.prompt.trim()}
-              className="group relative w-full py-6 px-8 bg-gradient-to-r from-purple-500 via-blue-500 to-indigo-600 hover:from-purple-600 hover:via-blue-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-bold rounded-2xl shadow-2xl transition-all duration-300 overflow-hidden"
+              className={`group w-full py-4 px-6 rounded-2xl shadow-xl transition-all duration-300 flex items-center justify-center space-x-3 font-bold text-lg ${
+                isGenerating || !params.prompt.trim()
+                  ? "bg-gray-400 cursor-not-allowed text-white"
+                  : "bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 hover:from-purple-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-105"
+              }`}
             >
-              {/* Animated Background */}
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-
-              {/* Button Content */}
-              <div className="relative flex items-center justify-center space-x-3">
-                {isGenerating ? (
-                  <>
-                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-lg">Generating...</span>
-                    {currentJob?.progress && (
-                      <span className="text-sm opacity-80">
-                        {currentJob.progress}%
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="w-6 h-6" />
-                    <span className="text-lg">Generate Image</span>
-                    <div className="ml-2 px-2 py-1 bg-white/20 rounded-lg text-sm font-normal">
-                      {params.selectedLora !== "None"
-                        ? "LoRA Enhanced"
-                        : "Base Model"}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Shimmer Effect */}
-              {!isGenerating && (
-                <div className="absolute inset-0 -skew-x-12 translate-x-full group-hover:translate-x-0 bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-1000"></div>
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span>Creating Magic...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                  <span>Generate Image</span>
+                  <Wand2 className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                </>
               )}
             </button>
 
-            {/* Status Indicators */}
-            <div className="mt-3 flex items-center justify-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
-              <div
-                className={`flex items-center space-x-1 ${
-                  params.prompt.trim()
-                    ? "text-green-600 dark:text-green-400"
-                    : ""
-                }`}
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    params.prompt.trim()
-                      ? "bg-green-400"
-                      : "bg-gray-300 dark:bg-gray-600"
-                  }`}
-                ></div>
-                <span>Prompt Ready</span>
-              </div>
-              <div
-                className={`flex items-center space-x-1 ${
-                  params.selectedLora !== "None"
-                    ? "text-blue-600 dark:text-blue-400"
-                    : "text-gray-500"
-                }`}
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    params.selectedLora !== "None"
-                      ? "bg-blue-400"
-                      : "bg-gray-300 dark:bg-gray-600"
-                  }`}
-                ></div>
-                <span>LoRA Model</span>
-              </div>
-              <div className="flex items-center space-x-1 text-purple-600 dark:text-purple-400">
-                <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                <span>
-                  Size: {params.width}×{params.height}
-                </span>
-              </div>
-            </div>
+            {!params.prompt.trim() && (
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
+                Enter a prompt to start generating
+              </p>
+            )}
           </div>
         </div>
 
@@ -1191,9 +1199,18 @@ export default function TextToImagePage() {
           {/* Image Statistics */}
           {imageStats && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Your Image Library
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Your Image Library
+                </h3>
+                <Link
+                  href="/dashboard/workspace/generated-content"
+                  className="flex items-center space-x-1 text-blue-500 hover:text-blue-600 text-sm font-medium transition-colors"
+                >
+                  <span>View Gallery</span>
+                  <ExternalLink className="w-4 h-4" />
+                </Link>
+              </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600 dark:text-gray-400">
