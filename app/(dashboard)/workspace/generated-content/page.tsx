@@ -25,6 +25,8 @@ import {
   Video,
   Play,
   Pause,
+  HardDrive,
+  BarChart3,
 } from "lucide-react";
 
 // Types
@@ -519,30 +521,37 @@ export default function GeneratedContentPage() {
 
   if (!apiClient) {
     return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <div className="text-center space-y-6">
+      <div className="flex items-center justify-center min-h-[600px] bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-slate-800 dark:to-gray-900 rounded-2xl">
+        <div className="text-center space-y-8 p-8">
           <div className="relative">
-            <div className="w-20 h-20 border-4 border-emerald-200 dark:border-emerald-800 border-t-emerald-600 dark:border-t-emerald-400 rounded-full animate-spin mx-auto"></div>
-            <ImageIcon className="absolute inset-0 w-8 h-8 text-teal-500 animate-pulse m-auto" />
+            <div className="w-24 h-24 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mx-auto shadow-lg"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <ImageIcon className="w-10 h-10 text-blue-500 dark:text-blue-400 animate-pulse" />
+            </div>
           </div>
-          <div className="space-y-2">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <div className="space-y-3">
+            <h3 className="text-3xl font-bold text-gray-900 dark:text-white bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Loading Your Gallery
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md">
+            <p className="text-gray-600 dark:text-gray-400 max-w-md text-lg">
               Setting up authentication to view your generated content...
             </p>
           </div>
-          <div className="flex items-center justify-center space-x-2 text-sm text-teal-600 dark:text-teal-400">
-            <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"></div>
+          <div className="flex items-center justify-center space-x-2">
+            <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce shadow-md"></div>
             <div
-              className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"
+              className="w-3 h-3 bg-purple-500 rounded-full animate-bounce shadow-md"
               style={{ animationDelay: "0.1s" }}
             ></div>
             <div
-              className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"
+              className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce shadow-md"
               style={{ animationDelay: "0.2s" }}
             ></div>
+          </div>
+          <div className="mt-8 p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-xl border border-blue-200/50 dark:border-gray-700/50">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              🔐 Securely connecting to your account...
+            </p>
           </div>
         </div>
       </div>
@@ -551,12 +560,31 @@ export default function GeneratedContentPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-600 dark:text-gray-400">
-            Loading your images...
-          </p>
+      <div className="flex items-center justify-center min-h-96 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl">
+        <div className="text-center space-y-6 p-8">
+          <div className="relative">
+            <Loader2 className="w-12 h-12 animate-spin mx-auto text-blue-500 drop-shadow-lg" />
+            <div className="absolute inset-0 w-12 h-12 border-2 border-blue-200 dark:border-blue-800 rounded-full animate-pulse mx-auto"></div>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Loading Content
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Fetching your generated images and videos...
+            </p>
+          </div>
+          <div className="flex items-center justify-center space-x-1">
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+            <div
+              className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
+              style={{ animationDelay: "0.2s" }}
+            ></div>
+            <div
+              className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"
+              style={{ animationDelay: "0.4s" }}
+            ></div>
+          </div>
         </div>
       </div>
     );
@@ -565,15 +593,48 @@ export default function GeneratedContentPage() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <AlertCircle className="w-8 h-8 mx-auto mb-4 text-red-500" />
-          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
-          <button
-            onClick={fetchContent}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center space-x-2 mx-auto"
-          >
-            <span>Retry</span>
-          </button>
+        <div className="text-center space-y-6 max-w-md mx-auto p-8">
+          <div className="relative">
+            <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-10 h-10 text-red-500 dark:text-red-400" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
+              <span className="text-white text-xs font-bold">!</span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Something went wrong
+            </h3>
+            <p className="text-red-600 dark:text-red-400 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
+              {error}
+            </p>
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
+              Don't worry, this is usually temporary. Try refreshing the page or
+              check your internet connection.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={fetchContent}
+              className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 flex items-center justify-center space-x-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Try Again</span>
+            </button>
+
+            <div className="flex items-center justify-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+              <span>Need help?</span>
+              <a
+                href="mailto:support@tastycreative.ai"
+                className="text-blue-500 hover:text-blue-600 underline"
+              >
+                Contact Support
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -673,110 +734,175 @@ export default function GeneratedContentPage() {
   return (
     <div className="space-y-6">
       {/* Enhanced Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl shadow-lg border border-emerald-200 dark:border-teal-800 p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-              <ImageIcon className="w-8 h-8 text-white" />
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl border border-blue-200 dark:border-indigo-800 p-8 text-white">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+        </div>
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex items-center space-x-6">
+            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
+              <ImageIcon className="w-10 h-10 text-white drop-shadow-sm" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Generated Content</h1>
-              <p className="text-emerald-100">
-                View and manage your AI-generated images and videos
+              <h1 className="text-4xl font-bold mb-2 drop-shadow-sm">
+                Generated Content
+              </h1>
+              <p className="text-blue-100 text-lg font-medium opacity-90">
+                Manage your AI-generated images and videos
               </p>
+              <div className="flex items-center space-x-4 mt-3 text-sm text-blue-100">
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>Live updates</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-blue-300 rounded-full"></div>
+                  <span>Cloud synchronized</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
             <button
               onClick={() => {
                 fetchContent();
                 fetchStats();
               }}
               disabled={loading}
-              className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-medium rounded-xl shadow-sm transition-all backdrop-blur-sm"
+              className="flex items-center space-x-3 px-6 py-3 bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/30 group"
               title="Refresh content"
             >
               {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Updating...</span>
+                </>
               ) : (
-                <RefreshCw className="w-4 h-4" />
+                <>
+                  <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+                  <span>Refresh</span>
+                </>
               )}
-              <span>Refresh</span>
             </button>
 
-            <div className="text-right bg-white/10 rounded-xl p-3 backdrop-blur-sm">
-              <div className="text-2xl font-bold text-white">
-                {allContent.length}
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-white drop-shadow-sm">
+                  {allContent.length}
+                </div>
+                <div className="text-sm text-blue-100 font-medium">
+                  Total Items
+                </div>
               </div>
-              <div className="text-sm text-emerald-100">Total Items</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Enhanced Stats */}
       {(imageStats || videoStats) && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {imageStats && (
             <>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center space-x-2">
-                  <FileImage className="w-5 h-5 text-blue-500" />
+              <div className="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:border-blue-300 dark:hover:border-blue-600">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Total Images
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+                        <FileImage className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Images
+                      </span>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                      {imageStats.totalImages.toLocaleString()}
                     </p>
-                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
-                      {imageStats.totalImages}
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Generated files
                     </p>
+                  </div>
+                  <div className="text-blue-500 opacity-20 group-hover:opacity-40 transition-opacity">
+                    <FileImage className="w-12 h-12" />
                   </div>
                 </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center space-x-2">
-                  <Download className="w-5 h-5 text-green-500" />
+
+              <div className="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:border-green-300 dark:hover:border-green-600">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Images Size
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-xl">
+                        <HardDrive className="w-6 h-6 text-green-600 dark:text-green-400" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Storage
+                      </span>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                      {(imageStats.totalSize / 1024 / 1024).toFixed(1)}
                     </p>
-                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
-                      {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
-                        100}{" "}
-                      MB
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      MB used
                     </p>
+                  </div>
+                  <div className="text-green-500 opacity-20 group-hover:opacity-40 transition-opacity">
+                    <HardDrive className="w-12 h-12" />
                   </div>
                 </div>
               </div>
             </>
           )}
+
           {videoStats && (
             <>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center space-x-2">
-                  <Video className="w-5 h-5 text-purple-500" />
+              <div className="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:border-purple-300 dark:hover:border-purple-600">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Total Videos
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                        <Video className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Videos
+                      </span>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                      {videoStats.totalVideos.toLocaleString()}
                     </p>
-                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
-                      {videoStats.totalVideos}
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Generated files
                     </p>
+                  </div>
+                  <div className="text-purple-500 opacity-20 group-hover:opacity-40 transition-opacity">
+                    <Video className="w-12 h-12" />
                   </div>
                 </div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center space-x-2">
-                  <Download className="w-5 h-5 text-orange-500" />
+
+              <div className="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:border-orange-300 dark:hover:border-orange-600">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Videos Size
+                    <div className="flex items-center space-x-3 mb-3">
+                      <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
+                        <BarChart3 className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Storage
+                      </span>
+                    </div>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                      {(videoStats.totalSize / 1024 / 1024).toFixed(1)}
                     </p>
-                    <p className="text-xl font-semibold text-gray-900 dark:text-white">
-                      {Math.round((videoStats.totalSize / 1024 / 1024) * 100) /
-                        100}{" "}
-                      MB
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      MB used
                     </p>
+                  </div>
+                  <div className="text-orange-500 opacity-20 group-hover:opacity-40 transition-opacity">
+                    <BarChart3 className="w-12 h-12" />
                   </div>
                 </div>
               </div>
@@ -785,55 +911,97 @@ export default function GeneratedContentPage() {
         </div>
       )}
 
-      {/* Controls */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search images..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+      {/* Enhanced Controls */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 lg:space-x-6">
+          {/* Search Section */}
+          <div className="flex-1 max-w-2xl">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search your content..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="block w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Controls */}
-          <div className="flex items-center space-x-2">
-            {/* Filter */}
-            <select
-              value={filterBy}
-              onChange={(e) => setFilterBy(e.target.value as FilterBy)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="all">All Content</option>
-              <option value="images">Images Only</option>
-              <option value="videos">Videos Only</option>
-            </select>
+          {/* Filter and Sort Controls */}
+          <div className="flex items-center space-x-3">
+            {/* Content Type Filter */}
+            <div className="relative">
+              <select
+                value={filterBy}
+                onChange={(e) => setFilterBy(e.target.value as FilterBy)}
+                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                <option value="all">All Content</option>
+                <option value="images">🖼️ Images Only</option>
+                <option value="videos">🎥 Videos Only</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                <svg
+                  className="h-4 w-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+            </div>
 
-            {/* Sort */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-            >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="largest">Largest First</option>
-              <option value="smallest">Smallest First</option>
-              <option value="name">Name</option>
-            </select>
+            {/* Sort Options */}
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortBy)}
+                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                <option value="newest">⏰ Newest First</option>
+                <option value="oldest">🕐 Oldest First</option>
+                <option value="largest">📊 Largest First</option>
+                <option value="smallest">📉 Smallest First</option>
+                <option value="name">🔤 Name A-Z</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                <svg
+                  className="h-4 w-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+            </div>
 
-            {/* View Mode */}
-            <div className="flex border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
+            {/* View Mode Toggle */}
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-xl p-1 border border-gray-200 dark:border-gray-600">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`p-2 ${
+                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${
                   viewMode === "grid"
-                    ? "bg-blue-500 text-white"
-                    : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                    ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                 }`}
                 title="Grid view"
               >
@@ -841,10 +1009,10 @@ export default function GeneratedContentPage() {
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`p-2 ${
+                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${
                   viewMode === "list"
-                    ? "bg-blue-500 text-white"
-                    : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                    ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                 }`}
                 title="List view"
               >
@@ -853,45 +1021,163 @@ export default function GeneratedContentPage() {
             </div>
           </div>
         </div>
+
+        {/* Results Summary */}
+        {(searchQuery || filterBy !== "all") && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-400">
+                {filteredAndSortedContent().length === 1
+                  ? "1 item found"
+                  : `${filteredAndSortedContent().length} items found`}
+                {searchQuery && (
+                  <span className="ml-1">
+                    for "
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {searchQuery}
+                    </span>
+                    "
+                  </span>
+                )}
+              </span>
+
+              {(searchQuery || filterBy !== "all") && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setFilterBy("all");
+                  }}
+                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Content */}
+      {/* Enhanced Empty State */}
       {filteredAndSortedContent().length === 0 ? (
-        <div className="text-center py-12">
-          <ImageIcon className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            No content found
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            {searchQuery || filterBy !== "all"
-              ? "Try adjusting your filters or search query"
-              : "Start generating content to see it here"}
-          </p>
+        <div className="text-center py-16">
+          <div className="max-w-md mx-auto">
+            <div className="relative mb-8">
+              <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+                <ImageIcon className="w-12 h-12 text-gray-400 dark:text-gray-500" />
+              </div>
+              <div className="absolute -top-2 -right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                <Search className="w-4 h-4 text-white" />
+              </div>
+            </div>
+
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+              {searchQuery || filterBy !== "all"
+                ? "No matching content found"
+                : "Your gallery is empty"}
+            </h3>
+
+            <div className="space-y-2 mb-8">
+              {searchQuery || filterBy !== "all" ? (
+                <>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    We couldn't find any content matching your search criteria.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                    {searchQuery && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                        Search: "{searchQuery}"
+                        <button
+                          onClick={() => setSearchQuery("")}
+                          className="ml-2 text-blue-600 hover:text-blue-800"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {filterBy !== "all" && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
+                        Filter:{" "}
+                        {filterBy === "images" ? "🖼️ Images" : "🎥 Videos"}
+                        <button
+                          onClick={() => setFilterBy("all")}
+                          className="ml-2 text-purple-600 hover:text-purple-800"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-600 dark:text-gray-400 text-lg">
+                    Start creating amazing AI-generated content to see it here!
+                  </p>
+                  <p className="text-gray-500 dark:text-gray-500 text-sm">
+                    Your generated images and videos will appear in this
+                    gallery.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {searchQuery || filterBy !== "all" ? (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setFilterBy("all");
+                  }}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                >
+                  Clear all filters
+                </button>
+              ) : (
+                <>
+                  <a
+                    href="/workspace/generate-content/text-to-image"
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 inline-flex items-center space-x-2"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <span>Generate Images</span>
+                  </a>
+
+                  <a
+                    href="/workspace/generate-content/image-to-video"
+                    className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 inline-flex items-center space-x-2"
+                  >
+                    <Video className="w-4 h-4" />
+                    <span>Generate Videos</span>
+                  </a>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       ) : (
         <>
-          {/* Grid View */}
+          {/* Enhanced Grid View */}
           {viewMode === "grid" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {paginatedContent().map((item) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
+              {paginatedContent().map((item, index) => (
                 <div
                   key={item.id}
-                  className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow group"
+                  className="group bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 hover:scale-[1.02] transform"
+                  style={{
+                    animationDelay: `${index * 0.05}s`,
+                  }}
                 >
-                  <div className="relative aspect-square">
+                  <div className="relative aspect-square overflow-hidden">
                     {item.itemType === "video" ? (
                       <video
                         src={item.dataUrl || item.url}
-                        className="w-full h-full object-cover cursor-pointer"
+                        className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
                         onClick={() => setSelectedItem(item)}
                         preload="metadata"
                         muted
                         onError={(e) => {
                           console.error("Video load error for:", item.filename);
-
-                          // Smart fallback logic
                           const currentSrc = (e.target as HTMLVideoElement).src;
-
                           if (currentSrc === item.dataUrl && item.url) {
                             console.log("Falling back to ComfyUI URL");
                             (e.target as HTMLVideoElement).src = item.url;
@@ -912,14 +1198,11 @@ export default function GeneratedContentPage() {
                       <img
                         src={item.dataUrl || item.url}
                         alt={item.filename}
-                        className="w-full h-full object-cover cursor-pointer"
+                        className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
                         onClick={() => setSelectedItem(item)}
                         onError={(e) => {
                           console.error("Image load error for:", item.filename);
-
-                          // Smart fallback logic
                           const currentSrc = (e.target as HTMLImageElement).src;
-
                           if (currentSrc === item.dataUrl && item.url) {
                             console.log("Falling back to ComfyUI URL");
                             (e.target as HTMLImageElement).src = item.url;
@@ -938,73 +1221,147 @@ export default function GeneratedContentPage() {
                       />
                     )}
 
-                    {/* Item type indicator */}
-                    <div className="absolute top-2 left-2">
-                      {item.itemType === "video" ? (
-                        <div className="p-1 bg-purple-500 text-white rounded-full">
-                          <Video className="w-3 h-3" />
-                        </div>
-                      ) : (
-                        <div className="p-1 bg-blue-500 text-white rounded-full">
-                          <ImageIcon className="w-3 h-3" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Overlay */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedItem(item);
-                          }}
-                          className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-100"
-                          title="View item"
-                        >
-                          <Eye className="w-4 h-4 text-gray-700" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadItem(item);
-                          }}
-                          className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-100"
-                          title="Download item"
-                        >
-                          <Download className="w-4 h-4 text-gray-700" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            shareItem(item);
-                          }}
-                          className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-100"
-                          title="Share item"
-                        >
-                          <Share2 className="w-4 h-4 text-gray-700" />
-                        </button>
+                    {/* Content Type Badge */}
+                    <div className="absolute top-3 left-3">
+                      <div
+                        className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold shadow-lg backdrop-blur-sm border transition-all duration-300 ${
+                          item.itemType === "video"
+                            ? "bg-purple-500/90 text-white border-purple-400"
+                            : "bg-blue-500/90 text-white border-blue-400"
+                        }`}
+                      >
+                        {item.itemType === "video" ? (
+                          <>
+                            <Video className="w-3 h-3" />
+                            <span>VIDEO</span>
+                          </>
+                        ) : (
+                          <>
+                            <ImageIcon className="w-3 h-3" />
+                            <span>IMAGE</span>
+                          </>
+                        )}
                       </div>
                     </div>
+
+                    {/* Duration Badge for Videos */}
+                    {item.itemType === "video" && item.duration && (
+                      <div className="absolute top-3 right-3">
+                        <div className="bg-black/70 text-white px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm">
+                          {item.duration.toFixed(1)}s
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hover Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedItem(item);
+                              }}
+                              className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/20"
+                              title="View full size"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadItem(item);
+                              }}
+                              className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/20"
+                              title="Download"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                shareItem(item);
+                              }}
+                              className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/20"
+                              title="Share"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteItem(item);
+                              }}
+                              className="p-2.5 bg-red-500/80 hover:bg-red-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-red-400/20"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Play Button for Videos */}
+                    {item.itemType === "video" && (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="p-4 bg-white/20 rounded-full backdrop-blur-sm border border-white/30">
+                          <Play className="w-8 h-8 text-white drop-shadow-lg" />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="p-3">
-                    <p
-                      className="text-sm font-medium text-gray-900 dark:text-white truncate"
+                  {/* Enhanced Card Footer */}
+                  <div className="p-4">
+                    <h3
+                      className="text-sm font-semibold text-gray-900 dark:text-white truncate mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200"
                       title={item.filename}
                     >
                       {item.filename}
-                    </p>
-                    <div className="flex items-center justify-between mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      <span>{formatFileSize(item.fileSize)}</span>
-                      {item.width && item.height && (
-                        <span>
-                          {item.width}×{item.height}
+                    </h3>
+
+                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center space-x-3">
+                        <span className="flex items-center space-x-1">
+                          <HardDrive className="w-3 h-3" />
+                          <span>{formatFileSize(item.fileSize)}</span>
                         </span>
-                      )}
-                      {item.itemType === "video" && item.duration && (
-                        <span>{item.duration.toFixed(1)}s</span>
-                      )}
+
+                        {item.width && item.height && (
+                          <span className="flex items-center space-x-1">
+                            <span>📐</span>
+                            <span>
+                              {item.width}×{item.height}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-gray-400 dark:text-gray-500">
+                        {formatDate(item.createdAt).split(" ")[0]}
+                      </div>
+                    </div>
+
+                    {/* Progress bar for file size visualization */}
+                    <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                      <div
+                        className={`h-1 rounded-full transition-all duration-300 ${
+                          item.itemType === "video"
+                            ? "bg-gradient-to-r from-purple-400 to-purple-600"
+                            : "bg-gradient-to-r from-blue-400 to-blue-600"
+                        }`}
+                        style={{
+                          width: `${Math.min(
+                            ((item.fileSize || 0) / (10 * 1024 * 1024)) * 100,
+                            100
+                          )}%`,
+                        }}
+                      ></div>
                     </div>
                   </div>
                 </div>
@@ -1176,162 +1533,319 @@ export default function GeneratedContentPage() {
             </div>
           )}
 
-          {/* Pagination */}
+          {/* Enhanced Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Showing {(currentPage - 1) * imagesPerPage + 1} to{" "}
-                {Math.min(
-                  currentPage * imagesPerPage,
-                  filteredAndSortedContent().length
-                )}{" "}
-                of {filteredAndSortedContent().length} items
-              </p>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  onClick={() =>
-                    setCurrentPage(Math.min(totalPages, currentPage + 1))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                  <span className="font-medium">
+                    Showing {(currentPage - 1) * imagesPerPage + 1}–
+                    {Math.min(
+                      currentPage * imagesPerPage,
+                      filteredAndSortedContent().length
+                    )}
+                  </span>
+                  <span>of</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">
+                    {filteredAndSortedContent().length.toLocaleString()}
+                  </span>
+                  <span>items</span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="p-2.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    title="First page"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+
+                  <button
+                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
+                  >
+                    Previous
+                  </button>
+
+                  <div className="flex items-center space-x-1">
+                    {/* Page Numbers */}
+                    {(() => {
+                      const pages = [];
+                      const maxVisiblePages = 5;
+                      let startPage = Math.max(
+                        1,
+                        currentPage - Math.floor(maxVisiblePages / 2)
+                      );
+                      let endPage = Math.min(
+                        totalPages,
+                        startPage + maxVisiblePages - 1
+                      );
+
+                      if (endPage - startPage < maxVisiblePages - 1) {
+                        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                      }
+
+                      for (let i = startPage; i <= endPage; i++) {
+                        pages.push(
+                          <button
+                            key={i}
+                            onClick={() => setCurrentPage(i)}
+                            className={`w-10 h-10 text-sm rounded-lg font-medium transition-all duration-200 ${
+                              currentPage === i
+                                ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
+                                : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                      return pages;
+                    })()}
+                  </div>
+
+                  <button
+                    onClick={() =>
+                      setCurrentPage(Math.min(totalPages, currentPage + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
+                  >
+                    Next
+                  </button>
+
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="p-2.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    title="Last page"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M4.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414zm6 0a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L14.586 10l-4.293-4.293a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
           )}
         </>
       )}
 
-      {/* Modal */}
+      {/* Enhanced Modal/Lightbox */}
       {selectedItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
           onClick={() => setSelectedItem(null)}
         >
           <div
-            className="relative max-w-4xl max-h-[90vh] mx-4"
+            className="relative max-w-7xl max-h-[95vh] mx-4 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              onClick={() => setSelectedItem(null)}
-              className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 rounded-full bg-black bg-opacity-50"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {selectedItem.itemType === "video" ? (
-              <video
-                src={selectedItem.dataUrl || selectedItem.url}
-                className="max-w-full max-h-[80vh] object-contain rounded-lg"
-                controls
-                autoPlay
-                onError={(e) => {
-                  console.error(
-                    "Modal video load error for:",
-                    selectedItem.filename
-                  );
-
-                  const currentSrc = (e.target as HTMLVideoElement).src;
-
-                  if (currentSrc === selectedItem.dataUrl && selectedItem.url) {
-                    console.log("Modal falling back to ComfyUI URL");
-                    (e.target as HTMLVideoElement).src = selectedItem.url;
-                  } else if (
-                    currentSrc === selectedItem.url &&
-                    selectedItem.dataUrl
-                  ) {
-                    console.log("Modal falling back to database URL");
-                    (e.target as HTMLVideoElement).src = selectedItem.dataUrl;
-                  } else {
-                    console.error(
-                      "All modal URLs failed for:",
-                      selectedItem.filename
-                    );
-                  }
-                }}
-              />
-            ) : (
-              <img
-                src={selectedItem.dataUrl || selectedItem.url}
-                alt={selectedItem.filename}
-                className="max-w-full max-h-[80vh] object-contain rounded-lg"
-                onError={(e) => {
-                  console.error(
-                    "Modal image load error for:",
-                    selectedItem.filename
-                  );
-
-                  const currentSrc = (e.target as HTMLImageElement).src;
-
-                  if (currentSrc === selectedItem.dataUrl && selectedItem.url) {
-                    console.log("Modal falling back to ComfyUI URL");
-                    (e.target as HTMLImageElement).src = selectedItem.url;
-                  } else if (
-                    currentSrc === selectedItem.url &&
-                    selectedItem.dataUrl
-                  ) {
-                    console.log("Modal falling back to database URL");
-                    (e.target as HTMLImageElement).src = selectedItem.dataUrl;
-                  } else {
-                    console.error(
-                      "All modal URLs failed for:",
-                      selectedItem.filename
-                    );
-                  }
-                }}
-              />
-            )}
-
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 text-white p-4 rounded-b-lg">
-              <h3 className="text-lg font-medium mb-2">
-                {selectedItem.filename}
-              </h3>
+            {/* Modal Header */}
+            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-6">
               <div className="flex items-center justify-between">
-                <div className="text-sm space-y-1">
-                  <p>Created: {formatDate(selectedItem.createdAt)}</p>
-                  {selectedItem.width && selectedItem.height && (
-                    <p>
-                      Dimensions: {selectedItem.width} × {selectedItem.height}
-                    </p>
-                  )}
-                  {selectedItem.itemType === "video" &&
-                    selectedItem.duration && (
-                      <p>Duration: {selectedItem.duration.toFixed(1)}s</p>
+                <div className="flex items-center space-x-3">
+                  <div
+                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${
+                      selectedItem.itemType === "video"
+                        ? "bg-purple-500/90 text-white"
+                        : "bg-blue-500/90 text-white"
+                    }`}
+                  >
+                    {selectedItem.itemType === "video" ? (
+                      <>
+                        <Video className="w-4 h-4" />
+                        <span>VIDEO</span>
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-4 h-4" />
+                        <span>IMAGE</span>
+                      </>
                     )}
-                  <p>Size: {formatFileSize(selectedItem.fileSize)}</p>
-                  {selectedItem.format && (
-                    <p>Format: {selectedItem.format.toUpperCase()}</p>
-                  )}
+                  </div>
+                  <h3 className="text-white font-semibold text-lg truncate max-w-md">
+                    {selectedItem.filename}
+                  </h3>
                 </div>
-                <div className="flex space-x-2">
+
+                <button
+                  onClick={() => setSelectedItem(null)}
+                  className="p-2 text-white hover:text-gray-300 rounded-xl bg-black/20 hover:bg-black/40 transition-all duration-200 backdrop-blur-sm"
+                  title="Close"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Media Content */}
+            <div className="flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+              {selectedItem.itemType === "video" ? (
+                <video
+                  src={selectedItem.dataUrl || selectedItem.url}
+                  className="max-w-full max-h-[80vh] object-contain"
+                  controls
+                  autoPlay
+                  onError={(e) => {
+                    console.error(
+                      "Modal video load error for:",
+                      selectedItem.filename
+                    );
+                    const currentSrc = (e.target as HTMLVideoElement).src;
+                    if (
+                      currentSrc === selectedItem.dataUrl &&
+                      selectedItem.url
+                    ) {
+                      console.log("Modal falling back to ComfyUI URL");
+                      (e.target as HTMLVideoElement).src = selectedItem.url;
+                    } else if (
+                      currentSrc === selectedItem.url &&
+                      selectedItem.dataUrl
+                    ) {
+                      console.log("Modal falling back to database URL");
+                      (e.target as HTMLVideoElement).src = selectedItem.dataUrl;
+                    } else {
+                      console.error(
+                        "All modal URLs failed for:",
+                        selectedItem.filename
+                      );
+                    }
+                  }}
+                />
+              ) : (
+                <img
+                  src={selectedItem.dataUrl || selectedItem.url}
+                  alt={selectedItem.filename}
+                  className="max-w-full max-h-[80vh] object-contain"
+                  onError={(e) => {
+                    console.error(
+                      "Modal image load error for:",
+                      selectedItem.filename
+                    );
+                    const currentSrc = (e.target as HTMLImageElement).src;
+                    if (
+                      currentSrc === selectedItem.dataUrl &&
+                      selectedItem.url
+                    ) {
+                      console.log("Modal falling back to ComfyUI URL");
+                      (e.target as HTMLImageElement).src = selectedItem.url;
+                    } else if (
+                      currentSrc === selectedItem.url &&
+                      selectedItem.dataUrl
+                    ) {
+                      console.log("Modal falling back to database URL");
+                      (e.target as HTMLImageElement).src = selectedItem.dataUrl;
+                    } else {
+                      console.error(
+                        "All modal URLs failed for:",
+                        selectedItem.filename
+                      );
+                    }
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-6">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                {/* Details */}
+                <div className="text-white space-y-2 flex-1">
+                  <div className="flex flex-wrap gap-4 text-sm">
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="w-4 h-4 text-gray-300" />
+                      <span className="text-gray-300">Created:</span>
+                      <span className="font-medium">
+                        {formatDate(selectedItem.createdAt)}
+                      </span>
+                    </div>
+
+                    {selectedItem.width && selectedItem.height && (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-gray-300">📐</span>
+                        <span className="text-gray-300">Size:</span>
+                        <span className="font-medium">
+                          {selectedItem.width} × {selectedItem.height}
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedItem.itemType === "video" &&
+                      selectedItem.duration && (
+                        <div className="flex items-center space-x-2">
+                          <Video className="w-4 h-4 text-gray-300" />
+                          <span className="text-gray-300">Duration:</span>
+                          <span className="font-medium">
+                            {selectedItem.duration.toFixed(1)}s
+                          </span>
+                        </div>
+                      )}
+
+                    <div className="flex items-center space-x-2">
+                      <HardDrive className="w-4 h-4 text-gray-300" />
+                      <span className="text-gray-300">File size:</span>
+                      <span className="font-medium">
+                        {formatFileSize(selectedItem.fileSize)}
+                      </span>
+                    </div>
+
+                    {selectedItem.format && (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-gray-300">Format:</span>
+                        <span className="font-medium uppercase bg-gray-700/50 px-2 py-1 rounded text-xs">
+                          {selectedItem.format}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex space-x-3">
                   <button
                     onClick={() => downloadItem(selectedItem)}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center space-x-2"
+                    className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
                   >
                     <Download className="w-4 h-4" />
                     <span>Download</span>
                   </button>
+
                   <button
                     onClick={() => shareItem(selectedItem)}
-                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center space-x-2"
+                    className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
                   >
                     <Share2 className="w-4 h-4" />
                     <span>Share</span>
                   </button>
+
                   <button
-                    onClick={() => deleteItem(selectedItem)}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 flex items-center space-x-2"
+                    onClick={() => {
+                      deleteItem(selectedItem);
+                      setSelectedItem(null);
+                    }}
+                    className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
                   >
                     <Trash2 className="w-4 h-4" />
                     <span>Delete</span>

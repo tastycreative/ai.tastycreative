@@ -1226,19 +1226,65 @@ export default function SkinEnhancerPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg">
-            <Sparkles className="w-6 h-6 text-white" />
+      {/* Enhanced Header */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 rounded-3xl shadow-2xl border border-emerald-200 dark:border-emerald-800 p-8 text-white">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+        </div>
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex items-center space-x-6">
+            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
+              <div className="relative">
+                <Sparkles className="w-10 h-10 text-white drop-shadow-sm" />
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-teal-400 rounded-full flex items-center justify-center">
+                  <Eye className="w-3 h-3 text-teal-800" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold mb-2 drop-shadow-sm flex items-center space-x-3">
+                <span>Skin Enhancer</span>
+                <span className="text-2xl">✨</span>
+              </h1>
+              <p className="text-emerald-100 text-lg font-medium opacity-90 mb-2">
+                Perfect skin texture and details with AI-powered enhancement
+              </p>
+              <div className="flex items-center space-x-4 text-sm text-emerald-100">
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>AI Enhancement</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-emerald-300 rounded-full"></div>
+                  <span>Natural Results</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-teal-300 rounded-full"></div>
+                  <span>Skin Perfect</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Skin Enhancer
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Enhance skin texture and details in your photos using AI
-            </p>
+
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
+              <div className="text-center">
+                <div className="flex items-center justify-center space-x-1 mb-1">
+                  <Sparkles className="w-4 h-4 text-teal-300" />
+                  <span className="text-sm font-semibold text-white">
+                    Skin AI
+                  </span>
+                </div>
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-green-200 font-medium">
+                    Ready
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

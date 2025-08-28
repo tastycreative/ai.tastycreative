@@ -20,6 +20,10 @@ import {
   Upload,
   X,
   Image as ImageIconLucide,
+  Palette,
+  Monitor,
+  Eye,
+  Users,
 } from "lucide-react";
 
 // Types
@@ -880,851 +884,917 @@ export default function StyleTransferPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Style Transfer
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Transform your images with AI-powered style transfer using Flux
-              Redux
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel - Controls */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Reference Image Upload */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Reference Image
-                </label>
-                {referenceImage && (
-                  <button
-                    onClick={removeReferenceImage}
-                    className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-
-              {!referenceImagePreview ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-gray-400 dark:hover:border-gray-500 cursor-pointer transition-colors"
-                >
-                  <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400 mb-2">
-                    Click to upload reference image
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Supports PNG, JPG, WebP (max 10MB)
+    <div className="min-h-screen">
+      <div className="container mx-auto px-4 py-8">
+        {/* Enhanced Header */}
+        <div className="mb-8 relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 p-1">
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-white/20 rounded-xl">
+                  <Palette className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-white mb-2">
+                    AI Style Transfer
+                  </h1>
+                  <p className="text-purple-100 text-lg">
+                    Transform your images with artistic styles using FLUX Redux
                   </p>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Image Preview and Mask Editor Toggle */}
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Reference Image {maskData && "(Masked)"}
-                    </h3>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => setShowMaskEditor(!showMaskEditor)}
-                        className={`px-3 py-1 text-xs rounded-lg transition-colors ${
-                          showMaskEditor
-                            ? "bg-purple-500 text-white"
-                            : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                        }`}
-                      >
-                        {showMaskEditor ? "Hide Mask Editor" : "Edit Mask"}
-                      </button>
-                      <button
-                        onClick={removeReferenceImage}
-                        className="px-3 py-1 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Mask Editor or Simple Preview */}
-                  {showMaskEditor ? (
-                    <MaskEditor
-                      imageUrl={referenceImagePreview}
-                      onMaskUpdate={handleMaskUpdate}
-                      className="w-full"
-                    />
-                  ) : (
-                    <div className="relative">
-                      <img
-                        src={referenceImagePreview}
-                        alt="Reference"
-                        className="w-full h-64 object-cover rounded-lg"
-                      />
-                      {maskData && (
-                        <div className="absolute top-2 right-2 bg-purple-500 text-white px-2 py-1 rounded text-xs">
-                          🎭 Masked
-                        </div>
-                      )}
-                      {uploadingImage && (
-                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
-                          <div className="flex items-center space-x-2 text-white">
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            <span>Uploading...</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Mask Status */}
-                  {maskData && (
-                    <div className="text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
-                      ✅ Mask applied - Only white areas will be
-                      style-transferred
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-              />
-            </div>
-          </div>
-
-          {/* Prompt Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Style Prompt
-                </label>
-                <button
-                  onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
-                  className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                >
-                  Clear
-                </button>
               </div>
-              <textarea
-                value={params.prompt}
-                onChange={(e) =>
-                  setParams((prev) => ({ ...prev, prompt: e.target.value }))
-                }
-                placeholder="Describe the style you want to apply to your image..."
-                className="w-full h-32 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-              />
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {params.prompt.length}/1000 characters
-              </div>
-            </div>
-          </div>
 
-          {/* Basic Settings */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Style Transfer Settings
-            </h3>
-
-            {/* Style Weight */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Style Weight: {params.weight}
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={params.weight}
-                onChange={(e) =>
-                  setParams((prev) => ({
-                    ...prev,
-                    weight: parseFloat(e.target.value),
-                  }))
-                }
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Subtle</span>
-                <span>Strong</span>
-              </div>
-            </div>
-
-            {/* Style Mode */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Style Mode
-              </label>
-              <select
-                value={params.mode}
-                onChange={(e) =>
-                  setParams((prev) => ({
-                    ...prev,
-                    mode: e.target.value,
-                  }))
-                }
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                {STYLE_MODES.map((mode) => (
-                  <option key={mode} value={mode}>
-                    {mode}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* LoRA Model Selection */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                LoRA Model
-              </label>
-
-              {loadingLoRAs ? (
-                <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm text-gray-500">
-                    Loading LoRA models...
+              {/* Status Indicators */}
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-3 py-2">
+                  <Monitor className="w-4 h-4 text-white" />
+                  <span className="text-white text-sm font-medium">
+                    FLUX Redux
                   </span>
                 </div>
-              ) : (
-                <select
-                  value={params.selectedLora}
+                <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-3 py-2">
+                  <Eye className="w-4 h-4 text-white" />
+                  <span className="text-white text-sm font-medium">
+                    {isGenerating ? "Generating..." : "Ready"}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-3 py-2">
+                  <Users className="w-4 h-4 text-white" />
+                  <span className="text-white text-sm font-medium">Pro</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Panel - Controls */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Reference Image Upload */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
+                <Palette className="w-5 h-5 mr-2 text-pink-600" />
+                Style Reference Image
+              </h3>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Upload your reference image for style transfer
+                  </label>
+                  {referenceImage && (
+                    <button
+                      onClick={removeReferenceImage}
+                      className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {!referenceImagePreview ? (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 border-slate-300 hover:border-pink-400 hover:bg-pink-50/50 dark:border-slate-600 dark:hover:border-pink-500 dark:hover:bg-pink-900/20 cursor-pointer group"
+                  >
+                    <div className="w-16 h-16 mx-auto bg-pink-100 dark:bg-pink-900/30 rounded-full flex items-center justify-center group-hover:bg-pink-200 dark:group-hover:bg-pink-900/50 transition-colors mb-4">
+                      <Upload className="w-8 h-8 text-pink-600 dark:text-pink-400" />
+                    </div>
+                    <p className="text-lg font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Upload Style Reference Image
+                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      Choose an image whose artistic style you want to apply
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                      Supports PNG, JPG, WebP (max 10MB)
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Image Preview and Mask Editor Toggle */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Reference Image {maskData && "(Masked)"}
+                      </h3>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => setShowMaskEditor(!showMaskEditor)}
+                          className={`px-4 py-2 text-sm rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                            showMaskEditor
+                              ? "bg-purple-600 text-white shadow-md"
+                              : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+                          }`}
+                        >
+                          <Wand2 className="w-4 h-4" />
+                          <span>
+                            {showMaskEditor ? "Hide Mask Editor" : "Edit Mask"}
+                          </span>
+                        </button>
+                        <button
+                          onClick={removeReferenceImage}
+                          className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                        >
+                          <X className="w-4 h-4" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mask Editor or Simple Preview */}
+                    {showMaskEditor ? (
+                      <MaskEditor
+                        imageUrl={referenceImagePreview}
+                        onMaskUpdate={handleMaskUpdate}
+                        className="w-full"
+                      />
+                    ) : (
+                      <div className="relative group">
+                        <img
+                          src={referenceImagePreview}
+                          alt="Reference"
+                          className="w-full h-64 object-cover rounded-xl shadow-md group-hover:shadow-lg transition-shadow"
+                        />
+                        {maskData && (
+                          <div className="absolute top-3 right-3 bg-purple-600 text-white px-3 py-1 rounded-lg text-sm font-medium shadow-lg">
+                            🎭 Masked
+                          </div>
+                        )}
+                        {uploadingImage && (
+                          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-xl backdrop-blur-sm">
+                            <div className="flex items-center space-x-3 text-white bg-black/30 px-4 py-2 rounded-lg">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span>Uploading...</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Mask Status */}
+                    {maskData && (
+                      <div className="text-xs text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
+                        ✅ Mask applied - Only white areas will be
+                        style-transferred
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </div>
+            </div>
+
+            {/* Prompt Input */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-lg font-semibold text-slate-800 dark:text-white flex items-center">
+                    <Sparkles className="w-5 h-5 mr-2 text-indigo-600" />
+                    Style Description
+                  </label>
+                  <button
+                    onClick={() =>
+                      setParams((prev) => ({ ...prev, prompt: "" }))
+                    }
+                    className="text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <textarea
+                  value={params.prompt}
+                  onChange={(e) =>
+                    setParams((prev) => ({ ...prev, prompt: e.target.value }))
+                  }
+                  placeholder="Describe the artistic style you want to apply (e.g., 'oil painting style with thick brushstrokes and vibrant colors')"
+                  className="w-full h-32 px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                />
+                <div className="flex justify-between items-center">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    {params.prompt.length}/1000 characters
+                  </div>
+                  <div className="text-xs text-indigo-600 dark:text-indigo-400">
+                    💡 Tip: Be specific about the artistic style you want
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Basic Settings */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
+                <Sliders className="w-5 h-5 mr-2 text-indigo-600" />
+                Style Transfer Settings
+              </h3>
+
+              {/* Style Weight */}
+              <div className="space-y-4 mb-6 p-4 bg-slate-50 dark:bg-slate-700/30 rounded-xl">
+                <label className="text-sm font-semibold text-slate-800 dark:text-white flex items-center">
+                  <Sliders className="w-4 h-4 mr-2 text-indigo-600" />
+                  Style Weight:{" "}
+                  <span className="ml-2 text-indigo-600 font-bold">
+                    {params.weight}
+                  </span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={params.weight}
                   onChange={(e) =>
                     setParams((prev) => ({
                       ...prev,
-                      selectedLora: e.target.value,
+                      weight: parseFloat(e.target.value),
+                    }))
+                  }
+                  className="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer slider-thumb"
+                />
+                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  <span>💫 Subtle</span>
+                  <span>🎨 Strong</span>
+                </div>
+              </div>
+
+              {/* Style Mode */}
+              <div className="space-y-3 mb-6">
+                <label className="text-sm font-semibold text-slate-800 dark:text-white flex items-center">
+                  <Settings className="w-4 h-4 mr-2 text-purple-600" />
+                  Style Mode
+                </label>
+                <select
+                  value={params.mode}
+                  onChange={(e) =>
+                    setParams((prev) => ({
+                      ...prev,
+                      mode: e.target.value,
                     }))
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  {availableLoRAs.map((lora, index) => (
-                    <option
-                      key={`${lora.fileName}-${index}`}
-                      value={lora.fileName}
-                    >
-                      {lora.displayName}
+                  {STYLE_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {mode}
                     </option>
                   ))}
                 </select>
-              )}
-            </div>
-
-            {/* Aspect Ratio */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Output Size
-              </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {ASPECT_RATIOS.map((ratio) => (
-                  <button
-                    key={ratio.name}
-                    onClick={() =>
-                      handleAspectRatioChange(ratio.width, ratio.height)
-                    }
-                    className={`p-3 rounded-lg border text-sm font-medium transition-all ${
-                      params.width === ratio.width &&
-                      params.height === ratio.height
-                        ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300"
-                        : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400"
-                    }`}
-                  >
-                    <div>{ratio.name}</div>
-                    <div className="text-xs opacity-75">{ratio.ratio}</div>
-                  </button>
-                ))}
               </div>
-            </div>
 
-            {/* Advanced Settings Toggle */}
-            <button
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center space-x-2 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
-            >
-              <Sliders className="w-4 h-4" />
-              <span>{showAdvanced ? "Hide" : "Show"} Advanced Settings</span>
-            </button>
+              {/* LoRA Model Selection */}
+              <div className="space-y-3 mb-6">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  LoRA Model
+                </label>
 
-            {/* Advanced Settings */}
-            {showAdvanced && (
-              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-6">
-                {/* Steps */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Steps: {params.steps}
-                  </label>
-                  <input
-                    type="range"
-                    min="10"
-                    max="100"
-                    value={params.steps}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        steps: parseInt(e.target.value),
-                      }))
-                    }
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Guidance */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Guidance: {params.guidance}
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="20"
-                    step="0.5"
-                    value={params.guidance}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        guidance: parseFloat(e.target.value),
-                      }))
-                    }
-                    className="w-full"
-                  />
-                </div>
-
-                {/* LoRA Strength */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    LoRA Strength: {params.loraStrength}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={params.loraStrength}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        loraStrength: parseFloat(e.target.value),
-                      }))
-                    }
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Downsampling Factor */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Downsampling Factor: {params.downsamplingFactor}
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="4"
-                    step="0.5"
-                    value={params.downsamplingFactor}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        downsamplingFactor: parseFloat(e.target.value),
-                      }))
-                    }
-                    className="w-full"
-                  />
-                </div>
-
-                {/* Downsampling Function */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Downsampling Function
-                  </label>
+                {loadingLoRAs ? (
+                  <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm text-gray-500">
+                      Loading LoRA models...
+                    </span>
+                  </div>
+                ) : (
                   <select
-                    value={params.downsamplingFunction}
+                    value={params.selectedLora}
                     onChange={(e) =>
                       setParams((prev) => ({
                         ...prev,
-                        downsamplingFunction: e.target.value,
+                        selectedLora: e.target.value,
                       }))
                     }
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    {DOWNSAMPLING_FUNCTIONS.map((func) => (
-                      <option key={func} value={func}>
-                        {func}
+                    {availableLoRAs.map((lora, index) => (
+                      <option
+                        key={`${lora.fileName}-${index}`}
+                        value={lora.fileName}
+                      >
+                        {lora.displayName}
                       </option>
                     ))}
                   </select>
-                </div>
+                )}
+              </div>
 
-                {/* Autocrop Margin */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Autocrop Margin: {params.autocropMargin}
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="0.5"
-                    step="0.05"
-                    value={params.autocropMargin}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        autocropMargin: parseFloat(e.target.value),
-                      }))
-                    }
-                    className="w-full"
-                  />
+              {/* Aspect Ratio */}
+              <div className="space-y-3 mb-6">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Output Size
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {ASPECT_RATIOS.map((ratio) => (
+                    <button
+                      key={ratio.name}
+                      onClick={() =>
+                        handleAspectRatioChange(ratio.width, ratio.height)
+                      }
+                      className={`p-3 rounded-lg border text-sm font-medium transition-all ${
+                        params.width === ratio.width &&
+                        params.height === ratio.height
+                          ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300"
+                          : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400"
+                      }`}
+                    >
+                      <div>{ratio.name}</div>
+                      <div className="text-xs opacity-75">{ratio.ratio}</div>
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                {/* Sampler */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Sampler
-                  </label>
-                  <select
-                    value={params.samplerName}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        samplerName: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    {SAMPLERS.map((sampler) => (
-                      <option key={sampler} value={sampler}>
-                        {sampler}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Advanced Settings Toggle */}
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="flex items-center space-x-2 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+              >
+                <Sliders className="w-4 h-4" />
+                <span>{showAdvanced ? "Hide" : "Show"} Advanced Settings</span>
+              </button>
 
-                {/* Scheduler */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Scheduler
-                  </label>
-                  <select
-                    value={params.scheduler}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        scheduler: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    {SCHEDULERS.map((scheduler) => (
-                      <option key={scheduler} value={scheduler}>
-                        {scheduler}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Seed */}
-                <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Seed (Optional)
-                  </label>
-                  <div className="flex space-x-2">
+              {/* Advanced Settings */}
+              {showAdvanced && (
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-6">
+                  {/* Steps */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Steps: {params.steps}
+                    </label>
                     <input
-                      type="number"
-                      value={params.seed || ""}
+                      type="range"
+                      min="10"
+                      max="100"
+                      value={params.steps}
                       onChange={(e) =>
                         setParams((prev) => ({
                           ...prev,
-                          seed: e.target.value
-                            ? parseInt(e.target.value)
-                            : null,
+                          steps: parseInt(e.target.value),
                         }))
                       }
-                      placeholder="Random"
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="w-full"
                     />
+                  </div>
+
+                  {/* Guidance */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Guidance: {params.guidance}
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="20"
+                      step="0.5"
+                      value={params.guidance}
+                      onChange={(e) =>
+                        setParams((prev) => ({
+                          ...prev,
+                          guidance: parseFloat(e.target.value),
+                        }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* LoRA Strength */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      LoRA Strength: {params.loraStrength}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={params.loraStrength}
+                      onChange={(e) =>
+                        setParams((prev) => ({
+                          ...prev,
+                          loraStrength: parseFloat(e.target.value),
+                        }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Downsampling Factor */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Downsampling Factor: {params.downsamplingFactor}
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="4"
+                      step="0.5"
+                      value={params.downsamplingFactor}
+                      onChange={(e) =>
+                        setParams((prev) => ({
+                          ...prev,
+                          downsamplingFactor: parseFloat(e.target.value),
+                        }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Downsampling Function */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Downsampling Function
+                    </label>
+                    <select
+                      value={params.downsamplingFunction}
+                      onChange={(e) =>
+                        setParams((prev) => ({
+                          ...prev,
+                          downsamplingFunction: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      {DOWNSAMPLING_FUNCTIONS.map((func) => (
+                        <option key={func} value={func}>
+                          {func}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Autocrop Margin */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Autocrop Margin: {params.autocropMargin}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="0.5"
+                      step="0.05"
+                      value={params.autocropMargin}
+                      onChange={(e) =>
+                        setParams((prev) => ({
+                          ...prev,
+                          autocropMargin: parseFloat(e.target.value),
+                        }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* Sampler */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Sampler
+                    </label>
+                    <select
+                      value={params.samplerName}
+                      onChange={(e) =>
+                        setParams((prev) => ({
+                          ...prev,
+                          samplerName: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      {SAMPLERS.map((sampler) => (
+                        <option key={sampler} value={sampler}>
+                          {sampler}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Scheduler */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Scheduler
+                    </label>
+                    <select
+                      value={params.scheduler}
+                      onChange={(e) =>
+                        setParams((prev) => ({
+                          ...prev,
+                          scheduler: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      {SCHEDULERS.map((scheduler) => (
+                        <option key={scheduler} value={scheduler}>
+                          {scheduler}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Seed */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Seed (Optional)
+                    </label>
+                    <div className="flex space-x-2">
+                      <input
+                        type="number"
+                        value={params.seed || ""}
+                        onChange={(e) =>
+                          setParams((prev) => ({
+                            ...prev,
+                            seed: e.target.value
+                              ? parseInt(e.target.value)
+                              : null,
+                          }))
+                        }
+                        placeholder="Random"
+                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      <button
+                        onClick={generateRandomSeed}
+                        className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Generate Button */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <button
+                onClick={handleGenerate}
+                disabled={
+                  isGenerating ||
+                  !params.prompt.trim() ||
+                  !referenceImage ||
+                  uploadingImage
+                }
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Applying Style Transfer...</span>
+                  </>
+                ) : uploadingImage ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Uploading Image...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-5 h-5" />
+                    <span>Apply Style Transfer</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Right Panel - Results */}
+          <div className="space-y-6">
+            {/* Image Statistics */}
+            {imageStats && (
+              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
+                  <ImageIcon className="w-5 h-5 mr-2 text-green-600" />
+                  Your Image Library
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                    <div className="text-slate-600 dark:text-slate-400 text-xs mb-1">
+                      Total Images
+                    </div>
+                    <div className="text-xl font-bold text-slate-900 dark:text-white">
+                      {imageStats.totalImages}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                    <div className="text-slate-600 dark:text-slate-400 text-xs mb-1">
+                      Storage Used
+                    </div>
+                    <div className="text-xl font-bold text-slate-900 dark:text-white">
+                      {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
+                        100}{" "}
+                      MB
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Current Generation */}
+            {currentJob && (
+              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center">
+                    <Wand2 className="w-5 h-5 mr-2 text-purple-600" />
+                    Generation Status
+                  </h3>
+                  {currentJob.status === "completed" && (
                     <button
-                      onClick={generateRandomSeed}
-                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+                      onClick={() => fetchJobImages(currentJob.id)}
+                      className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                      title="Refresh generated images"
                     >
                       <RefreshCw className="w-4 h-4" />
                     </button>
-                  </div>
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* Generate Button */}
-          <button
-            onClick={handleGenerate}
-            disabled={
-              isGenerating ||
-              !params.prompt.trim() ||
-              !referenceImage ||
-              uploadingImage
-            }
-            className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Generating...</span>
-              </>
-            ) : uploadingImage ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Uploading Image...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>Apply Style Transfer</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Right Panel - Results */}
-        <div className="space-y-6">
-          {/* Image Statistics */}
-          {imageStats && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Your Image Library
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Total Images:
-                  </span>
-                  <span className="ml-2 font-medium">
-                    {imageStats.totalImages}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Total Size:
-                  </span>
-                  <span className="ml-2 font-medium">
-                    {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
-                      100}{" "}
-                    MB
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Current Generation */}
-          {currentJob && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Current Style Transfer
-                </h3>
-                {currentJob.status === "completed" && (
-                  <button
-                    onClick={() => fetchJobImages(currentJob.id)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                    title="Refresh generated images"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Status
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    {(currentJob.status === "pending" ||
-                      currentJob.status === "processing") && (
-                      <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                    )}
-                    {currentJob.status === "completed" && (
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    )}
-                    {currentJob.status === "failed" && (
-                      <AlertCircle className="w-4 h-4 text-red-500" />
-                    )}
-                    <span className="text-sm font-medium capitalize">
-                      {currentJob.status}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Status
                     </span>
-                  </div>
-                </div>
-
-                {currentJob.progress !== undefined && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
-                        Progress
-                      </span>
-                      <span className="text-sm font-medium">
-                        {currentJob.progress}%
+                    <div className="flex items-center space-x-2">
+                      {(currentJob.status === "pending" ||
+                        currentJob.status === "processing") && (
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                      )}
+                      {currentJob.status === "completed" && (
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                      )}
+                      {currentJob.status === "failed" && (
+                        <AlertCircle className="w-4 h-4 text-red-600" />
+                      )}
+                      <span className="text-sm font-semibold capitalize text-slate-900 dark:text-white">
+                        {currentJob.status}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-purple-500 to-pink-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${currentJob.progress}%` }}
-                      />
-                    </div>
                   </div>
-                )}
 
-                {/* Show loading or no images message for completed jobs */}
-                {currentJob.status === "completed" &&
-                  (!currentJob.resultUrls ||
-                    currentJob.resultUrls.length === 0) &&
-                  (!jobImages[currentJob.id] ||
-                    jobImages[currentJob.id].length === 0) && (
+                  {currentJob.progress !== undefined && (
                     <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Generated Images
-                      </h4>
-                      <div className="text-center py-8">
-                        <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">
-                            Loading generated images...
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => fetchJobImages(currentJob.id)}
-                          className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                          Progress
+                        </span>
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                          {currentJob.progress}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-indigo-600 to-purple-600 h-full rounded-full transition-all duration-300 relative"
+                          style={{ width: `${currentJob.progress}%` }}
                         >
-                          Refresh Images
-                        </button>
+                          <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                {/* Enhanced image display with dynamic URL support */}
-                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
-                  (jobImages[currentJob.id] &&
-                    jobImages[currentJob.id].length > 0)) && (
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Generated Images
-                    </h4>
+                  {/* Show loading or no images message for completed jobs */}
+                  {currentJob.status === "completed" &&
+                    (!currentJob.resultUrls ||
+                      currentJob.resultUrls.length === 0) &&
+                    (!jobImages[currentJob.id] ||
+                      jobImages[currentJob.id].length === 0) && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Generated Images
+                        </h4>
+                        <div className="text-center py-8">
+                          <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span className="text-sm">
+                              Loading generated images...
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => fetchJobImages(currentJob.id)}
+                            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
+                          >
+                            Refresh Images
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
-                    <div className="grid grid-cols-1 gap-3">
-                      {/* Show database images if available */}
-                      {jobImages[currentJob.id] &&
-                      jobImages[currentJob.id].length > 0
-                        ? // Database images with dynamic URLs
-                          jobImages[currentJob.id].map((dbImage, index) => (
-                            <div
-                              key={`db-${dbImage.id}`}
-                              className="relative group"
-                            >
-                              <img
-                                src={dbImage.dataUrl || dbImage.url}
-                                alt={`Style transfer result ${index + 1}`}
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                onError={(e) => {
-                                  console.error(
-                                    "Image load error for:",
-                                    dbImage.filename
-                                  );
+                  {/* Enhanced image display with dynamic URL support */}
+                  {((currentJob.resultUrls &&
+                    currentJob.resultUrls.length > 0) ||
+                    (jobImages[currentJob.id] &&
+                      jobImages[currentJob.id].length > 0)) && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Generated Images
+                      </h4>
 
-                                  // Smart fallback logic
-                                  const currentSrc = (
-                                    e.target as HTMLImageElement
-                                  ).src;
-
-                                  if (
-                                    currentSrc === dbImage.dataUrl &&
-                                    dbImage.url
-                                  ) {
-                                    console.log("Falling back to ComfyUI URL");
-                                    (e.target as HTMLImageElement).src =
-                                      dbImage.url;
-                                  } else if (
-                                    currentSrc === dbImage.url &&
-                                    dbImage.dataUrl
-                                  ) {
-                                    console.log("Falling back to database URL");
-                                    (e.target as HTMLImageElement).src =
-                                      dbImage.dataUrl;
-                                  } else {
+                      <div className="grid grid-cols-1 gap-3">
+                        {/* Show database images if available */}
+                        {jobImages[currentJob.id] &&
+                        jobImages[currentJob.id].length > 0
+                          ? // Database images with dynamic URLs
+                            jobImages[currentJob.id].map((dbImage, index) => (
+                              <div
+                                key={`db-${dbImage.id}`}
+                                className="relative group"
+                              >
+                                <img
+                                  src={dbImage.dataUrl || dbImage.url}
+                                  alt={`Style transfer result ${index + 1}`}
+                                  className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                  onError={(e) => {
                                     console.error(
-                                      "All URLs failed for:",
+                                      "Image load error for:",
                                       dbImage.filename
+                                    );
+
+                                    // Smart fallback logic
+                                    const currentSrc = (
+                                      e.target as HTMLImageElement
+                                    ).src;
+
+                                    if (
+                                      currentSrc === dbImage.dataUrl &&
+                                      dbImage.url
+                                    ) {
+                                      console.log(
+                                        "Falling back to ComfyUI URL"
+                                      );
+                                      (e.target as HTMLImageElement).src =
+                                        dbImage.url;
+                                    } else if (
+                                      currentSrc === dbImage.url &&
+                                      dbImage.dataUrl
+                                    ) {
+                                      console.log(
+                                        "Falling back to database URL"
+                                      );
+                                      (e.target as HTMLImageElement).src =
+                                        dbImage.dataUrl;
+                                    } else {
+                                      console.error(
+                                        "All URLs failed for:",
+                                        dbImage.filename
+                                      );
+                                      (
+                                        e.target as HTMLImageElement
+                                      ).style.display = "none";
+                                    }
+                                  }}
+                                />
+                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="flex space-x-1">
+                                    <button
+                                      onClick={() =>
+                                        downloadDatabaseImage(dbImage)
+                                      }
+                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                      title={`Download ${dbImage.filename}`}
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => shareImage(dbImage)}
+                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    >
+                                      <Share2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Image metadata */}
+                                <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                    {dbImage.width && dbImage.height
+                                      ? `${dbImage.width}×${dbImage.height}`
+                                      : "Unknown size"}
+                                    {dbImage.fileSize &&
+                                      ` • ${Math.round(
+                                        dbImage.fileSize / 1024
+                                      )}KB`}
+                                    {dbImage.format &&
+                                      ` • ${dbImage.format.toUpperCase()}`}
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          : // Fallback to legacy URLs if no database images
+                            currentJob.resultUrls &&
+                            currentJob.resultUrls.length > 0 &&
+                            currentJob.resultUrls.map((url, index) => (
+                              <div
+                                key={`legacy-${currentJob.id}-${index}`}
+                                className="relative group"
+                              >
+                                <img
+                                  src={url}
+                                  alt={`Style transfer result ${index + 1}`}
+                                  className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                  onError={(e) => {
+                                    console.error(
+                                      "Legacy image load error:",
+                                      url
                                     );
                                     (
                                       e.target as HTMLImageElement
                                     ).style.display = "none";
-                                  }
-                                }}
-                              />
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex space-x-1">
-                                  <button
-                                    onClick={() =>
-                                      downloadDatabaseImage(dbImage)
-                                    }
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                    title={`Download ${dbImage.filename}`}
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => shareImage(dbImage)}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
+                                  }}
+                                />
+                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="flex space-x-1">
+                                    <button
+                                      onClick={() =>
+                                        downloadFromUrl(
+                                          url,
+                                          `style-transfer-${index + 1}.png`
+                                        )
+                                      }
+                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(url);
+                                        alert("Image URL copied to clipboard!");
+                                      }}
+                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    >
+                                      <Share2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-
-                              {/* Image metadata */}
-                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                  {dbImage.width && dbImage.height
-                                    ? `${dbImage.width}×${dbImage.height}`
-                                    : "Unknown size"}
-                                  {dbImage.fileSize &&
-                                    ` • ${Math.round(
-                                      dbImage.fileSize / 1024
-                                    )}KB`}
-                                  {dbImage.format &&
-                                    ` • ${dbImage.format.toUpperCase()}`}
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        : // Fallback to legacy URLs if no database images
-                          currentJob.resultUrls &&
-                          currentJob.resultUrls.length > 0 &&
-                          currentJob.resultUrls.map((url, index) => (
-                            <div
-                              key={`legacy-${currentJob.id}-${index}`}
-                              className="relative group"
-                            >
-                              <img
-                                src={url}
-                                alt={`Style transfer result ${index + 1}`}
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                onError={(e) => {
-                                  console.error(
-                                    "Legacy image load error:",
-                                    url
-                                  );
-                                  (e.target as HTMLImageElement).style.display =
-                                    "none";
-                                }}
-                              />
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex space-x-1">
-                                  <button
-                                    onClick={() =>
-                                      downloadFromUrl(
-                                        url,
-                                        `style-transfer-${index + 1}.png`
-                                      )
-                                    }
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(url);
-                                      alert("Image URL copied to clipboard!");
-                                    }}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                    </div>
-                  </div>
-                )}
-
-                {currentJob.error && (
-                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      {currentJob.error}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Generation History */}
-          {jobHistory.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Recent Style Transfers
-              </h3>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {jobHistory
-                  .filter((job) => job && job.id)
-                  .slice(0, 10)
-                  .map((job, index) => (
-                    <div
-                      key={job.id || `job-${index}`}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                    >
-                      <div className="flex items-center space-x-3">
-                        {job.status === "completed" && (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                        )}
-                        {job.status === "failed" && (
-                          <AlertCircle className="w-4 h-4 text-red-500" />
-                        )}
-                        {(job.status === "pending" ||
-                          job.status === "processing") && (
-                          <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            {formatJobTime(job.createdAt)}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                            {job.status || "unknown"}
-                          </p>
-                        </div>
+                            ))}
                       </div>
-                      {job.resultUrls && job.resultUrls.length > 0 && (
-                        <div className="flex space-x-1">
-                          <button
-                            onClick={() => fetchJobImages(job.id)}
-                            className="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
-                            title="Refresh images"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
                     </div>
-                  ))}
+                  )}
+
+                  {currentJob.error && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {currentJob.error}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Generation History */}
+            {jobHistory.length > 0 && (
+              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
+                  <CheckCircle className="w-5 h-5 mr-2 text-green-600" />
+                  Recent Style Transfers
+                </h3>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {jobHistory
+                    .filter((job) => job && job.id)
+                    .slice(0, 10)
+                    .map((job, index) => (
+                      <div
+                        key={job.id || `job-${index}`}
+                        className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/70 transition-colors"
+                      >
+                        <div className="flex items-center space-x-3">
+                          {job.status === "completed" && (
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          )}
+                          {job.status === "failed" && (
+                            <AlertCircle className="w-4 h-4 text-red-500" />
+                          )}
+                          {(job.status === "pending" ||
+                            job.status === "processing") && (
+                            <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                          )}
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              {formatJobTime(job.createdAt)}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                              {job.status || "unknown"}
+                            </p>
+                          </div>
+                        </div>
+                        {job.resultUrls && job.resultUrls.length > 0 && (
+                          <div className="flex space-x-1">
+                            <button
+                              onClick={() => fetchJobImages(job.id)}
+                              className="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
+                              title="Refresh images"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
