@@ -1,3 +1,11 @@
+import os
+import time
+import requests
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
 def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job_input, webhook_url):
     """Upload model file directly to ComfyUI and create database record via API"""
     try:
@@ -37,7 +45,7 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
             upload_url,
             files=files,
             data=data,
-            timeout=1800,  # 30 minute timeout for large files
+            timeout=7200,  # 2 hour timeout for large files (increased for long training jobs)
             headers={'User-Agent': 'RunPod-Training-Handler/1.0'}
         )
         

@@ -261,7 +261,7 @@ def send_webhook(webhook_url: str, data: Dict) -> bool:
         return False
         
     try:
-        response = requests.post(webhook_url, json=data, timeout=30)
+        response = requests.post(webhook_url, json=data, timeout=120)  # Increased timeout for webhook responses
         response.raise_for_status()
         logger.info(f"✅ Webhook sent: {data.get('message', 'No message')}")
         return True
@@ -419,7 +419,7 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
             upload_url,
             files=files,
             data=data,
-            timeout=1800,  # 30 minute timeout for large files
+            timeout=7200,  # 2 hour timeout for large files (increased for long training jobs)
             headers={'User-Agent': 'RunPod-Training-Handler/1.0'}
         )
         
@@ -461,7 +461,7 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
         db_response = requests.post(
             db_record_url,
             json=record_data,
-            timeout=60,
+            timeout=180,  # Increased timeout for database operations
             headers={
                 'User-Agent': 'RunPod-Training-Handler/1.0',
                 'Content-Type': 'application/json'
