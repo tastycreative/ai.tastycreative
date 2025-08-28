@@ -8,7 +8,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB per file (Vercel limit)
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 // Configure route for large payloads
-export const maxDuration = 300; // 5 minutes
+export const maxDuration = 900; // 15 minutes (increased for larger uploads)
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {

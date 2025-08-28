@@ -47,7 +47,7 @@ export const trainingConfigSchema = z.object({
   // Training parameters
   train: z.object({
     batch_size: z.number().min(1).max(32).default(1),
-    steps: z.number().min(100).max(50000).default(2000),
+    steps: z.number().min(100).max(2000).default(1500),  // Limited to max 2000 steps
     gradient_accumulation: z.number().min(1).max(32).default(1), // Fixed name to match ai-toolkit exactly
     train_unet: z.boolean().default(true),
     train_text_encoder: z.boolean().default(false),
@@ -194,7 +194,7 @@ export const trainingPresets = {
     description: 'Optimized for training artistic styles',
     config: {
       train: {
-        steps: 2000,
+        steps: 2000,  // Maximum steps allowed
         lr: 0.00008,
         batch_size: 1,
         content_or_style: 'style' as const
@@ -230,7 +230,7 @@ export const trainingPresets = {
     description: 'Optimized for training abstract concepts',
     config: {
       train: {
-        steps: 2500,
+        steps: 2000,  // Reduced from 2500 to maximum allowed
         lr: 0.00006,
         batch_size: 1,
         content_or_style: 'balanced' as const
