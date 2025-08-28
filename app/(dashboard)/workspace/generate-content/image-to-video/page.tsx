@@ -740,19 +740,65 @@ export default function ImageToVideoPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center space-x-3">
-          <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg">
-            <Video className="w-6 h-6 text-white" />
+      {/* Enhanced Header */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-purple-600 via-pink-600 to-rose-700 rounded-3xl shadow-2xl border border-purple-200 dark:border-purple-800 p-8 text-white">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+        </div>
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex items-center space-x-6">
+            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
+              <div className="relative">
+                <Video className="w-10 h-10 text-white drop-shadow-sm" />
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-rose-400 rounded-full flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-rose-800" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold mb-2 drop-shadow-sm flex items-center space-x-3">
+                <span>Image to Video</span>
+                <span className="text-2xl">🎬</span>
+              </h1>
+              <p className="text-purple-100 text-lg font-medium opacity-90 mb-2">
+                Transform static images into captivating videos with AI motion
+              </p>
+              <div className="flex items-center space-x-4 text-sm text-purple-100">
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>WAN 2.2 AI</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-purple-300 rounded-full"></div>
+                  <span>Smooth Motion</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-pink-300 rounded-full"></div>
+                  <span>HD Quality</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Image to Video
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Transform static images into dynamic videos using WAN 2.2 AI
-            </p>
+
+          <div className="flex items-center space-x-4">
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
+              <div className="text-center">
+                <div className="flex items-center justify-center space-x-1 mb-1">
+                  <Video className="w-4 h-4 text-pink-300" />
+                  <span className="text-sm font-semibold text-white">
+                    Video AI
+                  </span>
+                </div>
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-green-200 font-medium">
+                    Ready
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -760,51 +806,99 @@ export default function ImageToVideoPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Controls */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Image Upload */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Upload Image
-            </h3>
+          {/* Enhanced Image Upload */}
+          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
+                  <ImageIcon className="w-6 h-6 text-white" />
+                </div>
+                <span>Source Image</span>
+                <div className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
+                  Required
+                </div>
+              </h3>
+            </div>
 
             {!uploadedImagePreview ? (
               <div
-                className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                className="relative border-2 border-dashed border-purple-300 dark:border-purple-600 rounded-2xl p-12 text-center cursor-pointer hover:border-purple-400 dark:hover:border-purple-500 transition-all duration-300 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 group-hover:scale-105"
                 onClick={() => fileInputRef.current?.click()}
               >
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-100/50 to-pink-100/50 dark:from-purple-800/20 dark:to-pink-800/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
                 {isUploading ? (
-                  <div className="flex flex-col items-center space-y-2">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Uploading image...
-                    </p>
+                  <div className="relative flex flex-col items-center space-y-4">
+                    <div className="relative">
+                      <Loader2 className="w-16 h-16 animate-spin text-purple-500" />
+                      <div className="absolute inset-0 w-16 h-16 border-4 border-purple-200 dark:border-purple-700 rounded-full animate-ping"></div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-lg font-semibold text-purple-700 dark:text-purple-300 mb-1">
+                        Uploading Your Image
+                      </p>
+                      <p className="text-sm text-purple-600 dark:text-purple-400">
+                        Preparing for video transformation...
+                      </p>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center space-y-2">
-                    <Upload className="w-8 h-8 text-gray-400" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Click to upload an image or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">
-                      PNG, JPG, WEBP up to 10MB
-                    </p>
+                  <div className="relative flex flex-col items-center space-y-4">
+                    <div className="w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                      <Upload className="w-10 h-10 text-white" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                        Upload Your Image
+                      </p>
+                      <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mb-3">
+                        Choose the image you want to bring to life with AI
+                        motion
+                      </p>
+                      <div className="flex items-center justify-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+                        <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg px-3 py-1">
+                          PNG, JPG, WebP
+                        </div>
+                        <div className="bg-white/70 dark:bg-gray-800/70 rounded-lg px-3 py-1">
+                          Max 10MB
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="relative">
-                <img
-                  src={uploadedImagePreview}
-                  alt="Uploaded image"
-                  className="w-full max-h-64 object-contain rounded-lg border border-gray-200 dark:border-gray-600"
-                />
+              <div className="relative group">
+                <div className="relative overflow-hidden rounded-2xl shadow-lg">
+                  <img
+                    src={uploadedImagePreview}
+                    alt="Uploaded image"
+                    className="w-full max-h-80 object-contain bg-gray-50 dark:bg-gray-900 transition-transform duration-300 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="absolute bottom-4 left-4 right-4 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-lg font-semibold mb-1">
+                      Ready for Animation
+                    </p>
+                    <p className="text-sm opacity-90">
+                      This image will be transformed into a video
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={removeUploadedImage}
-                  className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                  className="absolute top-3 right-3 p-2 bg-red-500/90 backdrop-blur-sm text-white rounded-xl hover:bg-red-600 transition-all duration-200 shadow-lg hover:scale-110"
+                  title="Remove image"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
-                <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                  ✅ Image ready: {params.uploadedImage}
+                <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                      Image uploaded: {params.uploadedImage}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -819,45 +913,109 @@ export default function ImageToVideoPage() {
             />
           </div>
 
-          {/* Prompt Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="space-y-4">
+          {/* Enhanced Prompt Input */}
+          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-600 transition-all duration-300">
+            <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Prompt
+                <label className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl">
+                    <Wand2 className="w-5 h-5 text-white" />
+                  </div>
+                  <span>Video Motion Prompt</span>
+                  <div className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">
+                    Optional
+                  </div>
                 </label>
                 <button
                   onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
-                  className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 font-medium transition-colors"
                 >
                   Clear
                 </button>
               </div>
-              <textarea
-                value={params.prompt}
-                onChange={(e) =>
-                  setParams((prev) => ({ ...prev, prompt: e.target.value }))
-                }
-                placeholder="Describe the video motion you want to generate..."
-                className="w-full h-24 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-              />
 
-              {/* Negative Prompt */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Negative Prompt (Optional)
-                </label>
+              <div className="relative">
                 <textarea
-                  value={params.negativePrompt}
+                  value={params.prompt}
                   onChange={(e) =>
-                    setParams((prev) => ({
-                      ...prev,
-                      negativePrompt: e.target.value,
-                    }))
+                    setParams((prev) => ({ ...prev, prompt: e.target.value }))
                   }
-                  placeholder="Describe what you don't want in the video..."
-                  className="w-full h-20 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                  placeholder="Describe the motion and animation you want to see... e.g., 'gentle wind blowing through hair, camera slowly zooming in, soft lighting changes'"
+                  className="w-full h-32 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-300 text-sm leading-relaxed"
+                  maxLength={500}
                 />
+                {params.prompt && (
+                  <div className="absolute top-3 right-3">
+                    <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded-lg text-xs font-medium">
+                      Ready ✓
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div
+                  className={`text-sm font-medium transition-colors ${
+                    params.prompt.length > 400
+                      ? "text-red-500"
+                      : params.prompt.length > 250
+                      ? "text-yellow-500"
+                      : "text-gray-500 dark:text-gray-400"
+                  }`}
+                >
+                  {params.prompt.length}/500 characters
+                </div>
+
+                <div className="flex items-center space-x-4 text-sm">
+                  <div className="flex items-center space-x-2 text-indigo-600 dark:text-indigo-400">
+                    <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+                    <span className="font-medium">Pro Tip:</span>
+                  </div>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Leave blank for natural motion
+                  </span>
+                </div>
+              </div>
+
+              {/* Enhanced Negative Prompt */}
+              <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
+                    <div className="p-2 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl">
+                      <AlertCircle className="w-5 h-5 text-white" />
+                    </div>
+                    <span>Avoid in Video</span>
+                    <div className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full text-xs font-medium">
+                      Optional
+                    </div>
+                  </label>
+                </div>
+
+                <div className="relative">
+                  <textarea
+                    value={params.negativePrompt}
+                    onChange={(e) =>
+                      setParams((prev) => ({
+                        ...prev,
+                        negativePrompt: e.target.value,
+                      }))
+                    }
+                    placeholder="Describe motions or effects you want to avoid... e.g., 'shaky camera, blurry motion, distorted faces, flickering'"
+                    className="w-full h-24 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-red-500/20 focus:border-red-500 resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-300 text-sm leading-relaxed"
+                    maxLength={300}
+                  />
+                  {params.negativePrompt && (
+                    <div className="absolute top-3 right-3">
+                      <div className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-2 py-1 rounded-lg text-xs font-medium">
+                        Filtering ⚠️
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {params.negativePrompt.length}/300 characters
+                </div>
               </div>
             </div>
           </div>

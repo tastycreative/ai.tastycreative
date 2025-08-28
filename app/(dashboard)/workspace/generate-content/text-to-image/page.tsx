@@ -18,6 +18,7 @@ import {
   Copy,
   RefreshCw,
   ExternalLink,
+  Monitor,
   User,
   ChevronDown,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import {
 // Types
 interface GenerationParams {
   prompt: string;
+  negativePrompt: string;
   width: number;
   height: number;
   batchSize: number;
@@ -125,6 +127,7 @@ export default function TextToImagePage() {
 
   const [params, setParams] = useState<GenerationParams>({
     prompt: "",
+    negativePrompt: "",
     width: 832,
     height: 1216,
     batchSize: 1,
@@ -779,30 +782,54 @@ export default function TextToImagePage() {
   if (!apiClient) {
     return (
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-center min-h-[600px]">
-          <div className="text-center space-y-6">
+        <div className="flex items-center justify-center min-h-[600px] bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-gray-900 rounded-3xl">
+          <div className="text-center space-y-8 p-8">
             <div className="relative">
-              <div className="w-20 h-20 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mx-auto"></div>
-              <Sparkles className="absolute inset-0 w-8 h-8 text-purple-500 animate-pulse m-auto" />
+              <div className="w-28 h-28 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mx-auto shadow-2xl"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-8 h-8 text-white animate-pulse" />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Preparing Your Studio
+
+            <div className="space-y-4">
+              <h3 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                Preparing AI Studio ✨
               </h3>
-              <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                Setting up the AI workspace for text-to-image generation...
+              <p className="text-gray-600 dark:text-gray-400 text-lg max-w-lg mx-auto leading-relaxed">
+                Setting up your creative workspace with the latest FLUX AI
+                models and artistic tools...
               </p>
             </div>
-            <div className="flex items-center justify-center space-x-2 text-sm text-purple-600 dark:text-purple-400">
-              <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+
+            <div className="flex items-center justify-center space-x-3">
+              <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce shadow-lg"></div>
               <div
-                className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
+                className="w-3 h-3 bg-purple-500 rounded-full animate-bounce shadow-lg"
                 style={{ animationDelay: "0.1s" }}
               ></div>
               <div
-                className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
+                className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce shadow-lg"
                 style={{ animationDelay: "0.2s" }}
               ></div>
+            </div>
+
+            <div className="mt-8 p-6 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm rounded-2xl border border-blue-200/50 dark:border-gray-700/50 max-w-sm mx-auto">
+              <div className="flex items-center space-x-3 mb-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-green-600 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Loading AI Models...
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full animate-pulse"
+                  style={{ width: "75%" }}
+                ></div>
+              </div>
             </div>
           </div>
         </div>
@@ -813,28 +840,83 @@ export default function TextToImagePage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Enhanced Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-700 rounded-xl shadow-lg border border-blue-200 dark:border-purple-800 p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-              <ImageIcon className="w-8 h-8 text-white" />
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-indigo-800 p-8 text-white">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+        </div>
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex items-center space-x-6">
+            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
+              <div className="relative">
+                <Wand2 className="w-10 h-10 text-white drop-shadow-sm" />
+                <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center">
+                  <Sparkles className="w-3 h-3 text-yellow-800" />
+                </div>
+              </div>
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Text to Image</h1>
-              <p className="text-blue-100">
-                Transform your ideas into stunning visuals with FLUX AI
+              <h1 className="text-4xl font-bold mb-2 drop-shadow-sm flex items-center space-x-3">
+                <span>Text to Image</span>
+                <span className="text-2xl">🎨</span>
+              </h1>
+              <p className="text-blue-100 text-lg font-medium opacity-90 mb-2">
+                Transform your imagination into stunning visuals with AI
               </p>
+              <div className="flex items-center space-x-4 text-sm text-blue-100">
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>FLUX AI Powered</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-purple-300 rounded-full"></div>
+                  <span>Ultra High Quality</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-yellow-300 rounded-full"></div>
+                  <span>Instant Results</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {imageStats && (
-            <div className="text-right bg-white/10 rounded-lg p-3 backdrop-blur-sm">
-              <div className="text-2xl font-bold text-white">
-                {imageStats.totalImages}
+          <div className="flex items-center space-x-4">
+            {imageStats && (
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white drop-shadow-sm mb-1">
+                    {imageStats.totalImages?.toLocaleString() || 0}
+                  </div>
+                  <div className="text-sm text-blue-100 font-medium">
+                    Images Created
+                  </div>
+                  {imageStats.totalSize && (
+                    <div className="text-xs text-blue-200 mt-1">
+                      {(imageStats.totalSize / 1024 / 1024).toFixed(1)} MB used
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="text-sm text-blue-100">Images Generated</div>
+            )}
+
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
+              <div className="text-center">
+                <div className="flex items-center justify-center space-x-1 mb-1">
+                  <Sparkles className="w-4 h-4 text-yellow-300" />
+                  <span className="text-sm font-semibold text-white">
+                    AI Status
+                  </span>
+                </div>
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-green-200 font-medium">
+                    Ready
+                  </span>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -842,59 +924,166 @@ export default function TextToImagePage() {
         {/* Left Panel - Controls */}
         <div className="lg:col-span-2 space-y-6">
           {/* Enhanced Prompt Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
+          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
-                  <Sparkles className="w-5 h-5 text-purple-500" />
-                  <span>Your Creative Vision</span>
+                <label className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
+                    <Sparkles className="w-5 h-5 text-white" />
+                  </div>
+                  <span>Describe Your Vision</span>
+                  <div className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
+                    Required
+                  </div>
                 </label>
-                <button
-                  onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
-                  className="text-sm text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium"
-                >
-                  Clear
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() =>
+                      setParams((prev) => ({
+                        ...prev,
+                        prompt:
+                          "A futuristic cityscape at sunset with flying cars and neon lights reflecting on glass buildings",
+                      }))
+                    }
+                    className="px-3 py-1.5 text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 font-medium shadow-lg"
+                    title="Try example prompt"
+                  >
+                    ✨ Example
+                  </button>
+                  <button
+                    onClick={() =>
+                      setParams((prev) => ({ ...prev, prompt: "" }))
+                    }
+                    className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 font-medium transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
               </div>
-              <textarea
-                value={params.prompt}
-                onChange={(e) =>
-                  setParams((prev) => ({ ...prev, prompt: e.target.value }))
-                }
-                placeholder="Describe your dream image in detail... e.g., 'A majestic mountain landscape at sunset with vibrant colors'"
-                className="w-full h-32 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all"
-              />
+
+              <div className="relative">
+                <textarea
+                  value={params.prompt}
+                  onChange={(e) =>
+                    setParams((prev) => ({ ...prev, prompt: e.target.value }))
+                  }
+                  placeholder="Describe your dream image in vivid detail... The more specific you are, the better the AI can understand and create your vision. Include details like style, mood, colors, composition, and artistic techniques."
+                  className="w-full h-36 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-300 text-sm leading-relaxed"
+                  maxLength={1000}
+                />
+                {params.prompt && (
+                  <div className="absolute top-3 right-3">
+                    <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded-lg text-xs font-medium">
+                      Ready ✓
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-between items-center">
-                <div className="text-xs text-gray-500 dark:text-gray-400">
+                <div
+                  className={`text-sm font-medium transition-colors ${
+                    params.prompt.length > 800
+                      ? "text-red-500"
+                      : params.prompt.length > 500
+                      ? "text-yellow-500"
+                      : "text-gray-500 dark:text-gray-400"
+                  }`}
+                >
                   {params.prompt.length}/1000 characters
                 </div>
-                <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                  💡 Tip: Be specific and descriptive for best results
+
+                <div className="flex items-center space-x-4 text-sm">
+                  <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span className="font-medium">AI Tip:</span>
+                  </div>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Include style, mood, and composition details
+                  </span>
                 </div>
+              </div>
+
+              {/* Quick Prompt Suggestions */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {[
+                  "cinematic lighting",
+                  "photorealistic",
+                  "vibrant colors",
+                  "detailed background",
+                  "professional photography",
+                  "artistic style",
+                ].map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => {
+                      if (!params.prompt.includes(suggestion)) {
+                        setParams((prev) => ({
+                          ...prev,
+                          prompt:
+                            prev.prompt +
+                            (prev.prompt ? ", " : "") +
+                            suggestion,
+                        }));
+                      }
+                    }}
+                    className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-300 transition-all duration-200 font-medium border border-gray-200 dark:border-gray-600"
+                  >
+                    + {suggestion}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
 
           {/* Enhanced Basic Settings */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center space-x-2">
-              <Settings className="w-5 h-5 text-blue-500" />
-              <span>Generation Settings</span>
-            </h3>
+          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-600 transition-all duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
+                <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl">
+                  <Settings className="w-6 h-6 text-white" />
+                </div>
+                <span>Generation Settings</span>
+              </h3>
+              <div className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">
+                Fine-tune Your Creation
+              </div>
+            </div>
 
             {/* Enhanced LoRA Model Selection */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center space-x-2">
-                <User className="w-4 h-4 text-green-500" />
-                <span>Style Model (LoRA)</span>
-              </label>
+            <div className="space-y-4 mb-6 p-4 bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 dark:from-green-900/20 dark:via-emerald-900/20 dark:to-teal-900/20 rounded-2xl border border-green-200 dark:border-green-800">
+              <div className="flex items-center justify-between">
+                <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
+                    <User className="w-5 h-5 text-white" />
+                  </div>
+                  <span>AI Style Model</span>
+                  <div className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
+                    Custom Trained
+                  </div>
+                </label>
+                {params.selectedLora !== "None" && (
+                  <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium">Active</span>
+                  </div>
+                )}
+              </div>
 
               {loadingLoRAs ? (
-                <div className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700/50">
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    Loading your style models...
+                <div className="flex items-center space-x-3 p-4 border-2 border-dashed border-green-300 dark:border-green-600 rounded-2xl bg-green-50 dark:bg-green-900/10 backdrop-blur-sm">
+                  <Loader2 className="w-5 h-5 animate-spin text-green-500" />
+                  <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                    Loading your custom AI models...
                   </span>
+                  <div className="ml-auto">
+                    <div className="w-16 h-2 bg-green-200 dark:bg-green-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-green-500 rounded-full animate-pulse"
+                        style={{ width: "60%" }}
+                      ></div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="relative">
@@ -906,7 +1095,7 @@ export default function TextToImagePage() {
                         selectedLora: e.target.value,
                       }))
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all appearance-none"
+                    className="w-full px-4 py-4 border-2 border-green-200 dark:border-green-600 rounded-2xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-4 focus:ring-green-500/20 focus:border-green-500 transition-all duration-300 appearance-none text-lg font-medium shadow-sm"
                   >
                     {availableLoRAs.map((lora, index) => (
                       <option
@@ -917,29 +1106,51 @@ export default function TextToImagePage() {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-green-500 pointer-events-none" />
                 </div>
               )}
 
               {params.selectedLora !== "None" && (
-                <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-green-700 dark:text-green-300 font-medium">
-                    Using:{" "}
-                    {availableLoRAs.find(
-                      (lora) => lora.fileName === params.selectedLora
-                    )?.displayName || params.selectedLora}
-                  </span>
+                <div className="flex items-center space-x-3 p-4 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 border border-green-200 dark:border-green-700 rounded-2xl shadow-sm">
+                  <div className="p-2 bg-green-500 rounded-xl">
+                    <CheckCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-green-800 dark:text-green-200 mb-1">
+                      Using Custom Style Model
+                    </div>
+                    <div className="text-xs text-green-600 dark:text-green-400">
+                      {availableLoRAs.find(
+                        (lora) => lora.fileName === params.selectedLora
+                      )?.displayName || params.selectedLora}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-green-600 dark:text-green-400 font-medium">
+                      Strength: {(params.loraStrength * 100).toFixed(0)}%
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Enhanced Aspect Ratio */}
-            <div className="space-y-4 mb-6">
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center space-x-2">
-                <Settings className="w-4 h-4 text-blue-500" />
-                <span>Image Dimensions</span>
-              </label>
+            <div className="space-y-4 mb-6 p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/20 dark:via-indigo-900/20 dark:to-purple-900/20 rounded-2xl border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center justify-between">
+                <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl">
+                    <Monitor className="w-5 h-5 text-white" />
+                  </div>
+                  <span>Image Dimensions</span>
+                  <div className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium">
+                    Choose Aspect
+                  </div>
+                </label>
+                <div className="text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-3 py-1 rounded-full">
+                  {params.width} × {params.height}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {ASPECT_RATIOS.map((ratio) => (
                   <button
@@ -947,53 +1158,165 @@ export default function TextToImagePage() {
                     onClick={() =>
                       handleAspectRatioChange(ratio.width, ratio.height)
                     }
-                    className={`group p-4 rounded-xl border-2 text-sm font-medium transition-all duration-200 ${
+                    className={`group relative p-4 rounded-2xl border-2 text-sm font-medium transition-all duration-300 hover:scale-105 ${
                       params.width === ratio.width &&
                       params.height === ratio.height
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-lg scale-105"
-                        : "border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-900/10"
+                        ? "border-blue-500 bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-2xl scale-105 ring-4 ring-blue-500/20"
+                        : "border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-900/20 dark:hover:to-indigo-900/20 shadow-sm hover:shadow-lg"
                     }`}
                   >
-                    <div className="font-semibold">{ratio.name}</div>
-                    <div className="text-xs opacity-75 mt-1">{ratio.ratio}</div>
-                    <div className="text-xs opacity-60 mt-1">
-                      {ratio.width}×{ratio.height}
+                    {/* Visual Representation */}
+                    <div className="flex justify-center mb-2">
+                      <div
+                        className={`border rounded-sm ${
+                          params.width === ratio.width &&
+                          params.height === ratio.height
+                            ? "border-white/60 bg-white/20"
+                            : "border-gray-400 dark:border-gray-500 bg-gray-100 dark:bg-gray-700"
+                        }`}
+                        style={{
+                          width: ratio.width > ratio.height ? "24px" : "18px",
+                          height: ratio.height > ratio.width ? "24px" : "18px",
+                          aspectRatio: `${ratio.width}/${ratio.height}`,
+                        }}
+                      ></div>
                     </div>
+
+                    <div className="text-center">
+                      <div className="font-bold text-base mb-1">
+                        {ratio.name}
+                      </div>
+                      <div
+                        className={`text-xs mb-1 ${
+                          params.width === ratio.width &&
+                          params.height === ratio.height
+                            ? "text-blue-100"
+                            : "text-gray-500 dark:text-gray-400"
+                        }`}
+                      >
+                        {ratio.ratio}
+                      </div>
+                      <div
+                        className={`text-xs ${
+                          params.width === ratio.width &&
+                          params.height === ratio.height
+                            ? "text-blue-200"
+                            : "text-gray-400 dark:text-gray-500"
+                        }`}
+                      >
+                        {ratio.width}×{ratio.height}
+                      </div>
+                    </div>
+
+                    {/* Selection indicator */}
+                    {params.width === ratio.width &&
+                      params.height === ratio.height && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+                          <CheckCircle className="w-4 h-4 text-yellow-800" />
+                        </div>
+                      )}
                   </button>
                 ))}
+              </div>
+
+              <div className="flex items-center justify-between text-sm pt-2">
+                <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <span className="font-medium">Pro Tip:</span>
+                </div>
+                <span className="text-gray-600 dark:text-gray-400">
+                  Portrait works best for people, landscape for scenes
+                </span>
               </div>
             </div>
 
             {/* Enhanced Batch Size */}
-            <div className="space-y-4 mb-6">
+            <div className="space-y-4 mb-6 p-4 bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-900/20 dark:via-amber-900/20 dark:to-yellow-900/20 rounded-2xl border border-orange-200 dark:border-orange-800">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center space-x-2">
-                  <Copy className="w-4 h-4 text-orange-500" />
-                  <span>Number of Images</span>
+                <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl">
+                    <Copy className="w-5 h-5 text-white" />
+                  </div>
+                  <span>Batch Generation</span>
+                  <div className="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full text-xs font-medium">
+                    Multiple Images
+                  </div>
                 </label>
-                <div className="bg-orange-100 dark:bg-orange-900/30 px-3 py-1 rounded-full">
-                  <span className="text-sm font-bold text-orange-700 dark:text-orange-300">
+                <div className="flex items-center space-x-3">
+                  <div className="text-2xl font-bold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-4 py-2 rounded-2xl shadow-sm">
                     {params.batchSize}
-                  </span>
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    image{params.batchSize !== 1 ? "s" : ""}
+                  </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <input
-                  type="range"
-                  min="1"
-                  max="4"
-                  value={params.batchSize}
-                  onChange={(e) =>
-                    setParams((prev) => ({
-                      ...prev,
-                      batchSize: parseInt(e.target.value),
-                    }))
-                  }
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span>1 image</span>
-                  <span>4 images</span>
+
+              <div className="space-y-3">
+                <div className="relative">
+                  <input
+                    type="range"
+                    min="1"
+                    max="4"
+                    value={params.batchSize}
+                    onChange={(e) =>
+                      setParams((prev) => ({
+                        ...prev,
+                        batchSize: parseInt(e.target.value),
+                      }))
+                    }
+                    className="w-full h-3 bg-gradient-to-r from-orange-200 to-amber-200 dark:from-orange-800 dark:to-amber-800 rounded-lg appearance-none cursor-pointer slider-thumb"
+                    style={{
+                      background: `linear-gradient(to right, 
+                        rgb(249 115 22) 0%, 
+                        rgb(249 115 22) ${((params.batchSize - 1) / 3) * 100}%, 
+                        rgb(209 213 219) ${
+                          ((params.batchSize - 1) / 3) * 100
+                        }%, 
+                        rgb(209 213 219) 100%)`,
+                    }}
+                  />
+                  <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 font-medium mt-2">
+                    {[1, 2, 3, 4].map((num) => (
+                      <div
+                        key={num}
+                        className={`flex flex-col items-center ${
+                          params.batchSize === num
+                            ? "text-orange-600 dark:text-orange-400 font-bold"
+                            : ""
+                        }`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full mb-1 ${
+                            params.batchSize >= num
+                              ? "bg-orange-500"
+                              : "bg-gray-300 dark:bg-gray-600"
+                          }`}
+                        ></div>
+                        <span>
+                          {num} image{num !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/30 rounded-2xl border border-orange-200 dark:border-orange-700">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                      <Copy className="w-3 h-3 text-white" />
+                    </div>
+                    <span className="text-sm font-bold text-orange-800 dark:text-orange-200">
+                      Generating {params.batchSize} variation
+                      {params.batchSize !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                    {params.batchSize === 1 && "Single image"}
+                    {params.batchSize === 2 && "More variety"}
+                    {params.batchSize === 3 && "Good selection"}
+                    {params.batchSize === 4 && "Maximum choice"}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1162,73 +1485,159 @@ export default function TextToImagePage() {
           </div>
 
           {/* Enhanced Generate Button */}
-          <div className="sticky bottom-4">
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating || !params.prompt.trim()}
-              className={`group w-full py-4 px-6 rounded-2xl shadow-xl transition-all duration-300 flex items-center justify-center space-x-3 font-bold text-lg ${
-                isGenerating || !params.prompt.trim()
-                  ? "bg-gray-400 cursor-not-allowed text-white"
-                  : "bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 hover:from-purple-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-purple-500/25 hover:shadow-purple-500/40 hover:scale-105"
-              }`}
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  <span>Creating Magic...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                  <span>Generate Image</span>
-                  <Wand2 className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                </>
-              )}
-            </button>
+          <div className="sticky bottom-4 z-20">
+            <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg rounded-3xl p-4 border border-gray-200 dark:border-gray-700 shadow-2xl">
+              {/* Generation Info */}
+              <div className="flex items-center justify-between mb-4 p-3 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-700 rounded-2xl">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-r from-green-400 to-blue-500 rounded-xl">
+                    <ImageIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-gray-900 dark:text-white text-sm">
+                      Ready to Generate
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                      {params.batchSize} image
+                      {params.batchSize !== 1 ? "s" : ""} • {params.width}×
+                      {params.height}
+                      {params.selectedLora !== "None" && " • Custom Style"}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                    Ready
+                  </span>
+                </div>
+              </div>
 
-            {!params.prompt.trim() && (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
-                Enter a prompt to start generating
-              </p>
-            )}
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating || !params.prompt.trim()}
+                className={`group relative w-full py-5 px-8 rounded-2xl transition-all duration-500 flex items-center justify-center space-x-4 font-bold text-xl overflow-hidden ${
+                  isGenerating || !params.prompt.trim()
+                    ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed text-white/80"
+                    : "bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 hover:from-purple-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-2xl hover:shadow-purple-500/30 hover:scale-105 active:scale-95"
+                }`}
+              >
+                {/* Animated background */}
+                <div
+                  className={`absolute inset-0 rounded-2xl transition-opacity duration-500 ${
+                    isGenerating || !params.prompt.trim()
+                      ? "opacity-0"
+                      : "opacity-100 bg-gradient-to-r from-purple-400/20 via-blue-400/20 to-indigo-400/20 animate-pulse"
+                  }`}
+                ></div>
+
+                {/* Button content */}
+                <div className="relative flex items-center justify-center space-x-4">
+                  {isGenerating ? (
+                    <>
+                      <div className="relative">
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                        <div className="absolute inset-0 w-8 h-8 border-2 border-white/30 rounded-full animate-ping"></div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-lg">
+                          Creating Your Masterpiece
+                        </span>
+                        <span className="text-sm opacity-80 font-normal">
+                          AI is working its magic...
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="relative">
+                        <Sparkles className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
+                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></div>
+                        </div>
+                      </div>
+                      <span className="drop-shadow-sm">Generate AI Art</span>
+                      <Wand2 className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
+                    </>
+                  )}
+                </div>
+              </button>
+
+              {/* Status messages */}
+              {!params.prompt.trim() ? (
+                <div className="text-center mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <div className="flex items-center justify-center space-x-2 text-amber-700 dark:text-amber-300">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="text-sm font-medium">
+                      Enter a creative prompt to begin
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <div className="flex items-center justify-center space-x-2 text-green-700 dark:text-green-300">
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="text-sm font-medium">
+                      Ready to create amazing art!
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Right Panel - Results */}
         <div className="space-y-6">
-          {/* Image Statistics */}
+          {/* Enhanced Image Statistics */}
           {imageStats && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Your Image Library
-                </h3>
+            <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl">
+                    <ImageIcon className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    AI Art Gallery
+                  </h3>
+                </div>
                 <Link
                   href="/dashboard/workspace/generated-content"
-                  className="flex items-center space-x-1 text-blue-500 hover:text-blue-600 text-sm font-medium transition-colors"
+                  className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
                 >
                   <span>View Gallery</span>
-                  <ExternalLink className="w-4 h-4" />
+                  <ExternalLink className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Total Images:
-                  </span>
-                  <span className="ml-2 font-medium">
-                    {imageStats.totalImages}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Total Size:
-                  </span>
-                  <span className="ml-2 font-medium">
-                    {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
-                      100}{" "}
-                    MB
-                  </span>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-blue-500 rounded-xl">
+                        <ImageIcon className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                          {imageStats.totalImages?.toLocaleString() || 0}
+                        </div>
+                        <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                          Total Masterpieces
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-gray-700 dark:text-gray-300">
+                        {Math.round(
+                          (imageStats.totalSize / 1024 / 1024) * 100
+                        ) / 100}{" "}
+                        MB
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Storage Used
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

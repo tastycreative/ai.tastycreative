@@ -384,15 +384,53 @@ export default function TrainLoRAPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-8">
-      {/* Header */}
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-          Train Custom LoRA Model
-        </h1>
-        <p className="text-lg text-gray-600 dark:text-gray-400">
-          Create a personalized AI model by training on your own images using
-          RunPod's powerful infrastructure
-        </p>
+      {/* Enhanced Header */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800 p-12 text-white text-center">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+        </div>
+
+        <div className="relative z-10 space-y-6">
+          <div className="flex justify-center">
+            <div className="p-4 bg-white/20 rounded-3xl backdrop-blur-sm border border-white/30 shadow-2xl">
+              <div className="relative">
+                <Cpu className="w-16 h-16 text-white drop-shadow-lg" />
+                <div className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-yellow-800" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h1 className="text-5xl font-bold drop-shadow-lg flex items-center justify-center space-x-4">
+              <span>Train Custom LoRA</span>
+              <span className="text-4xl">🧠</span>
+            </h1>
+            <p className="text-xl text-blue-100 font-medium opacity-90 max-w-3xl mx-auto leading-relaxed">
+              Create a personalized AI model by training on your own images
+              using
+              <span className="text-yellow-300 font-bold"> RunPod's </span>
+              powerful GPU infrastructure
+            </p>
+
+            <div className="flex items-center justify-center space-x-8 text-sm text-blue-100 pt-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="font-medium">GPU Powered</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-purple-300 rounded-full"></div>
+                <span className="font-medium">Custom Models</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-yellow-300 rounded-full"></div>
+                <span className="font-medium">High Quality</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Progress Steps */}
