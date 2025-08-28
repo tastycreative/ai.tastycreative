@@ -489,8 +489,410 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
         logger.error(f"❌ Upload error: {str(e)}")
         return False
 
+def run_training_process(job_input, job_id, webhook_url):
+    """Execute the actual training process in background"""
+    logger.info(f"🎯 Starting background training process for job: {job_id}")
+    
+    try:
+        # Initial status
+        send_webhook(webhook_url, {
+            'job_id': job_id,
+            'status': 'IN_PROGRESS',
+            'progress': 5,
+            'message': 'Initializing AI-toolkit environment...'
+        })
+        
+        # Validate input
+        if 'config' not in job_input:
+            raise ValueError("Missing training configuration")
+        if 'imageUrls' not in job_input or not job_input['imageUrls']:
+            raise ValueError("No training images provided")
+        
+        # Create working directories (match ai-toolkit expected structure)
+        timestamp = int(time.time())
+        work_dir = Path("/workspace")
+        training_data_path = work_dir / "training_data"
+        dataset_path = training_data_path / "images"
+        config_path = work_dir / "config.yaml"
+        output_path = work_dir / "output"
+        logs_path = work_dir / "logs"
+        
+        # Clean up any existing directory structure
+        if training_data_path.exists():
+            shutil.rmtree(training_data_path)
+        if output_path.exists():
+            shutil.rmtree(output_path)
+        # Don't remove logs_path - let it persist for debugging
+        
+        # Create directories
+        work_dir.mkdir(exist_ok=True)
+        training_data_path.mkdir(parents=True)
+        output_path.mkdir(parents=True)
+        logs_path.mkdir(exist_ok=True)  # Allow existing logs directory
+        
+        logger.info(f"📁 Created working directory: {work_dir}")
+        
+        # Process training images
+        send_webhook(webhook_url, {
+            'job_id': job_id,
+            'status': 'IN_PROGRESS',
+            'progress': 10,
+            'message': 'Processing training images...'
+        })
+        
+        # Download and process images
+        logger.info(f"📥 Processing {len(job_input['imageUrls'])} images")
+        
+        dataset_path.mkdir(parents=True, exist_ok=True)
+        
+        # Process each image
+        image_count = 0
+        for idx, image_url in enumerate(job_input['imageUrls']):
+            try:
+                logger.info(f"📥 Processing image {idx + 1}/{len(job_input['imageUrls'])}: {image_url}")
+                
+                # Download image with timeout
+                response = requests.get(image_url, timeout=60)
+                response.raise_for_status()
+                
+                # Determine file extension from content-type or URL
+                content_type = response.headers.get('content-type', '').lower()
+                if 'jpeg' in content_type or 'jpg' in content_type:
+                    ext = 'jpg'
+                elif 'png' in content_type:
+                    ext = 'png'
+                elif 'webp' in content_type:
+                    ext = 'webp'
+                else:
+                    # Fallback to extracting from URL
+                    ext = image_url.split('.')[-1].lower() if '.' in image_url else 'jpg'
+                    if ext not in ['jpg', 'jpeg', 'png', 'webp']:
+                        ext = 'jpg'  # Default fallback
+                
+                # Save image with proper naming
+                image_filename = f"image_{idx + 1:04d}.{ext}"
+                image_path = dataset_path / image_filename
+                
+                with open(image_path, 'wb') as f:
+                    f.write(response.content)
+                
+                logger.info(f"✅ Saved image: {image_path}")
+                image_count += 1
+                
+                # Update progress for image processing (10-30%)
+                progress = 10 + (idx + 1) * 20 // len(job_input['imageUrls'])
+                send_webhook(webhook_url, {
+                    'job_id': job_id,
+                    'status': 'IN_PROGRESS',
+                    'progress': progress,
+                    'message': f'Processed {idx + 1}/{len(job_input["imageUrls"])} images'
+                })
+                
+            except Exception as e:
+                logger.error(f"💥 Failed to process image {idx + 1}: {e}")
+                continue
+        
+        if image_count == 0:
+            raise ValueError("No images were successfully processed")
+        
+        logger.info(f"✅ Successfully processed {image_count} training images")
+        
+        # Create training configuration
+        send_webhook(webhook_url, {
+            'job_id': job_id,
+            'status': 'IN_PROGRESS',
+            'progress': 35,
+            'message': 'Creating training configuration...'
+        })
+        
+        # Generate config with better defaults and longer timeouts
+        config = {
+            'job': 'extension',
+            'config': {
+                'name': job_input['config']['name'],
+                'process': [
+                    {
+                        'type': 'sd_trainer',
+                        'training_folder': str(training_data_path),
+                        'device': 'cuda:0',
+                        'trigger_word': job_input['config'].get('trigger_word', 'ohwx'),
+                        'network': {
+                            'type': 'lora',
+                            'linear': job_input['config'].get('linear', 16),
+                            'linear_alpha': job_input['config'].get('linear_alpha', 16),
+                        },
+                        'save': {
+                            'dtype': 'float16',
+                            'save_every': job_input['config'].get('save_every', 500),
+                            'max_step_saves_to_keep': 3,
+                        },
+                        'datasets': [
+                            {
+                                'folder_path': str(dataset_path),
+                                'caption_ext': 'txt',
+                                'caption_dropout_rate': 0.05,
+                                'shuffle_tokens': False,
+                                'cache_latents_to_disk': True,
+                                'resolution': [512, 768, 1024],
+                            }
+                        ],
+                        'train': {
+                            'batch_size': 1,
+                            'steps': job_input['config'].get('steps', 1000),
+                            'gradient_accumulation_steps': 4,
+                            'train_unet': True,
+                            'train_text_encoder': False,
+                            'gradient_checkpointing': True,
+                            'noise_scheduler': 'flowmatch',
+                            'optimizer': 'adamw8bit',
+                            'lr': job_input['config'].get('lr', 1e-4),
+                            'ema_config': {
+                                'use_ema': True,
+                                'ema_decay': 0.99,
+                            },
+                            'dtype': 'bf16',
+                        },
+                        'model': {
+                            'name_or_path': job_input['config'].get('model_name', 'black-forest-labs/FLUX.1-dev'),
+                            'is_flux': True,
+                            'quantize': True,
+                        },
+                        'sample': {
+                            'sampler': 'flowmatch',
+                            'sample_every': job_input['config'].get('sample_every', 250),
+                            'width': 1024,
+                            'height': 1024,
+                            'prompts': [
+                                f"A photo of {job_input['config'].get('trigger_word', 'ohwx')}",
+                                f"{job_input['config'].get('trigger_word', 'ohwx')} in a professional setting",
+                                f"Portrait of {job_input['config'].get('trigger_word', 'ohwx')}"
+                            ],
+                            'neg': 'blurry, low quality, distorted',
+                            'seed': 42,
+                            'walk_seed': True,
+                            'guidance_scale': 4.0,
+                            'sample_steps': 20,
+                        }
+                    }
+                ]
+            }
+        }
+        
+        # Write config file
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+        
+        logger.info(f"📋 Created training config: {config_path}")
+        
+        # Start training
+        send_webhook(webhook_url, {
+            'job_id': job_id,
+            'status': 'IN_PROGRESS',
+            'progress': 40,
+            'message': 'Starting training process...'
+        })
+        
+        logger.info(f"🧠 Starting training with config: {config_path}")
+        
+        # Build command with extended timeout for training
+        cmd = [
+            sys.executable, "-m", "ai_toolkit.train",
+            "--config", str(config_path)
+        ]
+        
+        logger.info(f"🔧 Training command: {' '.join(cmd)}")
+        
+        # Set up environment with better memory management
+        env = os.environ.copy()
+        env['CUDA_VISIBLE_DEVICES'] = '0'
+        env['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb:512'
+        env['TOKENIZERS_PARALLELISM'] = 'false'
+        
+        # Run training with extended timeout (2 hours)
+        start_time = time.time()
+        
+        try:
+            # Enhanced process execution with real-time monitoring
+            process = subprocess.Popen(
+                cmd,
+                cwd=str(work_dir),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True,
+                env=env
+            )
+            
+            # Monitor training progress with 2-hour timeout
+            last_progress_update = time.time()
+            progress_update_interval = 60  # Update every minute
+            max_training_time = 7200  # 2 hours
+            current_progress = 40
+            
+            output_lines = []
+            
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    output_lines.append(line.strip())
+                    logger.info(f"📋 Training: {line.strip()}")
+                    
+                    # Check for timeout
+                    elapsed = time.time() - start_time
+                    if elapsed > max_training_time:
+                        logger.warning(f"⏰ Training timeout after {elapsed/60:.1f} minutes")
+                        process.terminate()
+                        try:
+                            process.wait(timeout=30)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                        break
+                    
+                    # Update progress periodically
+                    if time.time() - last_progress_update > progress_update_interval:
+                        # Estimate progress based on elapsed time (40-85%)
+                        time_progress = min(45, (elapsed / max_training_time) * 45)
+                        current_progress = int(40 + time_progress)
+                        
+                        send_webhook(webhook_url, {
+                            'job_id': job_id,
+                            'status': 'IN_PROGRESS',
+                            'progress': current_progress,
+                            'message': f'Training in progress... ({elapsed/60:.1f}min elapsed)'
+                        })
+                        
+                        last_progress_update = time.time()
+            
+            # Wait for process to complete
+            return_code = process.wait()
+            training_duration = time.time() - start_time
+            
+            logger.info(f"🏁 Training completed in {training_duration/60:.1f} minutes with code {return_code}")
+            
+        except Exception as e:
+            logger.error(f"💥 Training process error: {e}")
+            try:
+                process.terminate()
+                process.wait(timeout=30)
+            except:
+                try:
+                    process.kill()
+                except:
+                    pass
+            raise e
+        
+        if return_code == 0:
+            # Training successful - process results
+            send_webhook(webhook_url, {
+                'job_id': job_id,
+                'status': 'IN_PROGRESS',
+                'progress': 90,
+                'message': 'Training completed, processing results...'
+            })
+            
+            # Find the trained model
+            logger.info(f"🔍 Looking for trained model in: {output_path}")
+            
+            # Look for .safetensors files
+            model_files = list(output_path.rglob("*.safetensors"))
+            if not model_files:
+                raise ValueError("No trained model (.safetensors) found in output directory")
+            
+            # Use the most recent model file
+            model_file = max(model_files, key=lambda p: p.stat().st_mtime)
+            logger.info(f"✅ Found trained model: {model_file}")
+            
+            # Upload model to storage with better error handling
+            try:
+                # Read model file data
+                with open(model_file, 'rb') as f:
+                    model_file_data = f.read()
+                
+                # Use the existing upload function
+                upload_success = upload_model_file_comfyui(
+                    model_file_data, 
+                    model_file.name, 
+                    job_id, 
+                    job_input['config'].get('steps', 1000), 
+                    job_input, 
+                    webhook_url
+                )
+                
+                if upload_success:
+                    logger.info(f"☁️ Model uploaded successfully")
+                    model_url = f"models/loras/{model_file.name}"  # ComfyUI path
+                else:
+                    logger.error(f"💥 Model upload failed")
+                    model_url = None
+                    
+            except Exception as upload_error:
+                logger.error(f"💥 Model upload failed: {upload_error}")
+                # Still mark as successful since training completed
+                model_url = None
+            
+            # Final success webhook
+            send_webhook(webhook_url, {
+                'job_id': job_id,
+                'status': 'COMPLETED',
+                'progress': 100,
+                'model_url': model_url,
+                'message': f'Training completed successfully! ({training_duration/60:.1f}min)',
+                'training_duration': training_duration
+            })
+            
+            logger.info(f"🎉 Training job {job_id} completed successfully!")
+            
+        else:
+            error_msg = f"Training process failed with return code {return_code}"
+            logger.error(f"❌ {error_msg}")
+            
+            # Try to get error details from logs
+            error_details = ""
+            try:
+                with open(logs_path / "training.log", 'r') as f:
+                    lines = f.readlines()
+                    # Get last 10 lines for error context
+                    error_details = "".join(lines[-10:])
+            except:
+                pass
+            
+            send_webhook(webhook_url, {
+                'job_id': job_id,
+                'status': 'FAILED',
+                'error': error_msg,
+                'message': 'Training process failed',
+                'error_details': error_details
+            })
+            
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"💥 Background training error: {error_msg}")
+        
+        send_webhook(webhook_url, {
+            'job_id': job_id,
+            'status': 'FAILED',
+            'error': error_msg,
+            'message': 'Training failed due to system error'
+        })
+    
+    finally:
+        # Cleanup temporary files (but preserve logs for debugging)
+        try:
+            work_dir = Path("/workspace")
+            training_data_path = work_dir / "training_data"
+            output_path = work_dir / "output"
+            
+            if training_data_path.exists():
+                shutil.rmtree(training_data_path)
+            if output_path.exists():
+                shutil.rmtree(output_path)
+                
+            logger.info(f"🧹 Cleaned up temporary training files")
+        except Exception as e:
+            logger.warning(f"⚠️ Cleanup failed: {e}")
+
 def handler(job):
-    """Enhanced RunPod handler with full error handling"""
+    """Enhanced RunPod handler with background processing to prevent timeout"""
     job_input = job['input']
     job_id = job_input['job_id']
     webhook_url = job_input.get('webhook_url')
@@ -504,6 +906,32 @@ def handler(job):
         logger.info(f"🔍 Debug - First image URL: {job_input['imageUrls'][0] if job_input['imageUrls'] else 'None'}")
     
     try:
+        # Send immediate acknowledgment to prevent timeout
+        send_webhook(webhook_url, {
+            'job_id': job_id,
+            'status': 'IN_PROGRESS',
+            'progress': 2,
+            'message': 'Job received and starting...'
+        })
+        
+        # Start training in background thread to prevent RunPod serverless timeout
+        import threading
+        
+        def background_training():
+            run_training_process(job_input, job_id, webhook_url)
+        
+        # Start daemon thread (dies when main process ends)
+        training_thread = threading.Thread(target=background_training, daemon=False)
+        training_thread.start()
+        
+        logger.info(f"🎯 Handler returning early - training continues in background thread")
+        
+        # Return success immediately to prevent RunPod timeout
+        return {
+            "status": "started",
+            "job_id": job_id,
+            "message": "Training started in background"
+        }
         # Initial status
         send_webhook(webhook_url, {
             'job_id': job_id,
