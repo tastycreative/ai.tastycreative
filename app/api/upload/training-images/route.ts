@@ -18,7 +18,7 @@ const MAX_FILES_PER_BATCH = 5; // Limit concurrent uploads
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
 // Configure route for large payloads
-export const maxDuration = 900; // 15 minutes (increased for larger batches)
+export const maxDuration = 300; // 5 minutes (Vercel hobby plan limit)
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
