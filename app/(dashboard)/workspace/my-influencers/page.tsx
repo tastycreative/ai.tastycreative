@@ -339,38 +339,77 @@ export default function MyInfluencersPage() {
     comfyUIPath: string;
     networkVolumePath?: string;
   }> => {
-    console.log(`🚀 Starting direct S3 upload for ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) via server proxy`);
+    console.log(`🚀 Starting chunked S3 upload for ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`);
 
     if (!apiClient) {
       throw new Error('API client is not initialized');
     }
 
-    // Create FormData for the upload
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('displayName', displayName);
-
-    // Note: Progress tracking is not available with apiClient.postFormData
-    // For large files, we'll show indeterminate progress
-    if (onProgress) {
-      onProgress(50); // Show 50% progress during upload
-    }
-
-    // Upload via our server proxy (bypasses CORS issues)
-    const response = await apiClient.postFormData('/api/user/influencers/direct-s3-upload', formData);
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Upload failed: ${response.status}`);
-    }
-
-    const result = await response.json();
+    // Define chunk size (4MB - well under Vercel's 6MB limit)
+    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
-    if (onProgress) {
-      onProgress(100); // Complete
+    console.log(`📦 Splitting ${file.name} into ${totalChunks} chunks of ~${Math.round(CHUNK_SIZE / 1024 / 1024)}MB each`);
+
+    let uploadId: string | undefined;
+    let result: any;
+
+    // Upload chunks sequentially
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      const start = chunkIndex * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+
+      console.log(`📤 Uploading chunk ${chunkIndex + 1}/${totalChunks} (${Math.round(chunk.size / 1024)}KB)`);
+
+      // Create FormData for the chunk
+      const formData = new FormData();
+      formData.append('chunk', chunk);
+      formData.append('chunkIndex', chunkIndex.toString());
+      formData.append('totalChunks', totalChunks.toString());
+      formData.append('fileName', file.name);
+      formData.append('displayName', displayName);
+      
+      if (uploadId) {
+        formData.append('uploadId', uploadId);
+      }
+
+      // Upload chunk
+      const response = await apiClient.postFormData('/api/user/influencers/chunked-s3-upload', formData);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+        throw new Error(errorData.error || `Chunk ${chunkIndex + 1} upload failed: ${response.status}`);
+      }
+
+      const chunkResult = await response.json();
+
+      if (!chunkResult.success) {
+        throw new Error(`Chunk ${chunkIndex + 1} upload failed: ${chunkResult.error || 'Unknown error'}`);
+      }
+
+      // Update upload ID for subsequent chunks
+      if (chunkIndex === 0) {
+        uploadId = chunkResult.uploadId;
+      }
+
+      // Update progress
+      if (onProgress) {
+        const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
+        onProgress(progress);
+      }
+
+      // Store final result from last chunk
+      if (chunkResult.completed) {
+        result = chunkResult;
+        console.log(`✅ Chunked S3 upload completed: ${result.uniqueFileName}`);
+        break;
+      }
     }
 
-    console.log(`✅ Direct S3 upload completed: ${result.uniqueFileName}`);
+    if (!result) {
+      throw new Error('Upload completed but no final result received');
+    }
 
     return {
       success: true,
