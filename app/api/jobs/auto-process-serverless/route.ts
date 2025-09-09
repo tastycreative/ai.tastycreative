@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
         if (statusData.status === 'COMPLETED' && statusData.output && statusData.output.images) {
           console.log(`🎉 Found completed job with ${statusData.output.images.length} images: ${job.id}`);
           
-          let images: string[] = [];
+          const images: string[] = [];
           
           for (let i = 0; i < statusData.output.images.length; i++) {
             const imageData = statusData.output.images[i];

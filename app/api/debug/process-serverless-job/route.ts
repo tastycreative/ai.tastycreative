@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Process images
-    let images: string[] = [];
+    const images: string[] = [];
     
     if (statusData.output && statusData.output.images && statusData.output.images.length > 0) {
       console.log(`🖼️ Processing ${statusData.output.images.length} images...`);

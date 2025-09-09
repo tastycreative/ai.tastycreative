@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     // Map RunPod status to our status
     let ourStatus = existingJob.status;
     let progress = existingJob.progress || 0;
-    let images: string[] = [];
+    const images: string[] = [];
     let message = 'Processing...';
 
     switch (statusData.status) {
