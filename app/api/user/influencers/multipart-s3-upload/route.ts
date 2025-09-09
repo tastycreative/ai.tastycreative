@@ -3,9 +3,8 @@ import { auth } from '@clerk/nextjs/server';
 import { S3Client, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, UploadPartCommand } from '@aws-sdk/client-s3';
 
 import { writeFile, readFile, unlink } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { tmpdir } from 'os';
 
 // Upload session interface
 interface UploadSession {
@@ -16,21 +15,46 @@ interface UploadSession {
   totalParts: number;
 }
 
+// Use /tmp directory specifically for Vercel
+const SESSION_DIR = '/tmp/multipart-sessions';
+
+// Ensure session directory exists
+function ensureSessionDir() {
+  if (!existsSync(SESSION_DIR)) {
+    mkdirSync(SESSION_DIR, { recursive: true });
+    console.log(`📁 Created session directory: ${SESSION_DIR}`);
+  }
+}
+
 // Helper functions for session persistence
-const getSessionPath = (sessionId: string) => join(tmpdir(), `multipart-${sessionId}.json`);
+const getSessionPath = (sessionId: string) => {
+  ensureSessionDir();
+  const tempPath = join(SESSION_DIR, `${sessionId}.json`);
+  console.log(`🗂️ Session path: ${tempPath}`);
+  return tempPath;
+};
 
 async function saveSession(sessionId: string, session: UploadSession): Promise<void> {
   const sessionPath = getSessionPath(sessionId);
+  console.log(`💾 Saving session ${sessionId} to ${sessionPath}`);
   await writeFile(sessionPath, JSON.stringify(session), 'utf-8');
+  console.log(`✅ Session ${sessionId} saved successfully`);
 }
 
 async function loadSession(sessionId: string): Promise<UploadSession | null> {
   const sessionPath = getSessionPath(sessionId);
-  if (!existsSync(sessionPath)) return null;
+  console.log(`📂 Loading session ${sessionId} from ${sessionPath}`);
+  
+  if (!existsSync(sessionPath)) {
+    console.log(`❌ Session file does not exist: ${sessionPath}`);
+    return null;
+  }
   
   try {
     const data = await readFile(sessionPath, 'utf-8');
-    return JSON.parse(data);
+    const session = JSON.parse(data);
+    console.log(`✅ Session ${sessionId} loaded successfully with ${session.parts.length}/${session.totalParts} parts`);
+    return session;
   } catch (error) {
     console.error(`Failed to load session ${sessionId}:`, error);
     return null;
