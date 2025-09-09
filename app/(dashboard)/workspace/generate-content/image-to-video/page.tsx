@@ -1,7 +1,7 @@
 // app/(dashboard)/workspace/generate-content/image-to-video/page.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import {
   Video,
@@ -106,6 +106,182 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
   }
 };
 
+// Enhanced Video Player Component with fallback URLs and MP4 optimization
+const VideoPlayer = ({
+  video,
+  onDownload,
+  onShare,
+}: {
+  video: DatabaseVideo;
+  onDownload: () => void;
+  onShare: () => void;
+}) => {
+  const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Enhanced fallback URL preparation with MP4 optimization
+  const fallbackUrls = useMemo(() => {
+    const urls = [
+      video.dataUrl, // Database-served URL (primary)
+      video.url, // ComfyUI direct URL (fallback)
+      // Add a direct ComfyUI URL constructed from the filename if available
+      video.filename
+        ? `/api/proxy/comfyui/view?filename=${encodeURIComponent(
+            video.filename
+          )}&subfolder=${encodeURIComponent(
+            video.subfolder || ""
+          )}&type=${encodeURIComponent(video.type || "output")}`
+        : null,
+      // Add direct download URL as last resort
+      video.filename ? `/api/videos/${video.id}/data` : null,
+    ].filter(Boolean) as string[];
+
+    return urls;
+  }, [
+    video.dataUrl,
+    video.url,
+    video.filename,
+    video.subfolder,
+    video.type,
+    video.id,
+  ]);
+
+  const handleVideoError = () => {
+    // Try next URL if available
+    if (currentUrlIndex < fallbackUrls.length - 1) {
+      const nextIndex = currentUrlIndex + 1;
+      setCurrentUrlIndex(nextIndex);
+      setIsLoading(true);
+
+      // Force reload the video element
+      if (videoRef.current) {
+        videoRef.current.load();
+      }
+    } else {
+      setHasError(true);
+      setIsLoading(false);
+    }
+  };
+
+  const handleVideoLoad = () => {
+    setIsLoading(false);
+    setHasError(false);
+  };
+
+  const handleCanPlay = () => {
+    setIsLoading(false);
+  };
+
+  // Reset when video changes
+  useEffect(() => {
+    setCurrentUrlIndex(0);
+    setHasError(false);
+    setIsLoading(true);
+  }, [video.id]);
+
+  if (hasError || fallbackUrls.length === 0) {
+    return (
+      <div className="relative group">
+        <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Video could not be loaded
+            </p>
+            <p className="text-xs text-gray-500 mt-1">{video.filename}</p>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex space-x-1">
+            <button
+              onClick={onDownload}
+              className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+              title={`Download ${video.filename}`}
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onShare}
+              className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative group">
+      {isLoading && (
+        <div className="absolute inset-0 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center z-10">
+          <div className="text-center">
+            <Loader2 className="w-6 h-6 animate-spin text-purple-500 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Loading video...
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              URL {currentUrlIndex + 1}/{fallbackUrls.length}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <video
+        ref={videoRef}
+        controls
+        className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+        poster="/video-placeholder.jpg"
+        onError={handleVideoError}
+        onLoadedData={handleVideoLoad}
+        onCanPlay={handleCanPlay}
+        onLoadStart={() => setIsLoading(true)}
+        preload="metadata"
+        playsInline
+        muted={false}
+      >
+        <source src={fallbackUrls[currentUrlIndex]} type="video/mp4" />
+        Your browser does not support the video tag.
+      </video>
+
+      {/* Action buttons */}
+      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex space-x-1">
+          <button
+            onClick={onDownload}
+            className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+            title={`Download ${video.filename}`}
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onShare}
+            className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Video metadata */}
+      <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+          {video.width && video.height
+            ? `${video.width}×${video.height}`
+            : "Unknown size"}
+          {video.fileSize &&
+            ` • ${Math.round((video.fileSize / 1024 / 1024) * 100) / 100}MB`}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function ImageToVideoPage() {
   const apiClient = useApiClient();
 
@@ -130,6 +306,7 @@ export default function ImageToVideoPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingVideos, setIsLoadingVideos] = useState(false);
   const [uploadedImagePreview, setUploadedImagePreview] = useState<
     string | null
   >(null);
@@ -150,6 +327,26 @@ export default function ImageToVideoPage() {
     }
     fetchVideoStats();
   }, []);
+
+  // Auto-fetch videos when current job completes
+  useEffect(() => {
+    if (currentJob?.status === "completed" && currentJob?.id) {
+      const hasVideos =
+        jobVideos[currentJob.id] && jobVideos[currentJob.id].length > 0;
+      const hasResultUrls =
+        currentJob.resultUrls && currentJob.resultUrls.length > 0;
+
+      // If job is completed but we don't have videos yet, try to fetch them
+      if (!hasVideos && !hasResultUrls) {
+        console.log(
+          "🔄 Job completed but no videos found, attempting to fetch..."
+        );
+        setTimeout(() => {
+          fetchJobVideos(currentJob.id);
+        }, 2000); // Wait 2 seconds to allow webhook processing
+      }
+    }
+  }, [currentJob?.status, currentJob?.id]);
 
   // Fetch video statistics
   const fetchVideoStats = async () => {
@@ -174,6 +371,7 @@ export default function ImageToVideoPage() {
   const fetchJobVideos = async (jobId: string): Promise<boolean> => {
     if (!apiClient) return false;
 
+    setIsLoadingVideos(true);
     try {
       console.log("🎬 Fetching database videos for job:", jobId);
 
@@ -194,10 +392,40 @@ export default function ImageToVideoPage() {
       console.log("📊 Job videos data:", data);
 
       if (data.success && data.videos && Array.isArray(data.videos)) {
+        console.log(`✅ Found ${data.videos.length} videos for job ${jobId}`);
         setJobVideos((prev) => ({
           ...prev,
           [jobId]: data.videos,
         }));
+
+        // Also update the current job with result URLs if needed
+        if (data.videos.length > 0) {
+          setCurrentJob((prev) =>
+            prev?.id === jobId
+              ? {
+                  ...prev,
+                  resultUrls: data.videos
+                    .map((v: DatabaseVideo) => v.dataUrl || v.url)
+                    .filter(Boolean),
+                }
+              : prev
+          );
+
+          // Update job history as well
+          setJobHistory((prev) =>
+            prev.map((job) =>
+              job?.id === jobId
+                ? {
+                    ...job,
+                    resultUrls: data.videos
+                      .map((v: DatabaseVideo) => v.dataUrl || v.url)
+                      .filter(Boolean),
+                  }
+                : job
+            )
+          );
+        }
+
         console.log(
           "✅ Updated job videos state for job:",
           jobId,
@@ -212,6 +440,8 @@ export default function ImageToVideoPage() {
     } catch (error) {
       console.error("💥 Error fetching job videos:", error);
       return false;
+    } finally {
+      setIsLoadingVideos(false);
     }
   };
 
@@ -353,13 +583,9 @@ export default function ImageToVideoPage() {
           width: params.width,
           height: params.height,
           upscale_method: "nearest-exact",
-          keep_proportion: "crop",
-          pad_color: "0, 0, 0",
-          crop_position: "center",
-          divisible_by: 2,
-          device: "cpu",
+          crop: "center",
         },
-        class_type: "ImageResizeKJv2",
+        class_type: "ImageScale",
       },
       "81": {
         inputs: {
@@ -493,27 +719,39 @@ export default function ImageToVideoPage() {
     setCurrentJob(null);
 
     try {
-      console.log("=== STARTING I2V GENERATION ===");
+      console.log("=== STARTING I2V SERVERLESS GENERATION ===");
       console.log("Generation params:", params);
 
       const workflow = createWorkflowJson(params);
-      console.log("Created I2V workflow for submission");
+      console.log("Created I2V workflow for serverless submission");
 
-      const response = await apiClient.post("/api/generate/image-to-video", {
-        workflow,
-        params,
-      });
+      // Use the serverless RunPod endpoint
+      const response = await apiClient.post(
+        "/api/generate/image-to-video-runpod",
+        {
+          workflow,
+          params,
+        }
+      );
 
-      console.log("I2V Generation API response status:", response.status);
+      console.log(
+        "I2V Serverless Generation API response status:",
+        response.status
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("I2V Generation failed:", response.status, errorText);
+        console.error(
+          "I2V Serverless Generation failed:",
+          response.status,
+          errorText
+        );
         throw new Error(`Generation failed: ${response.status} - ${errorText}`);
       }
 
-      const { jobId } = await response.json();
+      const { jobId, runpodJobId } = await response.json();
       console.log("Received I2V job ID:", jobId);
+      console.log("Received RunPod job ID:", runpodJobId);
 
       if (!jobId) {
         throw new Error("No job ID received from server");
@@ -529,26 +767,26 @@ export default function ImageToVideoPage() {
       setCurrentJob(newJob);
       setJobHistory((prev) => [newJob, ...prev.filter(Boolean)]);
 
-      // Start polling for job status
+      // Start polling for job status (serverless jobs are handled via webhooks, but we still poll for updates)
       pollJobStatus(jobId);
     } catch (error) {
-      console.error("I2V Generation error:", error);
+      console.error("I2V Serverless Generation error:", error);
       setIsGenerating(false);
       alert(error instanceof Error ? error.message : "Generation failed");
     }
   };
 
-  // Poll job status (similar to text-to-image but adapted for videos)
+  // Poll job status (adapted for serverless - primarily webhook-driven updates)
   const pollJobStatus = async (jobId: string) => {
     if (!apiClient) {
       console.error("API client not ready for polling");
       return;
     }
 
-    console.log("=== STARTING I2V JOB POLLING ===");
-    console.log("Polling I2V job ID:", jobId);
+    console.log("=== STARTING I2V SERVERLESS JOB POLLING ===");
+    console.log("Polling I2V serverless job ID:", jobId);
 
-    const maxAttempts = 300; // 5 minutes for video generation
+    const maxAttempts = 180; // 6 minutes for serverless video generation (webhooks handle most updates)
     let attempts = 0;
 
     const poll = async () => {
@@ -557,20 +795,26 @@ export default function ImageToVideoPage() {
       try {
         attempts++;
         console.log(
-          `Polling attempt ${attempts}/${maxAttempts} for I2V job ${jobId}`
+          `Polling attempt ${attempts}/${maxAttempts} for I2V serverless job ${jobId}`
         );
 
         const response = await apiClient.get(`/api/jobs/${jobId}`);
-        console.log("I2V Job status response:", response.status);
+        console.log("I2V Serverless Job status response:", response.status);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error("I2V Job status error:", response.status, errorText);
+          console.error(
+            "I2V Serverless Job status error:",
+            response.status,
+            errorText
+          );
 
           if (response.status === 404) {
-            console.error("I2V Job not found - this might be a storage issue");
+            console.error(
+              "I2V Serverless Job not found - this might be a storage issue"
+            );
             if (attempts < 10) {
-              setTimeout(poll, 2000);
+              setTimeout(poll, 3000);
               return;
             }
           }
@@ -579,7 +823,7 @@ export default function ImageToVideoPage() {
         }
 
         const job = await response.json();
-        console.log("I2V Job status data:", job);
+        console.log("I2V Serverless Job status data:", job);
 
         if (job.createdAt && typeof job.createdAt === "string") {
           job.createdAt = new Date(job.createdAt);
@@ -601,48 +845,65 @@ export default function ImageToVideoPage() {
         );
 
         if (job.status === "completed") {
-          console.log("I2V Job completed successfully!");
+          console.log("I2V Serverless Job completed successfully!");
           setIsGenerating(false);
 
-          // Fetch videos for completed job
+          // Fetch videos for completed job - try multiple times with delays
           console.log("🔄 Attempting to fetch job videos...");
-          const fetchSuccess = await fetchJobVideos(jobId);
+          let fetchSuccess = false;
+          let attempts = 0;
+          const maxFetchAttempts = 5;
+
+          while (!fetchSuccess && attempts < maxFetchAttempts) {
+            attempts++;
+            console.log(
+              `🔄 Video fetch attempt ${attempts}/${maxFetchAttempts}...`
+            );
+            fetchSuccess = await fetchJobVideos(jobId);
+
+            if (!fetchSuccess && attempts < maxFetchAttempts) {
+              console.log(
+                `🔄 Retrying video fetch in ${attempts * 2} seconds...`
+              );
+              await new Promise((resolve) =>
+                setTimeout(resolve, attempts * 2000)
+              );
+            }
+          }
 
           if (!fetchSuccess) {
-            console.log("🔄 Retrying video fetch after delay...");
-            setTimeout(() => {
-              fetchJobVideos(jobId);
-            }, 3000);
+            console.warn("⚠️ Failed to fetch videos after multiple attempts");
           }
 
           return;
         } else if (job.status === "failed") {
-          console.log("I2V Job failed:", job.error);
+          console.log("I2V Serverless Job failed:", job.error);
           setIsGenerating(false);
           return;
         }
 
-        // Continue polling
+        // For serverless, we rely more on webhooks, so poll less frequently
         if (attempts < maxAttempts) {
-          setTimeout(poll, 2000); // Longer interval for video generation
+          setTimeout(poll, 5000); // 5 second intervals for serverless
         } else {
-          console.error("I2V Polling timeout reached");
+          console.error("I2V Serverless Polling timeout reached");
           setIsGenerating(false);
           setCurrentJob((prev) =>
             prev
               ? {
                   ...prev,
                   status: "failed" as const,
-                  error: "Polling timeout - generation may still be running",
+                  error:
+                    "Polling timeout - serverless generation may still be running",
                 }
               : null
           );
         }
       } catch (error) {
-        console.error("I2V Polling error:", error);
+        console.error("I2V Serverless Polling error:", error);
 
         if (attempts < maxAttempts) {
-          setTimeout(poll, 3000);
+          setTimeout(poll, 5000); // Longer interval on error for serverless
         } else {
           setIsGenerating(false);
           setCurrentJob((prev) =>
@@ -650,7 +911,7 @@ export default function ImageToVideoPage() {
               ? {
                   ...prev,
                   status: "failed" as const,
-                  error: "Failed to get job status",
+                  error: "Failed to get serverless job status",
                 }
               : null
           );
@@ -658,7 +919,7 @@ export default function ImageToVideoPage() {
       }
     };
 
-    setTimeout(poll, 2000);
+    setTimeout(poll, 3000); // Start polling after 3 seconds
   };
 
   // Download video
@@ -761,9 +1022,13 @@ export default function ImageToVideoPage() {
               <h1 className="text-4xl font-bold mb-2 drop-shadow-sm flex items-center space-x-3">
                 <span>Image to Video</span>
                 <span className="text-2xl">🎬</span>
+                <span className="text-sm bg-green-500/20 text-green-300 px-2 py-1 rounded-full font-medium">
+                  Serverless
+                </span>
               </h1>
               <p className="text-purple-100 text-lg font-medium opacity-90 mb-2">
                 Transform static images into captivating videos with AI motion
+                (RunPod Serverless)
               </p>
               <div className="flex items-center space-x-4 text-sm text-purple-100">
                 <div className="flex items-center space-x-1">
@@ -1332,56 +1597,14 @@ export default function ImageToVideoPage() {
                       {/* Show database videos if available */}
                       {jobVideos[currentJob.id] &&
                       jobVideos[currentJob.id].length > 0
-                        ? jobVideos[currentJob.id].map((dbVideo, index) => (
-                            <div
+                        ? // Database videos with dynamic URLs - show all videos, handle errors gracefully
+                          jobVideos[currentJob.id].map((dbVideo, index) => (
+                            <VideoPlayer
                               key={`db-${dbVideo.id}`}
-                              className="relative group"
-                            >
-                              <video
-                                ref={videoRef}
-                                controls
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                poster="/video-placeholder.jpg"
-                              >
-                                <source
-                                  src={dbVideo.dataUrl || dbVideo.url}
-                                  type="video/mp4"
-                                />
-                                Your browser does not support the video tag.
-                              </video>
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex space-x-1">
-                                  <button
-                                    onClick={() => downloadVideo(dbVideo)}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                    title={`Download ${dbVideo.filename}`}
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => shareVideo(dbVideo)}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Video metadata */}
-                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                  {dbVideo.width && dbVideo.height
-                                    ? `${dbVideo.width}×${dbVideo.height}`
-                                    : "Unknown size"}
-                                  {dbVideo.fileSize &&
-                                    ` • ${
-                                      Math.round(
-                                        (dbVideo.fileSize / 1024 / 1024) * 100
-                                      ) / 100
-                                    }MB`}
-                                </div>
-                              </div>
-                            </div>
+                              video={dbVideo}
+                              onDownload={() => downloadVideo(dbVideo)}
+                              onShare={() => shareVideo(dbVideo)}
+                            />
                           ))
                         : // Fallback to legacy URLs
                           currentJob.resultUrls &&
@@ -1443,16 +1666,41 @@ export default function ImageToVideoPage() {
                       </h4>
                       <div className="text-center py-8">
                         <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">
-                            Loading generated videos...
-                          </span>
+                          {isLoadingVideos ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              <span className="text-sm">
+                                Loading generated videos...
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Video className="w-4 h-4" />
+                              <span className="text-sm">
+                                Videos not found - they may still be processing
+                              </span>
+                            </>
+                          )}
                         </div>
                         <button
                           onClick={() => fetchJobVideos(currentJob.id)}
-                          className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm"
+                          disabled={isLoadingVideos}
+                          className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm disabled:opacity-50 disabled:cursor-not-allowed mr-2"
                         >
-                          Refresh Videos
+                          {isLoadingVideos ? "Loading..." : "Refresh Videos"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            console.log("🔍 Current job:", currentJob);
+                            console.log(
+                              "🔍 Job videos:",
+                              jobVideos[currentJob.id]
+                            );
+                            console.log("🔍 All job videos:", jobVideos);
+                          }}
+                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                        >
+                          Debug Info
                         </button>
                       </div>
                     </div>

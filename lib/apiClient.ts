@@ -28,9 +28,13 @@ class AuthenticatedApiClient {
     
     // Build headers with authentication
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       ...options.headers as Record<string, string>,
     };
+    
+    // Only set Content-Type if not FormData (FormData sets its own boundary)
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
     
     // Add Authorization header if we have a token
     if (token) {
@@ -42,11 +46,23 @@ class AuthenticatedApiClient {
     console.log('📋 Request headers:', headers);
     
     if (options.body) {
-      console.log('📦 Request body:', 
-        typeof options.body === 'string' 
-          ? options.body.substring(0, 500) + (options.body.length > 500 ? '...' : '')
-          : options.body
-      );
+      if (options.body instanceof FormData) {
+        console.log('📦 Request body: FormData');
+        // Log FormData entries for debugging
+        for (const [key, value] of options.body.entries()) {
+          if (value instanceof File) {
+            console.log(`  - ${key}: File(${value.name}, ${value.size} bytes)`);
+          } else {
+            console.log(`  - ${key}:`, value);
+          }
+        }
+      } else {
+        console.log('📦 Request body:', 
+          typeof options.body === 'string' 
+            ? options.body.substring(0, 500) + (options.body.length > 500 ? '...' : '')
+            : options.body
+        );
+      }
     }
 
     try {
@@ -136,17 +152,37 @@ class AuthenticatedApiClient {
   async post(url: string, data?: any): Promise<Response> {
     console.log('📝 API Client POST:', url);
     if (data) {
-      console.log('📊 POST Data preview:', 
-        typeof data === 'object' ? JSON.stringify(data).substring(0, 200) + '...' : data
-      );
+      if (data instanceof FormData) {
+        console.log('📊 POST Data: FormData');
+      } else {
+        console.log('📊 POST Data preview:', 
+          typeof data === 'object' ? JSON.stringify(data).substring(0, 200) + '...' : data
+        );
+      }
     }
-    const body = data ? JSON.stringify(data) : undefined;
+    
+    // Handle different data types
+    let body: BodyInit | undefined;
+    if (data instanceof FormData) {
+      body = data; // Send FormData directly
+    } else if (data) {
+      body = JSON.stringify(data); // Stringify other data
+    }
+    
     return this.makeRequest(url, { method: 'POST', body });
   }
 
   async patch(url: string, data?: any): Promise<Response> {
     console.log('🔧 API Client PATCH:', url);
-    const body = data ? JSON.stringify(data) : undefined;
+    
+    // Handle different data types
+    let body: BodyInit | undefined;
+    if (data instanceof FormData) {
+      body = data; // Send FormData directly
+    } else if (data) {
+      body = JSON.stringify(data); // Stringify other data
+    }
+    
     return this.makeRequest(url, { method: 'PATCH', body });
   }
 

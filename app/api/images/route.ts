@@ -1,133 +1,109 @@
-// app/api/images/route.ts - Main images API endpoint
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { 
-  getUserImages, 
-  getImageStats, 
-  deleteImage,
-  type GeneratedImage 
-} from '@/lib/imageStorage';
+import { getUserImages } from '@/lib/imageStorage';
+import { prisma } from '@/lib/database';
 
-// GET - Get user's images
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
+    // Get the authenticated user
+    const { userId } = await auth();
     
-    if (!clerkId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    console.log('🖼️ === IMAGES API GET ===');
-    console.log('👤 User:', clerkId);
-    
+
     const { searchParams } = new URL(request.url);
+    const stats = searchParams.get('stats');
     const includeData = searchParams.get('includeData') === 'true';
-    const jobId = searchParams.get('jobId') || undefined;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
-    const statsOnly = searchParams.get('stats') === 'true';
-    
-    console.log('📋 Parameters:', { includeData, jobId, limit, offset, statsOnly });
-    
-    if (statsOnly) {
-      const stats = await getImageStats(clerkId);
-      console.log('📊 Image stats:', stats);
-      
-      return NextResponse.json({
-        success: true,
-        stats
-      });
+
+    console.log('🔍 API /images called by user:', userId, 'stats:', stats, 'includeData:', includeData);
+
+    if (stats === 'true') {
+      // Get actual image statistics from database
+      try {
+        const [totalImages, imagesWithData, totalSize] = await Promise.all([
+          prisma.generatedImage.count({
+            where: { clerkId: userId }
+          }),
+          prisma.generatedImage.count({
+            where: { 
+              clerkId: userId,
+              data: { not: null }
+            }
+          }),
+          prisma.generatedImage.aggregate({
+            where: { clerkId: userId },
+            _sum: { fileSize: true }
+          })
+        ]);
+
+        // Get format breakdown
+        const formatBreakdown = await prisma.generatedImage.groupBy({
+          by: ['format'],
+          where: { clerkId: userId },
+          _count: { format: true }
+        });
+
+        const formatCounts = formatBreakdown.reduce((acc, item) => {
+          if (item.format) {
+            acc[item.format] = item._count.format;
+          }
+          return acc;
+        }, {} as Record<string, number>);
+
+        const imageStats = {
+          success: true,
+          stats: {
+            totalImages: totalImages || 0,
+            totalSize: totalSize._sum.fileSize || 0,
+            formatBreakdown: formatCounts,
+            imagesWithData: imagesWithData || 0,
+            imagesWithoutData: (totalImages || 0) - (imagesWithData || 0)
+          }
+        };
+
+        console.log('📊 Returning image stats:', imageStats.stats);
+        return NextResponse.json(imageStats);
+      } catch (error) {
+        console.error('Error fetching image stats:', error);
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to fetch image statistics'
+        }, { status: 500 });
+      }
     }
-    
-    const images = await getUserImages(clerkId, {
+
+    // Get user images using the imageStorage function
+    console.log('📡 Fetching user images with options:', { includeData, limit, offset });
+    const images = await getUserImages(userId, {
       includeData,
-      jobId,
       limit,
       offset
     });
-    
-    console.log('✅ Found', images.length, 'images');
-    
-    // Don't return raw data in JSON response if includeData is true
-    // Instead, provide URLs to fetch the data
-    const responseImages = images.map(img => ({
-      ...img,
-      data: img.data ? `Data available (${img.data.length} bytes)` : undefined,
-      dataUrl: img.data ? `/api/images/${img.id}/data` : undefined
-    }));
-    
-    return NextResponse.json({
-      success: true,
-      images: responseImages,
-      count: images.length
-    });
-    
-  } catch (error) {
-    console.error('💥 Error in images API:', error);
-    return NextResponse.json(
-      { 
-        success: false,
-        error: 'Failed to get images',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
-  }
-}
 
-// DELETE - Delete user image
-export async function DELETE(request: NextRequest) {
-  try {
-    const { userId: clerkId } = await auth();
-
-    if (!clerkId) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    // Get imageId from query string
-    const { searchParams } = new URL(request.url);
-    const imageId = searchParams.get('imageId');
-
-    if (!imageId) {
-      return NextResponse.json(
-        { error: 'Missing imageId' },
-        { status: 400 }
-      );
-    }
-
-    console.log('🗑️ Deleting image:', imageId, 'for user:', clerkId);
-
-    const deleted = await deleteImage(imageId, clerkId);
-
-    if (deleted) {
-      return NextResponse.json({
-        success: true,
-        message: 'Image deleted successfully'
+    console.log('✅ Found', images.length, 'images for user:', userId);
+    if (images.length > 0) {
+      console.log('📸 Sample image:', {
+        id: images[0].id,
+        filename: images[0].filename,
+        hasDataUrl: !!images[0].dataUrl,
+        hasUrl: !!images[0].url,
+        dataUrl: images[0].dataUrl,
+        url: images[0].url
       });
-    } else {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to delete image or image not found'
-        },
-        { status: 404 }
-      );
     }
 
+    return NextResponse.json({ 
+      success: true,
+      images: images 
+    });
+
   } catch (error) {
-    console.error('💥 Error deleting image:', error);
+    console.error('Error fetching image data:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to delete image',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

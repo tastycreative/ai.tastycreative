@@ -2,8 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['prisma'],
-  // Note: Body size limit is now configured in route handlers directly
-  // or through middleware, not in next.config
+  
+  // Configure server actions with larger body size limit for file uploads
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb', // Allow up to 10MB uploads
+    },
+  },
   
   // Turbopack configuration to handle @vercel/blob properly
   turbopack: {

@@ -1,64 +1,53 @@
-// app/api/jobs/[jobId]/videos/route.ts - Get videos for a specific job
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { getUserVideos } from '@/lib/videoStorage';
+import { getJobVideos } from '@/lib/videoStorage';
 
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ jobId: string }> }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
-  const params = await context.params;
   try {
-    const { userId: clerkId } = await auth();
-    
-    if (!clerkId) {
+    // Authenticate user
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Authentication required' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const { jobId } = params;
+    const { jobId } = await params;
+    console.log('🎬 Getting videos for job:', jobId);
+
+    // Get videos for job
+    const videos = await getJobVideos(jobId, { includeData: false });
     
-    if (!jobId) {
-      return NextResponse.json(
-        { error: 'Job ID is required' },
-        { status: 400 }
-      );
-    }
-
-    console.log('🎬 Getting videos for job:', jobId, 'user:', clerkId);
-
-    const { searchParams } = new URL(request.url);
-    const includeData = searchParams.get('includeData') === 'true';
-    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
-    const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
-
-    // Get videos for this specific job
-    const videos = await getUserVideos(clerkId, {
-      includeData,
-      jobId,
-      limit,
-      offset
-    });
-
     console.log(`📊 Found ${videos.length} videos for job ${jobId}`);
 
     return NextResponse.json({
       success: true,
-      videos,
-      count: videos.length,
-      jobId
+      videos: videos.map(video => ({
+        id: video.id,
+        filename: video.filename,
+        subfolder: video.subfolder,
+        type: video.type,
+        fileSize: video.fileSize,
+        width: video.width,
+        height: video.height,
+        duration: video.duration,
+        fps: video.fps,
+        format: video.format,
+        createdAt: video.createdAt,
+        url: video.url,        // ComfyUI direct URL (if available)
+        dataUrl: video.dataUrl // Database-served URL
+      })),
+      count: videos.length
     });
 
   } catch (error) {
-    console.error('💥 Error getting videos for job:', error);
+    console.error('❌ Job videos error:', error);
     return NextResponse.json(
-      { 
-        success: false,
-        error: 'Failed to get job videos',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
+      { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

@@ -685,16 +685,17 @@ export default function SkinEnhancerPage() {
     setTimeout(poll, 2000); // Start with 2 second delay for complex workflows
   };
 
-  // Create workflow JSON for skin enhancer
+  // Create workflow JSON for skin enhancer - SIMPLIFIED VERSION without PersonMaskUltra
   const createSkinEnhancerWorkflowJson = (params: EnhancementParams) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
     const useInfluencerLoRA = params.selectedInfluencerLora !== "None";
 
     const workflow: any = {
+      // Initial FLUX generation
       "8": {
         inputs: {
           samples: ["104", 0],
-          vae: ["98", 0],
+          vae: ["102", 0],
         },
         class_type: "VAEDecode",
       },
@@ -705,30 +706,10 @@ export default function SkinEnhancerPage() {
         },
         class_type: "SaveImage",
       },
-      "28": {
-        inputs: {
-          images: ["8", 0],
-          face: true,
-          hair: true,
-          body: true,
-          clothes: false,
-          accessories: false,
-          background: false,
-          confidence: 0.2,
-          detail_method: "VITMatte(local)",
-          detail_erode: 6,
-          detail_dilate: 6,
-          black_point: 0.01,
-          white_point: 0.99,
-          process_detail: true,
-          device: "cuda",
-          max_megapixels: 2,
-        },
-        class_type: "LayerMask: PersonMaskUltra V2",
-      },
+      // Enhanced version using realistic checkpoint
       "31": {
         inputs: {
-          ckpt_name: "epicrealismXL_v8kiss.safetensors",
+          ckpt_name: "epicrealismXL_v8Kiss.safetensors",
         },
         class_type: "CheckpointLoaderSimple",
       },
@@ -746,13 +727,6 @@ export default function SkinEnhancerPage() {
         },
         class_type: "VAEEncode",
       },
-      "38": {
-        inputs: {
-          samples: ["37", 0],
-          mask: ["28", 1],
-        },
-        class_type: "SetLatentNoiseMask",
-      },
       "39": {
         inputs: {
           samples: ["41", 0],
@@ -767,110 +741,13 @@ export default function SkinEnhancerPage() {
           cfg: 0.7,
           sampler_name: "dpmpp_2m",
           scheduler: "karras",
-          denoise: 0.25,
+          denoise: 0.25, // Light enhancement
           model: ["115_2", 0],
           positive: ["113", 0],
           negative: ["35", 0],
-          latent_image: ["38", 0],
+          latent_image: ["37", 0], // Use encoded version of FLUX output
         },
         class_type: "KSampler",
-      },
-      "58": {
-        inputs: {
-          model: ["59", 0],
-          processor: ["60", 0],
-          image: ["39", 0],
-        },
-        class_type: "FaceParse(FaceParsing)",
-      },
-      "59": {
-        inputs: {
-          device: "cpu",
-        },
-        class_type: "FaceParsingModelLoader(FaceParsing)",
-      },
-      "60": {
-        inputs: {},
-        class_type: "FaceParsingProcessorLoader(FaceParsing)",
-      },
-      "62": {
-        inputs: {
-          result: ["58", 1],
-          background: false,
-          skin: false,
-          nose: false,
-          eye_g: false,
-          r_eye: true,
-          l_eye: true,
-          r_brow: false,
-          l_brow: false,
-          r_ear: false,
-          l_ear: false,
-          mouth: false,
-          u_lip: false,
-          l_lip: false,
-          hair: false,
-          hat: false,
-          ear_r: false,
-          neck_l: false,
-          neck: false,
-          cloth: false,
-        },
-        class_type: "FaceParsingResultsParser(FaceParsing)",
-      },
-      "66": {
-        inputs: {
-          mask: ["62", 0],
-          expand: 10,
-          incremental_expandrate: 0,
-          tapered_corners: true,
-          flip_input: false,
-          blur_radius: 4,
-          lerp_alpha: 1,
-          decay_factor: 1,
-          fill_holes: false,
-        },
-        class_type: "GrowMaskWithBlur",
-      },
-      "82": {
-        inputs: {
-          image: ["39", 0],
-          mask: ["84", 0],
-          force_resize_width: 0,
-          force_resize_height: 0,
-        },
-        class_type: "Cut By Mask",
-      },
-      "84": {
-        inputs: {
-          mask: ["66", 0],
-        },
-        class_type: "MaskToImage",
-      },
-      "86": {
-        inputs: {
-          destination: ["39", 0],
-          source: ["82", 0],
-          mask: ["66", 0],
-          x: 0,
-          y: 0,
-          resize_source: false,
-        },
-        class_type: "ImageCompositeMasked",
-      },
-      "98": {
-        inputs: {
-          vae: ["102", 0],
-          device: "cuda:0",
-        },
-        class_type: "OverrideVAEDevice",
-      },
-      "99": {
-        inputs: {
-          clip: ["119", 0],
-          device: "cpu",
-        },
-        class_type: "OverrideCLIPDevice",
       },
       "100": {
         inputs: {
@@ -917,7 +794,7 @@ export default function SkinEnhancerPage() {
       },
       "106": {
         inputs: {
-          text: params.prompt, // Main user prompt (first prompt)
+          text: params.prompt, // Main user prompt
           clip: ["108", 1],
         },
         class_type: "CLIPTextEncode",
@@ -931,10 +808,10 @@ export default function SkinEnhancerPage() {
       "108": {
         inputs: {
           model: ["118", 0],
-          clip: ["99", 0],
+          clip: ["119", 0],
           lora_name: useInfluencerLoRA
             ? params.selectedInfluencerLora
-            : "TI - Girl Version.safetensors",
+            : "real-humans-PublicPrompts.safetensors", // Use existing enhancement LoRA as fallback
           strength_model: useInfluencerLoRA
             ? params.influencerLoraStrength
             : 0.95,
@@ -946,14 +823,14 @@ export default function SkinEnhancerPage() {
       },
       "113": {
         inputs: {
-          text: "closeup photo of a young woman with natural skin imperfections, fine skin pores, and realistic skin tones, photorealistic, soft diffused lighting, subsurface scattering, hyper-detailed shading, dynamic shadows, 8K resolution, cinematic lighting, masterpiece, intricate details, shot on a DSLR with a 50mm lens.", // Fixed second prompt
+          text: "closeup photo of a young woman with natural skin imperfections, fine skin pores, and realistic skin tones, photorealistic, soft diffused lighting, subsurface scattering, hyper-detailed shading, dynamic shadows, 8K resolution, cinematic lighting, masterpiece, intricate details, shot on a DSLR with a 50mm lens.", // Fixed enhancement prompt
           clip: ["115_2", 1],
         },
         class_type: "CLIPTextEncode",
       },
       "114": {
         inputs: {
-          images: ["86", 0],
+          images: ["39", 0], // Save the enhanced result
           filename_prefix: "skin_enhanced",
         },
         class_type: "SaveImage",
@@ -997,7 +874,7 @@ export default function SkinEnhancerPage() {
     };
 
     console.log(
-      "📋 Skin enhancer workflow created with main prompt:",
+      "📋 Simplified skin enhancer workflow created with main prompt:",
       params.prompt
     );
     return workflow;

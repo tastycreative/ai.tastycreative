@@ -95,6 +95,7 @@ export async function saveVideoToDatabase(
   options: {
     saveData?: boolean; // Whether to store actual video bytes
     extractMetadata?: boolean; // Whether to extract video dimensions/duration
+    providedData?: Buffer; // Video data provided directly (from webhook)
   } = {}
 ): Promise<GeneratedVideo | null> {
   console.log('💾 saveVideoToDatabase called with:');
@@ -113,66 +114,105 @@ export async function saveVideoToDatabase(
     let format: string | undefined;
     let metadata: any = {};
 
-    // Download video data if requested
+    // Download video data if requested or use provided data
     if (options.saveData || options.extractMetadata) {
-      // For server-side downloads, always use direct ComfyUI URL with authentication
-      const baseUrl = COMFYUI_URL();
-      const params = new URLSearchParams({
-        filename: pathInfo.filename,
-        subfolder: pathInfo.subfolder,
-        type: pathInfo.type
-      });
-      const directUrl = `${baseUrl}/view?${params.toString()}`;
       
-      console.log('📥 Downloading video from ComfyUI directly:', directUrl);
-      
-      const headers: Record<string, string> = {};
-      const runpodApiKey = process.env.RUNPOD_API_KEY;
-      if (runpodApiKey) {
-        headers['Authorization'] = `Bearer ${runpodApiKey}`;
-        console.log('🔐 Adding RunPod API key authentication');
-      }
-      
-      const response = await fetch(directUrl, {
-        headers,
-        signal: AbortSignal.timeout(60000) // 60 second timeout for videos
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to download video: ${response.status}`);
-      }
-      
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      fileSize = buffer.length;
-      
-      console.log('📊 Downloaded video size:', fileSize, 'bytes');
-      
-      if (options.saveData) {
-        videoData = buffer;
-        console.log('💾 Will save video data to database');
-      }
-      
-      if (options.extractMetadata) {
-        try {
-          const videoMetadata = extractVideoMetadata(buffer, pathInfo.filename);
-          format = videoMetadata.format;
-          width = videoMetadata.width;
-          height = videoMetadata.height;
-          duration = videoMetadata.duration;
-          fps = videoMetadata.fps;
-          
-          metadata = {
-            downloadedAt: new Date().toISOString(),
-            comfyUIInfo: pathInfo,
-            originalSize: fileSize,
-            sourceUrl: directUrl,
-            videoMetadata
-          };
-          
-          console.log('🎬 Extracted video metadata:', { format, width, height, duration, fps, fileSize });
-        } catch (metadataError) {
-          console.warn('⚠️ Failed to extract video metadata:', metadataError);
+      // Use provided data if available (from webhook)
+      if (options.providedData) {
+        console.log('💾 Using provided video data from webhook');
+        videoData = options.providedData;
+        fileSize = videoData.length;
+        
+        console.log('📊 Provided video size:', fileSize, 'bytes');
+        
+        if (options.saveData) {
+          console.log('💾 Will save provided video data to database');
+        }
+        
+        if (options.extractMetadata) {
+          try {
+            const videoMetadata = extractVideoMetadata(videoData, pathInfo.filename);
+            format = videoMetadata.format;
+            width = videoMetadata.width;
+            height = videoMetadata.height;
+            duration = videoMetadata.duration;
+            fps = videoMetadata.fps;
+            
+            metadata = {
+              providedViaWebhook: true,
+              processedAt: new Date().toISOString(),
+              comfyUIInfo: pathInfo,
+              originalSize: fileSize,
+              videoMetadata
+            };
+            
+            console.log('🎬 Extracted video metadata from provided data:', { format, width, height, duration, fps, fileSize });
+          } catch (metadataError) {
+            console.warn('⚠️ Failed to extract video metadata from provided data:', metadataError);
+          }
+        }
+        
+      } else {
+        // Download from ComfyUI (original logic)
+        // For server-side downloads, always use direct ComfyUI URL with authentication
+        const baseUrl = COMFYUI_URL();
+        const params = new URLSearchParams({
+          filename: pathInfo.filename,
+          subfolder: pathInfo.subfolder,
+          type: pathInfo.type
+        });
+        const directUrl = `${baseUrl}/view?${params.toString()}`;
+        
+        console.log('📥 Downloading video from ComfyUI directly:', directUrl);
+        
+        const headers: Record<string, string> = {};
+        const runpodApiKey = process.env.RUNPOD_API_KEY;
+        if (runpodApiKey) {
+          headers['Authorization'] = `Bearer ${runpodApiKey}`;
+          console.log('🔐 Adding RunPod API key authentication');
+        }
+        
+        const response = await fetch(directUrl, {
+          headers,
+          signal: AbortSignal.timeout(60000) // 60 second timeout for videos
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to download video: ${response.status}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        fileSize = buffer.length;
+        
+        console.log('📊 Downloaded video size:', fileSize, 'bytes');
+        
+        if (options.saveData) {
+          videoData = buffer;
+          console.log('💾 Will save video data to database');
+        }
+        
+        if (options.extractMetadata) {
+          try {
+            const videoMetadata = extractVideoMetadata(buffer, pathInfo.filename);
+            format = videoMetadata.format;
+            width = videoMetadata.width;
+            height = videoMetadata.height;
+            duration = videoMetadata.duration;
+            fps = videoMetadata.fps;
+            
+            metadata = {
+              downloadedAt: new Date().toISOString(),
+              comfyUIInfo: pathInfo,
+              originalSize: fileSize,
+              sourceUrl: directUrl,
+              videoMetadata
+            };
+            
+            console.log('🎬 Extracted video metadata:', { format, width, height, duration, fps, fileSize });
+          } catch (metadataError) {
+            console.warn('⚠️ Failed to extract video metadata:', metadataError);
+          }
         }
       }
     }
@@ -286,7 +326,7 @@ export async function getUserVideos(
         subfolder: video.subfolder,
         type: video.type
       }),
-      dataUrl: video.data ? `/api/videos/${video.id}/data` : undefined
+      dataUrl: `/api/videos/${video.id}/data` // Always provide dataUrl since the endpoint serves from database
     }));
     
   } catch (error) {
@@ -342,7 +382,7 @@ export async function getJobVideos(
         subfolder: video.subfolder,
         type: video.type
       }),
-      dataUrl: video.data ? `/api/videos/${video.id}/data` : undefined
+      dataUrl: `/api/videos/${video.id}/data` // Always provide dataUrl since the endpoint serves from database
     }));
     
   } catch (error) {
