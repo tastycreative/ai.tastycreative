@@ -1,53 +1,45 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const COMFYUI_URL = process.env.COMFYUI_URL || 'http://209.53.88.242:14753';
-    
-    console.log(`🔍 Testing ComfyUI connection to: ${COMFYUI_URL}`);
-    
-    // Test basic connectivity
-    const response = await fetch(`${COMFYUI_URL}/system_stats`, {
+    const COMFYUI_URL = process.env.COMFYUI_URL;
+    if (!COMFYUI_URL) {
+      return NextResponse.json({ error: 'ComfyUI URL not configured' }, { status: 500 });
+    }
+
+    // Test ComfyUI connection and get system info
+    const systemInfoResponse = await fetch(`${COMFYUI_URL}/system_stats`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
+        'Accept': 'application/json',
       },
-      // Add timeout to prevent hanging
-      signal: AbortSignal.timeout(10000) // 10 second timeout
     });
-    
-    console.log(`📡 ComfyUI response status: ${response.status}`);
-    
-    if (response.ok) {
-      const data = await response.text();
-      console.log(`✅ ComfyUI is reachable. Response:`, data.substring(0, 200));
-      
+
+    if (!systemInfoResponse.ok) {
       return NextResponse.json({
-        success: true,
-        message: "ComfyUI is reachable",
-        url: COMFYUI_URL,
-        status: response.status,
-        response: data.substring(0, 500)
-      });
-    } else {
-      console.log(`❌ ComfyUI returned error status: ${response.status}`);
-      
-      return NextResponse.json({
-        success: false,
-        message: "ComfyUI returned error status",
-        url: COMFYUI_URL,
-        status: response.status
+        error: `ComfyUI connection failed: ${systemInfoResponse.status}`,
+        comfyui_url: COMFYUI_URL
       }, { status: 500 });
     }
-    
-  } catch (error) {
-    console.error('❌ ComfyUI connection test failed:', error);
-    
+
+    const systemInfo = await systemInfoResponse.json();
+
     return NextResponse.json({
-      success: false,
-      message: "Failed to connect to ComfyUI",
-      url: process.env.COMFYUI_URL || 'http://209.53.88.242:14753',
-      error: error instanceof Error ? error.message : 'Unknown error'
+      success: true,
+      comfyui_url: COMFYUI_URL,
+      connection_status: 'connected',
+      system_info: systemInfo,
+      upload_endpoint: `${COMFYUI_URL}/upload/image`,
+      models_path: 'models/loras/{userId}/',
+      network_volume_path: '/workspace/ComfyUI/models/loras/{userId}/',
+      message: 'ComfyUI is ready for large file uploads'
+    });
+
+  } catch (error) {
+    console.error('❌ ComfyUI test error:', error);
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'Test failed',
+      comfyui_url: process.env.COMFYUI_URL || 'not configured'
     }, { status: 500 });
   }
 }

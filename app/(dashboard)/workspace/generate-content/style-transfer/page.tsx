@@ -500,7 +500,7 @@ export default function StyleTransferPage() {
     }
   };
 
-  // Submit generation
+  // Submit generation - Updated for serverless
   const handleGenerate = async () => {
     if (!apiClient) {
       alert("API client not ready. Please try again.");
@@ -521,7 +521,7 @@ export default function StyleTransferPage() {
     setCurrentJob(null);
 
     try {
-      console.log("=== STARTING STYLE TRANSFER GENERATION ===");
+      console.log("=== STARTING STYLE TRANSFER GENERATION (SERVERLESS) ===");
       console.log("Generation params:", params);
 
       // Upload reference image first
@@ -540,28 +540,37 @@ export default function StyleTransferPage() {
         uploadResult.filename,
         uploadResult.maskFilename
       );
-      console.log("Created style transfer workflow for submission");
+      console.log("Created style transfer workflow for serverless submission");
 
-      const response = await apiClient.post("/api/generate/style-transfer", {
+      // Submit to serverless API endpoint instead of local ComfyUI
+      const response = await apiClient.post("/api/generate/serverless", {
         workflow,
         params,
+        action: "generate_style_transfer",
+        generation_type: "style_transfer",
         referenceImage: uploadResult.filename,
         maskImage: uploadResult.maskFilename,
       });
 
-      console.log("Generation API response status:", response.status);
+      console.log("Serverless API response status:", response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Generation failed:", response.status, errorText);
-        throw new Error(`Generation failed: ${response.status} - ${errorText}`);
+        console.error(
+          "Serverless generation failed:",
+          response.status,
+          errorText
+        );
+        throw new Error(
+          `Serverless generation failed: ${response.status} - ${errorText}`
+        );
       }
 
       const { jobId } = await response.json();
-      console.log("Received job ID:", jobId);
+      console.log("Received serverless job ID:", jobId);
 
       if (!jobId) {
-        throw new Error("No job ID received from server");
+        throw new Error("No job ID received from serverless endpoint");
       }
 
       const newJob: GenerationJob = {
@@ -574,26 +583,28 @@ export default function StyleTransferPage() {
       setCurrentJob(newJob);
       setJobHistory((prev) => [newJob, ...prev.filter(Boolean)]);
 
-      // Start polling for job status
+      // Start polling for job status (serverless webhooks + polling)
       pollJobStatus(jobId);
     } catch (error) {
-      console.error("Generation error:", error);
+      console.error("Serverless generation error:", error);
       setIsGenerating(false);
-      alert(error instanceof Error ? error.message : "Generation failed");
+      alert(
+        error instanceof Error ? error.message : "Serverless generation failed"
+      );
     }
   };
 
-  // Updated poll job status with database image fetching
+  // Updated poll job status for serverless with database image fetching
   const pollJobStatus = async (jobId: string) => {
     if (!apiClient) {
       console.error("API client not ready for polling");
       return;
     }
 
-    console.log("=== STARTING JOB POLLING ===");
-    console.log("Polling job ID:", jobId);
+    console.log("=== STARTING SERVERLESS STYLE TRANSFER JOB POLLING ===");
+    console.log("Polling serverless style transfer job ID:", jobId);
 
-    const maxAttempts = 120; // 2 minutes
+    const maxAttempts = 180; // 6 minutes for serverless style transfer (webhooks handle most updates)
     let attempts = 0;
 
     const poll = async () => {
@@ -602,112 +613,77 @@ export default function StyleTransferPage() {
       try {
         attempts++;
         console.log(
-          `Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
+          `📡 Polling attempt ${attempts}/${maxAttempts} for serverless job: ${jobId}`
         );
 
-        const response = await apiClient.get(`/api/jobs/${jobId}`);
-        console.log("Job status response:", response.status);
+        const response = await apiClient.get(`/api/jobs/${jobId}/status`);
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Job status error:", response.status, errorText);
+        if (response.ok) {
+          const jobStatus = await response.json();
+          console.log("📊 Serverless job status:", jobStatus);
 
-          if (response.status === 404) {
-            console.error("Job not found - this might be a storage issue");
-            if (attempts < 10) {
-              // Retry a few times for new jobs
-              setTimeout(poll, 2000);
-              return;
-            }
-          }
+          const updatedJob: GenerationJob = {
+            id: jobId,
+            status: jobStatus.status || "pending",
+            progress: jobStatus.progress || 0,
+            error: jobStatus.error,
+            createdAt: currentJob?.createdAt || new Date(),
+            lastChecked: new Date().toISOString(),
+            comfyUIPromptId: jobStatus.comfyUIPromptId,
+          };
 
-          throw new Error(`Job status check failed: ${response.status}`);
-        }
+          setCurrentJob(updatedJob);
 
-        const job = await response.json();
-        console.log("Job status data:", job);
-
-        // Handle date conversion safely
-        if (job.createdAt && typeof job.createdAt === "string") {
-          job.createdAt = new Date(job.createdAt);
-        }
-
-        setCurrentJob(job);
-        setJobHistory((prev) =>
-          prev
-            .map((j) => {
-              if (j?.id === jobId) {
-                return {
-                  ...job,
-                  createdAt: job.createdAt || j.createdAt,
-                };
-              }
-              return j;
-            })
-            .filter(Boolean)
-        );
-
-        if (job.status === "completed") {
-          console.log("Job completed successfully!");
-          setIsGenerating(false);
-
-          // Fetch database images for completed job with retry logic
-          console.log("🔄 Attempting to fetch job images...");
-          const fetchSuccess = await fetchJobImages(jobId);
-
-          // If fetch failed or no images found, retry after a short delay
-          if (!fetchSuccess) {
-            console.log("🔄 Retrying image fetch after delay...");
-            setTimeout(() => {
-              fetchJobImages(jobId);
-            }, 3000);
-          }
-
-          return;
-        } else if (job.status === "failed") {
-          console.log("Job failed:", job.error);
-          setIsGenerating(false);
-          return;
-        }
-
-        // Continue polling
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 1000);
-        } else {
-          console.error("Polling timeout reached");
-          setIsGenerating(false);
-          setCurrentJob((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  status: "failed" as const,
-                  error: "Polling timeout - generation may still be running",
-                }
-              : null
+          // Update job history
+          setJobHistory((prev) =>
+            prev.map((job) => (job.id === jobId ? updatedJob : job))
           );
+
+          if (jobStatus.status === "completed") {
+            console.log("🎉 Serverless style transfer job completed!");
+
+            // Fetch database images for completed job
+            const imagesLoaded = await fetchJobImages(jobId);
+            console.log("📸 Database images loaded:", imagesLoaded);
+
+            // Refresh image stats
+            await fetchImageStats();
+
+            setIsGenerating(false);
+            console.log(
+              "✅ Serverless style transfer polling completed successfully"
+            );
+            return;
+          } else if (jobStatus.status === "failed") {
+            console.error(
+              "💥 Serverless style transfer job failed:",
+              jobStatus.error
+            );
+            setIsGenerating(false);
+            alert(`Serverless style transfer failed: ${jobStatus.error}`);
+            return;
+          }
+        } else {
+          console.warn(`⚠️ Status check failed: ${response.status}`);
         }
       } catch (error) {
-        console.error("Polling error:", error);
+        console.error("💥 Polling error:", error);
+      }
 
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 2000); // Retry with longer delay
-        } else {
-          setIsGenerating(false);
-          setCurrentJob((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  status: "failed" as const,
-                  error: "Failed to get job status",
-                }
-              : null
-          );
-        }
+      // Continue polling if not complete and within limits
+      if (attempts < maxAttempts) {
+        setTimeout(poll, 3000); // Poll every 3 seconds for serverless
+      } else {
+        console.error("❌ Serverless style transfer polling timeout");
+        setIsGenerating(false);
+        alert(
+          "Style transfer generation timeout - please check your job status"
+        );
       }
     };
 
-    // Start polling after a short delay
-    setTimeout(poll, 1000);
+    // Start polling after 3 seconds (give serverless time to start)
+    setTimeout(poll, 3000);
   };
 
   // Create workflow JSON for style transfer - matches your ComfyUI workflow exactly
@@ -795,18 +771,20 @@ export default function StyleTransferPage() {
       },
       "44": {
         inputs: {
-          conditioning: ["6", 0],
-          style_model: ["42", 0],
           clip_vision: ["43", 0],
           image: ["155", 0],
-          mask: maskFilename ? ["157", 0] : ["155", 1], // Use ImageToMask output if mask provided, otherwise LoadImage mask output
-          downsampling_factor: params.downsamplingFactor,
-          downsampling_function: params.downsamplingFunction,
-          mode: params.mode,
-          weight: params.weight,
-          autocrop_margin: params.autocropMargin,
         },
-        class_type: "ReduxAdvanced",
+        class_type: "CLIPVisionEncode",
+      },
+      "44_redux": {
+        inputs: {
+          conditioning: ["6", 0], // Text conditioning
+          style_model: ["42", 0], // Style model
+          clip_vision_output: ["44", 0], // Image conditioning
+          strength: params.weight,
+          strength_type: "multiply",
+        },
+        class_type: "StyleModelApplyAdvanced",
       },
       "50": {
         inputs: {
@@ -816,7 +794,7 @@ export default function StyleTransferPage() {
       },
       "41": {
         inputs: {
-          conditioning: ["44", 0],
+          conditioning: ["44_redux", 0],
           guidance: params.guidance,
         },
         class_type: "FluxGuidance",

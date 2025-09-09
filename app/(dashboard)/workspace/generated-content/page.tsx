@@ -114,8 +114,12 @@ export default function GeneratedContentPage() {
   // Fetch images and stats
   useEffect(() => {
     if (apiClient) {
-      fetchContent();
-      fetchStats();
+      // First auto-process any completed serverless jobs
+      autoProcessServerlessJobs().then(() => {
+        // Then fetch the content
+        fetchContent();
+        fetchStats();
+      });
     }
   }, [apiClient]);
 
@@ -221,6 +225,14 @@ export default function GeneratedContentPage() {
       console.log("📊 Raw images count:", imagesData.images?.length || 0);
       console.log("📊 Raw videos count:", videosData.videos?.length || 0);
 
+      // NEW: More detailed debugging
+      if (imagesData.success === false) {
+        console.error("❌ Images API returned error:", imagesData.error);
+      }
+      if (videosData.success === false) {
+        console.error("❌ Videos API returned error:", videosData.error);
+      }
+
       // Debug individual images
       if (
         imagesData.success &&
@@ -235,12 +247,13 @@ export default function GeneratedContentPage() {
             jobId: img.jobId,
             hasDataUrl: !!img.dataUrl,
             hasUrl: !!img.url,
+            dataUrl: img.dataUrl,
+            url: img.url,
             createdAt: img.createdAt,
             fileSize: img.fileSize,
           });
         });
       }
-
       if (imagesData.success && imagesData.images) {
         // Convert string dates to Date objects
         const processedImages = imagesData.images.map((img: any) => ({
@@ -357,6 +370,33 @@ export default function GeneratedContentPage() {
       }
     } catch (error) {
       console.error("Error fetching stats:", error);
+    }
+  };
+
+  // Auto-process serverless jobs
+  const autoProcessServerlessJobs = async () => {
+    if (!apiClient) {
+      console.error("❌ API client not available for auto-processing");
+      return;
+    }
+
+    try {
+      console.log("🔄 Auto-processing serverless jobs...");
+      const response = await apiClient.post(
+        "/api/jobs/auto-process-serverless",
+        {}
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.jobsProcessed > 0) {
+          console.log(
+            `✅ Auto-processed ${result.jobsProcessed} jobs with ${result.imagesProcessed} images`
+          );
+        }
+      }
+    } catch (error) {
+      console.error("❌ Auto-processing error:", error);
     }
   };
 
@@ -1177,11 +1217,33 @@ export default function GeneratedContentPage() {
                         muted
                         onError={(e) => {
                           console.error("Video load error for:", item.filename);
+                          console.log(
+                            "Current src:",
+                            (e.target as HTMLVideoElement).src
+                          );
+                          console.log("dataUrl:", item.dataUrl);
+                          console.log("url:", item.url);
+
                           const currentSrc = (e.target as HTMLVideoElement).src;
-                          if (currentSrc === item.dataUrl && item.url) {
+                          const currentPath =
+                            new URL(currentSrc).pathname +
+                            new URL(currentSrc).search;
+
+                          // Check if current URL matches the dataUrl path
+                          if (
+                            item.dataUrl &&
+                            currentPath === item.dataUrl &&
+                            item.url
+                          ) {
                             console.log("Falling back to ComfyUI URL");
                             (e.target as HTMLVideoElement).src = item.url;
-                          } else if (currentSrc === item.url && item.dataUrl) {
+                          }
+                          // Check if current URL matches the ComfyUI URL
+                          else if (
+                            item.url &&
+                            currentSrc === item.url &&
+                            item.dataUrl
+                          ) {
                             console.log("Falling back to database URL");
                             (e.target as HTMLVideoElement).src = item.dataUrl;
                           } else {
@@ -1201,12 +1263,48 @@ export default function GeneratedContentPage() {
                         className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
                         onClick={() => setSelectedItem(item)}
                         onError={(e) => {
-                          console.error("Image load error for:", item.filename);
+                          console.warn(
+                            "⚠️ Image load error for:",
+                            item.filename
+                          );
+
                           const currentSrc = (e.target as HTMLImageElement).src;
-                          if (currentSrc === item.dataUrl && item.url) {
+                          const currentPath =
+                            new URL(currentSrc).pathname +
+                            new URL(currentSrc).search;
+
+                          // For serverless mode, only use dataUrl or placeholder
+                          if (
+                            process.env.NEXT_PUBLIC_RUNPOD_SERVERLESS === "true"
+                          ) {
+                            if (
+                              item.dataUrl &&
+                              currentPath !== "/api/placeholder-image"
+                            ) {
+                              console.log(
+                                "Switching to placeholder for serverless mode"
+                              );
+                              (e.target as HTMLImageElement).src =
+                                "/api/placeholder-image";
+                            }
+                            return;
+                          }
+
+                          // Legacy fallback logic for non-serverless mode
+                          if (
+                            item.dataUrl &&
+                            currentPath === item.dataUrl &&
+                            item.url
+                          ) {
                             console.log("Falling back to ComfyUI URL");
                             (e.target as HTMLImageElement).src = item.url;
-                          } else if (currentSrc === item.url && item.dataUrl) {
+                          }
+                          // Check if current URL matches the ComfyUI URL
+                          else if (
+                            item.url &&
+                            currentSrc === item.url &&
+                            item.dataUrl
+                          ) {
                             console.log("Falling back to database URL");
                             (e.target as HTMLImageElement).src = item.dataUrl;
                           } else {
@@ -1431,14 +1529,30 @@ export default function GeneratedContentPage() {
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => setSelectedItem(item)}
                             onError={(e) => {
-                              console.error(
-                                "List view image load error for:",
+                              console.warn(
+                                "⚠️ List view image load error for:",
                                 item.filename
                               );
 
                               const currentSrc = (e.target as HTMLImageElement)
                                 .src;
 
+                              // For serverless mode, only use dataUrl or placeholder
+                              if (
+                                process.env.NEXT_PUBLIC_RUNPOD_SERVERLESS ===
+                                "true"
+                              ) {
+                                if (currentSrc !== "/api/placeholder-image") {
+                                  console.log(
+                                    "Switching to placeholder for serverless mode"
+                                  );
+                                  (e.target as HTMLImageElement).src =
+                                    "/api/placeholder-image";
+                                }
+                                return;
+                              }
+
+                              // Legacy fallback logic for non-serverless mode
                               if (currentSrc === item.dataUrl && item.url) {
                                 console.log("Falling back to ComfyUI URL");
                                 (e.target as HTMLImageElement).src = item.url;
@@ -1450,7 +1564,7 @@ export default function GeneratedContentPage() {
                                 (e.target as HTMLImageElement).src =
                                   item.dataUrl;
                               } else {
-                                console.error(
+                                console.warn(
                                   "All URLs failed for:",
                                   item.filename
                                 );
@@ -1740,11 +1854,25 @@ export default function GeneratedContentPage() {
                   alt={selectedItem.filename}
                   className="max-w-full max-h-[80vh] object-contain"
                   onError={(e) => {
-                    console.error(
-                      "Modal image load error for:",
+                    console.warn(
+                      "⚠️ Modal image load error for:",
                       selectedItem.filename
                     );
                     const currentSrc = (e.target as HTMLImageElement).src;
+
+                    // For serverless mode, only use dataUrl or placeholder
+                    if (process.env.NEXT_PUBLIC_RUNPOD_SERVERLESS === "true") {
+                      if (currentSrc !== "/api/placeholder-image") {
+                        console.log(
+                          "Modal switching to placeholder for serverless mode"
+                        );
+                        (e.target as HTMLImageElement).src =
+                          "/api/placeholder-image";
+                      }
+                      return;
+                    }
+
+                    // Legacy fallback logic for non-serverless mode
                     if (
                       currentSrc === selectedItem.dataUrl &&
                       selectedItem.url

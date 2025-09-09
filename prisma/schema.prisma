@@ -1,4 +1,3 @@
-// prisma/schema.prisma - Complete with video support and dynamic URL approach
 generator client {
   provider = "prisma-client-js"
   output   = "../lib/generated/prisma"
@@ -10,51 +9,46 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique // Clerk user ID
-  email     String?
-  firstName String?
-  lastName  String?
-  imageUrl  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  influencers    InfluencerLoRA[]
-  jobs           GenerationJob[]
+  id             String           @id @default(cuid())
+  clerkId        String           @unique
+  email          String?
+  firstName      String?
+  lastName       String?
+  imageUrl       String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   images         GeneratedImage[]
   videos         GeneratedVideo[]
+  jobs           GenerationJob[]
+  influencers    InfluencerLoRA[]
+  trainingImages TrainingImage[]
   trainingJobs   TrainingJob[]
-  trainingImages TrainingImage[] // Added training images relation
 
   @@map("users")
 }
 
 model InfluencerLoRA {
-  id               String     @id @default(cuid())
-  clerkId          String     // Link to Clerk user
-  name             String
-  displayName      String
-  fileName         String     @unique
-  originalFileName String
-  fileSize         Int
-  uploadedAt       DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id                 String       @id @default(cuid())
+  clerkId            String
+  name               String
+  displayName        String
+  fileName           String       @unique
+  originalFileName   String
+  fileSize           Int
+  uploadedAt         DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
   description        String?
   thumbnailUrl       String?
-  cloudinaryUrl      String?    // Cloudinary storage URL
-  cloudinaryPublicId String?    // Cloudinary public ID for management
-  // blobUrl          String?    // Vercel Blob storage URL - temporarily disabled
-  isActive           Boolean    @default(true)
-  usageCount       Int        @default(0)
-  comfyUIPath      String?
-  syncStatus       SyncStatus @default(PENDING)
-  lastUsedAt       DateTime?
-  trainingJobId    String?    // Optional link to training job that created this LoRA
-
-  // Relations
-  user        User         @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  trainingJob TrainingJob? @relation(fields: [trainingJobId], references: [id], onDelete: SetNull)
+  cloudinaryUrl      String?
+  cloudinaryPublicId String?
+  isActive           Boolean      @default(true)
+  usageCount         Int          @default(0)
+  comfyUIPath        String?
+  syncStatus         SyncStatus   @default(PENDING)
+  lastUsedAt         DateTime?
+  trainingJobId      String?
+  user               User         @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  trainingJob        TrainingJob? @relation(fields: [trainingJobId], references: [id])
 
   @@index([clerkId])
   @@index([fileName])
@@ -64,27 +58,25 @@ model InfluencerLoRA {
 }
 
 model GenerationJob {
-  id              String      @id @default(cuid())
-  clerkId         String      // Link to Clerk user
-  status          JobStatus   @default(PENDING)
-  progress        Int?        @default(0)
-  resultUrls      String[]    @default([]) // Keep for backward compatibility temporarily
+  id              String           @id @default(cuid())
+  clerkId         String
+  status          JobStatus        @default(PENDING)
+  progress        Int?             @default(0)
+  resultUrls      String[]         @default([])
   error           String?
-  type            GenerationType @default(TEXT_TO_IMAGE) // Added generation type
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  type            GenerationType   @default(TEXT_TO_IMAGE)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   lastChecked     DateTime?
   comfyUIPromptId String?
-  params          Json?       // Store generation parameters as JSON
-
-  // Relations
-  user   User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  images GeneratedImage[]
-  videos GeneratedVideo[] // Added video relation
+  params          Json?
+  images          GeneratedImage[]
+  videos          GeneratedVideo[]
+  user            User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
   @@index([status])
-  @@index([type]) // Added index for generation type
+  @@index([type])
   @@index([createdAt])
   @@index([clerkId, createdAt])
   @@index([clerkId, status])
@@ -92,118 +84,95 @@ model GenerationJob {
   @@map("generation_jobs")
 }
 
-// Updated model for storing images with dynamic URL construction
 model GeneratedImage {
-  id          String   @id @default(cuid())
-  clerkId     String   // Link to Clerk user
-  jobId       String   // Link to generation job
-  
-  // URL-independent path components
-  filename    String   // e.g., "ComfyUI_00001_.png"
-  subfolder   String   @default("") // e.g., "" or "subfolder_name"
-  type        String   @default("output") // e.g., "output", "input", "temp"
-  
-  // Metadata
-  fileSize    Int?
-  width       Int?
-  height      Int?
-  format      String?  // png, jpg, webp, etc.
-  data        Bytes?   // Optional: store actual image data
-  metadata    Json?    // Store additional metadata
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String        @id @default(cuid())
+  clerkId   String
+  jobId     String
+  filename  String
+  subfolder String        @default("")
+  type      String        @default("output")
+  fileSize  Int?
+  width     Int?
+  height    Int?
+  format    String?
+  data      Bytes?
+  metadata  Json?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  job       GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-  // Relations
-  user User           @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job  GenerationJob? @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
+  @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
   @@index([jobId])
   @@index([clerkId, createdAt])
   @@index([format])
   @@index([filename])
-  @@unique([jobId, filename, subfolder, type]) // Prevent duplicates
   @@map("generated_images")
 }
 
-// New model for storing videos with dynamic URL construction
 model GeneratedVideo {
-  id          String   @id @default(cuid())
-  clerkId     String   // Link to Clerk user
-  jobId       String   // Link to generation job
-  
-  // URL-independent path components
-  filename    String   // e.g., "video_00001_.mp4"
-  subfolder   String   @default("") // e.g., "" or "video/ComfyUI/wan2.2"
-  type        String   @default("output") // e.g., "output", "input", "temp"
-  
-  // Video-specific metadata
-  fileSize    Int?     // File size in bytes
-  width       Int?     // Video width in pixels
-  height      Int?     // Video height in pixels
-  duration    Float?   // Duration in seconds
-  fps         Float?   // Frames per second
-  format      String?  // mp4, webm, avi, mov, gif, etc.
-  data        Bytes?   // Optional: store actual video data
-  metadata    Json?    // Store additional metadata (codec, bitrate, etc.)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String        @id @default(cuid())
+  clerkId   String
+  jobId     String
+  filename  String
+  subfolder String        @default("")
+  type      String        @default("output")
+  fileSize  Int?
+  width     Int?
+  height    Int?
+  duration  Float?
+  fps       Float?
+  format    String?
+  data      Bytes?
+  metadata  Json?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  user      User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  job       GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-  // Relations
-  user User           @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job  GenerationJob? @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
+  @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
   @@index([jobId])
   @@index([clerkId, createdAt])
   @@index([format])
   @@index([filename])
-  @@index([duration]) // For sorting by duration
-  @@index([fileSize]) // For sorting by size
-  @@unique([jobId, filename, subfolder, type]) // Prevent duplicates
+  @@index([duration])
+  @@index([fileSize])
   @@map("generated_videos")
 }
 
-// New model for LoRA training jobs
 model TrainingJob {
-  id              String            @id @default(cuid())
-  clerkId         String            // Link to Clerk user
-  name            String            // Training job name
-  description     String?           // Optional description
-  status          TrainingStatus    @default(PENDING)
-  progress        Int?              @default(0) // Progress percentage (0-100)
-  currentStep     Int?              @default(0) // Current training step
-  totalSteps      Int?              // Total training steps
-  runpodJobId     String?           // RunPod job ID
-  runpodPodId     String?           // RunPod pod ID
-  
-  // Configuration and data
-  trainingConfig  Json              // Training configuration (network, train params, etc.)
-  datasetConfig   Json              // Dataset configuration
-  modelConfig     Json              // Base model configuration
-  sampleConfig    Json              // Sample generation configuration
-  
-  // Results and outputs
-  error           String?           // Error message if failed
-  loss            Float?            // Current/final training loss
-  learningRate    Float?            // Current learning rate
-  eta             String?           // Estimated time remaining
-  sampleUrls      String[]          @default([]) // URLs to sample images
-  checkpointUrls  String[]          @default([]) // URLs to saved checkpoints
-  finalModelUrl   String?           // URL to final trained model
-  logUrl          String?           // URL to training logs
-  
-  // Timestamps
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  startedAt       DateTime?         // When training actually started
-  completedAt     DateTime?         // When training completed
-  
-  // Relations
-  user            User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  resultingLoRAs  InfluencerLoRA[]  // LoRAs created from this training job
-  trainingImages  TrainingImage[]   // Images used for training
-  
+  id             String           @id @default(cuid())
+  clerkId        String
+  name           String
+  description    String?
+  status         TrainingStatus   @default(PENDING)
+  progress       Int?             @default(0)
+  currentStep    Int?             @default(0)
+  totalSteps     Int?
+  runpodJobId    String?
+  runpodPodId    String?
+  trainingConfig Json
+  datasetConfig  Json
+  modelConfig    Json
+  sampleConfig   Json
+  error          String?
+  loss           Float?
+  learningRate   Float?
+  eta            String?
+  sampleUrls     String[]         @default([])
+  checkpointUrls String[]         @default([])
+  finalModelUrl  String?
+  logUrl         String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  startedAt      DateTime?
+  completedAt    DateTime?
+  resultingLoRAs InfluencerLoRA[]
+  trainingImages TrainingImage[]
+  user           User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+
   @@index([clerkId])
   @@index([status])
   @@index([clerkId, status])
@@ -212,28 +181,25 @@ model TrainingJob {
   @@map("training_jobs")
 }
 
-// Model for storing training dataset images
 model TrainingImage {
   id            String      @id @default(cuid())
-  clerkId       String      // Link to Clerk user
-  trainingJobId String      // Link to training job
-  filename      String      // Original filename
-  caption       String?     // Optional caption for the image
-  fileSize      Int?        // File size in bytes
-  width         Int?        // Image width
-  height        Int?        // Image height
-  format        String?     // Image format (jpg, png, etc.)
-  storageUrl    String      // URL where image is stored (for RunPod access)
-  localPath     String?     // Local path on RunPod instance
+  clerkId       String
+  trainingJobId String
+  filename      String
+  caption       String?
+  fileSize      Int?
+  width         Int?
+  height        Int?
+  format        String?
+  storageUrl    String
+  localPath     String?
   uploadedAt    DateTime    @default(now())
-  
-  // Relations
-  user        User        @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  trainingJob TrainingJob @relation(fields: [trainingJobId], references: [id], onDelete: Cascade)
-  
+  user          User        @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  trainingJob   TrainingJob @relation(fields: [trainingJobId], references: [id], onDelete: Cascade)
+
+  @@unique([trainingJobId, filename])
   @@index([trainingJobId])
   @@index([clerkId])
-  @@unique([trainingJobId, filename]) // Prevent duplicate filenames per job
   @@map("training_images")
 }
 
@@ -251,25 +217,25 @@ enum JobStatus {
   FAILED
 }
 
-// Training job status enum
 enum TrainingStatus {
-  PENDING      // Job created but not started
-  QUEUED       // Job queued on RunPod
-  INITIALIZING // Setting up training environment
-  PROCESSING   // Training in progress
-  SAMPLING     // Generating sample images
-  SAVING       // Saving checkpoints/final model
-  COMPLETED    // Training completed successfully
-  FAILED       // Training failed
-  CANCELLED    // Training was cancelled
-  TIMEOUT      // Training timed out
+  PENDING
+  QUEUED
+  INITIALIZING
+  PROCESSING
+  SAMPLING
+  SAVING
+  COMPLETED
+  FAILED
+  CANCELLED
+  TIMEOUT
 }
 
-// New enum for generation types
 enum GenerationType {
   TEXT_TO_IMAGE
   IMAGE_TO_VIDEO
   IMAGE_TO_IMAGE
   TEXT_TO_VIDEO
   VIDEO_TO_VIDEO
+  SKIN_ENHANCEMENT
+  FACE_SWAP
 }

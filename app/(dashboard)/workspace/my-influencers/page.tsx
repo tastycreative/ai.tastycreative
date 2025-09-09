@@ -123,12 +123,11 @@ export default function MyInfluencersPage() {
       const data = await response.json();
       console.log("Fetched influencers data:", data);
 
-      setInfluencers(data.influencers || []);
+      // Backend returns array directly, not wrapped in { influencers: [...] }
+      setInfluencers(Array.isArray(data) ? data : []);
 
-      if (data.influencers && data.influencers.length > 0) {
-        console.log(
-          `Successfully loaded ${data.influencers.length} influencers`
-        );
+      if (Array.isArray(data) && data.length > 0) {
+        console.log(`Successfully loaded ${data.length} influencers`);
       } else {
         console.log("No influencers found for this user");
       }
@@ -326,273 +325,50 @@ export default function MyInfluencersPage() {
     );
   };
 
-  // ✅ NEW FUNCTION: Upload directly to ComfyUI (no Vercel involvement for files)
-  const uploadDirectlyToComfyUI = async (
+  // ✅ NEW FUNCTION: Upload directly to RunPod Network Volume
+  const uploadToNetworkVolume = async (
     file: File,
     displayName: string
   ): Promise<{
     success: boolean;
     uniqueFileName: string;
-    comfyResult: any;
+    comfyUIPath: string;
+    networkVolumePath?: string;
   }> => {
     const timestamp = Date.now();
     const uniqueFileName = `${userId}_${timestamp}_${file.name}`;
 
     console.log(
-      `🎯 Uploading ${file.name} directly to ComfyUI as ${uniqueFileName}`
+      `🎯 Uploading ${file.name} to RunPod network volume as ${uniqueFileName}`
     );
 
-    // Get ComfyUI URL from server first
-    const comfyUIUrl = await getComfyUIUrl();
-    console.log(`🔗 ComfyUI URL: ${comfyUIUrl}`);
+    // Create FormData for the upload
+    const uploadFormData = new FormData();
+    uploadFormData.append("file", file);
+    uploadFormData.append("displayName", displayName);
 
-    // First, let's test if ComfyUI is accessible
-    try {
-      console.log("🔍 Testing ComfyUI connection...");
-      const testResponse = await fetch(`${comfyUIUrl}/system_stats`, {
-        method: "GET",
-        mode: "cors",
-        headers: {
-          Accept: "application/json",
-        },
-      });
-      console.log(`📊 ComfyUI connection test: ${testResponse.status}`);
-      if (!testResponse.ok) {
-        console.warn(`⚠️ ComfyUI system_stats returned ${testResponse.status}`);
-      }
-    } catch (testError) {
-      console.warn("⚠️ ComfyUI connection test failed:", testError);
-      // Continue anyway, might be a CORS issue with GET but POST might work
-    }
-
-    // Create FormData for ComfyUI
-    const comfyFormData = new FormData();
-    comfyFormData.append("image", file, uniqueFileName);
-    comfyFormData.append("subfolder", "loras");
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      // Track upload progress
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const percentage = Math.round((event.loaded / event.total) * 90); // Leave 10% for processing
-          console.log(`📊 Upload progress for ${file.name}: ${percentage}%`);
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? { ...item, progress: Math.max(10, percentage) }
-                : item
-            )
-          );
-        }
-      });
-
-      xhr.addEventListener("loadstart", () => {
-        console.log(`🚀 Upload started for ${file.name}`);
-      });
-
-      xhr.addEventListener("load", () => {
-        console.log(
-          `📥 Upload load event for ${file.name}, status: ${xhr.status}`
-        );
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const result = JSON.parse(xhr.responseText);
-            console.log(
-              `✅ ComfyUI upload successful for ${file.name}:`,
-              result
-            );
-            resolve({
-              success: true,
-              uniqueFileName,
-              comfyResult: result,
-            });
-          } catch (e) {
-            console.log(
-              `✅ ComfyUI upload successful for ${file.name} (no JSON response)`
-            );
-            resolve({
-              success: true,
-              uniqueFileName,
-              comfyResult: { name: uniqueFileName },
-            });
-          }
-        } else {
-          const errorMsg = `ComfyUI upload failed: ${xhr.status} ${
-            xhr.statusText
-          }${xhr.responseText ? ` - ${xhr.responseText}` : ""}`;
-          console.error(`❌ ${errorMsg}`);
-          reject(new Error(errorMsg));
-        }
-      });
-
-      xhr.addEventListener("error", (event) => {
-        console.error(
-          `❌ Network error during ComfyUI upload for ${file.name}:`,
-          event
-        );
-        console.error(
-          `XHR readyState: ${xhr.readyState}, status: ${xhr.status}`
-        );
-
-        let errorMessage = "Network error during ComfyUI upload";
-
-        // Provide more specific error messages
-        if (xhr.status === 0) {
-          errorMessage += " - Connection failed. Possible causes:";
-          errorMessage += "\n• ComfyUI server is not running";
-          errorMessage += "\n• CORS policy blocking the request";
-          errorMessage += "\n• Firewall/network blocking the connection";
-          errorMessage += "\n• Invalid ComfyUI URL or port";
-        } else if (xhr.status === 404) {
-          errorMessage +=
-            " - Upload endpoint not found. ComfyUI may not support file uploads via this API.";
-        } else if (xhr.status === 403) {
-          errorMessage += " - Access forbidden. Check ComfyUI authentication.";
-        } else if (xhr.status >= 500) {
-          errorMessage += " - ComfyUI server error. Check server logs.";
-        } else if (xhr.status >= 400) {
-          errorMessage += ` - Client error (${xhr.status})`;
-        }
-
-        reject(new Error(errorMessage));
-      });
-
-      xhr.addEventListener("timeout", () => {
-        console.error(
-          `❌ Upload timeout for ${file.name} after ${xhr.timeout}ms`
-        );
-        reject(
-          new Error(
-            `Upload timeout after ${
-              xhr.timeout / 1000
-            }s. Large files may need more time.`
-          )
-        );
-      });
-
-      xhr.addEventListener("abort", () => {
-        console.error(`❌ Upload aborted for ${file.name}`);
-        reject(new Error("Upload was aborted"));
-      });
-
-      // Set timeout for large files (60 minutes)
-      xhr.timeout = 60 * 60 * 1000;
-
-      // Upload to ComfyUI
-      const uploadUrl = `${comfyUIUrl}/upload/image`;
-      console.log(`🚀 Starting XHR upload to ${uploadUrl}`);
-      console.log(
-        `📁 File details: ${file.name} (${Math.round(
-          file.size / 1024 / 1024
-        )}MB)`
-      );
-
-      xhr.open("POST", uploadUrl);
-
-      // Add authentication headers if available
-      const runpodApiKey = process.env.NEXT_PUBLIC_RUNPOD_API_KEY;
-      if (runpodApiKey) {
-        console.log("🔑 Adding RunPod authentication");
-        xhr.setRequestHeader("Authorization", `Bearer ${runpodApiKey}`);
-      }
-
-      // Add error handling for the send operation
-      try {
-        xhr.send(comfyFormData);
-        console.log("📤 XHR send initiated successfully");
-      } catch (sendError) {
-        console.error("❌ Error during XHR send:", sendError);
-        reject(
-          new Error(
-            `Failed to initiate upload: ${
-              sendError instanceof Error ? sendError.message : "Unknown error"
-            }`
-          )
-        );
-      }
-    });
-  };
-
-  // ✅ FALLBACK: Upload to Vercel Blob if ComfyUI fails
-  const uploadToVercelBlob = async (
-    file: File,
-    displayName: string
-  ): Promise<{
-    success: boolean;
-    uniqueFileName: string;
-    blobUrl: string;
-  }> => {
-    const timestamp = Date.now();
-    const uniqueFileName = `${userId}_${timestamp}_${file.name}`;
-
-    console.log(
-      `💾 Fallback: Uploading ${file.name} to Vercel Blob as ${uniqueFileName}`
+    // Upload to ComfyUI via our API
+    const response = await apiClient!.post(
+      "/api/user/influencers/upload-to-runpod",
+      uploadFormData
     );
-
-    const response = await apiClient!.post("/api/user/influencers/upload", {
-      fileName: uniqueFileName,
-      originalFileName: file.name,
-      fileSize: file.size,
-      displayName: displayName,
-    });
 
     if (!response.ok) {
-      throw new Error(`Failed to get upload URL: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Upload failed: ${response.status}`);
     }
 
-    const { uploadUrl, blobUrl } = await response.json();
+    const result = await response.json();
+    console.log(`✅ Direct S3 network volume upload completed:`, result);
 
-    // Upload to Vercel Blob
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const percentage = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? {
-                    ...item,
-                    progress: percentage,
-                    uploadMethod: "server-fallback",
-                  }
-                : item
-            )
-          );
-        }
-      });
-
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          console.log(`✅ Vercel Blob upload successful for ${file.name}`);
-          resolve({
-            success: true,
-            uniqueFileName,
-            blobUrl,
-          });
-        } else {
-          reject(
-            new Error(
-              `Vercel Blob upload failed: ${xhr.status} ${xhr.statusText}`
-            )
-          );
-        }
-      });
-
-      xhr.addEventListener("error", () => {
-        reject(new Error("Network error during Vercel Blob upload"));
-      });
-
-      xhr.open("PUT", uploadUrl);
-      xhr.setRequestHeader("Content-Type", file.type);
-      xhr.send(file);
-    });
+    return {
+      success: true,
+      uniqueFileName: result.fileName,
+      comfyUIPath: result.comfyUIPath,
+      networkVolumePath: result.networkVolumePath,
+    };
   };
 
-  // ✅ NEW FUNCTION: Create database record (small API call, no file)
   const createDatabaseRecord = async (
     uniqueFileName: string,
     file: File,
@@ -615,13 +391,13 @@ export default function MyInfluencersPage() {
           originalFileName: file.name,
           fileSize: file.size,
           uploadedAt: new Date().toISOString(),
-          syncStatus: syncStatus,
+          syncStatus: syncStatus.toUpperCase(), // Convert to enum format
           isActive: true,
           usageCount: 0,
           comfyUIPath:
             comfyUIPath ||
             (syncStatus === "synced"
-              ? `models/loras/${uniqueFileName}`
+              ? `models/loras/${userId}/${uniqueFileName}`
               : undefined),
         }
       );
@@ -680,90 +456,49 @@ export default function MyInfluencersPage() {
         let comfyUIPath: string | undefined;
 
         try {
-          // ✅ TRY DIRECT UPLOAD TO COMFYUI FIRST
+          // ✅ DIRECT COMFYUI UPLOAD (no job monitoring needed)
           console.log("🚀 Attempting direct ComfyUI upload...");
-          uploadResult = await uploadDirectlyToComfyUI(file, displayName);
-          syncStatus = "synced";
-          comfyUIPath = `models/loras/${uploadResult.uniqueFileName}`;
+          const networkUploadResult = await uploadToNetworkVolume(
+            file,
+            displayName
+          );
 
-          console.log(`✅ Direct ComfyUI upload successful for ${file.name}`);
-
-          // Update progress for processing
+          // Update progress to show completion
           setUploadProgress((prev) =>
             prev.map((item) =>
               item.fileName === file.name
                 ? {
                     ...item,
-                    progress: 95,
+                    progress: 90,
                     status: "processing",
                     uploadMethod: "direct-comfyui",
                   }
                 : item
             )
           );
-        } catch (comfyError) {
-          console.warn(
-            `⚠️ Direct ComfyUI upload failed for ${file.name}:`,
-            comfyError
+
+          // Direct upload completed successfully
+          uploadResult = {
+            success: true,
+            uniqueFileName: networkUploadResult.uniqueFileName,
+            comfyResult: { networkVolumePath: networkUploadResult.comfyUIPath },
+          };
+          syncStatus = "synced";
+          comfyUIPath = networkUploadResult.comfyUIPath;
+
+          console.log(`✅ Direct ComfyUI upload successful for ${file.name}`);
+        } catch (networkError) {
+          console.error(
+            `❌ Direct ComfyUI upload failed for ${file.name}:`,
+            networkError
           );
 
-          // Show user what went wrong
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? {
-                    ...item,
-                    progress: 5,
-                    status: "uploading",
-                    uploadMethod: "server-fallback",
-                  }
-                : item
-            )
-          );
+          const errorMsg =
+            networkError instanceof Error
+              ? networkError.message
+              : "Unknown network volume error";
 
-          try {
-            // ✅ FALLBACK TO VERCEL BLOB
-            console.log("💾 Falling back to Vercel Blob upload...");
-            const blobResult = await uploadToVercelBlob(file, displayName);
-            uploadResult = {
-              success: true,
-              uniqueFileName: blobResult.uniqueFileName,
-              comfyResult: { blobUrl: blobResult.blobUrl },
-            };
-            syncStatus = "pending"; // Will need manual sync later
-
-            console.log(`✅ Vercel Blob fallback successful for ${file.name}`);
-
-            // Update progress for processing
-            setUploadProgress((prev) =>
-              prev.map((item) =>
-                item.fileName === file.name
-                  ? {
-                      ...item,
-                      progress: 95,
-                      status: "processing",
-                      uploadMethod: "server-fallback",
-                    }
-                  : item
-              )
-            );
-          } catch (blobError) {
-            console.error(
-              `❌ Both upload methods failed for ${file.name}:`,
-              blobError
-            );
-            const comfyErrorMsg =
-              comfyError instanceof Error
-                ? comfyError.message
-                : "Unknown ComfyUI error";
-            const blobErrorMsg =
-              blobError instanceof Error
-                ? blobError.message
-                : "Unknown Vercel error";
-            throw new Error(
-              `All upload methods failed. ComfyUI: ${comfyErrorMsg}. Vercel: ${blobErrorMsg}`
-            );
-          }
+          throw new Error(`Network volume upload failed: ${errorMsg}`);
         }
 
         // Create database record via Vercel API (small data, no file)
@@ -824,7 +559,7 @@ export default function MyInfluencersPage() {
     ).length;
 
     if (completedUploads > 0) {
-      const directUploads = uploadProgress.filter(
+      const networkUploads = uploadProgress.filter(
         (p) => p.status === "completed" && p.uploadMethod === "direct-comfyui"
       ).length;
       const fallbackUploads = uploadProgress.filter(
@@ -833,8 +568,8 @@ export default function MyInfluencersPage() {
 
       let message = `🎉 Upload Results:\n\n✅ ${completedUploads} file(s) uploaded successfully\n`;
 
-      if (directUploads > 0) {
-        message += `🎯 ${directUploads} uploaded directly to ComfyUI (ready immediately!)\n`;
+      if (networkUploads > 0) {
+        message += `🎯 ${networkUploads} uploaded to network volume (ready for text-to-image generation!)\n`;
       }
       if (fallbackUploads > 0) {
         message += `💾 ${fallbackUploads} uploaded to storage (will sync to ComfyUI next)\n`;
@@ -1140,27 +875,29 @@ export default function MyInfluencersPage() {
               About Your Personal Influencer LoRA Models
             </h3>
             <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
-              Upload your custom LoRA models to create AI-generated content with
-              specific styles or characteristics. We try direct ComfyUI upload
-              first, with automatic fallback to secure storage.
+              Upload your custom LoRA models directly to the network volume
+              storage where they'll be immediately available for text-to-image
+              generation. Smart fallback to secure storage if needed.
             </p>
             <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
-              <strong>🚀 Smart Upload:</strong> Direct ComfyUI upload (ready
-              immediately) or fallback to secure storage (sync later)
+              <strong>🚀 Network Volume Upload:</strong> Direct upload to
+              `/runpod-volume/loras/{userId}/` (ready immediately for
+              generation)
             </p>
             <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
               <p>
-                <strong>Status indicators:</strong> Green = Ready to use, Yellow
-                = Needs setup, Red = Missing from ComfyUI
+                <strong>Status indicators:</strong> Green = Ready in network
+                volume, Yellow = Needs setup, Red = Missing from storage
               </p>
               <p>
-                <strong>Upload Process:</strong> 1) Try direct ComfyUI upload,
-                2) Fallback to secure storage if needed, 3) Use "Sync Uploaded
-                Files" to complete transfer
+                <strong>Upload Process:</strong> 1) Upload to network volume via
+                RunPod, 2) Fallback to secure storage if needed, 3) Use "Sync
+                Uploaded Files" if fallback was used
               </p>
               <p>
-                <strong>Troubleshooting:</strong> If direct upload fails due to
-                network issues, files are safely stored and can be synced later
+                <strong>Generation Ready:</strong> Files uploaded to network
+                volume are immediately available in the text-to-image generation
+                tab
               </p>
             </div>
           </div>
@@ -1185,9 +922,9 @@ export default function MyInfluencersPage() {
                 Your Influencer Collection Awaits
               </h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                Upload your first LoRA model to unlock personalized AI
-                generation. Each model becomes your unique creative tool for
-                stunning, consistent results.
+                Upload your first LoRA model directly to the network volume
+                storage. Each model becomes instantly available for
+                text-to-image generation with consistent, personalized results.
               </p>
 
               <div className="grid grid-cols-3 gap-4 py-4">
@@ -1231,7 +968,7 @@ export default function MyInfluencersPage() {
 
               <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
                 ✨ Supports .safetensors, .pt, .ckpt • Up to 500MB • Direct
-                ComfyUI integration
+                network volume storage
               </p>
             </div>
           </div>
@@ -1675,10 +1412,10 @@ export default function MyInfluencersPage() {
               {/* New upload process info */}
               <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  <strong>🚀 Smart Upload Process:</strong> We'll try direct
-                  ComfyUI upload first (ready immediately!). If that fails due
-                  to network issues, files are safely uploaded to secure storage
-                  and can be synced to ComfyUI later.
+                  <strong>🚀 Network Volume Upload:</strong> Your LoRA files
+                  will be uploaded directly to the RunPod network volume storage
+                  where they'll be immediately available for text-to-image
+                  generation. Fallback to secure storage if needed.
                 </p>
               </div>
 

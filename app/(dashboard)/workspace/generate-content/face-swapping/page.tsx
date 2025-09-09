@@ -141,7 +141,7 @@ export default function FaceSwappingPage() {
 
   const [params, setParams] = useState<FaceSwapParams>({
     prompt:
-      "Retain face. fit the face perfectly to the body. natural realistic eyes, match the skin tone of the body to the face",
+      "Replace the face in the masked area with the face from the right side of the image. Maintain natural lighting, skin tone matching, and seamless blending. High quality realistic portrait.",
     width: 832,
     height: 1216,
     batchSize: 1,
@@ -166,7 +166,7 @@ export default function FaceSwappingPage() {
     forceHeight: 1216,
     rescaleFactor: 1,
     denoise: 1,
-    teaCacheEnabled: true,
+    teaCacheEnabled: false, // Disabled for serverless compatibility
   });
 
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
@@ -212,7 +212,7 @@ export default function FaceSwappingPage() {
   // Simple masking states
   const [isDrawing, setIsDrawing] = useState(false);
   const [brushTool, setBrushTool] = useState<"brush" | "eraser">("brush");
-  const [brushSize, setBrushSize] = useState(20);
+  const [brushSize, setBrushSize] = useState(50);
   const [showMask, setShowMask] = useState(true);
 
   // Database image states
@@ -463,8 +463,14 @@ export default function FaceSwappingPage() {
     if (hasContent) {
       const maskDataUrl = maskCanvas.toDataURL("image/png");
       setMaskData(maskDataUrl);
+      console.log("🎭 Mask data generated:", {
+        hasContent: true,
+        dataUrlLength: maskDataUrl.length,
+        preview: maskDataUrl.substring(0, 50) + "...",
+      });
     } else {
       setMaskData(null);
+      console.log("🎭 Mask cleared - no content detected");
     }
   }, []);
 
@@ -774,10 +780,20 @@ export default function FaceSwappingPage() {
 
       // Add mask data if present
       if (maskDataUrl) {
+        console.log("🎭 Processing mask data for upload...");
+        console.log("Mask data URL length:", maskDataUrl.length);
+
         // Convert data URL to blob
         const maskResponse = await fetch(maskDataUrl);
         const maskBlob = await maskResponse.blob();
         originalFormData.append("mask", maskBlob, "mask.png");
+
+        console.log("✅ Mask blob created and added to form data:", {
+          size: maskBlob.size,
+          type: maskBlob.type,
+        });
+      } else {
+        console.log("⚠️ No mask data URL provided for upload");
       }
 
       const originalResponse = await apiClient.postFormData(
@@ -861,7 +877,7 @@ export default function FaceSwappingPage() {
     setCurrentJob(null);
 
     try {
-      console.log("=== STARTING FACE SWAP GENERATION ===");
+      console.log("=== STARTING FACE SWAP GENERATION (SERVERLESS) ===");
       console.log("Generation params:", params);
 
       // Upload both images
@@ -881,15 +897,24 @@ export default function FaceSwappingPage() {
       );
       console.log("Created face swap workflow for submission");
 
-      const response = await apiClient.post("/api/generate/face-swap", {
-        workflow,
-        params,
-        originalImage: uploadResult.originalFilename,
-        newFaceImage: uploadResult.newFaceFilename,
-        maskImage: uploadResult.maskFilename,
-      });
+      // Create serverless job using same pattern as text-to-image
+      const response = await apiClient.post(
+        "/api/generate/face-swap-serverless",
+        {
+          action: "generate_face_swap",
+          workflow,
+          params,
+          originalFilename: uploadResult.originalFilename,
+          newFaceFilename: uploadResult.newFaceFilename,
+          maskFilename: uploadResult.maskFilename,
+          generationType: "face_swap",
+        }
+      );
 
-      console.log("Generation API response status:", response.status);
+      console.log(
+        "Serverless generation API response status:",
+        response.status
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -897,7 +922,10 @@ export default function FaceSwappingPage() {
         throw new Error(`Generation failed: ${response.status} - ${errorText}`);
       }
 
-      const { jobId } = await response.json();
+      const data = await response.json();
+      console.log("Serverless response data:", data);
+
+      const jobId = data.jobId;
       console.log("Received job ID:", jobId);
 
       if (!jobId) {
@@ -917,13 +945,13 @@ export default function FaceSwappingPage() {
       // Start polling for job status
       pollJobStatus(jobId);
     } catch (error) {
-      console.error("Generation error:", error);
+      console.error("Face swap generation error:", error);
       setIsGenerating(false);
       alert(error instanceof Error ? error.message : "Generation failed");
     }
   };
 
-  // Updated poll job status with database image fetching
+  // Updated poll job status with database image fetching and gallery refresh notification
   const pollJobStatus = async (jobId: string) => {
     if (!apiClient) {
       console.error("❌ API client not available for job polling");
@@ -934,37 +962,35 @@ export default function FaceSwappingPage() {
     console.log("=== STARTING JOB POLLING ===");
     console.log("Polling job ID:", jobId);
 
-    const maxAttempts = 120; // 2 minutes
+    const maxAttempts = 300; // 5 minutes
     let attempts = 0;
 
     const poll = async () => {
       try {
         attempts++;
         console.log(
-          `Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
+          `🔍 Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
         );
 
         const response = await apiClient.get(`/api/jobs/${jobId}`);
-        console.log("Job status response:", response.status);
+        console.log("📡 Job status response:", response.status);
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error("Job status error:", response.status, errorText);
+          console.error("❌ Job status error:", response.status, errorText);
 
-          if (response.status === 404) {
-            console.error("Job not found - this might be a storage issue");
-            if (attempts < 10) {
-              // Retry a few times for new jobs
-              setTimeout(poll, 2000);
-              return;
-            }
+          if (response.status === 404 && attempts < 30) {
+            // Retry for up to 30 attempts for new jobs (serverless jobs might take time to appear)
+            console.log("⏳ Job not found yet, retrying...");
+            setTimeout(poll, 2000);
+            return;
           }
 
           throw new Error(`Job status check failed: ${response.status}`);
         }
 
         const job = await response.json();
-        console.log("Job status data:", job);
+        console.log("📊 Job status data:", job);
 
         // Handle date conversion safely
         if (job.createdAt && typeof job.createdAt === "string") {
@@ -987,11 +1013,11 @@ export default function FaceSwappingPage() {
         );
 
         if (job.status === "completed") {
-          console.log("Job completed successfully!");
+          console.log("🎉 Face swap job completed successfully!");
           setIsGenerating(false);
 
           // Fetch database images for completed job with retry logic
-          console.log("🔄 Attempting to fetch job images...");
+          console.log("�️ Attempting to fetch job images...");
           const fetchSuccess = await fetchJobImages(jobId);
 
           // If fetch failed or no images found, retry after a short delay
@@ -1002,18 +1028,24 @@ export default function FaceSwappingPage() {
             }, 3000);
           }
 
+          // Refresh image stats
+          await fetchImageStats();
+
           return;
         } else if (job.status === "failed") {
-          console.log("Job failed:", job.error);
+          console.log("❌ Face swap job failed:", job.error);
           setIsGenerating(false);
           return;
         }
 
-        // Continue polling
-        if (attempts < maxAttempts) {
+        // Continue polling if still processing
+        if (
+          attempts < maxAttempts &&
+          (job.status === "pending" || job.status === "processing")
+        ) {
           setTimeout(poll, 1000);
-        } else {
-          console.error("Polling timeout reached");
+        } else if (attempts >= maxAttempts) {
+          console.error("⏰ Polling timeout reached");
           setIsGenerating(false);
           setCurrentJob((prev) =>
             prev
@@ -1026,7 +1058,7 @@ export default function FaceSwappingPage() {
           );
         }
       } catch (error) {
-        console.error("Polling error:", error);
+        console.error("❌ Polling error:", error);
 
         if (attempts < maxAttempts) {
           setTimeout(poll, 2000); // Retry with longer delay
@@ -1049,7 +1081,7 @@ export default function FaceSwappingPage() {
     setTimeout(poll, 1000);
   };
 
-  // Create workflow JSON for face swapping - matches your ComfyUI workflow exactly
+  // Create workflow JSON for face swapping - using pure inpainting approach
   const createWorkflowJson = (
     params: FaceSwapParams,
     originalFilename: string,
@@ -1058,75 +1090,12 @@ export default function FaceSwappingPage() {
   ) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
 
+    // Simplified pure inpainting workflow - with face reference
     const workflow: any = {
-      "214": {
-        inputs: {
-          samples: ["346", 0],
-          vae: ["338", 0],
-        },
-        class_type: "VAEDecode",
-      },
-      "221": {
-        inputs: {
-          positive: ["345", 0],
-          negative: ["404", 0],
-          vae: ["338", 0],
-          pixels: ["323", 0],
-          mask: ["403", 0],
-          noise_mask: true,
-        },
-        class_type: "InpaintModelConditioning",
-      },
-      "228": {
-        inputs: {
-          image: ["214", 0],
-          width: ["399", 1],
-          height: ["399", 2],
-          x: 0,
-          y: 0,
-        },
-        class_type: "ImageCrop",
-      },
-      "239": {
-        inputs: {
-          image: originalFilename,
-        },
-        class_type: "LoadImage",
-      },
-      "240": {
-        inputs: {
-          image: newFaceFilename,
-        },
-        class_type: "LoadImage",
-      },
-      "323": {
-        inputs: {
-          image1: ["399", 0],
-          image2: ["175", 0],
-          direction: "right",
-          match_image_size: true,
-        },
-        class_type: "ImageConcanate",
-      },
-      "337": {
-        inputs: {
-          model: ["340", 0],
-          clip: ["341", 0],
-          lora_name: "comfyui_portrait_lora64.safetensors",
-          strength_model: 1,
-          strength_clip: 1,
-        },
-        class_type: "LoraLoader",
-      },
-      "338": {
-        inputs: {
-          vae_name: "ae.safetensors",
-        },
-        class_type: "VAELoader",
-      },
+      // Load models
       "340": {
         inputs: {
-          unet_name: "Flux-FillDevFP8.safetensors",
+          unet_name: "flux1FillDevFp8_v10.safetensors",
           weight_dtype: "default",
         },
         class_type: "UNETLoader",
@@ -1136,213 +1105,215 @@ export default function FaceSwappingPage() {
           clip_name1: "clip_l.safetensors",
           clip_name2: "t5xxl_fp16.safetensors",
           type: "flux",
-          device: "default",
+          dtype: "default",
         },
         class_type: "DualCLIPLoader",
       },
+      "338": {
+        inputs: {
+          vae_name: "ae.safetensors",
+        },
+        class_type: "VAELoader",
+      },
+      // Load LoRA for ACE++ portrait enhancement
+      "337": {
+        inputs: {
+          model: ["340", 0],
+          clip: ["341", 0],
+          lora_name: "comfyui_portrait_lora64.safetensors",
+          strength_model: 1.0,
+          strength_clip: 1.0,
+        },
+        class_type: "LoraLoader",
+      },
+      // Load original image
+      "239": {
+        inputs: {
+          image: originalFilename,
+        },
+        class_type: "LoadImage",
+      },
+      // Load new face image
+      "240": {
+        inputs: {
+          image: newFaceFilename,
+        },
+        class_type: "LoadImage",
+      },
+      // Concatenate for face reference in inpainting
+      "323": {
+        inputs: {
+          image1: ["239", 0],
+          image2: ["240", 0],
+          direction: "right",
+          match_image_size: true,
+        },
+        class_type: "ImageConcanate",
+      },
+      // Create text prompt for face swap with reference to new face
       "343": {
         inputs: {
+          text:
+            params.prompt ||
+            "Replace the face in the masked area with the face from the right side of the image. Maintain natural lighting, skin tone matching, and seamless blending. High quality realistic portrait.",
           clip: ["341", 0],
-          text: params.prompt,
         },
         class_type: "CLIPTextEncode",
       },
+      // Apply Flux guidance
       "345": {
         inputs: {
           conditioning: ["343", 0],
-          guidance: params.guidance,
+          guidance: params.guidance || 50,
         },
         class_type: "FluxGuidance",
       },
-      "346": {
-        inputs: {
-          model: params.teaCacheEnabled ? ["416", 0] : ["337", 0],
-          positive: ["221", 0],
-          negative: ["221", 1],
-          latent_image: ["221", 2],
-          seed: seed,
-          steps: params.steps,
-          cfg: params.cfg,
-          sampler_name: params.samplerName,
-          scheduler: params.scheduler,
-          denoise: params.denoise,
-        },
-        class_type: "KSampler",
-      },
-      "399": {
-        inputs: {
-          image: ["411", 1],
-          width: params.forceWidth,
-          height: params.forceHeight,
-          interpolation: "lanczos",
-          method: "keep proportion",
-          condition: "downscale if bigger",
-          multiple_of: 0,
-        },
-        class_type: "ImageResize+",
-      },
-      "402": {
-        inputs: {
-          mask: ["411", 2],
-          width: ["399", 1],
-          height: ["399", 2],
-          keep_proportions: true,
-          upscale_method: "nearest-exact",
-          crop: "disabled",
-        },
-        class_type: "ResizeMask",
-      },
-      "403": {
-        inputs: {
-          mask: ["185", 0],
-          kernel_size: 30,
-          sigma: 10,
-        },
-        class_type: "ImpactGaussianBlurMask",
-      },
+      // Zero out negative conditioning for Flux
       "404": {
         inputs: {
           conditioning: ["343", 0],
         },
         class_type: "ConditioningZeroOut",
       },
-      "411": {
+      // Inpaint model conditioning - use concatenated image to see both faces
+      "221": {
         inputs: {
-          image: ["239", 0],
-          mask: ["239", 1], // Default to using mask from LoadImage, will be overridden if separate mask is provided
-          optional_context_mask: null,
-          context_expand_pixels: params.contextExpandPixels,
-          context_expand_factor: params.contextExpandFactor,
-          fill_mask_holes: params.fillMaskHoles,
-          blur_mask_pixels: params.blurMaskPixels,
-          invert_mask: params.invertMask,
-          blend_pixels: params.blendPixels,
-          rescale_algorithm: params.rescaleAlgorithm,
-          mode: params.mode,
-          force_width: params.forceWidth,
-          force_height: params.forceHeight,
-          rescale_factor: params.rescaleFactor,
-          min_width: 1024,
-          min_height: 1024,
-          max_width: 768,
-          max_height: 768,
-          padding: 32,
+          positive: ["345", 0],
+          negative: ["404", 0],
+          vae: ["338", 0],
+          pixels: ["323", 0], // Use concatenated image with both faces
+          mask: maskFilename ? ["244", 0] : ["243", 0],
         },
-        class_type: "InpaintCrop",
+        class_type: "InpaintModelConditioning",
       },
-      "412": {
+      // K-Sampler for generation
+      "346": {
         inputs: {
-          stitch: ["411", 0],
-          inpainted_image: ["228", 0],
-          rescale_algorithm: "bislerp",
+          model: ["337", 0],
+          positive: ["221", 0],
+          negative: ["221", 1],
+          latent_image: ["221", 2],
+          seed: seed,
+          control_after_generate: "randomize",
+          steps: params.steps || 25,
+          cfg: params.cfg || 1,
+          sampler_name: params.samplerName || "euler",
+          scheduler: params.scheduler || "normal",
+          denoise: params.denoise || 0.8,
         },
-        class_type: "InpaintStitch",
+        class_type: "KSampler",
       },
+      // VAE Decode
+      "214": {
+        inputs: {
+          samples: ["346", 0],
+          vae: ["338", 0],
+        },
+        class_type: "VAEDecode",
+      },
+      // Crop back to original size (left side of concatenated result)
+      "415": {
+        inputs: {
+          image: ["214", 0],
+          width: params.width || 832,
+          height: params.height || 1216,
+          x: 0,
+          y: 0,
+        },
+        class_type: "ImageCrop",
+      },
+      // Save final result
       "413": {
         inputs: {
-          images: ["412", 0],
-          filename_prefix: "AceFaceSwap/Faceswap",
+          images: ["415", 0],
+          filename_prefix: "PureInpaint_FaceSwap",
         },
         class_type: "SaveImage",
       },
-      "175": {
+      // Preview result
+      "382": {
         inputs: {
-          image: ["240", 0],
-          width: 0,
-          height: ["399", 2],
-          interpolation: "lanczos",
-          method: "keep proportion",
-          condition: "always",
-          multiple_of: 0,
+          images: ["415", 0],
         },
-        class_type: "ImageResize+",
-      },
-      "181": {
-        inputs: {
-          image1: ["182", 0],
-          image2: ["184", 0],
-          direction: "right",
-          match_image_size: true,
-        },
-        class_type: "ImageConcanate",
-      },
-      "182": {
-        inputs: {
-          mask: ["402", 0],
-        },
-        class_type: "MaskToImage",
-      },
-      "184": {
-        inputs: {
-          width: ["175", 1],
-          height: ["175", 2],
-          batch_size: 1,
-          color: 0,
-        },
-        class_type: "EmptyImage",
-      },
-      "185": {
-        inputs: {
-          image: ["181", 0],
-          channel: "red",
-        },
-        class_type: "ImageToMask",
+        class_type: "PreviewImage",
       },
     };
 
-    // Add separate mask loading if mask file is provided
+    console.log("🎭 Pure inpainting face swap workflow created");
+    console.log("📋 Using direct inpainting without crop/stitch");
+    console.log("📁 Files:", {
+      originalFilename,
+      newFaceFilename,
+      maskFilename,
+    });
+
+    // Add mask loading node if mask is provided
     if (maskFilename) {
-      console.log("🎭 Adding separate mask loading node for:", maskFilename);
-      workflow["457"] = {
+      workflow["241"] = {
         inputs: {
           image: maskFilename,
         },
         class_type: "LoadImage",
       };
 
-      // Convert mask image to actual mask
-      workflow["458"] = {
+      // Convert mask image to mask for proper processing
+      workflow["242"] = {
         inputs: {
-          image: ["457", 0],
+          image: ["241", 0],
           channel: "red",
         },
         class_type: "ImageToMask",
       };
 
-      // Update the reference in InpaintCrop to use the uploaded mask
-      workflow["411"].inputs.mask = ["458", 0];
-    }
-
-    // Add TeaCache if enabled
-    if (params.teaCacheEnabled) {
-      workflow["416"] = {
+      // Create empty image with same dimensions as new face
+      workflow["245"] = {
         inputs: {
-          model: ["337", 0],
-          model_type: "flux",
-          rel_l1_thresh: 0.4,
-          start_percent: 0,
-          end_percent: 1,
-          cache_device: "cuda",
+          width: params.width || 832,
+          height: params.height || 1216,
+          batch_size: 1,
+          color: 0,
         },
-        class_type: "TeaCache",
+        class_type: "EmptyImage",
       };
+
+      // Concatenate original mask with empty mask
+      workflow["246"] = {
+        inputs: {
+          image1: ["241", 0], // Original mask image
+          image2: ["245", 0], // Empty image for right side
+          direction: "right",
+          match_image_size: true,
+        },
+        class_type: "ImageConcanate",
+      };
+
+      // Convert concatenated mask image to mask
+      workflow["244"] = {
+        inputs: {
+          image: ["246", 0],
+          channel: "red",
+        },
+        class_type: "ImageToMask",
+      };
+
+      console.log(
+        "🎨 Mask handling: Using painted mask for targeted inpainting on concatenated image"
+      );
+    } else {
+      // When no mask is provided, create mask for left side only (original image area)
+      workflow["243"] = {
+        inputs: {
+          image: ["239", 0],
+          channel: "red",
+        },
+        class_type: "ImageToMask",
+      };
+
+      console.log(
+        "🎨 Mask handling: Created full-coverage mask for original image area"
+      );
     }
 
-    // Add Turbo LoRA if available
-    const turboLora = availableLoRAs.find(
-      (lora) => lora.fileName === "FLUX.1-Turbo-Alpha.safetensors"
-    );
-    if (turboLora) {
-      // Update LoraLoader to handle second LoRA
-      workflow["337"].inputs = {
-        ...workflow["337"].inputs,
-        lora_name2: turboLora.fileName,
-        strength_model2: 1,
-        strength_clip2: 1,
-      };
-    }
-
-    console.log("📋 Workflow created with mask support:", !!maskFilename);
     return workflow;
   };
 
@@ -2222,105 +2193,172 @@ export default function FaceSwappingPage() {
                     </div>
                   )}
 
-                {/* Enhanced image display with dynamic URL support */}
+                {/* Enhanced image display with dynamic URL support - prioritize final results */}
                 {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
                   (jobImages[currentJob.id] &&
                     jobImages[currentJob.id].length > 0)) && (
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Generated Images
+                      Face Swap Results
                     </h4>
 
                     <div className="grid grid-cols-1 gap-3">
-                      {/* Show database images if available */}
+                      {/* Show database images if available - ONLY show final results */}
                       {jobImages[currentJob.id] &&
-                      jobImages[currentJob.id].length > 0
-                        ? // Database images with dynamic URLs
-                          jobImages[currentJob.id].map((dbImage, index) => (
-                            <div
-                              key={`db-${dbImage.id}`}
-                              className="relative group"
-                            >
-                              <img
-                                src={dbImage.dataUrl || dbImage.url}
-                                alt={`Face swap result ${index + 1}`}
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                onError={(e) => {
-                                  console.error(
-                                    "Image load error for:",
-                                    dbImage.filename
-                                  );
+                        jobImages[currentJob.id].length > 0 &&
+                        (() => {
+                          const images = jobImages[currentJob.id];
+                          // ONLY show final face swap results, filter out everything else
+                          const finalResults = images.filter(
+                            (img) =>
+                              img.filename.includes("PureInpaint_FaceSwap") ||
+                              img.filename.includes("face_swap_result") ||
+                              (img.filename.includes("final") &&
+                                !img.filename.includes("temp"))
+                          );
 
-                                  // Smart fallback logic
-                                  const currentSrc = (
-                                    e.target as HTMLImageElement
-                                  ).src;
+                          // Only return final results, no fallback
+                          return finalResults.map((dbImage, index) => {
+                            const isFinalResult = true; // All displayed images are final results
 
-                                  if (
-                                    currentSrc === dbImage.dataUrl &&
-                                    dbImage.url
-                                  ) {
-                                    console.log("Falling back to ComfyUI URL");
-                                    (e.target as HTMLImageElement).src =
-                                      dbImage.url;
-                                  } else if (
-                                    currentSrc === dbImage.url &&
-                                    dbImage.dataUrl
-                                  ) {
-                                    console.log("Falling back to database URL");
-                                    (e.target as HTMLImageElement).src =
-                                      dbImage.dataUrl;
-                                  } else {
+                            return (
+                              <div
+                                key={`db-${dbImage.id}`}
+                                className="relative group ring-2 ring-green-500 ring-opacity-50"
+                              >
+                                <div className="absolute top-2 left-2 z-10">
+                                  <div className="bg-green-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                                    ✨ Final Result
+                                  </div>
+                                </div>
+                                <img
+                                  src={dbImage.dataUrl || dbImage.url}
+                                  alt={`Face swap result ${index + 1}`}
+                                  className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                  onError={(e) => {
                                     console.error(
-                                      "All URLs failed for:",
+                                      "Image load error for:",
                                       dbImage.filename
                                     );
-                                    (
-                                      e.target as HTMLImageElement
-                                    ).style.display = "none";
-                                  }
-                                }}
-                              />
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex space-x-1">
-                                  <button
-                                    onClick={() =>
-                                      downloadDatabaseImage(dbImage)
-                                    }
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                    title={`Download ${dbImage.filename}`}
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => shareImage(dbImage)}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
 
-                              {/* Image metadata */}
-                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                  {dbImage.width && dbImage.height
-                                    ? `${dbImage.width}×${dbImage.height}`
-                                    : "Unknown size"}
-                                  {dbImage.fileSize &&
-                                    ` • ${Math.round(
-                                      dbImage.fileSize / 1024
-                                    )}KB`}
-                                  {dbImage.format &&
-                                    ` • ${dbImage.format.toUpperCase()}`}
+                                    // Smart fallback logic
+                                    const currentSrc = (
+                                      e.target as HTMLImageElement
+                                    ).src;
+
+                                    if (
+                                      currentSrc === dbImage.dataUrl &&
+                                      dbImage.url
+                                    ) {
+                                      console.log(
+                                        "Falling back to ComfyUI URL"
+                                      );
+                                      (e.target as HTMLImageElement).src =
+                                        dbImage.url;
+                                    } else if (
+                                      currentSrc === dbImage.url &&
+                                      dbImage.dataUrl
+                                    ) {
+                                      console.log(
+                                        "Falling back to database URL"
+                                      );
+                                      (e.target as HTMLImageElement).src =
+                                        dbImage.dataUrl;
+                                    } else {
+                                      console.error(
+                                        "All URLs failed for:",
+                                        dbImage.filename
+                                      );
+                                      (
+                                        e.target as HTMLImageElement
+                                      ).style.display = "none";
+                                    }
+                                  }}
+                                />
+                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="flex space-x-1">
+                                    <button
+                                      onClick={() =>
+                                        downloadDatabaseImage(dbImage)
+                                      }
+                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                      title={`Download ${dbImage.filename}`}
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => shareImage(dbImage)}
+                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    >
+                                      <Share2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Image metadata */}
+                                <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                    {dbImage.width && dbImage.height
+                                      ? `${dbImage.width}×${dbImage.height}`
+                                      : "Unknown size"}
+                                    {dbImage.fileSize &&
+                                      ` • ${Math.round(
+                                        dbImage.fileSize / 1024
+                                      )}KB`}
+                                    {dbImage.format &&
+                                      ` • ${dbImage.format.toUpperCase()}`}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))
-                        : // Fallback to legacy URLs if no database images
-                          currentJob.resultUrls &&
-                          currentJob.resultUrls.length > 0 &&
-                          currentJob.resultUrls.map((url, index) => (
+                            );
+                          });
+                        })()}
+
+                      {/* Show message if no final results found */}
+                      {jobImages[currentJob.id] &&
+                        jobImages[currentJob.id].length > 0 &&
+                        (() => {
+                          const images = jobImages[currentJob.id];
+                          const finalResults = images.filter(
+                            (img) =>
+                              img.filename.includes("PureInpaint_FaceSwap") ||
+                              img.filename.includes("face_swap_result") ||
+                              (img.filename.includes("final") &&
+                                !img.filename.includes("temp"))
+                          );
+
+                          if (finalResults.length === 0) {
+                            return (
+                              <div className="text-center py-8">
+                                <div className="text-gray-500 dark:text-gray-400 mb-3">
+                                  <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                  <p className="text-sm">
+                                    Processing face swap...
+                                  </p>
+                                  <p className="text-xs">
+                                    Final result will appear here once ready
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+
+                      {/* Fallback to legacy URLs if no database images - filter for final results */}
+                      {(!jobImages[currentJob.id] ||
+                        jobImages[currentJob.id].length === 0) &&
+                        currentJob.resultUrls &&
+                        currentJob.resultUrls.length > 0 &&
+                        currentJob.resultUrls
+                          .filter(
+                            (url) =>
+                              url.includes("PureInpaint_FaceSwap") ||
+                              url.includes("face_swap_result") ||
+                              (!url.includes("temp") &&
+                                !url.includes("reference"))
+                          )
+                          .map((url, index) => (
                             <div
                               key={`legacy-${currentJob.id}-${index}`}
                               className="relative group"

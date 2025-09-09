@@ -1,60 +1,69 @@
-// app/api/user/influencers/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { PrismaClient } from '@/lib/generated/prisma';
+import { auth } from "@clerk/nextjs/server";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/database";
 
-const prisma = new PrismaClient();
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
     
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log(`🔍 Fetching influencers for user: ${userId}`);
-
+    // Fetch user's influencer LoRAs
     const influencers = await prisma.influencerLoRA.findMany({
-      where: { clerkId: userId },
-      orderBy: { uploadedAt: 'desc' }
+      where: {
+        clerkId: userId,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
     });
 
-    console.log(`✅ Found ${influencers.length} influencers`);
-
-    // Map database fields to frontend interface
-    const mappedInfluencers = influencers.map(influencer => ({
-      id: influencer.id,
-      userId: influencer.clerkId, // Map clerkId to userId for frontend compatibility
-      name: influencer.name,
-      displayName: influencer.displayName,
-      fileName: influencer.fileName,
-      originalFileName: influencer.originalFileName,
-      fileSize: influencer.fileSize,
-      uploadedAt: influencer.uploadedAt.toISOString(),
-      description: influencer.description,
-      thumbnailUrl: influencer.thumbnailUrl,
-      isActive: influencer.isActive,
-      usageCount: influencer.usageCount,
-      // Map enum values to lowercase for frontend compatibility
-      syncStatus: influencer.syncStatus?.toLowerCase() as "pending" | "synced" | "missing" | "error",
-      lastUsedAt: influencer.lastUsedAt?.toISOString(),
-      comfyUIPath: influencer.comfyUIPath
-    }));
-
-    return NextResponse.json({
-      success: true,
-      influencers: mappedInfluencers
-    });
-
+    return NextResponse.json(influencers);
   } catch (error) {
-    console.error('❌ Error fetching influencers:', error);
+    console.error("Error fetching influencers:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch influencers" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const { userId } = await auth();
     
-    return NextResponse.json({
-      error: 'Failed to fetch influencers',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    
+    // Create a new influencer LoRA record
+    const influencer = await prisma.influencerLoRA.create({
+      data: {
+        clerkId: userId,
+        name: body.name,
+        displayName: body.displayName,
+        fileName: body.fileName,
+        originalFileName: body.originalFileName,
+        fileSize: body.fileSize,
+        description: body.description,
+        thumbnailUrl: body.thumbnailUrl,
+        cloudinaryUrl: body.cloudinaryUrl,
+        cloudinaryPublicId: body.cloudinaryPublicId,
+        comfyUIPath: body.comfyUIPath,
+        trainingJobId: body.trainingJobId,
+      },
+    });
+
+    return NextResponse.json(influencer);
+  } catch (error) {
+    console.error("Error creating influencer:", error);
+    return NextResponse.json(
+      { error: "Failed to create influencer" },
+      { status: 500 }
+    );
   }
 }

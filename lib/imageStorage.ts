@@ -19,7 +19,7 @@ export interface GeneratedImage {
   createdAt: Date | string;
   updatedAt: Date | string;
   // Dynamic properties
-  url?: string; // Constructed dynamically
+  url?: string | null; // Constructed dynamically, can be null for serverless
   dataUrl?: string; // For database-served images
 }
 
@@ -30,7 +30,18 @@ export interface ImagePathInfo {
 }
 
 // Helper function to construct ComfyUI URLs dynamically
-export function buildComfyUIUrl(pathInfo: ImagePathInfo): string {
+export function buildComfyUIUrl(pathInfo: ImagePathInfo): string | null {
+  // For serverless RunPod setups, don't provide ComfyUI URLs since they won't work
+  // Check if this is a serverless environment (no persistent ComfyUI server)
+  const isServerless = process.env.RUNPOD_SERVERLESS === 'true' || 
+                       process.env.NODE_ENV === 'production' ||
+                       !process.env.COMFYUI_URL?.includes('localhost');
+
+  if (isServerless) {
+    console.log('🚫 Serverless mode - not generating ComfyUI URLs');
+    return null;
+  }
+
   const params = new URLSearchParams({
     filename: pathInfo.filename,
     subfolder: pathInfo.subfolder,
@@ -67,6 +78,7 @@ export async function saveImageToDatabase(
   options: {
     saveData?: boolean; // Whether to store actual image bytes
     extractMetadata?: boolean; // Whether to extract image dimensions/format
+    providedData?: Buffer; // Pre-downloaded image data to use instead of downloading
   } = {}
 ): Promise<GeneratedImage | null> {
   console.log('💾 Saving image to database:', pathInfo.filename);
@@ -82,8 +94,37 @@ export async function saveImageToDatabase(
     let format: string | undefined;
     let metadata: any = {};
 
-    // Download image data if requested
-    if (options.saveData || options.extractMetadata) {
+    // Download image data if requested or use provided data
+    if (options.providedData) {
+      // Use provided image data (from webhook)
+      console.log('📦 Using provided image data from webhook');
+      const buffer = options.providedData;
+      fileSize = buffer.length;
+      
+      if (options.saveData) {
+        imageData = buffer;
+        console.log('💾 Will save provided image data to database');
+      }
+      
+      if (options.extractMetadata) {
+        try {
+          // Basic format detection from filename
+          const extension = pathInfo.filename.split('.').pop()?.toLowerCase();
+          format = extension || 'unknown';
+          
+          metadata = {
+            providedData: true,
+            webhookSource: true,
+            originalSize: fileSize,
+            processedAt: new Date().toISOString()
+          };
+          
+          console.log('📸 Extracted metadata from provided data:', { format, fileSize });
+        } catch (metadataError) {
+          console.warn('⚠️ Failed to extract image metadata:', metadataError);
+        }
+      }
+    } else if (options.saveData || options.extractMetadata) {
       // For server-side downloads, always use direct ComfyUI URL with authentication
       const baseUrl = COMFYUI_URL();
       const params = new URLSearchParams({
@@ -235,6 +276,26 @@ export async function getUserImages(
       take: options.limit,
       skip: options.offset
     });
+
+    // If we're not including data, we need to separately check which images have data
+    // This is needed for proper dataUrl generation in frontend fallback mechanism
+    let imageDataStatus: Record<string, boolean> = {};
+    if (!options.includeData) {
+      const dataCheck = await prisma.generatedImage.findMany({
+        where: {
+          clerkId,
+          id: { in: images.map(img => img.id) },
+          data: { not: null }
+        },
+        select: {
+          id: true
+        }
+      });
+      imageDataStatus = dataCheck.reduce((acc, img) => {
+        acc[img.id] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+    }
     
     console.log('📊 Found', images.length, 'images');
     
@@ -250,7 +311,8 @@ export async function getUserImages(
         subfolder: img.subfolder,
         type: img.type
       }),
-      dataUrl: img.data ? `/api/images/${img.id}/data` : undefined
+      // Set dataUrl if image has data stored (either from included data or separate check)
+      dataUrl: (img.data || imageDataStatus[img.id]) ? `/api/images/${img.id}/data` : undefined
     }));
     
   } catch (error) {
@@ -288,6 +350,26 @@ export async function getJobImages(
       orderBy: { createdAt: 'asc' }
     });
     
+    // If we're not including data, we need to separately check which images have data
+    // This is needed for proper dataUrl generation in frontend fallback mechanism
+    let imageDataStatus: Record<string, boolean> = {};
+    if (!options.includeData) {
+      const dataCheck = await prisma.generatedImage.findMany({
+        where: {
+          jobId,
+          id: { in: images.map(img => img.id) },
+          data: { not: null }
+        },
+        select: {
+          id: true
+        }
+      });
+      imageDataStatus = dataCheck.reduce((acc, img) => {
+        acc[img.id] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+    }
+    
     console.log('📊 Found', images.length, 'images for job');
     
     return images.map(img => ({
@@ -302,7 +384,8 @@ export async function getJobImages(
         subfolder: img.subfolder,
         type: img.type
       }),
-      dataUrl: img.data ? `/api/images/${img.id}/data` : undefined
+      // Set dataUrl if image has data stored (either from included data or separate check)
+      dataUrl: (img.data || imageDataStatus[img.id]) ? `/api/images/${img.id}/data` : undefined
     }));
     
   } catch (error) {
