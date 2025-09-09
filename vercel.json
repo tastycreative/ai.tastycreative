@@ -32,7 +32,7 @@
       "memory": 1024
     },
     "app/api/upload/**/*.ts": {
-      "maxDuration": 60,
+      "maxDuration": 120,
       "memory": 1024
     },
     "app/api/webhooks/**/*.ts": {

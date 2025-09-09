@@ -42,26 +42,32 @@ export async function POST(request: NextRequest) {
     const extension = imageFile.name.split('.').pop() || 'jpg';
     const filename = `${originalName}_${timestamp}.${extension}`;
     
-    // Create uploads directory in public folder for easy access
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+    // Use /tmp directory for Vercel serverless compatibility
+    const uploadDir = '/tmp/uploads';
     
     try {
       // Ensure directory exists
       const { mkdir } = await import('fs/promises');
       await mkdir(uploadDir, { recursive: true });
       
-      // Write image file to public/uploads directory
+      // Write image file to temp directory
       const filePath = path.join(uploadDir, filename);
       await writeFile(filePath, buffer);
       
       console.log('✅ Image saved to:', filePath);
+      
+      // Convert to base64 for immediate use (since /tmp files are ephemeral)
+      const base64Data = buffer.toString('base64');
+      const dataUrl = `data:${imageFile.type};base64,${base64Data}`;
       
       const response: any = {
         success: true,
         filename: filename,
         size: imageFile.size,
         type: imageFile.type,
-        url: `/uploads/${filename}` // Public URL for accessing the image
+        filePath: filePath, // Temp file path for server-side use
+        dataUrl: dataUrl,   // Data URL for immediate client use
+        base64: base64Data  // Base64 data for API calls
       };
       
       // Handle mask file if provided
@@ -76,8 +82,14 @@ export async function POST(request: NextRequest) {
         await writeFile(maskFilePath, maskBuffer);
         console.log('✅ Mask saved to:', maskFilePath);
         
+        // Convert mask to base64 as well
+        const maskBase64Data = maskBuffer.toString('base64');
+        const maskDataUrl = `data:${maskFile.type};base64,${maskBase64Data}`;
+        
         response.maskFilename = maskFilename;
-        response.maskUrl = `/uploads/${maskFilename}`;
+        response.maskFilePath = maskFilePath;
+        response.maskDataUrl = maskDataUrl;
+        response.maskBase64 = maskBase64Data;
       }
       
       return NextResponse.json(response);
