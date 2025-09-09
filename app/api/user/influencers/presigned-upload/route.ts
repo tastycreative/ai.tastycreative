@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
 
     // Configure S3 client for RunPod network volume
     const s3Client = new S3Client({
-      region: 'us-east-1',
-      endpoint: 'https://s3.runpod.io',
+      region: 'us-ks-2',
+      endpoint: 'https://s3api-us-ks-2.runpod.io',
       credentials: {
         accessKeyId: S3_ACCESS_KEY,
         secretAccessKey: S3_SECRET_KEY,
