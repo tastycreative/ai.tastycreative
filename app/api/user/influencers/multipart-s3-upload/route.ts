@@ -2,14 +2,47 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { S3Client, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, UploadPartCommand } from '@aws-sdk/client-s3';
 
-// Store multipart upload state (in production, use Redis or database)
-const multipartUploads = new Map<string, {
+import { writeFile, readFile, unlink } from 'fs/promises';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+
+// Upload session interface
+interface UploadSession {
   uploadId: string;
   parts: Array<{ ETag: string; PartNumber: number }>;
   s3Key: string;
   uniqueFileName: string;
   totalParts: number;
-}>();
+}
+
+// Helper functions for session persistence
+const getSessionPath = (sessionId: string) => join(tmpdir(), `multipart-${sessionId}.json`);
+
+async function saveSession(sessionId: string, session: UploadSession): Promise<void> {
+  const sessionPath = getSessionPath(sessionId);
+  await writeFile(sessionPath, JSON.stringify(session), 'utf-8');
+}
+
+async function loadSession(sessionId: string): Promise<UploadSession | null> {
+  const sessionPath = getSessionPath(sessionId);
+  if (!existsSync(sessionPath)) return null;
+  
+  try {
+    const data = await readFile(sessionPath, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error(`Failed to load session ${sessionId}:`, error);
+    return null;
+  }
+}
+
+async function deleteSession(sessionId: string): Promise<void> {
+  const sessionPath = getSessionPath(sessionId);
+  if (existsSync(sessionPath)) {
+    await unlink(sessionPath);
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -84,7 +117,7 @@ export async function POST(request: NextRequest) {
       
       // Store upload state
       const sessionId = `${userId}_${timestamp}`;
-      multipartUploads.set(sessionId, {
+      await saveSession(sessionId, {
         uploadId,
         parts: [],
         s3Key,
@@ -113,7 +146,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      const uploadState = multipartUploads.get(sessionId);
+      const uploadState = await loadSession(sessionId);
       if (!uploadState) {
         return NextResponse.json({ 
           error: 'Upload session not found' 
@@ -144,6 +177,9 @@ export async function POST(request: NextRequest) {
           PartNumber: partNumber
         });
 
+        // Update session
+        await saveSession(sessionId, uploadState);
+
         console.log(`✅ Part ${partNumber} uploaded via server, ETag: ${etag}`);
         console.log(`📊 Parts completed: ${uploadState.parts.length}/${uploadState.totalParts}`);
 
@@ -172,7 +208,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
 
-      const uploadState = multipartUploads.get(sessionId);
+      const uploadState = await loadSession(sessionId);
       if (!uploadState) {
         return NextResponse.json({ 
           error: 'Upload session not found' 
@@ -188,7 +224,7 @@ export async function POST(request: NextRequest) {
       console.log(`🏁 Completing multipart upload with ${uploadState.totalParts} parts`);
 
       // Sort parts by part number
-      uploadState.parts.sort((a, b) => a.PartNumber - b.PartNumber);
+      uploadState.parts.sort((a: { PartNumber: number }, b: { PartNumber: number }) => a.PartNumber - b.PartNumber);
 
       const completeCommand = new CompleteMultipartUploadCommand({
         Bucket: '83cljmpqfd',
@@ -202,7 +238,7 @@ export async function POST(request: NextRequest) {
       await s3Client.send(completeCommand);
 
       // Clean up
-      multipartUploads.delete(sessionId);
+      await deleteSession(sessionId);
 
       console.log(`✅ Multipart upload completed: ${uploadState.uniqueFileName}`);
 
