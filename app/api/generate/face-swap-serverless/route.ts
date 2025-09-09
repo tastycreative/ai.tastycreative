@@ -13,6 +13,10 @@ const faceSwapServerlessSchema = z.object({
   newFaceFilename: z.string().min(1),
   maskFilename: z.string().optional(),
   generationType: z.string().optional(),
+  // Base64 image data fields (optional, will be used if available)
+  originalImageData: z.string().optional(),
+  newFaceImageData: z.string().optional(),
+  maskImageData: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -76,6 +80,10 @@ export async function POST(req: NextRequest) {
         originalImageUrl: originalImageUrl,
         newFaceImageUrl: newFaceImageUrl,
         maskImageUrl: maskImageUrl,
+        // Include base64 data if available (prioritized by handler)
+        originalImageData: validatedData.originalImageData,
+        newFaceImageData: validatedData.newFaceImageData,
+        maskImageData: validatedData.maskImageData,
         webhookUrl: webhookUrl,
         jobId: jobId,
       }
