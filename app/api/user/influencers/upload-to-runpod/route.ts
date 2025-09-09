@@ -23,6 +23,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No display name provided' }, { status: 400 });
     }
 
+    // Check file size limit (6MB for Vercel serverless functions)
+    const maxSizeBytes = 6 * 1024 * 1024; // 6MB
+    if (file.size > maxSizeBytes) {
+      return NextResponse.json({ 
+        error: `File too large. Maximum size is 6MB. Your file is ${Math.round(file.size / 1024 / 1024)}MB. Please use a smaller file or contact support for large file uploads.`,
+        code: 'FILE_TOO_LARGE',
+        maxSize: '6MB',
+        actualSize: `${Math.round(file.size / 1024 / 1024)}MB`
+      }, { status: 413 });
+    }
+
     // Validate file type
     const validExtensions = ['.safetensors', '.pt', '.ckpt'];
     const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
