@@ -339,56 +339,45 @@ export default function MyInfluencersPage() {
     comfyUIPath: string;
     networkVolumePath?: string;
   }> => {
-    console.log(`🚀 Starting direct S3 upload for ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`);
+    console.log(`🚀 Starting direct S3 upload for ${file.name} (${Math.round(file.size / 1024 / 1024)}MB) via server proxy`);
 
-    // Step 1: Get presigned URL from our API
-    const presignedResponse = await apiClient!.post('/api/user/influencers/presigned-upload', {
-      fileName: file.name,
-      fileSize: file.size,
-      displayName: displayName
-    });
-
-    if (!presignedResponse.ok) {
-      const errorData = await presignedResponse.json();
-      throw new Error(errorData.error || 'Failed to get presigned URL');
+    if (!apiClient) {
+      throw new Error('API client is not initialized');
     }
 
-    const { presignedUrl, uniqueFileName, comfyUIPath, networkVolumePath } = await presignedResponse.json();
+    // Create FormData for the upload
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('displayName', displayName);
 
-    // Step 2: Upload directly to S3 using the presigned URL
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
+    // Note: Progress tracking is not available with apiClient.postFormData
+    // For large files, we'll show indeterminate progress
+    if (onProgress) {
+      onProgress(50); // Show 50% progress during upload
+    }
 
-      // Track upload progress
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable && onProgress) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          onProgress(progress);
-        }
-      });
+    // Upload via our server proxy (bypasses CORS issues)
+    const response = await apiClient.postFormData('/api/user/influencers/direct-s3-upload', formData);
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 200) {
-          console.log(`✅ Direct S3 upload completed: ${uniqueFileName}`);
-          resolve({
-            success: true,
-            uniqueFileName,
-            comfyUIPath,
-            networkVolumePath
-          });
-        } else {
-          reject(new Error(`S3 upload failed with status: ${xhr.status}`));
-        }
-      });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Upload failed: ${response.status}`);
+    }
 
-      xhr.addEventListener('error', () => {
-        reject(new Error('S3 upload failed due to network error'));
-      });
+    const result = await response.json();
+    
+    if (onProgress) {
+      onProgress(100); // Complete
+    }
 
-      xhr.open('PUT', presignedUrl);
-      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-      xhr.send(file);
-    });
+    console.log(`✅ Direct S3 upload completed: ${result.uniqueFileName}`);
+
+    return {
+      success: true,
+      uniqueFileName: result.uniqueFileName,
+      comfyUIPath: result.comfyUIPath,
+      networkVolumePath: result.networkVolumePath
+    };
   };
 
   // ✅ FUNCTION: Upload via serverless function (for small files)
