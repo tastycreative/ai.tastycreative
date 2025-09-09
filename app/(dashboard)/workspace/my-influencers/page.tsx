@@ -258,7 +258,7 @@ export default function MyInfluencersPage() {
         file.name.toLowerCase().endsWith(".safetensors") ||
         file.name.toLowerCase().endsWith(".pt") ||
         file.name.toLowerCase().endsWith(".ckpt");
-      const isValidSize = file.size <= 500 * 1024 * 1024; // 500MB limit
+      const isValidSize = file.size <= 6 * 1024 * 1024; // 6MB limit for Vercel serverless functions
 
       if (!isValidType) {
         alert(
@@ -268,7 +268,8 @@ export default function MyInfluencersPage() {
       }
 
       if (!isValidSize) {
-        alert(`${file.name} is too large. Maximum file size is 500MB.`);
+        const fileSizeMB = Math.round(file.size / 1024 / 1024);
+        alert(`${file.name} is too large (${fileSizeMB}MB). Maximum file size is 6MB for direct upload. Please use a smaller file or contact support for large file uploads.`);
         return false;
       }
 
@@ -439,6 +440,13 @@ export default function MyInfluencersPage() {
         console.log(
           `🎯 Uploading ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`
         );
+
+        // Double-check file size before attempting upload
+        const maxSizeBytes = 6 * 1024 * 1024; // 6MB
+        if (file.size > maxSizeBytes) {
+          const fileSizeMB = Math.round(file.size / 1024 / 1024);
+          throw new Error(`File too large (${fileSizeMB}MB). Maximum size is 6MB. Please use a smaller file.`);
+        }
 
         const displayName = file.name.replace(/\.[^/.]+$/, "");
 
@@ -1358,7 +1366,7 @@ export default function MyInfluencersPage() {
                       Click to select LoRA files or drag and drop
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                      Supports .safetensors, .pt, .ckpt files (max 500MB each)
+                      Supports .safetensors, .pt, .ckpt files (max 6MB each)
                     </p>
                   </label>
                 </div>
