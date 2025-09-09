@@ -105,7 +105,11 @@ export async function POST(request: NextRequest) {
         generation_type: 'image_to_video', // Specify the generation type
         job_id: jobId,
         workflow,
-        params,
+        params: {
+          ...params,
+          // Include base64 image data for RunPod handler to use directly
+          uploadedImageData: params.uploadedImageData
+        },
         webhook_url: webhookUrl,
         user_id: userId,
         base_url: baseUrl // Add base URL so RunPod can download images
