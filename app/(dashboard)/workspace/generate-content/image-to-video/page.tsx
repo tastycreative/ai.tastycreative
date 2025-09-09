@@ -36,7 +36,6 @@ interface GenerationParams {
   scheduler: string;
   seed: number | null;
   uploadedImage: string | null;
-  uploadedImageData?: string; // Base64 image data for RunPod
 }
 
 interface GenerationJob {
@@ -300,7 +299,6 @@ export default function ImageToVideoPage() {
     scheduler: "simple",
     seed: null,
     uploadedImage: null,
-    uploadedImageData: undefined,
   });
 
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
@@ -481,7 +479,6 @@ export default function ImageToVideoPage() {
         setParams((prev) => ({
           ...prev,
           uploadedImage: result.filename,
-          uploadedImageData: result.base64, // Store base64 data for RunPod
         }));
 
         // Create preview URL
@@ -489,7 +486,6 @@ export default function ImageToVideoPage() {
         setUploadedImagePreview(previewUrl);
 
         console.log("✅ Image uploaded successfully:", result.filename);
-        console.log("📦 Base64 data stored for RunPod compatibility");
       } else {
         throw new Error("Upload succeeded but no filename returned");
       }
