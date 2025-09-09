@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/database";
+import { prisma, ensureUserExists } from "@/lib/database";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +9,9 @@ export async function POST(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Ensure user exists in database
+    await ensureUserExists(userId);
 
     const body = await request.json();
     

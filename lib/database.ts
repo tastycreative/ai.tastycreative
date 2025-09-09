@@ -282,7 +282,7 @@ export async function incrementInfluencerUsage(clerkId: string, fileName: string
 }
 
 // Helper to ensure user exists in database
-async function ensureUserExists(clerkId: string): Promise<void> {
+export async function ensureUserExists(clerkId: string): Promise<void> {
   try {
     await prisma.user.upsert({
       where: { clerkId },
