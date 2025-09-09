@@ -76,8 +76,9 @@ export async function POST(request: NextRequest) {
     console.log('✅ Job created in database:', jobId);
 
     // Generate webhook URL for progress updates
-    // For local development, use a public tunnel service or disable webhooks
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
+    // Use production domain first, fallback to other options for development
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                    process.env.NEXT_PUBLIC_BASE_URL || 
                     process.env.BASE_URL ||
                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
     
