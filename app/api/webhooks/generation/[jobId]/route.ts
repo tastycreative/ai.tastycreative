@@ -7,9 +7,13 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
+  let body: any = {};
+  let jobId: string = '';
+  
   try {
-    const { jobId } = await params;
-    const body = await request.json();
+    const resolvedParams = await params;
+    jobId = resolvedParams.jobId;
+    body = await request.json();
     
     console.log('🔔 Generation webhook received for job:', jobId);
     console.log('📋 Webhook payload:', body);
@@ -209,6 +213,13 @@ export async function POST(
 
   } catch (error) {
     console.error('❌ Generation webhook error:', error);
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      jobId,
+      body: JSON.stringify(body, null, 2)
+    });
+    
     return NextResponse.json(
       { 
         error: error instanceof Error ? error.message : 'Unknown error',
