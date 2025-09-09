@@ -765,6 +765,9 @@ export default function FaceSwappingPage() {
     originalFilename: string;
     newFaceFilename: string;
     maskFilename?: string;
+    originalImageData?: string;
+    newFaceImageData?: string;
+    maskImageData?: string;
   }> => {
     if (!apiClient) {
       throw new Error("API client not available");
@@ -834,6 +837,10 @@ export default function FaceSwappingPage() {
         originalFilename: originalData.filename,
         newFaceFilename: newFaceData.filename,
         maskFilename: originalData.maskFilename,
+        // Include base64 data for direct use by RunPod handler
+        originalImageData: originalData.base64,
+        newFaceImageData: newFaceData.base64,
+        maskImageData: originalData.maskBase64,
       };
     } catch (error) {
       console.error("💥 Error uploading images:", error);
@@ -907,6 +914,10 @@ export default function FaceSwappingPage() {
           originalFilename: uploadResult.originalFilename,
           newFaceFilename: uploadResult.newFaceFilename,
           maskFilename: uploadResult.maskFilename,
+          // Include base64 data for RunPod handler (prioritized over URLs)
+          originalImageData: uploadResult.originalImageData,
+          newFaceImageData: uploadResult.newFaceImageData,
+          maskImageData: uploadResult.maskImageData,
           generationType: "face_swap",
         }
       );
