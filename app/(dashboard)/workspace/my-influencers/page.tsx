@@ -345,14 +345,14 @@ export default function MyInfluencersPage() {
       throw new Error('API client is not initialized');
     }
 
-    // Define chunk size (5MB - S3 minimum for multipart is 5MB except last part)
-    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+    // Define chunk size (4MB to stay under Vercel's 6MB limit with FormData overhead)
+    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
     console.log(`📦 Using S3 multipart upload: ${totalChunks} parts of ~${Math.round(CHUNK_SIZE / 1024 / 1024)}MB each`);
 
     try {
-      // Step 1: Start multipart upload and get presigned URLs
+      // Step 1: Start multipart upload
       const startFormData = new FormData();
       startFormData.append('action', 'start');
       startFormData.append('fileName', file.name);
@@ -366,60 +366,34 @@ export default function MyInfluencersPage() {
       }
 
       const startResult = await startResponse.json();
-      const { sessionId, uploadId, uniqueFileName, presignedUrls } = startResult;
+      const { sessionId, uploadId, uniqueFileName } = startResult;
 
-      console.log(`✅ Multipart upload started: ${uploadId} with ${presignedUrls.length} presigned URLs`);
+      console.log(`✅ Multipart upload started: ${uploadId}`);
 
-      // Step 2: Upload each part directly to S3 using presigned URLs
-      const uploadPromises = [];
-
+      // Step 2: Upload each part via server
       for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
         const start = (partNumber - 1) * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
 
-        const presignedUrl = presignedUrls.find((url: any) => url.partNumber === partNumber)?.url;
-        if (!presignedUrl) {
-          throw new Error(`Missing presigned URL for part ${partNumber}`);
+        console.log(`📤 Uploading part ${partNumber}/${totalChunks} via server (${Math.round(chunk.size / 1024)}KB)`);
+
+        const partFormData = new FormData();
+        partFormData.append('action', 'upload');
+        partFormData.append('chunk', chunk);
+        partFormData.append('partNumber', partNumber.toString());
+        partFormData.append('sessionId', sessionId);
+
+        const partResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', partFormData);
+        if (!partResponse.ok) {
+          const errorData = await partResponse.json().catch(() => ({ error: `HTTP ${partResponse.status}` }));
+          throw new Error(errorData.error || `Part ${partNumber} upload failed: ${partResponse.status}`);
         }
 
-        console.log(`📤 Uploading part ${partNumber}/${totalChunks} directly to S3 (${Math.round(chunk.size / 1024)}KB)`);
-
-        // Upload directly to S3 using presigned URL
-        const uploadPromise = fetch(presignedUrl, {
-          method: 'PUT',
-          body: chunk,
-          headers: {
-            'Content-Type': 'application/octet-stream',
-          },
-        }).then(async (response) => {
-          if (!response.ok) {
-            throw new Error(`Part ${partNumber} upload failed: HTTP ${response.status}`);
-          }
-
-          const etag = response.headers.get('ETag')?.replace(/"/g, '');
-          if (!etag) {
-            throw new Error(`Missing ETag for part ${partNumber}`);
-          }
-
-          console.log(`✅ Part ${partNumber} uploaded directly to S3, ETag: ${etag}`);
-
-          // Record part completion with our server
-          const recordFormData = new FormData();
-          recordFormData.append('action', 'record-part');
-          recordFormData.append('sessionId', sessionId);
-          recordFormData.append('partNumber', partNumber.toString());
-          recordFormData.append('etag', etag);
-
-          const recordResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', recordFormData);
-          if (!recordResponse.ok) {
-            throw new Error(`Failed to record part ${partNumber}: HTTP ${recordResponse.status}`);
-          }
-
-          return { partNumber, etag };
-        });
-
-        uploadPromises.push(uploadPromise);
+        const partResult = await partResponse.json();
+        if (!partResult.success) {
+          throw new Error(`Part ${partNumber} upload failed: ${partResult.error || 'Unknown error'}`);
+        }
 
         // Update progress
         if (onProgress) {
@@ -427,10 +401,6 @@ export default function MyInfluencersPage() {
           onProgress(progress);
         }
       }
-
-      // Wait for all parts to complete
-      console.log(`⏳ Waiting for all ${totalChunks} parts to upload...`);
-      await Promise.all(uploadPromises);
 
       // Step 3: Complete multipart upload
       console.log(`🏁 Completing multipart upload...`);

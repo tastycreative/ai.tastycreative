@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { S3Client, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { UploadPartCommand } from '@aws-sdk/client-s3';
+import { S3Client, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, UploadPartCommand } from '@aws-sdk/client-s3';
 
 // Store multipart upload state (in production, use Redis or database)
 const multipartUploads = new Map<string, {
@@ -67,7 +65,7 @@ export async function POST(request: NextRequest) {
       const uniqueFileName = `${userId}_${timestamp}_${fileName}`;
       const s3Key = `loras/${userId}/${uniqueFileName}`;
       
-      console.log(`🚀 Starting multipart upload for ${fileName} with ${totalParts} parts`);
+      console.log(`🚀 Starting server-side multipart upload for ${fileName} with ${totalParts} parts`);
 
       const createCommand = new CreateMultipartUploadCommand({
         Bucket: '83cljmpqfd',
@@ -84,27 +82,6 @@ export async function POST(request: NextRequest) {
       const createResponse = await s3Client.send(createCommand);
       const uploadId = createResponse.UploadId!;
       
-      // Generate presigned URLs for all parts
-      const presignedUrls: Array<{ partNumber: number; url: string }> = [];
-      
-      for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
-        const uploadPartCommand = new UploadPartCommand({
-          Bucket: '83cljmpqfd',
-          Key: s3Key,
-          PartNumber: partNumber,
-          UploadId: uploadId,
-        });
-
-        const presignedUrl = await getSignedUrl(s3Client, uploadPartCommand, {
-          expiresIn: 3600 // 1 hour
-        });
-
-        presignedUrls.push({
-          partNumber,
-          url: presignedUrl
-        });
-      }
-      
       // Store upload state
       const sessionId = `${userId}_${timestamp}`;
       multipartUploads.set(sessionId, {
@@ -115,25 +92,24 @@ export async function POST(request: NextRequest) {
         totalParts
       });
 
-      console.log(`✅ Multipart upload started: ${uploadId} with ${totalParts} presigned URLs`);
+      console.log(`✅ Multipart upload started: ${uploadId}`);
 
       return NextResponse.json({
         success: true,
         sessionId,
         uploadId,
-        uniqueFileName,
-        presignedUrls
+        uniqueFileName
       });
 
-    } else if (action === 'record-part') {
-      // Record part completion (after direct S3 upload)
+    } else if (action === 'upload') {
+      // Upload part via server (streaming to avoid memory limits)
+      const chunk = formData.get('chunk') as File;
       const partNumber = parseInt(formData.get('partNumber') as string);
-      const etag = formData.get('etag') as string;
       const sessionId = formData.get('sessionId') as string;
       
-      if (isNaN(partNumber) || !etag || !sessionId) {
+      if (!chunk || isNaN(partNumber) || !sessionId) {
         return NextResponse.json({ 
-          error: 'Missing required fields: partNumber, etag, sessionId' 
+          error: 'Missing required fields: chunk, partNumber, sessionId' 
         }, { status: 400 });
       }
 
@@ -144,23 +120,47 @@ export async function POST(request: NextRequest) {
         }, { status: 404 });
       }
 
-      console.log(`✅ Recording part ${partNumber} completion, ETag: ${etag}`);
+      console.log(`📤 Server uploading part ${partNumber} (${Math.round(chunk.size / 1024)}KB)`);
 
-      // Store part info
-      uploadState.parts.push({
-        ETag: etag,
-        PartNumber: partNumber
-      });
+      try {
+        // Stream the chunk directly to S3 without storing in memory
+        const chunkArrayBuffer = await chunk.arrayBuffer();
+        const chunkBuffer = new Uint8Array(chunkArrayBuffer);
 
-      console.log(`📊 Parts completed: ${uploadState.parts.length}/${uploadState.totalParts}`);
+        const uploadPartCommand = new UploadPartCommand({
+          Bucket: '83cljmpqfd',
+          Key: uploadState.s3Key,
+          PartNumber: partNumber,
+          UploadId: uploadState.uploadId,
+          Body: chunkBuffer,
+        });
 
-      return NextResponse.json({
-        success: true,
-        partNumber,
-        etag,
-        partsCompleted: uploadState.parts.length,
-        totalParts: uploadState.totalParts
-      });
+        const partResponse = await s3Client.send(uploadPartCommand);
+        const etag = partResponse.ETag!;
+
+        // Store part info
+        uploadState.parts.push({
+          ETag: etag,
+          PartNumber: partNumber
+        });
+
+        console.log(`✅ Part ${partNumber} uploaded via server, ETag: ${etag}`);
+        console.log(`📊 Parts completed: ${uploadState.parts.length}/${uploadState.totalParts}`);
+
+        return NextResponse.json({
+          success: true,
+          partNumber,
+          etag,
+          partsCompleted: uploadState.parts.length,
+          totalParts: uploadState.totalParts
+        });
+
+      } catch (error) {
+        console.error(`❌ Failed to upload part ${partNumber}:`, error);
+        return NextResponse.json({ 
+          error: `Failed to upload part ${partNumber}: ${error}` 
+        }, { status: 500 });
+      }
 
     } else if (action === 'complete') {
       // Complete multipart upload
