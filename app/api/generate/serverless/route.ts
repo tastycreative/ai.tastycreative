@@ -24,6 +24,8 @@ const styleTransferSchema = z.object({
   generation_type: z.string().optional(),
   referenceImage: z.string().min(1), // Uploaded reference image filename
   maskImage: z.string().optional(), // Optional mask filename
+  referenceImageData: z.string().optional(), // Base64 image data
+  maskImageData: z.string().optional(), // Base64 mask data
   // Legacy fields for compatibility
   prompt: z.string().optional(),
   style_image_url: z.string().optional(),

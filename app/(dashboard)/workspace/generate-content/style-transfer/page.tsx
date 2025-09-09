@@ -458,7 +458,7 @@ export default function StyleTransferPage() {
   const uploadReferenceImageToServer = async (
     file: File,
     maskDataUrl?: string | null
-  ): Promise<{ filename: string; maskFilename?: string }> => {
+  ): Promise<{ filename: string; maskFilename?: string; base64?: string; maskBase64?: string; dataUrl?: string; maskDataUrl?: string }> => {
     if (!apiClient) throw new Error("API client not ready");
 
     const formData = new FormData();
@@ -491,6 +491,10 @@ export default function StyleTransferPage() {
       return {
         filename: data.filename,
         maskFilename: data.maskFilename,
+        base64: data.base64,
+        maskBase64: data.maskBase64,
+        dataUrl: data.dataUrl,
+        maskDataUrl: data.maskDataUrl,
       };
     } catch (error) {
       console.error("💥 Error uploading image:", error);
@@ -550,6 +554,9 @@ export default function StyleTransferPage() {
         generation_type: "style_transfer",
         referenceImage: uploadResult.filename,
         maskImage: uploadResult.maskFilename,
+        // Include base64 data for direct use by RunPod
+        referenceImageData: uploadResult.base64,
+        maskImageData: uploadResult.maskBase64,
       });
 
       console.log("Serverless API response status:", response.status);
