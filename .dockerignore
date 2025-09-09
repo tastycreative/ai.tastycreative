@@ -8,6 +8,15 @@ yarn-error.log*
 .next
 out
 build
+
+# Text-to-Image Handler specific ignores
+local-*.py
+test_*.py
+*test*.json
+runpod-*-deploy/
+DEPLOYMENT_GUIDE.md
+RUNPOD_TEXT_TO_IMAGE_README.md
+CONTAINER_DEPLOYMENT.md
 dist
 
 # Environment variables

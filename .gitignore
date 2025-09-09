@@ -67,3 +67,11 @@ runpod-*/
 
 # Ngrok and development tools
 setup-ngrok.sh
+
+# Generated uploads and test files
+public/uploads/
+requirements-handler.txt
+test-*.js
+test-*.json
+*.backup
+extra_model_paths.yaml
