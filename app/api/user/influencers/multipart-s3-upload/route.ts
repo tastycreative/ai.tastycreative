@@ -155,7 +155,8 @@ export async function POST(request: NextRequest) {
         success: true,
         sessionId,
         uploadId,
-        uniqueFileName
+        uniqueFileName,
+        s3Key
       });
 
     } else if (action === 'upload') {
@@ -164,16 +165,36 @@ export async function POST(request: NextRequest) {
       const partNumber = parseInt(formData.get('partNumber') as string);
       const sessionId = formData.get('sessionId') as string;
       
+      // Additional fields to reconstruct session if needed
+      const uploadId = formData.get('uploadId') as string;
+      const s3Key = formData.get('s3Key') as string;
+      const uniqueFileName = formData.get('uniqueFileName') as string;
+      const totalParts = parseInt(formData.get('totalParts') as string);
+      
       if (!chunk || isNaN(partNumber) || !sessionId) {
         return NextResponse.json({ 
           error: 'Missing required fields: chunk, partNumber, sessionId' 
         }, { status: 400 });
       }
 
-      const uploadState = await loadSession(sessionId);
+      let uploadState = await loadSession(sessionId);
+      
+      // If session not found, try to reconstruct it from provided data
+      if (!uploadState && uploadId && s3Key && uniqueFileName && !isNaN(totalParts)) {
+        console.log(`⚠️ Session not found, attempting to reconstruct from request data`);
+        uploadState = {
+          uploadId,
+          parts: [],
+          s3Key,
+          uniqueFileName,
+          totalParts
+        };
+        await saveSession(sessionId, uploadState);
+      }
+      
       if (!uploadState) {
         return NextResponse.json({ 
-          error: 'Upload session not found' 
+          error: 'Upload session not found and cannot be reconstructed' 
         }, { status: 404 });
       }
 
