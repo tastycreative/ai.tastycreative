@@ -50,42 +50,53 @@ export async function POST(request: NextRequest) {
     // Ensure temp directory exists
     if (!fs.existsSync(TEMP_DIR)) {
       fs.mkdirSync(TEMP_DIR, { recursive: true });
+      console.log(`📁 Created temp directory: ${TEMP_DIR}`);
     }
 
     // Save chunk to temporary file
     const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
     const chunkFilePath = path.join(TEMP_DIR, `${sessionId}_chunk_${chunkIndex}`);
-    fs.writeFileSync(chunkFilePath, chunkBuffer);
-
-    console.log(`💾 Saved chunk ${chunkIndex + 1}/${totalChunks} to temp file`);
+    
+    try {
+      fs.writeFileSync(chunkFilePath, chunkBuffer);
+      console.log(`💾 Saved chunk ${chunkIndex + 1}/${totalChunks} to ${chunkFilePath} (${chunkBuffer.length} bytes)`);
+    } catch (writeError) {
+      console.error(`❌ Failed to save chunk ${chunkIndex}:`, writeError);
+      throw new Error(`Failed to save chunk ${chunkIndex}: ${writeError instanceof Error ? writeError.message : 'Unknown error'}`);
+    }
 
     // If this is the last chunk, reassemble file and upload to S3
     if (chunkIndex === totalChunks - 1) {
       console.log(`🔧 Reassembling ${totalChunks} chunks for ${fileName}...`);
 
-      // Combine all chunks into final file
-      const finalFilePath = path.join(TEMP_DIR, `${sessionId}_final`);
-      const writeStream = fs.createWriteStream(finalFilePath);
+      // Combine all chunks into a buffer array (avoid filesystem issues)
+      const chunkBuffers: Buffer[] = [];
+      let totalSize = 0;
 
       for (let i = 0; i < totalChunks; i++) {
         const chunkPath = path.join(TEMP_DIR, `${sessionId}_chunk_${i}`);
-        const chunkData = fs.readFileSync(chunkPath);
-        writeStream.write(chunkData);
         
-        // Clean up chunk file
+        if (!fs.existsSync(chunkPath)) {
+          throw new Error(`Missing chunk ${i} at ${chunkPath}`);
+        }
+        
+        const chunkData = fs.readFileSync(chunkPath);
+        chunkBuffers.push(chunkData);
+        totalSize += chunkData.length;
+        
+        // Clean up chunk file immediately
         fs.unlinkSync(chunkPath);
       }
-      writeStream.end();
 
-      console.log(`✅ File reassembled, uploading to S3...`);
+      // Combine all chunks into a single buffer
+      const finalBuffer = Buffer.concat(chunkBuffers, totalSize);
+      console.log(`✅ File reassembled (${Math.round(totalSize / 1024 / 1024)}MB), uploading to S3...`);
 
       // Check environment variables
       const S3_ACCESS_KEY = process.env.RUNPOD_S3_ACCESS_KEY;
       const S3_SECRET_KEY = process.env.RUNPOD_S3_SECRET_KEY;
 
       if (!S3_ACCESS_KEY || !S3_SECRET_KEY) {
-        // Clean up
-        fs.unlinkSync(finalFilePath);
         return NextResponse.json({ 
           error: 'S3 credentials not configured' 
         }, { status: 500 });
@@ -104,12 +115,11 @@ export async function POST(request: NextRequest) {
 
       // Upload reassembled file to S3
       const s3Key = `loras/${userId}/${uniqueFileName}`;
-      const fileBuffer = fs.readFileSync(finalFilePath);
 
       const uploadCommand = new PutObjectCommand({
         Bucket: '83cljmpqfd',
         Key: s3Key,
-        Body: fileBuffer,
+        Body: finalBuffer,
         ContentType: 'application/octet-stream',
         Metadata: {
           'original-name': fileName,
@@ -120,9 +130,6 @@ export async function POST(request: NextRequest) {
       });
 
       await s3Client.send(uploadCommand);
-
-      // Clean up temporary file
-      fs.unlinkSync(finalFilePath);
 
       console.log(`✅ Chunked S3 upload completed: ${uniqueFileName}`);
       
