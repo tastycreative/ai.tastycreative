@@ -366,7 +366,7 @@ export default function MyInfluencersPage() {
       }
 
       const startResult = await startResponse.json();
-      const { sessionId, uploadId, uniqueFileName } = startResult;
+      const { sessionId, uploadId, uniqueFileName, s3Key } = startResult;
 
       console.log(`✅ Multipart upload started: ${uploadId}`);
 
@@ -383,6 +383,11 @@ export default function MyInfluencersPage() {
         partFormData.append('chunk', chunk);
         partFormData.append('partNumber', partNumber.toString());
         partFormData.append('sessionId', sessionId);
+        // Include session reconstruction data
+        partFormData.append('uploadId', uploadId);
+        partFormData.append('s3Key', s3Key);
+        partFormData.append('uniqueFileName', uniqueFileName);
+        partFormData.append('totalParts', totalChunks.toString());
 
         const partResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', partFormData);
         if (!partResponse.ok) {
