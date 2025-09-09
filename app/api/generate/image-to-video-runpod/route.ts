@@ -83,7 +83,8 @@ export async function POST(request: NextRequest) {
     console.log('✅ Job created in database:', jobId);
 
     // Generate webhook URL for progress updates
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                    process.env.NEXT_PUBLIC_BASE_URL || 
                     process.env.BASE_URL ||
                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
     

@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get webhook URL for status updates
-    const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/webhooks/runpod`;
+    const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/webhooks/runpod`;
     
     // Prepare the RunPod request payload
     const runpodPayload = {
