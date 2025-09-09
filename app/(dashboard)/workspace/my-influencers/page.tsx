@@ -346,7 +346,7 @@ export default function MyInfluencersPage() {
     }
 
     // Define chunk size (4MB to stay under Vercel's 6MB limit with FormData overhead)
-    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for faster processing
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
     console.log(`📦 Using S3 multipart upload: ${totalChunks} parts of ~${Math.round(CHUNK_SIZE / 1024 / 1024)}MB each`);
@@ -370,7 +370,7 @@ export default function MyInfluencersPage() {
 
       console.log(`✅ Multipart upload started: ${uploadId}`);
 
-      // Step 2: Upload each part via server
+      // Step 2: Upload each part via server with retry logic
       for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
         const start = (partNumber - 1) * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
@@ -378,26 +378,48 @@ export default function MyInfluencersPage() {
 
         console.log(`📤 Uploading part ${partNumber}/${totalChunks} via server (${Math.round(chunk.size / 1024)}KB)`);
 
-        const partFormData = new FormData();
-        partFormData.append('action', 'upload');
-        partFormData.append('chunk', chunk);
-        partFormData.append('partNumber', partNumber.toString());
-        partFormData.append('sessionId', sessionId);
-        // Include session reconstruction data
-        partFormData.append('uploadId', uploadId);
-        partFormData.append('s3Key', s3Key);
-        partFormData.append('uniqueFileName', uniqueFileName);
-        partFormData.append('totalParts', totalChunks.toString());
+        // Retry logic for individual parts
+        let partSuccess = false;
+        let lastError = null;
+        
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const partFormData = new FormData();
+            partFormData.append('action', 'upload');
+            partFormData.append('chunk', chunk);
+            partFormData.append('partNumber', partNumber.toString());
+            partFormData.append('sessionId', sessionId);
+            // Include session reconstruction data
+            partFormData.append('uploadId', uploadId);
+            partFormData.append('s3Key', s3Key);
+            partFormData.append('uniqueFileName', uniqueFileName);
+            partFormData.append('totalParts', totalChunks.toString());
 
-        const partResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', partFormData);
-        if (!partResponse.ok) {
-          const errorData = await partResponse.json().catch(() => ({ error: `HTTP ${partResponse.status}` }));
-          throw new Error(errorData.error || `Part ${partNumber} upload failed: ${partResponse.status}`);
+            const partResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', partFormData);
+            if (!partResponse.ok) {
+              const errorData = await partResponse.json().catch(() => ({ error: `HTTP ${partResponse.status}` }));
+              throw new Error(errorData.error || `Part ${partNumber} upload failed: ${partResponse.status}`);
+            }
+
+            const partResult = await partResponse.json();
+            if (!partResult.success) {
+              throw new Error(`Part ${partNumber} upload failed: ${partResult.error || 'Unknown error'}`);
+            }
+            
+            partSuccess = true;
+            break; // Success, exit retry loop
+            
+          } catch (error) {
+            lastError = error;
+            if (attempt < 3) {
+              console.log(`⚠️ Part ${partNumber} failed (attempt ${attempt}/3), retrying...`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+            }
+          }
         }
-
-        const partResult = await partResponse.json();
-        if (!partResult.success) {
-          throw new Error(`Part ${partNumber} upload failed: ${partResult.error || 'Unknown error'}`);
+        
+        if (!partSuccess) {
+          throw new Error(`Part ${partNumber} failed after 3 attempts: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`);
         }
 
         // Update progress
