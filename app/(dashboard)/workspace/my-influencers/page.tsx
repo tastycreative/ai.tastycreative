@@ -62,7 +62,9 @@ interface UploadProgress {
     | "blob-first"
     | "client-direct"
     | "direct-comfyui-fallback"
-    | "direct-comfyui";
+    | "direct-comfyui"
+    | "serverless-function"
+    | "direct-s3";
 }
 
 interface UploadInstructions {
@@ -258,7 +260,7 @@ export default function MyInfluencersPage() {
         file.name.toLowerCase().endsWith(".safetensors") ||
         file.name.toLowerCase().endsWith(".pt") ||
         file.name.toLowerCase().endsWith(".ckpt");
-      const isValidSize = file.size <= 6 * 1024 * 1024; // 6MB limit for Vercel serverless functions
+      const isValidSize = file.size <= 2 * 1024 * 1024 * 1024; // 2GB reasonable limit
 
       if (!isValidType) {
         alert(
@@ -269,7 +271,7 @@ export default function MyInfluencersPage() {
 
       if (!isValidSize) {
         const fileSizeMB = Math.round(file.size / 1024 / 1024);
-        alert(`${file.name} is too large (${fileSizeMB}MB). Maximum file size is 6MB for direct upload. Please use a smaller file or contact support for large file uploads.`);
+        alert(`${file.name} is too large (${fileSizeMB}MB). Maximum file size is 2GB. Please use a smaller file.`);
         return false;
       }
 
@@ -326,7 +328,70 @@ export default function MyInfluencersPage() {
     );
   };
 
-  // ✅ NEW FUNCTION: Upload directly to RunPod Network Volume
+  // ✅ NEW FUNCTION: Direct client-side upload to S3 (for large files)
+  const uploadDirectToS3 = async (
+    file: File,
+    displayName: string,
+    onProgress?: (progress: number) => void
+  ): Promise<{
+    success: boolean;
+    uniqueFileName: string;
+    comfyUIPath: string;
+    networkVolumePath?: string;
+  }> => {
+    console.log(`🚀 Starting direct S3 upload for ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`);
+
+    // Step 1: Get presigned URL from our API
+    const presignedResponse = await apiClient!.post('/api/user/influencers/presigned-upload', {
+      fileName: file.name,
+      fileSize: file.size,
+      displayName: displayName
+    });
+
+    if (!presignedResponse.ok) {
+      const errorData = await presignedResponse.json();
+      throw new Error(errorData.error || 'Failed to get presigned URL');
+    }
+
+    const { presignedUrl, uniqueFileName, comfyUIPath, networkVolumePath } = await presignedResponse.json();
+
+    // Step 2: Upload directly to S3 using the presigned URL
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status === 200) {
+          console.log(`✅ Direct S3 upload completed: ${uniqueFileName}`);
+          resolve({
+            success: true,
+            uniqueFileName,
+            comfyUIPath,
+            networkVolumePath
+          });
+        } else {
+          reject(new Error(`S3 upload failed with status: ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('S3 upload failed due to network error'));
+      });
+
+      xhr.open('PUT', presignedUrl);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.send(file);
+    });
+  };
+
+  // ✅ FUNCTION: Upload via serverless function (for small files)
   const uploadToNetworkVolume = async (
     file: File,
     displayName: string
@@ -441,13 +506,6 @@ export default function MyInfluencersPage() {
           `🎯 Uploading ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`
         );
 
-        // Double-check file size before attempting upload
-        const maxSizeBytes = 6 * 1024 * 1024; // 6MB
-        if (file.size > maxSizeBytes) {
-          const fileSizeMB = Math.round(file.size / 1024 / 1024);
-          throw new Error(`File too large (${fileSizeMB}MB). Maximum size is 6MB. Please use a smaller file.`);
-        }
-
         const displayName = file.name.replace(/\.[^/.]+$/, "");
 
         // Update progress to show upload starting
@@ -464,49 +522,78 @@ export default function MyInfluencersPage() {
         let comfyUIPath: string | undefined;
 
         try {
-          // ✅ DIRECT COMFYUI UPLOAD (no job monitoring needed)
-          console.log("🚀 Attempting direct ComfyUI upload...");
-          const networkUploadResult = await uploadToNetworkVolume(
-            file,
-            displayName
-          );
+          // Check file size to determine upload method
+          const serverlessMaxSize = 6 * 1024 * 1024; // 6MB limit for serverless functions
+          const useDirectS3Upload = file.size > serverlessMaxSize;
+          
+          if (useDirectS3Upload) {
+            // ✅ DIRECT S3 UPLOAD (for large files > 6MB)
+            console.log(`🚀 File ${file.name} is ${Math.round(file.size / 1024 / 1024)}MB, using direct S3 upload...`);
+            
+            const s3UploadResult = await uploadDirectToS3(file, displayName, (progress: number) => {
+              setUploadProgress((prev) =>
+                prev.map((item) =>
+                  item.fileName === file.name
+                    ? { ...item, progress: Math.round(progress), status: "uploading", uploadMethod: "direct-s3" }
+                    : item
+                )
+              );
+            });
 
-          // Update progress to show completion
-          setUploadProgress((prev) =>
-            prev.map((item) =>
-              item.fileName === file.name
-                ? {
-                    ...item,
-                    progress: 90,
-                    status: "processing",
-                    uploadMethod: "direct-comfyui",
-                  }
-                : item
-            )
-          );
+            uploadResult = {
+              success: true,
+              uniqueFileName: s3UploadResult.uniqueFileName,
+              comfyResult: { networkVolumePath: s3UploadResult.networkVolumePath },
+            };
+            syncStatus = "synced";
+            comfyUIPath = s3UploadResult.comfyUIPath;
 
-          // Direct upload completed successfully
-          uploadResult = {
-            success: true,
-            uniqueFileName: networkUploadResult.uniqueFileName,
-            comfyResult: { networkVolumePath: networkUploadResult.comfyUIPath },
-          };
-          syncStatus = "synced";
-          comfyUIPath = networkUploadResult.comfyUIPath;
+            console.log(`✅ Direct S3 upload successful for ${file.name}`);
+          } else {
+            // ✅ SERVERLESS FUNCTION UPLOAD (for small files <= 6MB)
+            console.log(`🚀 File ${file.name} is ${Math.round(file.size / 1024 / 1024)}MB, using serverless function upload...`);
+            const networkUploadResult = await uploadToNetworkVolume(
+              file,
+              displayName
+            );
 
-          console.log(`✅ Direct ComfyUI upload successful for ${file.name}`);
-        } catch (networkError) {
+            // Update progress to show completion
+            setUploadProgress((prev) =>
+              prev.map((item) =>
+                item.fileName === file.name
+                  ? {
+                      ...item,
+                      progress: 90,
+                      status: "processing",
+                      uploadMethod: "serverless-function",
+                    }
+                  : item
+              )
+            );
+
+            // Serverless upload completed successfully
+            uploadResult = {
+              success: true,
+              uniqueFileName: networkUploadResult.uniqueFileName,
+              comfyResult: { networkVolumePath: networkUploadResult.comfyUIPath },
+            };
+            syncStatus = "synced";
+            comfyUIPath = networkUploadResult.comfyUIPath;
+
+            console.log(`✅ Serverless function upload successful for ${file.name}`);
+          }
+        } catch (error) {
           console.error(
-            `❌ Direct ComfyUI upload failed for ${file.name}:`,
-            networkError
+            `❌ Upload failed for ${file.name}:`,
+            error
           );
 
           const errorMsg =
-            networkError instanceof Error
-              ? networkError.message
-              : "Unknown network volume error";
+            error instanceof Error
+              ? error.message
+              : "Unknown upload error";
 
-          throw new Error(`Network volume upload failed: ${errorMsg}`);
+          throw new Error(`Upload failed: ${errorMsg}`);
         }
 
         // Create database record via Vercel API (small data, no file)
@@ -567,6 +654,12 @@ export default function MyInfluencersPage() {
     ).length;
 
     if (completedUploads > 0) {
+      const directS3Uploads = uploadProgress.filter(
+        (p) => p.status === "completed" && p.uploadMethod === "direct-s3"
+      ).length;
+      const serverlessUploads = uploadProgress.filter(
+        (p) => p.status === "completed" && p.uploadMethod === "serverless-function"
+      ).length;
       const networkUploads = uploadProgress.filter(
         (p) => p.status === "completed" && p.uploadMethod === "direct-comfyui"
       ).length;
@@ -576,6 +669,12 @@ export default function MyInfluencersPage() {
 
       let message = `🎉 Upload Results:\n\n✅ ${completedUploads} file(s) uploaded successfully\n`;
 
+      if (directS3Uploads > 0) {
+        message += `🚀 ${directS3Uploads} large file(s) uploaded directly to S3 network volume (ready for text-to-image generation!)\n`;
+      }
+      if (serverlessUploads > 0) {
+        message += `⚡ ${serverlessUploads} file(s) uploaded via serverless function (ready for text-to-image generation!)\n`;
+      }
       if (networkUploads > 0) {
         message += `🎯 ${networkUploads} uploaded to network volume (ready for text-to-image generation!)\n`;
       }
@@ -1484,12 +1583,24 @@ export default function MyInfluencersPage() {
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-400">
                           <span>
+                            {progress.uploadMethod === "direct-s3" &&
+                              "🚀 Direct S3 Upload (Large File)"}
+                            {progress.uploadMethod === "serverless-function" &&
+                              "⚡ Serverless Function Upload"}
                             {progress.uploadMethod === "direct-comfyui" &&
                               "🎯 Direct ComfyUI Upload"}
                             {progress.uploadMethod === "server-fallback" &&
                               "💾 Secure Storage Upload"}
                             {!progress.uploadMethod && "🚀 Smart Upload"}
                           </span>
+                          {progress.status === "uploading" &&
+                            progress.uploadMethod === "direct-s3" && (
+                              <span>Uploading large file directly to S3...</span>
+                            )}
+                          {progress.status === "uploading" &&
+                            progress.uploadMethod === "serverless-function" && (
+                              <span>Uploading via serverless function...</span>
+                            )}
                           {progress.status === "uploading" &&
                             progress.uploadMethod === "direct-comfyui" && (
                               <span>Uploading directly to ComfyUI...</span>
