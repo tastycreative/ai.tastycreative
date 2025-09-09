@@ -10,11 +10,16 @@ const TEMP_DIR = path.join(os.tmpdir(), 'chunked-uploads');
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔄 Chunked upload request received');
+    
     // Authenticate user
     const { userId } = await auth();
     if (!userId) {
+      console.log('❌ Authentication failed - no userId');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    console.log(`✅ User authenticated: ${userId}`);
 
     // Parse request body for chunk upload
     const formData = await request.formData();
@@ -24,6 +29,15 @@ export async function POST(request: NextRequest) {
     const fileName = formData.get('fileName') as string;
     const displayName = formData.get('displayName') as string;
     const uploadId = formData.get('uploadId') as string;
+    
+    console.log('📋 Request parameters:', {
+      chunkIndex,
+      totalChunks,
+      fileName,
+      displayName,
+      uploadId,
+      chunkSize: chunk?.size
+    });
 
     if (!chunk || isNaN(chunkIndex) || isNaN(totalChunks) || !fileName || !displayName) {
       return NextResponse.json({ 
@@ -88,9 +102,29 @@ export async function POST(request: NextRequest) {
         fs.unlinkSync(chunkPath);
       }
 
+      // Check memory usage before concatenation
+      const memUsed = process.memoryUsage();
+      console.log('💾 Memory usage before concatenation:', {
+        rss: Math.round(memUsed.rss / 1024 / 1024) + 'MB',
+        heapUsed: Math.round(memUsed.heapUsed / 1024 / 1024) + 'MB',
+        heapTotal: Math.round(memUsed.heapTotal / 1024 / 1024) + 'MB'
+      });
+
       // Combine all chunks into a single buffer
       const finalBuffer = Buffer.concat(chunkBuffers, totalSize);
+      
+      // Clear chunk buffers to free memory
+      chunkBuffers.length = 0;
+      
       console.log(`✅ File reassembled (${Math.round(totalSize / 1024 / 1024)}MB), uploading to S3...`);
+      
+      // Check memory usage after concatenation
+      const memUsedAfter = process.memoryUsage();
+      console.log('💾 Memory usage after concatenation:', {
+        rss: Math.round(memUsedAfter.rss / 1024 / 1024) + 'MB',
+        heapUsed: Math.round(memUsedAfter.heapUsed / 1024 / 1024) + 'MB',
+        heapTotal: Math.round(memUsedAfter.heapTotal / 1024 / 1024) + 'MB'
+      });
 
       // Check environment variables
       const S3_ACCESS_KEY = process.env.RUNPOD_S3_ACCESS_KEY;
@@ -156,8 +190,22 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Error in chunked S3 upload:', error);
+    
+    // More detailed error reporting
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const errorStack = error instanceof Error ? error.stack : '';
+    
+    console.error('❌ Error details:', {
+      message: errorMessage,
+      stack: errorStack,
+      error: error
+    });
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to upload chunk to S3' },
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? errorStack : undefined
+      },
       { status: 500 }
     );
   }

@@ -339,84 +339,100 @@ export default function MyInfluencersPage() {
     comfyUIPath: string;
     networkVolumePath?: string;
   }> => {
-    console.log(`🚀 Starting chunked S3 upload for ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`);
+    console.log(`🚀 Starting multipart S3 upload for ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`);
 
     if (!apiClient) {
       throw new Error('API client is not initialized');
     }
 
-    // Define chunk size (4MB - well under Vercel's 6MB limit)
-    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks
+    // Define chunk size (5MB - S3 minimum for multipart is 5MB except last part)
+    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
-    console.log(`📦 Splitting ${file.name} into ${totalChunks} chunks of ~${Math.round(CHUNK_SIZE / 1024 / 1024)}MB each`);
+    console.log(`📦 Using S3 multipart upload: ${totalChunks} parts of ~${Math.round(CHUNK_SIZE / 1024 / 1024)}MB each`);
 
-    let uploadId: string | undefined;
-    let result: any;
+    try {
+      // Step 1: Start multipart upload
+      const startFormData = new FormData();
+      startFormData.append('action', 'start');
+      startFormData.append('fileName', file.name);
+      startFormData.append('displayName', displayName);
 
-    // Upload chunks sequentially
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      const start = chunkIndex * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, file.size);
-      const chunk = file.slice(start, end);
-
-      console.log(`📤 Uploading chunk ${chunkIndex + 1}/${totalChunks} (${Math.round(chunk.size / 1024)}KB)`);
-
-      // Create FormData for the chunk
-      const formData = new FormData();
-      formData.append('chunk', chunk);
-      formData.append('chunkIndex', chunkIndex.toString());
-      formData.append('totalChunks', totalChunks.toString());
-      formData.append('fileName', file.name);
-      formData.append('displayName', displayName);
-      
-      if (uploadId) {
-        formData.append('uploadId', uploadId);
+      const startResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', startFormData);
+      if (!startResponse.ok) {
+        const errorData = await startResponse.json().catch(() => ({ error: `HTTP ${startResponse.status}` }));
+        throw new Error(errorData.error || `Failed to start multipart upload: ${startResponse.status}`);
       }
 
-      // Upload chunk
-      const response = await apiClient.postFormData('/api/user/influencers/chunked-s3-upload', formData);
+      const startResult = await startResponse.json();
+      const { sessionId, uploadId, uniqueFileName } = startResult;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-        throw new Error(errorData.error || `Chunk ${chunkIndex + 1} upload failed: ${response.status}`);
+      console.log(`✅ Multipart upload started: ${uploadId}`);
+
+      // Step 2: Upload each part
+      for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
+        const start = (partNumber - 1) * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const chunk = file.slice(start, end);
+
+        console.log(`📤 Uploading part ${partNumber}/${totalChunks} (${Math.round(chunk.size / 1024)}KB)`);
+
+        const partFormData = new FormData();
+        partFormData.append('action', 'upload');
+        partFormData.append('chunk', chunk);
+        partFormData.append('partNumber', partNumber.toString());
+        partFormData.append('sessionId', sessionId);
+
+        const partResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', partFormData);
+        if (!partResponse.ok) {
+          const errorData = await partResponse.json().catch(() => ({ error: `HTTP ${partResponse.status}` }));
+          throw new Error(errorData.error || `Part ${partNumber} upload failed: ${partResponse.status}`);
+        }
+
+        const partResult = await partResponse.json();
+        if (!partResult.success) {
+          throw new Error(`Part ${partNumber} upload failed: ${partResult.error || 'Unknown error'}`);
+        }
+
+        // Update progress
+        if (onProgress) {
+          const progress = Math.round((partNumber / totalChunks) * 100);
+          onProgress(progress);
+        }
       }
 
-      const chunkResult = await response.json();
+      // Step 3: Complete multipart upload
+      console.log(`🏁 Completing multipart upload...`);
 
-      if (!chunkResult.success) {
-        throw new Error(`Chunk ${chunkIndex + 1} upload failed: ${chunkResult.error || 'Unknown error'}`);
+      const completeFormData = new FormData();
+      completeFormData.append('action', 'complete');
+      completeFormData.append('sessionId', sessionId);
+      completeFormData.append('totalParts', totalChunks.toString());
+
+      const completeResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', completeFormData);
+      if (!completeResponse.ok) {
+        const errorData = await completeResponse.json().catch(() => ({ error: `HTTP ${completeResponse.status}` }));
+        throw new Error(errorData.error || `Failed to complete multipart upload: ${completeResponse.status}`);
       }
 
-      // Update upload ID for subsequent chunks
-      if (chunkIndex === 0) {
-        uploadId = chunkResult.uploadId;
+      const completeResult = await completeResponse.json();
+      if (!completeResult.success) {
+        throw new Error(`Failed to complete multipart upload: ${completeResult.error || 'Unknown error'}`);
       }
 
-      // Update progress
-      if (onProgress) {
-        const progress = Math.round(((chunkIndex + 1) / totalChunks) * 100);
-        onProgress(progress);
-      }
+      console.log(`✅ Multipart S3 upload completed: ${completeResult.uniqueFileName}`);
 
-      // Store final result from last chunk
-      if (chunkResult.completed) {
-        result = chunkResult;
-        console.log(`✅ Chunked S3 upload completed: ${result.uniqueFileName}`);
-        break;
-      }
+      return {
+        success: true,
+        uniqueFileName: completeResult.uniqueFileName,
+        comfyUIPath: completeResult.comfyUIPath,
+        networkVolumePath: completeResult.networkVolumePath
+      };
+
+    } catch (error) {
+      console.error(`❌ Multipart upload failed:`, error);
+      throw error;
     }
-
-    if (!result) {
-      throw new Error('Upload completed but no final result received');
-    }
-
-    return {
-      success: true,
-      uniqueFileName: result.uniqueFileName,
-      comfyUIPath: result.comfyUIPath,
-      networkVolumePath: result.networkVolumePath
-    };
   };
 
   // ✅ FUNCTION: Upload via serverless function (for small files)
