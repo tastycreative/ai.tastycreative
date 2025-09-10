@@ -95,16 +95,6 @@ export async function updateJob(jobId: string, updates: Partial<GenerationJob>):
   console.log('📝 Updates:', updates);
   
   try {
-    // First check if job exists
-    const existingJob = await prisma.generationJob.findUnique({
-      where: { id: jobId }
-    });
-    
-    if (!existingJob) {
-      console.error('❌ Job not found for update:', jobId);
-      throw new Error(`Job ${jobId} not found`);
-    }
-    
     const updateData: any = {};
     
     if (updates.status !== undefined) {
@@ -132,9 +122,6 @@ export async function updateJob(jobId: string, updates: Partial<GenerationJob>):
       updateData.lastChecked = new Date(updates.lastChecked);
     }
     
-    // Add current timestamp to track when update happened
-    updateData.updatedAt = new Date();
-    
     const updated = await prisma.generationJob.update({
       where: { id: jobId },
       data: updateData
@@ -157,19 +144,8 @@ export async function updateJob(jobId: string, updates: Partial<GenerationJob>):
       lastChecked: updated.lastChecked?.toISOString()
     };
   } catch (error) {
-    console.error('💥 Error updating job in database:', jobId, error);
-    
-    // Provide more detailed error information
-    if (error instanceof Error) {
-      console.error('Error details:', {
-        message: error.message,
-        name: error.name,
-        stack: error.stack?.split('\n').slice(0, 3).join('\n') // Truncate stack trace
-      });
-    }
-    
-    // Re-throw the error so webhook can handle retries
-    throw error;
+    console.error('💥 Error updating job in database:', error);
+    return null;
   }
 }
 
