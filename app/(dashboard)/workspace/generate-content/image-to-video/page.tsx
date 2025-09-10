@@ -481,6 +481,13 @@ export default function ImageToVideoPage() {
           uploadedImage: result.filename,
         }));
 
+        // Store base64 data for serverless API
+        if (result.base64) {
+          console.log("📦 Storing base64 data for image-to-video generation");
+          // We'll pass this base64 data to the API
+          (window as any).imageToVideoBase64Data = result.base64;
+        }
+
         // Create preview URL
         const previewUrl = URL.createObjectURL(file);
         setUploadedImagePreview(previewUrl);
@@ -725,12 +732,17 @@ export default function ImageToVideoPage() {
       const workflow = createWorkflowJson(params);
       console.log("Created I2V workflow for serverless submission");
 
+      // Get base64 data from stored window object
+      const imageBase64Data = (window as any).imageToVideoBase64Data;
+      console.log("📦 Using base64 data for image-to-video:", !!imageBase64Data);
+
       // Use the serverless RunPod endpoint
       const response = await apiClient.post(
         "/api/generate/image-to-video-runpod",
         {
           workflow,
           params,
+          imageData: imageBase64Data, // Include base64 image data
         }
       );
 
