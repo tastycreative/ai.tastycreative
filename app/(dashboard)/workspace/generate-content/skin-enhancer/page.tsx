@@ -25,6 +25,7 @@ interface EnhancementParams {
   prompt: string;
   width: number;
   height: number;
+  portraitSize?: string; // New parameter for backend optimization
   batchSize: number;
   steps: number;
   cfg: number;
@@ -70,12 +71,14 @@ interface DatabaseImage {
   createdAt: Date | string;
 }
 
-// Constants
+// Constants - Portrait-optimized sizes (3:4 aspect ratio for faces)
 const ASPECT_RATIOS = [
-  { name: "Portrait", width: 832, height: 1216, ratio: "2:3" },
-  { name: "Square", width: 1024, height: 1024, ratio: "1:1" },
-  { name: "Landscape", width: 1216, height: 832, ratio: "3:2" },
-  { name: "Custom", width: 1408, height: 1408, ratio: "Custom" },
+  { name: "Portrait S", width: 768, height: 1024, ratio: "3:4", description: "Fast generation" },
+  { name: "Portrait M", width: 832, height: 1216, ratio: "3:4", description: "Balanced quality" },
+  { name: "Portrait L", width: 896, height: 1344, ratio: "3:4", description: "High quality" },
+  { name: "Portrait XL", width: 1024, height: 1536, ratio: "3:4", description: "Ultra quality" },
+  { name: "Square", width: 1024, height: 1024, ratio: "1:1", description: "Social media" },
+  { name: "Custom", width: 1408, height: 1408, ratio: "Custom", description: "Your choice" },
 ];
 
 const SAMPLERS = [
@@ -131,9 +134,10 @@ export default function SkinEnhancerPage() {
   const [params, setParams] = useState<EnhancementParams>({
     // Only show main prompt in UI
     prompt: "",
-    // Hidden parameters with default values from JSON
-    width: 1408,
-    height: 1408,
+    // Portrait-optimized defaults (medium size)
+    width: 832,
+    height: 1216,
+    portraitSize: "medium", // New parameter for backend optimization
     batchSize: 1,
     steps: 25,
     cfg: 0.7,
@@ -422,7 +426,14 @@ export default function SkinEnhancerPage() {
   };
 
   const handleAspectRatioChange = (width: number, height: number) => {
-    setParams((prev) => ({ ...prev, width, height }));
+    // Map dimensions to portrait size for backend optimization
+    let portraitSize = "medium";
+    if (width === 768 && height === 1024) portraitSize = "small";
+    else if (width === 832 && height === 1216) portraitSize = "medium";
+    else if (width === 896 && height === 1344) portraitSize = "large";
+    else if (width === 1024 && height === 1536) portraitSize = "xl";
+    
+    setParams((prev) => ({ ...prev, width, height, portraitSize }));
   };
 
   // Manual job status check (without starting continuous polling)
@@ -1253,7 +1264,7 @@ export default function SkinEnhancerPage() {
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Output Size
               </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {ASPECT_RATIOS.map((ratio) => (
                   <button
                     key={ratio.name}
@@ -1267,9 +1278,12 @@ export default function SkinEnhancerPage() {
                         : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400"
                     }`}
                   >
-                    <div>{ratio.name}</div>
+                    <div className="font-semibold">{ratio.name}</div>
                     <div className="text-xs opacity-75">
                       {ratio.width}×{ratio.height}
+                    </div>
+                    <div className="text-xs opacity-60 mt-1">
+                      {ratio.description}
                     </div>
                   </button>
                 ))}
