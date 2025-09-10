@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { workflow, params } = body;
+    const { workflow, params, imageData } = body;
 
     if (!workflow) {
       return NextResponse.json(
@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Log base64 data availability
+    console.log('📦 Image base64 data available:', !!imageData);
 
     console.log('🎯 Starting RunPod image-to-video generation for user:', userId);
     console.log('📋 Generation params:', params);
@@ -108,7 +111,8 @@ export async function POST(request: NextRequest) {
         params,
         webhook_url: webhookUrl,
         user_id: userId,
-        base_url: baseUrl // Add base URL so RunPod can download images
+        base_url: baseUrl, // Add base URL so RunPod can download images
+        imageData: imageData // Include base64 image data for serverless processing
       }
     };
 
