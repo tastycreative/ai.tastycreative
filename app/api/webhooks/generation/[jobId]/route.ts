@@ -3,6 +3,10 @@ import { updateJob, getJob } from '@/lib/jobsStorage';
 import { saveImageToDatabase, buildComfyUIUrl } from '@/lib/imageStorage';
 import { saveVideoToDatabase, buildComfyUIVideoUrl } from '@/lib/videoStorage';
 
+// Simple in-memory debounce to prevent rapid duplicate updates
+const lastWebhookTime = new Map<string, number>();
+const DEBOUNCE_MS = 1000; // 1 second debounce
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
@@ -13,6 +17,24 @@ export async function POST(
     
     console.log('🔔 Generation webhook received for job:', jobId);
     console.log('📋 Webhook payload:', body);
+    
+    // Debounce rapid progress updates (but allow status changes through)
+    const now = Date.now();
+    const lastTime = lastWebhookTime.get(jobId) || 0;
+    const currentStatus = body.status;
+    const currentProgress = body.progress;
+    
+    // Only debounce progress updates, not status changes or completion
+    if (currentStatus === 'IN_PROGRESS' && currentProgress !== undefined && (now - lastTime) < DEBOUNCE_MS) {
+      console.log(`⏸️ Debouncing webhook for job ${jobId} (${now - lastTime}ms since last)`);
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Webhook debounced - too frequent',
+        jobId 
+      });
+    }
+    
+    lastWebhookTime.set(jobId, now);
 
     // Verify job exists
     const existingJob = await getJob(jobId);
@@ -182,19 +204,43 @@ export async function POST(
       }
     }
 
-    // Update job in database
-    const updatedJob = await updateJob(jobId, updateData);
+    // Update job in database with retry logic
+    let updatedJob = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries && !updatedJob) {
+      try {
+        updatedJob = await updateJob(jobId, updateData);
+        if (updatedJob) {
+          console.log('✅ Job updated successfully:', jobId, retryCount > 0 ? `(retry ${retryCount})` : '');
+          break;
+        }
+      } catch (dbError) {
+        retryCount++;
+        console.error(`❌ Database update failed (attempt ${retryCount}/${maxRetries}):`, dbError);
+        
+        if (retryCount < maxRetries) {
+          // Wait briefly before retrying (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 100));
+        }
+      }
+    }
     
     if (updatedJob) {
-      console.log('✅ Job updated successfully:', jobId);
-      
-      // Log final completion
-      if (status === 'COMPLETED') {
-        console.log(`🎉 Generation job completed: ${jobId}`);
-        if (updateData.resultUrls && images) {
-          console.log(`📊 Final stats: ${updateData.resultUrls.length} images generated`);
-        } else if (updateData.resultUrls && videos) {
-          console.log(`📊 Final stats: ${updateData.resultUrls.length} videos generated`);
+      // Log final completion and cleanup
+      if (status === 'COMPLETED' || status === 'FAILED' || status === 'CANCELLED') {
+        console.log(`� Job ${jobId} finished with status: ${status}`);
+        // Clean up debounce tracking
+        lastWebhookTime.delete(jobId);
+        
+        if (status === 'COMPLETED') {
+          console.log(`�🎉 Generation job completed: ${jobId}`);
+          if (updateData.resultUrls && images) {
+            console.log(`📊 Final stats: ${updateData.resultUrls.length} images generated`);
+          } else if (updateData.resultUrls && videos) {
+            console.log(`📊 Final stats: ${updateData.resultUrls.length} videos generated`);
+          }
         }
       }
       
@@ -204,7 +250,8 @@ export async function POST(
         jobId 
       });
     } else {
-      throw new Error('Failed to update job in database');
+      console.error('❌ Failed to update job after all retries:', jobId);
+      throw new Error(`Failed to update job in database after ${maxRetries} attempts`);
     }
 
   } catch (error) {
