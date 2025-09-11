@@ -268,7 +268,7 @@ function parseInstagramDataAlternative(post: any, originalUrl: string): Instagra
 
   // Fallback to main image
   if (images.length === 0 && (post.display_url || post.imageUrl)) {
-    let imageUrl = convertToHighQualityUrl(post.display_url || post.imageUrl);
+    const imageUrl = convertToHighQualityUrl(post.display_url || post.imageUrl);
     images.push({
       url: imageUrl,
       alt: "Instagram image",
@@ -304,7 +304,7 @@ function parseInstagramDataThird(post: any, originalUrl: string): InstagramPost 
   
   for (const field of possibleImageFields) {
     if (post[field]) {
-      let imageUrl = convertToHighQualityUrl(post[field]);
+      const imageUrl = convertToHighQualityUrl(post[field]);
       images.push({
         url: imageUrl,
         alt: post.caption || "Instagram image",
@@ -336,6 +336,3 @@ function convertToHighQualityUrl(url: string): string {
   // Instagram URLs contain authentication tokens that break if modified
   return url;
 }
-
-// Export handler functions for potential reuse
-export { extractWithPrimaryActor, extractWithAlternativeActor, extractWithThirdActor };
