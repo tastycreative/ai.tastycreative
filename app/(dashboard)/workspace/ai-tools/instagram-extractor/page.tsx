@@ -314,7 +314,8 @@ export default function InstagramExtractorPage() {
                     {result.images.length !== 1 ? "s" : ""}
                   </p>
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                    � Using advanced bypass methods (bot user-agents, base64 encoding) to show previews
+                    � Using advanced bypass methods (bot user-agents, base64
+                    encoding) to show previews
                   </p>
                 </div>
               </div>
@@ -384,7 +385,8 @@ export default function InstagramExtractorPage() {
                             Advanced bypass failed
                           </p>
                           <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-                            Tried multiple bypass methods including bot user-agents and base64 encoding
+                            Tried multiple bypass methods including bot
+                            user-agents and base64 encoding
                           </p>
                           <div className="space-y-2">
                             <button
@@ -394,7 +396,9 @@ export default function InstagramExtractorPage() {
                               Open in new tab
                             </button>
                             <button
-                              onClick={() => handleDownloadImage(image.url, index)}
+                              onClick={() =>
+                                handleDownloadImage(image.url, index)
+                              }
                               className="block w-full text-xs text-green-500 hover:text-green-600 underline"
                               disabled={downloadingIndex === index}
                             >
@@ -411,9 +415,11 @@ export default function InstagramExtractorPage() {
                                   ...prev,
                                   [index]: true,
                                 }));
-                                
+
                                 // Force reload the image with timestamp to bypass cache
-                                const img = document.querySelector(`img[alt*="Instagram image ${index + 1}"]`) as HTMLImageElement;
+                                const img = document.querySelector(
+                                  `img[alt*="Instagram image ${index + 1}"]`
+                                ) as HTMLImageElement;
                                 if (img) {
                                   img.src = `/api/proxy-image?url=${encodeURIComponent(
                                     image.url
@@ -457,7 +463,10 @@ export default function InstagramExtractorPage() {
                           );
                           const target = e.target as HTMLImageElement;
 
-                          if (target.src.includes("/api/proxy-image") && !target.src.includes("format=base64")) {
+                          if (
+                            target.src.includes("/api/proxy-image") &&
+                            !target.src.includes("format=base64")
+                          ) {
                             // Try base64 format for better bypass
                             try {
                               const base64Response = await fetch(
@@ -465,19 +474,28 @@ export default function InstagramExtractorPage() {
                                   image.url
                                 )}&format=base64&bypass=instagram`
                               );
-                              
+
                               if (base64Response.ok) {
                                 const data = await base64Response.json();
                                 if (data.success && data.dataUrl) {
                                   target.src = data.dataUrl;
-                                  console.log(`✅ Base64 bypass successful for image ${index + 1}`);
+                                  console.log(
+                                    `✅ Base64 bypass successful for image ${
+                                      index + 1
+                                    }`
+                                  );
                                   return;
                                 }
                               }
                             } catch (base64Error) {
-                              console.log(`❌ Base64 bypass failed for image ${index + 1}:`, base64Error);
+                              console.log(
+                                `❌ Base64 bypass failed for image ${
+                                  index + 1
+                                }:`,
+                                base64Error
+                              );
                             }
-                            
+
                             // If base64 fails, try original URL
                             target.src = image.url;
                           } else if (!target.src.includes("format=base64")) {
