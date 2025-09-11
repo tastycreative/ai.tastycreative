@@ -449,7 +449,7 @@ function parseInstagramDataThird(post: any, originalUrl: string): InstagramPost 
   
   for (const field of possibleImageFields) {
     if (post[field] && isImageUrl(post[field])) {
-      let imageUrl = convertToHighQualityUrl(post[field]);
+      const imageUrl = convertToHighQualityUrl(post[field]);
       images.push({
         url: imageUrl,
         alt: post.caption || "Instagram image",
