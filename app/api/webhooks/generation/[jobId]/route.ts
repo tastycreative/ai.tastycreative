@@ -30,7 +30,7 @@ export async function POST(
     const updateData: any = {};
 
     if (status) {
-      updateData.status = status.toLowerCase();
+      updateData.status = status.toUpperCase();
     }
 
     if (progress !== undefined) {

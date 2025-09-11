@@ -313,6 +313,9 @@ export default function InstagramExtractorPage() {
                     Found {result.images.length} image
                     {result.images.length !== 1 ? "s" : ""}
                   </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    � Using advanced bypass methods (bot user-agents, base64 encoding) to show previews
+                  </p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
@@ -378,21 +381,57 @@ export default function InstagramExtractorPage() {
                         <div className="text-center p-4">
                           <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                           <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                            Image preview blocked
+                            Advanced bypass failed
                           </p>
-                          <button
-                            onClick={() => window.open(image.url, "_blank")}
-                            className="text-xs text-blue-500 hover:text-blue-600 underline"
-                          >
-                            Open directly
-                          </button>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                            Tried multiple bypass methods including bot user-agents and base64 encoding
+                          </p>
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => window.open(image.url, "_blank")}
+                              className="block w-full text-xs text-blue-500 hover:text-blue-600 underline"
+                            >
+                              Open in new tab
+                            </button>
+                            <button
+                              onClick={() => handleDownloadImage(image.url, index)}
+                              className="block w-full text-xs text-green-500 hover:text-green-600 underline"
+                              disabled={downloadingIndex === index}
+                            >
+                              Try download anyway
+                            </button>
+                            <button
+                              onClick={async () => {
+                                // Try to force reload with a different bypass method
+                                setImageErrorStates((prev) => ({
+                                  ...prev,
+                                  [index]: false,
+                                }));
+                                setImageLoadingStates((prev) => ({
+                                  ...prev,
+                                  [index]: true,
+                                }));
+                                
+                                // Force reload the image with timestamp to bypass cache
+                                const img = document.querySelector(`img[alt*="Instagram image ${index + 1}"]`) as HTMLImageElement;
+                                if (img) {
+                                  img.src = `/api/proxy-image?url=${encodeURIComponent(
+                                    image.url
+                                  )}&bypass=whatsapp&t=${Date.now()}`;
+                                }
+                              }}
+                              className="block w-full text-xs text-purple-500 hover:text-purple-600 underline"
+                            >
+                              Retry with WhatsApp bypass
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ) : (
                       <img
                         src={`/api/proxy-image?url=${encodeURIComponent(
                           image.url
-                        )}`}
+                        )}&bypass=instagram`}
                         alt={image.alt || `Instagram image ${index + 1}`}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         onLoad={() => {
@@ -410,21 +449,41 @@ export default function InstagramExtractorPage() {
                             [index]: true,
                           }));
                         }}
-                        onError={(e) => {
+                        onError={async (e) => {
                           console.log(
                             `❌ Failed to load proxied image ${
                               index + 1
-                            }, trying original URL`
+                            }, trying base64 bypass`
                           );
                           const target = e.target as HTMLImageElement;
 
-                          if (target.src.includes("/api/proxy-image")) {
-                            // Try original URL as fallback
+                          if (target.src.includes("/api/proxy-image") && !target.src.includes("format=base64")) {
+                            // Try base64 format for better bypass
+                            try {
+                              const base64Response = await fetch(
+                                `/api/proxy-image?url=${encodeURIComponent(
+                                  image.url
+                                )}&format=base64&bypass=instagram`
+                              );
+                              
+                              if (base64Response.ok) {
+                                const data = await base64Response.json();
+                                if (data.success && data.dataUrl) {
+                                  target.src = data.dataUrl;
+                                  console.log(`✅ Base64 bypass successful for image ${index + 1}`);
+                                  return;
+                                }
+                              }
+                            } catch (base64Error) {
+                              console.log(`❌ Base64 bypass failed for image ${index + 1}:`, base64Error);
+                            }
+                            
+                            // If base64 fails, try original URL
                             target.src = image.url;
-                          } else {
-                            // Both proxied and original failed
+                          } else if (!target.src.includes("format=base64")) {
+                            // Original URL failed, show error state
                             console.log(
-                              `❌ Both proxied and original URLs failed for image ${
+                              `❌ All bypass methods failed for image ${
                                 index + 1
                               }`
                             );
