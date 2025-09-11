@@ -752,5 +752,4 @@ function extractLikesFromDescription(description: string): number | undefined {
   return undefined;
 }
 
-// Export handler functions for potential reuse
-export { extractWithPrimaryActor, extractWithAlternativeActor, extractWithThirdActor, extractWithEnhancedActor, extractWithDirectScraping, extractWithUrlManipulation };
+// Handler functions are available internally for the POST route handler
