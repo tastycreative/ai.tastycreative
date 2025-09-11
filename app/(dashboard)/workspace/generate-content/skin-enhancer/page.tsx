@@ -73,12 +73,48 @@ interface DatabaseImage {
 
 // Constants - Portrait-optimized sizes (3:4 aspect ratio for faces)
 const ASPECT_RATIOS = [
-  { name: "Portrait S", width: 768, height: 1024, ratio: "3:4", description: "Fast generation" },
-  { name: "Portrait M", width: 832, height: 1216, ratio: "3:4", description: "Balanced quality" },
-  { name: "Portrait L", width: 896, height: 1344, ratio: "3:4", description: "High quality" },
-  { name: "Portrait XL", width: 1024, height: 1536, ratio: "3:4", description: "Ultra quality" },
-  { name: "Square", width: 1024, height: 1024, ratio: "1:1", description: "Social media" },
-  { name: "Custom", width: 1408, height: 1408, ratio: "Custom", description: "Your choice" },
+  {
+    name: "Portrait S",
+    width: 768,
+    height: 1024,
+    ratio: "3:4",
+    description: "Fast generation",
+  },
+  {
+    name: "Portrait M",
+    width: 832,
+    height: 1216,
+    ratio: "3:4",
+    description: "Balanced quality",
+  },
+  {
+    name: "Portrait L",
+    width: 896,
+    height: 1344,
+    ratio: "3:4",
+    description: "High quality",
+  },
+  {
+    name: "Portrait XL",
+    width: 1024,
+    height: 1536,
+    ratio: "3:4",
+    description: "Ultra quality",
+  },
+  {
+    name: "Square",
+    width: 1024,
+    height: 1024,
+    ratio: "1:1",
+    description: "Social media",
+  },
+  {
+    name: "Custom",
+    width: 1408,
+    height: 1408,
+    ratio: "Custom",
+    description: "Your choice",
+  },
 ];
 
 const SAMPLERS = [
@@ -432,7 +468,7 @@ export default function SkinEnhancerPage() {
     else if (width === 832 && height === 1216) portraitSize = "medium";
     else if (width === 896 && height === 1344) portraitSize = "large";
     else if (width === 1024 && height === 1536) portraitSize = "xl";
-    
+
     setParams((prev) => ({ ...prev, width, height, portraitSize }));
   };
 

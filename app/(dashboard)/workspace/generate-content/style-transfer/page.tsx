@@ -458,7 +458,14 @@ export default function StyleTransferPage() {
   const uploadReferenceImageToServer = async (
     file: File,
     maskDataUrl?: string | null
-  ): Promise<{ filename: string; maskFilename?: string; base64?: string; maskBase64?: string; dataUrl?: string; maskDataUrl?: string }> => {
+  ): Promise<{
+    filename: string;
+    maskFilename?: string;
+    base64?: string;
+    maskBase64?: string;
+    dataUrl?: string;
+    maskDataUrl?: string;
+  }> => {
     if (!apiClient) throw new Error("API client not ready");
 
     const formData = new FormData();

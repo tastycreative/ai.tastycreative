@@ -734,7 +734,10 @@ export default function ImageToVideoPage() {
 
       // Get base64 data from stored window object
       const imageBase64Data = (window as any).imageToVideoBase64Data;
-      console.log("📦 Using base64 data for image-to-video:", !!imageBase64Data);
+      console.log(
+        "📦 Using base64 data for image-to-video:",
+        !!imageBase64Data
+      );
 
       // Use the serverless RunPod endpoint
       const response = await apiClient.post(

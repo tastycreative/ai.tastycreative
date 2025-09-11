@@ -271,7 +271,9 @@ export default function MyInfluencersPage() {
 
       if (!isValidSize) {
         const fileSizeMB = Math.round(file.size / 1024 / 1024);
-        alert(`${file.name} is too large (${fileSizeMB}MB). Maximum file size is 2GB. Please use a smaller file.`);
+        alert(
+          `${file.name} is too large (${fileSizeMB}MB). Maximum file size is 2GB. Please use a smaller file.`
+        );
         return false;
       }
 
@@ -339,30 +341,46 @@ export default function MyInfluencersPage() {
     comfyUIPath: string;
     networkVolumePath?: string;
   }> => {
-    console.log(`🚀 Starting multipart S3 upload for ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`);
+    console.log(
+      `🚀 Starting multipart S3 upload for ${file.name} (${Math.round(
+        file.size / 1024 / 1024
+      )}MB)`
+    );
 
     if (!apiClient) {
-      throw new Error('API client is not initialized');
+      throw new Error("API client is not initialized");
     }
 
     // Define chunk size (4MB to stay under Vercel's 6MB limit with FormData overhead)
     const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for faster processing
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    
-    console.log(`📦 Using S3 multipart upload: ${totalChunks} parts of ~${Math.round(CHUNK_SIZE / 1024 / 1024)}MB each`);
+
+    console.log(
+      `📦 Using S3 multipart upload: ${totalChunks} parts of ~${Math.round(
+        CHUNK_SIZE / 1024 / 1024
+      )}MB each`
+    );
 
     try {
       // Step 1: Start multipart upload
       const startFormData = new FormData();
-      startFormData.append('action', 'start');
-      startFormData.append('fileName', file.name);
-      startFormData.append('displayName', displayName);
-      startFormData.append('totalParts', totalChunks.toString());
+      startFormData.append("action", "start");
+      startFormData.append("fileName", file.name);
+      startFormData.append("displayName", displayName);
+      startFormData.append("totalParts", totalChunks.toString());
 
-      const startResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', startFormData);
+      const startResponse = await apiClient.postFormData(
+        "/api/user/influencers/multipart-s3-upload",
+        startFormData
+      );
       if (!startResponse.ok) {
-        const errorData = await startResponse.json().catch(() => ({ error: `HTTP ${startResponse.status}` }));
-        throw new Error(errorData.error || `Failed to start multipart upload: ${startResponse.status}`);
+        const errorData = await startResponse
+          .json()
+          .catch(() => ({ error: `HTTP ${startResponse.status}` }));
+        throw new Error(
+          errorData.error ||
+            `Failed to start multipart upload: ${startResponse.status}`
+        );
       }
 
       const startResult = await startResponse.json();
@@ -376,50 +394,73 @@ export default function MyInfluencersPage() {
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
 
-        console.log(`📤 Uploading part ${partNumber}/${totalChunks} via server (${Math.round(chunk.size / 1024)}KB)`);
+        console.log(
+          `📤 Uploading part ${partNumber}/${totalChunks} via server (${Math.round(
+            chunk.size / 1024
+          )}KB)`
+        );
 
         // Retry logic for individual parts
         let partSuccess = false;
         let lastError = null;
-        
+
         for (let attempt = 1; attempt <= 3; attempt++) {
           try {
             const partFormData = new FormData();
-            partFormData.append('action', 'upload');
-            partFormData.append('chunk', chunk);
-            partFormData.append('partNumber', partNumber.toString());
-            partFormData.append('sessionId', sessionId);
+            partFormData.append("action", "upload");
+            partFormData.append("chunk", chunk);
+            partFormData.append("partNumber", partNumber.toString());
+            partFormData.append("sessionId", sessionId);
             // Include session reconstruction data
-            partFormData.append('uploadId', uploadId);
-            partFormData.append('s3Key', s3Key);
-            partFormData.append('uniqueFileName', uniqueFileName);
-            partFormData.append('totalParts', totalChunks.toString());
+            partFormData.append("uploadId", uploadId);
+            partFormData.append("s3Key", s3Key);
+            partFormData.append("uniqueFileName", uniqueFileName);
+            partFormData.append("totalParts", totalChunks.toString());
 
-            const partResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', partFormData);
+            const partResponse = await apiClient.postFormData(
+              "/api/user/influencers/multipart-s3-upload",
+              partFormData
+            );
             if (!partResponse.ok) {
-              const errorData = await partResponse.json().catch(() => ({ error: `HTTP ${partResponse.status}` }));
-              throw new Error(errorData.error || `Part ${partNumber} upload failed: ${partResponse.status}`);
+              const errorData = await partResponse
+                .json()
+                .catch(() => ({ error: `HTTP ${partResponse.status}` }));
+              throw new Error(
+                errorData.error ||
+                  `Part ${partNumber} upload failed: ${partResponse.status}`
+              );
             }
 
             const partResult = await partResponse.json();
             if (!partResult.success) {
-              throw new Error(`Part ${partNumber} upload failed: ${partResult.error || 'Unknown error'}`);
+              throw new Error(
+                `Part ${partNumber} upload failed: ${
+                  partResult.error || "Unknown error"
+                }`
+              );
             }
-            
+
             partSuccess = true;
             break; // Success, exit retry loop
-            
           } catch (error) {
             lastError = error;
             if (attempt < 3) {
-              console.log(`⚠️ Part ${partNumber} failed (attempt ${attempt}/3), retrying...`);
-              await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+              console.log(
+                `⚠️ Part ${partNumber} failed (attempt ${attempt}/3), retrying...`
+              );
+              await new Promise((resolve) =>
+                setTimeout(resolve, 1000 * attempt)
+              ); // Exponential backoff
             }
           }
         }
-        
+
         if (!partSuccess) {
-          throw new Error(`Part ${partNumber} failed after 3 attempts: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`);
+          throw new Error(
+            `Part ${partNumber} failed after 3 attempts: ${
+              lastError instanceof Error ? lastError.message : "Unknown error"
+            }`
+          );
         }
 
         // Update progress
@@ -433,29 +474,42 @@ export default function MyInfluencersPage() {
       console.log(`🏁 Completing multipart upload...`);
 
       const completeFormData = new FormData();
-      completeFormData.append('action', 'complete');
-      completeFormData.append('sessionId', sessionId);
+      completeFormData.append("action", "complete");
+      completeFormData.append("sessionId", sessionId);
 
-      const completeResponse = await apiClient.postFormData('/api/user/influencers/multipart-s3-upload', completeFormData);
+      const completeResponse = await apiClient.postFormData(
+        "/api/user/influencers/multipart-s3-upload",
+        completeFormData
+      );
       if (!completeResponse.ok) {
-        const errorData = await completeResponse.json().catch(() => ({ error: `HTTP ${completeResponse.status}` }));
-        throw new Error(errorData.error || `Failed to complete multipart upload: ${completeResponse.status}`);
+        const errorData = await completeResponse
+          .json()
+          .catch(() => ({ error: `HTTP ${completeResponse.status}` }));
+        throw new Error(
+          errorData.error ||
+            `Failed to complete multipart upload: ${completeResponse.status}`
+        );
       }
 
       const completeResult = await completeResponse.json();
       if (!completeResult.success) {
-        throw new Error(`Failed to complete multipart upload: ${completeResult.error || 'Unknown error'}`);
+        throw new Error(
+          `Failed to complete multipart upload: ${
+            completeResult.error || "Unknown error"
+          }`
+        );
       }
 
-      console.log(`✅ Multipart S3 upload completed: ${completeResult.uniqueFileName}`);
+      console.log(
+        `✅ Multipart S3 upload completed: ${completeResult.uniqueFileName}`
+      );
 
       return {
         success: true,
         uniqueFileName: completeResult.uniqueFileName,
         comfyUIPath: completeResult.comfyUIPath,
-        networkVolumePath: completeResult.networkVolumePath
+        networkVolumePath: completeResult.networkVolumePath,
       };
-
     } catch (error) {
       console.error(`❌ Multipart upload failed:`, error);
       throw error;
@@ -596,25 +650,40 @@ export default function MyInfluencersPage() {
           // Check file size to determine upload method
           const serverlessMaxSize = 6 * 1024 * 1024; // 6MB limit for serverless functions
           const useDirectS3Upload = file.size > serverlessMaxSize;
-          
+
           if (useDirectS3Upload) {
             // ✅ DIRECT S3 UPLOAD (for large files > 6MB)
-            console.log(`🚀 File ${file.name} is ${Math.round(file.size / 1024 / 1024)}MB, using direct S3 upload...`);
-            
-            const s3UploadResult = await uploadDirectToS3(file, displayName, (progress: number) => {
-              setUploadProgress((prev) =>
-                prev.map((item) =>
-                  item.fileName === file.name
-                    ? { ...item, progress: Math.round(progress), status: "uploading", uploadMethod: "direct-s3" }
-                    : item
-                )
-              );
-            });
+            console.log(
+              `🚀 File ${file.name} is ${Math.round(
+                file.size / 1024 / 1024
+              )}MB, using direct S3 upload...`
+            );
+
+            const s3UploadResult = await uploadDirectToS3(
+              file,
+              displayName,
+              (progress: number) => {
+                setUploadProgress((prev) =>
+                  prev.map((item) =>
+                    item.fileName === file.name
+                      ? {
+                          ...item,
+                          progress: Math.round(progress),
+                          status: "uploading",
+                          uploadMethod: "direct-s3",
+                        }
+                      : item
+                  )
+                );
+              }
+            );
 
             uploadResult = {
               success: true,
               uniqueFileName: s3UploadResult.uniqueFileName,
-              comfyResult: { networkVolumePath: s3UploadResult.networkVolumePath },
+              comfyResult: {
+                networkVolumePath: s3UploadResult.networkVolumePath,
+              },
             };
             syncStatus = "synced";
             comfyUIPath = s3UploadResult.comfyUIPath;
@@ -622,7 +691,11 @@ export default function MyInfluencersPage() {
             console.log(`✅ Direct S3 upload successful for ${file.name}`);
           } else {
             // ✅ SERVERLESS FUNCTION UPLOAD (for small files <= 6MB)
-            console.log(`🚀 File ${file.name} is ${Math.round(file.size / 1024 / 1024)}MB, using serverless function upload...`);
+            console.log(
+              `🚀 File ${file.name} is ${Math.round(
+                file.size / 1024 / 1024
+              )}MB, using serverless function upload...`
+            );
             const networkUploadResult = await uploadToNetworkVolume(
               file,
               displayName
@@ -646,23 +719,22 @@ export default function MyInfluencersPage() {
             uploadResult = {
               success: true,
               uniqueFileName: networkUploadResult.uniqueFileName,
-              comfyResult: { networkVolumePath: networkUploadResult.comfyUIPath },
+              comfyResult: {
+                networkVolumePath: networkUploadResult.comfyUIPath,
+              },
             };
             syncStatus = "synced";
             comfyUIPath = networkUploadResult.comfyUIPath;
 
-            console.log(`✅ Serverless function upload successful for ${file.name}`);
+            console.log(
+              `✅ Serverless function upload successful for ${file.name}`
+            );
           }
         } catch (error) {
-          console.error(
-            `❌ Upload failed for ${file.name}:`,
-            error
-          );
+          console.error(`❌ Upload failed for ${file.name}:`, error);
 
           const errorMsg =
-            error instanceof Error
-              ? error.message
-              : "Unknown upload error";
+            error instanceof Error ? error.message : "Unknown upload error";
 
           throw new Error(`Upload failed: ${errorMsg}`);
         }
@@ -729,7 +801,8 @@ export default function MyInfluencersPage() {
         (p) => p.status === "completed" && p.uploadMethod === "direct-s3"
       ).length;
       const serverlessUploads = uploadProgress.filter(
-        (p) => p.status === "completed" && p.uploadMethod === "serverless-function"
+        (p) =>
+          p.status === "completed" && p.uploadMethod === "serverless-function"
       ).length;
       const networkUploads = uploadProgress.filter(
         (p) => p.status === "completed" && p.uploadMethod === "direct-comfyui"
@@ -1666,7 +1739,9 @@ export default function MyInfluencersPage() {
                           </span>
                           {progress.status === "uploading" &&
                             progress.uploadMethod === "direct-s3" && (
-                              <span>Uploading large file directly to S3...</span>
+                              <span>
+                                Uploading large file directly to S3...
+                              </span>
                             )}
                           {progress.status === "uploading" &&
                             progress.uploadMethod === "serverless-function" && (
