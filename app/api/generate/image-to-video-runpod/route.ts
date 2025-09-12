@@ -43,6 +43,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Debug: Log the endpoint configuration being used
+    console.log('🎯 IMAGE-TO-VIDEO ENDPOINT DEBUG:');
+    console.log('  RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID:', RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID);
+    console.log('  RUNPOD_API_URL being used:', RUNPOD_API_URL);
+    console.log('  Expected endpoint: ruuan3q8eweazy');
+
     // Parse request body
     const body = await request.json();
     const { workflow, params, imageData } = body;
