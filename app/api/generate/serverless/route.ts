@@ -66,17 +66,40 @@ export async function POST(req: NextRequest) {
     // Generate unique job ID
     const jobId = uuidv4();
     
-    // Get RunPod endpoint URL from environment
-    const runpodEndpointUrl = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_URL;
+    // Get appropriate RunPod endpoint URL based on action type
+    let runpodEndpointUrl: string | undefined;
+    let endpointName: string;
+    
+    switch (validatedData.action) {
+      case 'generate_text_to_image':
+        runpodEndpointUrl = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_URL;
+        endpointName = 'text-to-image';
+        break;
+      case 'generate_style_transfer':
+        runpodEndpointUrl = process.env.RUNPOD_STYLE_TRANSFER_ENDPOINT_URL;
+        endpointName = 'style-transfer';
+        break;
+      case 'generate_image_to_video':
+        runpodEndpointUrl = process.env.RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_URL || process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_URL; // Fallback to text-to-image for now
+        endpointName = 'image-to-video';
+        break;
+      default:
+        runpodEndpointUrl = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_URL;
+        endpointName = 'text-to-image';
+    }
+    
     if (!runpodEndpointUrl) {
-      console.error('RUNPOD_TEXT_TO_IMAGE_ENDPOINT_URL not configured');
+      console.error(`RUNPOD ${endpointName.toUpperCase().replace('-', '_')}_ENDPOINT_URL not configured`);
       return NextResponse.json({ 
-        error: 'RunPod endpoint not configured' 
+        error: `RunPod ${endpointName} endpoint not configured` 
       }, { status: 500 });
     }
 
     // Get webhook URL for status updates
     const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/webhooks/runpod`;
+    
+    console.log(`🎯 Using ${endpointName} endpoint: ${runpodEndpointUrl}`);
+    console.log(`📋 Job ID: ${jobId}, Action: ${validatedData.action}`);
     
     // Prepare the RunPod request payload
     const runpodPayload = {

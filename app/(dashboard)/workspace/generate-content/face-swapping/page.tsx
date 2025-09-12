@@ -178,7 +178,7 @@ export default function FaceSwappingPage() {
   const [jobHistory, setJobHistory] = useState<GenerationJob[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  
+
   // Real-time progress states
   const [progressData, setProgressData] = useState<{
     progress: number;
@@ -188,12 +188,12 @@ export default function FaceSwappingPage() {
     estimatedTimeRemaining?: number;
   }>({
     progress: 0,
-    stage: '',
-    message: '',
+    stage: "",
+    message: "",
     elapsedTime: 0,
     estimatedTimeRemaining: 0,
   });
-  
+
   const [availableLoRAs, setAvailableLoRAs] = useState<LoRAModel[]>([
     {
       fileName: "comfyui_portrait_lora64.safetensors",
@@ -907,8 +907,8 @@ export default function FaceSwappingPage() {
     // Initialize progress tracking
     setProgressData({
       progress: 5,
-      stage: 'starting',
-      message: '🚀 Initializing face swap generation...',
+      stage: "starting",
+      message: "🚀 Initializing face swap generation...",
       elapsedTime: 0,
       estimatedTimeRemaining: 300, // 5 minutes estimate
     });
@@ -988,27 +988,27 @@ export default function FaceSwappingPage() {
     } catch (error) {
       console.error("Face swap generation error:", error);
       setIsGenerating(false);
-      
+
       // Update progress with error
       setProgressData({
         progress: 0,
-        stage: 'failed',
-        message: error instanceof Error ? error.message : 'Generation failed',
+        stage: "failed",
+        message: error instanceof Error ? error.message : "Generation failed",
         elapsedTime: 0,
         estimatedTimeRemaining: 0,
       });
-      
+
       // Clear error progress after delay
       setTimeout(() => {
         setProgressData({
           progress: 0,
-          stage: '',
-          message: '',
+          stage: "",
+          message: "",
           elapsedTime: 0,
           estimatedTimeRemaining: 0,
         });
       }, 5000);
-      
+
       alert(error instanceof Error ? error.message : "Generation failed");
     }
   };
@@ -1063,8 +1063,10 @@ export default function FaceSwappingPage() {
         if (job.progress !== undefined || job.stage || job.message) {
           setProgressData({
             progress: job.progress || 0,
-            stage: job.stage || '',
-            message: job.message || (job.status === 'processing' ? 'Processing...' : ''),
+            stage: job.stage || "",
+            message:
+              job.message ||
+              (job.status === "processing" ? "Processing..." : ""),
             elapsedTime: job.elapsedTime || 0,
             estimatedTimeRemaining: job.estimatedTimeRemaining || 0,
           });
@@ -1087,16 +1089,16 @@ export default function FaceSwappingPage() {
 
         if (job.status === "completed") {
           console.log("🎉 Face swap job completed successfully!");
-          
+
           // Final progress update
           setProgressData({
             progress: 100,
-            stage: 'completed',
-            message: 'Face swap completed successfully! 🎉',
+            stage: "completed",
+            message: "Face swap completed successfully! 🎉",
             elapsedTime: job.elapsedTime || 0,
             estimatedTimeRemaining: 0,
           });
-          
+
           setIsGenerating(false);
 
           // Fetch database images for completed job with retry logic
@@ -1118,8 +1120,8 @@ export default function FaceSwappingPage() {
           setTimeout(() => {
             setProgressData({
               progress: 0,
-              stage: '',
-              message: '',
+              stage: "",
+              message: "",
               elapsedTime: 0,
               estimatedTimeRemaining: 0,
             });
@@ -1128,29 +1130,29 @@ export default function FaceSwappingPage() {
           return;
         } else if (job.status === "failed") {
           console.log("❌ Face swap job failed:", job.error);
-          
+
           // Update progress with error
           setProgressData({
             progress: 0,
-            stage: 'failed',
-            message: job.error || 'Generation failed',
+            stage: "failed",
+            message: job.error || "Generation failed",
             elapsedTime: job.elapsedTime || 0,
             estimatedTimeRemaining: 0,
           });
-          
+
           setIsGenerating(false);
-          
+
           // Clear error progress after delay
           setTimeout(() => {
             setProgressData({
               progress: 0,
-              stage: '',
-              message: '',
+              stage: "",
+              message: "",
               elapsedTime: 0,
               estimatedTimeRemaining: 0,
             });
           }, 5000);
-          
+
           return;
         }
 
@@ -1164,15 +1166,15 @@ export default function FaceSwappingPage() {
         } else if (attempts >= maxAttempts) {
           console.error("⏰ Polling timeout reached");
           setIsGenerating(false);
-          
+
           setProgressData({
             progress: 0,
-            stage: 'failed',
-            message: 'Generation timeout - may still be running in background',
+            stage: "failed",
+            message: "Generation timeout - may still be running in background",
             elapsedTime: 0,
             estimatedTimeRemaining: 0,
           });
-          
+
           setCurrentJob((prev) =>
             prev
               ? {
@@ -2186,31 +2188,43 @@ export default function FaceSwappingPage() {
 
               {/* Progress Bar */}
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-4">
-                <div 
+                <div
                   className={`h-3 rounded-full transition-all duration-300 ${
-                    progressData.stage === 'failed' 
-                      ? 'bg-red-500' 
-                      : progressData.stage === 'completed'
-                      ? 'bg-green-500'
-                      : 'bg-gradient-to-r from-indigo-500 to-purple-600'
+                    progressData.stage === "failed"
+                      ? "bg-red-500"
+                      : progressData.stage === "completed"
+                      ? "bg-green-500"
+                      : "bg-gradient-to-r from-indigo-500 to-purple-600"
                   }`}
-                  style={{ width: `${Math.max(0, Math.min(100, progressData.progress))}%` }}
+                  style={{
+                    width: `${Math.max(
+                      0,
+                      Math.min(100, progressData.progress)
+                    )}%`,
+                  }}
                 ></div>
               </div>
 
               {/* Progress Message */}
               <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                {progressData.message || 'Initializing...'}
+                {progressData.message || "Initializing..."}
               </div>
 
               {/* Time Information */}
-              {(progressData.elapsedTime || progressData.estimatedTimeRemaining) && (
+              {(progressData.elapsedTime ||
+                progressData.estimatedTimeRemaining) && (
                 <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                   <span>
-                    {progressData.elapsedTime ? `Elapsed: ${Math.floor(progressData.elapsedTime)}s` : ''}
+                    {progressData.elapsedTime
+                      ? `Elapsed: ${Math.floor(progressData.elapsedTime)}s`
+                      : ""}
                   </span>
                   <span>
-                    {progressData.estimatedTimeRemaining ? `Est. remaining: ${Math.floor(progressData.estimatedTimeRemaining)}s` : ''}
+                    {progressData.estimatedTimeRemaining
+                      ? `Est. remaining: ${Math.floor(
+                          progressData.estimatedTimeRemaining
+                        )}s`
+                      : ""}
                   </span>
                 </div>
               )}
@@ -2219,16 +2233,32 @@ export default function FaceSwappingPage() {
               {progressData.stage && (
                 <div className="mt-3 flex items-center gap-2">
                   <div className="flex items-center gap-1">
-                    {progressData.stage === 'starting' && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>}
-                    {progressData.stage === 'loading_images' && <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>}
-                    {progressData.stage === 'face_detection' && <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>}
-                    {progressData.stage === 'preprocessing' && <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>}
-                    {progressData.stage === 'face_swapping' && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>}
-                    {progressData.stage === 'postprocessing' && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>}
-                    {progressData.stage === 'completed' && <div className="w-2 h-2 rounded-full bg-green-500"></div>}
-                    {progressData.stage === 'failed' && <div className="w-2 h-2 rounded-full bg-red-500"></div>}
+                    {progressData.stage === "starting" && (
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                    )}
+                    {progressData.stage === "loading_images" && (
+                      <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+                    )}
+                    {progressData.stage === "face_detection" && (
+                      <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                    )}
+                    {progressData.stage === "preprocessing" && (
+                      <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
+                    )}
+                    {progressData.stage === "face_swapping" && (
+                      <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                    )}
+                    {progressData.stage === "postprocessing" && (
+                      <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>
+                    )}
+                    {progressData.stage === "completed" && (
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    )}
+                    {progressData.stage === "failed" && (
+                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    )}
                     <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                      {progressData.stage.replace('_', ' ')}
+                      {progressData.stage.replace("_", " ")}
                     </span>
                   </div>
                 </div>
