@@ -6,6 +6,7 @@ import { saveImageToDatabase } from '@/lib/imageStorage';
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
 const RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
 const RUNPOD_STYLE_TRANSFER_ENDPOINT_ID = process.env.RUNPOD_STYLE_TRANSFER_ENDPOINT_ID;
+const RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID = process.env.RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID;
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,6 +69,11 @@ export async function POST(request: NextRequest) {
         existingJob.params?.generation_type === 'style_transfer') {
       endpointId = RUNPOD_STYLE_TRANSFER_ENDPOINT_ID;
       console.log('🎨 Using style transfer endpoint for job check');
+    } else if (existingJob.params?.action === 'generate_video' || 
+               existingJob.params?.generation_type === 'image_to_video' ||
+               existingJob.type === 'IMAGE_TO_VIDEO') {
+      endpointId = RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID;
+      console.log('🎬 Using image-to-video endpoint for job check');
     } else {
       console.log('🖼️ Using text-to-image endpoint for job check');
     }
