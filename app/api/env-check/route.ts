@@ -8,6 +8,8 @@ export async function GET(request: NextRequest) {
       RUNPOD_API_URL: process.env.RUNPOD_API_URL,
       RUNPOD_TEXT_TO_IMAGE_API_URL: process.env.RUNPOD_TEXT_TO_IMAGE_API_URL,
       RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID: process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID,
+      RUNPOD_STYLE_TRANSFER_ENDPOINT_ID: process.env.RUNPOD_STYLE_TRANSFER_ENDPOINT_ID,
+      RUNPOD_STYLE_TRANSFER_ENDPOINT_URL: process.env.RUNPOD_STYLE_TRANSFER_ENDPOINT_URL,
       DATABASE_URL: process.env.DATABASE_URL ? '✓ Set' : '✗ Missing',
       RUNPOD_API_KEY: process.env.RUNPOD_API_KEY ? '✓ Set' : '✗ Missing',
       CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY ? '✓ Set' : '✗ Missing',
