@@ -5,7 +5,8 @@ import { saveImageToDatabase } from '@/lib/imageStorage';
 import { prisma } from '@/lib/database';
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
-const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
+const RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
+const RUNPOD_STYLE_TRANSFER_ENDPOINT_ID = process.env.RUNPOD_STYLE_TRANSFER_ENDPOINT_ID;
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,8 +41,21 @@ export async function POST(request: NextRequest) {
       console.log(`🔍 Checking RunPod job: ${job.id} (${runpodJobId})`);
 
       try {
+        // Determine which endpoint to use based on job action/type
+        let endpointId = RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID; // Default
+        
+        if (params?.action === 'generate_style_transfer' || 
+            params?.generation_type === 'style_transfer') {
+          endpointId = RUNPOD_STYLE_TRANSFER_ENDPOINT_ID;
+        }
+
+        if (!endpointId) {
+          console.error('❌ No RunPod endpoint ID configured for this job type');
+          continue;
+        }
+
         // Check RunPod status
-        const runpodStatusUrl = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/status/${runpodJobId}`;
+        const runpodStatusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${runpodJobId}`;
         
         const statusResponse = await fetch(runpodStatusUrl, {
           headers: {

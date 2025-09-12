@@ -3,7 +3,8 @@ import { updateJob, getJob } from '@/lib/jobsStorage';
 import { saveImageToDatabase } from '@/lib/imageStorage';
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
-const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
+const RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
+const RUNPOD_STYLE_TRANSFER_ENDPOINT_ID = process.env.RUNPOD_STYLE_TRANSFER_ENDPOINT_ID;
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,8 +24,29 @@ export async function POST(request: NextRequest) {
 
     console.log('🔧 Manual processing for job:', jobId, 'RunPod:', runpodJobId, 'User:', userId);
 
+    // For debug route, we need to determine job type from the job record
+    const job = await getJob(jobId);
+    let endpointId = RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID; // Default
+    
+    if (job && job.params) {
+      const params = job.params as any;
+      if (params?.action === 'generate_style_transfer' || 
+          params?.generation_type === 'style_transfer') {
+        endpointId = RUNPOD_STYLE_TRANSFER_ENDPOINT_ID;
+        console.log('🎨 Using style transfer endpoint for debug processing');
+      } else {
+        console.log('🖼️ Using text-to-image endpoint for debug processing');
+      }
+    }
+
+    if (!endpointId) {
+      return NextResponse.json({
+        error: 'RunPod endpoint not configured for this job type'
+      }, { status: 500 });
+    }
+
     // Check RunPod job status
-    const runpodStatusUrl = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/status/${runpodJobId}`;
+    const runpodStatusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${runpodJobId}`;
     
     const statusResponse = await fetch(runpodStatusUrl, {
       headers: {

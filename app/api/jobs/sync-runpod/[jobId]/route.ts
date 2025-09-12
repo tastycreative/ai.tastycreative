@@ -3,7 +3,8 @@ import { auth } from '@clerk/nextjs/server';
 import { updateJob, getJob } from '@/lib/jobsStorage';
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
-const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
+const RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
+const RUNPOD_STYLE_TRANSFER_ENDPOINT_ID = process.env.RUNPOD_STYLE_TRANSFER_ENDPOINT_ID;
 
 export async function POST(
   request: NextRequest,
@@ -42,9 +43,28 @@ export async function POST(
 
     console.log('📡 Checking RunPod status for:', runpodJobId);
 
+    // Determine which endpoint to use based on job action/type
+    let endpointId = RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID; // Default
+    
+    if (job.params?.action === 'generate_style_transfer' || 
+        job.params?.generation_type === 'style_transfer') {
+      endpointId = RUNPOD_STYLE_TRANSFER_ENDPOINT_ID;
+      console.log('🎨 Using style transfer endpoint for job sync');
+    } else {
+      console.log('🖼️ Using text-to-image endpoint for job sync');
+    }
+
+    if (!endpointId) {
+      console.error('❌ No RunPod endpoint ID configured for this job type');
+      return NextResponse.json(
+        { error: 'RunPod endpoint not configured' },
+        { status: 500 }
+      );
+    }
+
     // Check RunPod job status
     const runpodResponse = await fetch(
-      `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/status/${runpodJobId}`,
+      `https://api.runpod.ai/v2/${endpointId}/status/${runpodJobId}`,
       {
         headers: {
           'Authorization': `Bearer ${RUNPOD_API_KEY}`,
