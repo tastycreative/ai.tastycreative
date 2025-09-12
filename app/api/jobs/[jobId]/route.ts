@@ -49,7 +49,12 @@ export async function GET(
       error: job.error,
       resultUrls: job.resultUrls || [],
       createdAt: job.createdAt,
-      comfyUIPromptId: job.comfyUIPromptId
+      comfyUIPromptId: job.comfyUIPromptId,
+      // Enhanced progress fields
+      stage: job.stage,
+      message: job.message,
+      elapsedTime: job.elapsedTime,
+      estimatedTimeRemaining: job.estimatedTimeRemaining
     });
 
   } catch (error) {
