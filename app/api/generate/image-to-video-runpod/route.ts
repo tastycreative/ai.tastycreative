@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { addJob, updateJob, GenerationJob as StoredGenerationJob } from '@/lib/jobsStorage';
 
-// RunPod API configuration for Image-to-Video (using the same endpoint as text-to-image)
+// RunPod API configuration for Image-to-Video (dedicated endpoint)
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
-const RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID; // Using same endpoint
-const RUNPOD_API_URL = `https://api.runpod.ai/v2/${RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID}/run`;
+const RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID = process.env.RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID;
+const RUNPOD_API_URL = `https://api.runpod.ai/v2/${RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID}/run`;
 
 interface GenerationJob {
   id: string;
@@ -32,10 +32,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate environment variables
-    if (!RUNPOD_API_KEY || !RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID) {
+    if (!RUNPOD_API_KEY || !RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID) {
       console.error('❌ Missing RunPod configuration:', {
         hasApiKey: !!RUNPOD_API_KEY,
-        hasEndpointId: !!RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID
+        hasEndpointId: !!RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID
       });
       return NextResponse.json(
         { error: 'RunPod configuration missing' },
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    console.log('📡 Sending image-to-video to RunPod (shared endpoint):', RUNPOD_API_URL);
+    console.log('📡 Sending image-to-video to RunPod (dedicated endpoint):', RUNPOD_API_URL);
     console.log('🔗 Webhook URL:', webhookUrl);
     
     // Debug: Log the uploaded image being sent to RunPod
