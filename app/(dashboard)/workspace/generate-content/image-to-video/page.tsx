@@ -20,6 +20,7 @@ import {
   Play,
   Pause,
   ImageIcon,
+  Clock,
 } from "lucide-react";
 
 // Types
@@ -832,7 +833,7 @@ export default function ImageToVideoPage() {
     console.log("=== STARTING I2V SERVERLESS JOB POLLING ===");
     console.log("Polling I2V serverless job ID:", jobId);
 
-    const maxAttempts = 180; // 6 minutes for serverless video generation (webhooks handle most updates)
+    const maxAttempts = 600; // 20 minutes for serverless video generation (webhooks handle most updates)
     let attempts = 0;
 
     const poll = async () => {
@@ -962,35 +963,38 @@ export default function ImageToVideoPage() {
         if (attempts < maxAttempts) {
           setTimeout(poll, 500); // Faster polling for better progress updates
         } else {
-          console.error("I2V Serverless Polling timeout reached");
+          console.warn("I2V Serverless Polling timeout reached - job may still be running");
           setIsGenerating(false);
-          setCurrentJob((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  status: "failed" as const,
-                  error:
-                    "Polling timeout - serverless generation may still be running",
-                }
-              : null
-          );
+          
+          // Don't mark as failed, just stop polling - webhooks will update the status
+          setProgressData({
+            progress: progressData.progress,
+            stage: 'timeout',
+            message: '⏱️ Polling timeout reached. Job may still be running via webhooks...',
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
+          
+          // Keep the job status as-is, don't mark as failed
+          console.log("Stopping polling but keeping job status. Webhooks will handle completion.");
         }
       } catch (error) {
         console.error("I2V Serverless Polling error:", error);
 
         if (attempts < maxAttempts) {
-          setTimeout(poll, 500); // Faster retry for better progress updates
+          setTimeout(poll, 2000); // Slower retry on errors
         } else {
+          console.warn("I2V Serverless Polling timeout reached after errors");
           setIsGenerating(false);
-          setCurrentJob((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  status: "failed" as const,
-                  error: "Failed to get serverless job status",
-                }
-              : null
-          );
+          
+          // Don't mark as failed due to polling timeout
+          setProgressData({
+            progress: progressData.progress,
+            stage: 'timeout',
+            message: '⏱️ Polling timeout reached. Job may still be running via webhooks...',
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
         }
       }
     };
@@ -1608,15 +1612,32 @@ export default function ImageToVideoPage() {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Current Generation
                 </h3>
-                {currentJob.status === "completed" && (
-                  <button
-                    onClick={() => fetchJobVideos(currentJob.id)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-                    title="Refresh generated videos"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                )}
+                <div className="flex items-center space-x-2">
+                  {currentJob.status === "completed" && (
+                    <button
+                      onClick={() => fetchJobVideos(currentJob.id)}
+                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                      title="Refresh generated videos"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  )}
+                  {/* Refresh button for timed out jobs */}
+                  {progressData.stage === 'timeout' && (
+                    <button
+                      onClick={() => {
+                        console.log("🔄 Manual refresh requested for job:", currentJob.id);
+                        // Restart polling for this job
+                        pollJobStatus(currentJob.id);
+                      }}
+                      className="flex items-center space-x-1 px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                      title="Check job status again"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Check Status</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -1642,11 +1663,15 @@ export default function ImageToVideoPage() {
                 </div>
 
                 {/* Enhanced Progress Display for Video Generation */}
-                {(currentJob.status === "processing" || currentJob.status === "pending") && (
+                {(currentJob.status === "processing" || currentJob.status === "pending" || progressData.stage === 'timeout') && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                        {progressData.stage === 'timeout' ? (
+                          <Clock className="w-4 h-4 text-yellow-500" />
+                        ) : (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                        )}
                         Video Generation Progress
                       </h4>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -1662,6 +1687,8 @@ export default function ImageToVideoPage() {
                             ? 'bg-red-500' 
                             : progressData.stage === 'completed'
                             ? 'bg-green-500'
+                            : progressData.stage === 'timeout'
+                            ? 'bg-yellow-500'
                             : 'bg-gradient-to-r from-purple-500 to-pink-600'
                         }`}
                         style={{ width: `${Math.max(0, Math.min(100, progressData.progress))}%` }}
@@ -1697,6 +1724,7 @@ export default function ImageToVideoPage() {
                           {progressData.stage === 'saving' && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>}
                           {progressData.stage === 'completed' && <div className="w-2 h-2 rounded-full bg-green-500"></div>}
                           {progressData.stage === 'failed' && <div className="w-2 h-2 rounded-full bg-red-500"></div>}
+                          {progressData.stage === 'timeout' && <div className="w-2 h-2 rounded-full bg-yellow-500"></div>}
                           <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
                             {progressData.stage.replace('_', ' ')}
                           </span>
