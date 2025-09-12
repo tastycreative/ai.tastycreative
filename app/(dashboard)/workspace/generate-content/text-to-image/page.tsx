@@ -53,6 +53,12 @@ interface GenerationJob {
   userId?: string;
   lastChecked?: string;
   comfyUIPromptId?: string;
+  
+  // Enhanced progress fields
+  stage?: string;
+  message?: string;
+  elapsedTime?: number;
+  estimatedTimeRemaining?: number;
 }
 
 interface LoRAModel {
@@ -154,6 +160,22 @@ export default function TextToImagePage() {
 
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
   const [jobHistory, setJobHistory] = useState<GenerationJob[]>([]);
+  
+  // Real-time progress tracking
+  const [progressData, setProgressData] = useState<{
+    progress: number;
+    stage: string;
+    message: string;
+    elapsedTime?: number;
+    estimatedTimeRemaining?: number;
+  }>({
+    progress: 0,
+    stage: '',
+    message: '',
+    elapsedTime: 0,
+    estimatedTimeRemaining: 0,
+  });
+  
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [availableLoRAs, setAvailableLoRAs] = useState<LoRAModel[]>([
@@ -450,6 +472,15 @@ export default function TextToImagePage() {
     setIsGenerating(true);
     setCurrentJob(null);
 
+    // Initialize progress tracking
+    setProgressData({
+      progress: 0,
+      stage: 'starting',
+      message: '🚀 Initializing text-to-image generation...',
+      elapsedTime: 0,
+      estimatedTimeRemaining: 180, // 3 minutes initial estimate
+    });
+
     try {
       console.log("=== STARTING GENERATION ===");
       console.log("🎯 Current form state:", {
@@ -660,7 +691,7 @@ export default function TextToImagePage() {
               console.error("Job not found - this might be a storage issue");
               if (attempts < 10) {
                 // Retry a few times for new jobs
-                setTimeout(poll, 2000);
+                setTimeout(poll, 500); // Faster polling for better progress updates
                 return;
               }
             }
@@ -675,6 +706,17 @@ export default function TextToImagePage() {
         // Handle date conversion safely
         if (job.createdAt && typeof job.createdAt === "string") {
           job.createdAt = new Date(job.createdAt);
+        }
+
+        // Update progress tracking state
+        if (job.status === 'processing') {
+          setProgressData({
+            progress: job.progress || 0,
+            stage: job.stage || '',
+            message: job.message || 'Processing...',
+            elapsedTime: job.elapsedTime,
+            estimatedTimeRemaining: job.estimatedTimeRemaining,
+          });
         }
 
         setCurrentJob(job);
@@ -695,6 +737,15 @@ export default function TextToImagePage() {
         if (job.status === "completed") {
           console.log("Job completed successfully!");
           setIsGenerating(false);
+
+          // Reset progress tracking
+          setProgressData({
+            progress: 100,
+            stage: 'completed',
+            message: '✅ Text-to-image generation completed successfully!',
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
 
           // Fetch database images for completed job with retry logic
           console.log("🔄 Attempting to fetch job images...");
@@ -739,6 +790,16 @@ export default function TextToImagePage() {
         } else if (job.status === "failed") {
           console.log("Job failed:", job.error);
           setIsGenerating(false);
+
+          // Reset progress tracking to show failure
+          setProgressData({
+            progress: 0,
+            stage: 'failed',
+            message: `❌ Generation failed: ${job.error || "Unknown error"}`,
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
+
           alert(`❌ Generation failed: ${job.error || "Unknown error"}`);
           return;
         }
@@ -766,7 +827,7 @@ export default function TextToImagePage() {
         console.error("Polling error:", error);
 
         if (attempts < maxAttempts) {
-          setTimeout(poll, 2000); // Retry with longer delay
+          setTimeout(poll, 500); // Faster retry with shorter delay
         } else {
           setIsGenerating(false);
           setCurrentJob((prev) =>
@@ -1974,7 +2035,75 @@ export default function TextToImagePage() {
                   </div>
                 </div>
 
-                {currentJob.progress !== undefined && (
+                {/* Enhanced Progress Display */}
+                {(currentJob.status === "processing" || currentJob.status === "pending") && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        Generation Progress
+                      </h4>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {progressData.progress}%
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-3">
+                      <div 
+                        className={`h-3 rounded-full transition-all duration-300 ${
+                          progressData.stage === 'failed' 
+                            ? 'bg-red-500' 
+                            : progressData.stage === 'completed'
+                            ? 'bg-green-500'
+                            : 'bg-gradient-to-r from-blue-500 to-purple-600'
+                        }`}
+                        style={{ width: `${Math.max(0, Math.min(100, progressData.progress))}%` }}
+                      />
+                    </div>
+
+                    {/* Progress Message */}
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                      {progressData.message || 'Processing...'}
+                    </div>
+
+                    {/* Time Information */}
+                    {(progressData.elapsedTime || progressData.estimatedTimeRemaining) && (
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        <span>
+                          {progressData.elapsedTime ? `Elapsed: ${Math.floor(progressData.elapsedTime)}s` : ''}
+                        </span>
+                        <span>
+                          {progressData.estimatedTimeRemaining ? `Est. remaining: ${Math.floor(progressData.estimatedTimeRemaining)}s` : ''}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Stage Indicator */}
+                    {progressData.stage && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {progressData.stage === 'starting' && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>}
+                          {progressData.stage === 'loading_models' && <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>}
+                          {progressData.stage === 'encoding_prompt' && <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>}
+                          {progressData.stage === 'generating' && <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>}
+                          {progressData.stage === 'decoding' && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>}
+                          {progressData.stage === 'saving' && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>}
+                          {progressData.stage === 'completed' && <div className="w-2 h-2 rounded-full bg-green-500"></div>}
+                          {progressData.stage === 'failed' && <div className="w-2 h-2 rounded-full bg-red-500"></div>}
+                          <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                            {progressData.stage.replace('_', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fallback Legacy Progress (for jobs without enhanced progress) */}
+                {currentJob.progress !== undefined && 
+                 currentJob.status === "processing" && 
+                 !progressData.stage && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">

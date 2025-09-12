@@ -48,6 +48,12 @@ interface GenerationJob {
   userId?: string;
   lastChecked?: string;
   comfyUIPromptId?: string;
+  
+  // Enhanced progress fields
+  stage?: string;
+  message?: string;
+  elapsedTime?: number;
+  estimatedTimeRemaining?: number;
 }
 
 interface DatabaseVideo {
@@ -303,6 +309,22 @@ export default function ImageToVideoPage() {
 
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
   const [jobHistory, setJobHistory] = useState<GenerationJob[]>([]);
+  
+  // Real-time progress tracking for video generation
+  const [progressData, setProgressData] = useState<{
+    progress: number;
+    stage: string;
+    message: string;
+    elapsedTime?: number;
+    estimatedTimeRemaining?: number;
+  }>({
+    progress: 0,
+    stage: '',
+    message: '',
+    elapsedTime: 0,
+    estimatedTimeRemaining: 0,
+  });
+  
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -725,6 +747,15 @@ export default function ImageToVideoPage() {
     setIsGenerating(true);
     setCurrentJob(null);
 
+    // Initialize progress tracking for video generation
+    setProgressData({
+      progress: 0,
+      stage: 'starting',
+      message: '🚀 Initializing image-to-video generation...',
+      elapsedTime: 0,
+      estimatedTimeRemaining: 600, // 10 minutes initial estimate for video
+    });
+
     try {
       console.log("=== STARTING I2V SERVERLESS GENERATION ===");
       console.log("Generation params:", params);
@@ -844,6 +875,17 @@ export default function ImageToVideoPage() {
           job.createdAt = new Date(job.createdAt);
         }
 
+        // Update progress tracking state
+        if (job.status === 'processing') {
+          setProgressData({
+            progress: job.progress || 0,
+            stage: job.stage || '',
+            message: job.message || 'Processing video generation...',
+            elapsedTime: job.elapsedTime,
+            estimatedTimeRemaining: job.estimatedTimeRemaining,
+          });
+        }
+
         setCurrentJob(job);
         setJobHistory((prev) =>
           prev
@@ -862,6 +904,15 @@ export default function ImageToVideoPage() {
         if (job.status === "completed") {
           console.log("I2V Serverless Job completed successfully!");
           setIsGenerating(false);
+
+          // Reset progress tracking to show completion
+          setProgressData({
+            progress: 100,
+            stage: 'completed',
+            message: '✅ Video generation completed successfully!',
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
 
           // Fetch videos for completed job - try multiple times with delays
           console.log("🔄 Attempting to fetch job videos...");
@@ -894,12 +945,22 @@ export default function ImageToVideoPage() {
         } else if (job.status === "failed") {
           console.log("I2V Serverless Job failed:", job.error);
           setIsGenerating(false);
+
+          // Reset progress tracking to show failure
+          setProgressData({
+            progress: 0,
+            stage: 'failed',
+            message: `❌ Video generation failed: ${job.error || "Unknown error"}`,
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
+
           return;
         }
 
         // For serverless, we rely more on webhooks, so poll less frequently
         if (attempts < maxAttempts) {
-          setTimeout(poll, 5000); // 5 second intervals for serverless
+          setTimeout(poll, 500); // Faster polling for better progress updates
         } else {
           console.error("I2V Serverless Polling timeout reached");
           setIsGenerating(false);
@@ -918,7 +979,7 @@ export default function ImageToVideoPage() {
         console.error("I2V Serverless Polling error:", error);
 
         if (attempts < maxAttempts) {
-          setTimeout(poll, 5000); // Longer interval on error for serverless
+          setTimeout(poll, 500); // Faster retry for better progress updates
         } else {
           setIsGenerating(false);
           setCurrentJob((prev) =>
@@ -1580,7 +1641,75 @@ export default function ImageToVideoPage() {
                   </div>
                 </div>
 
-                {currentJob.progress !== undefined && (
+                {/* Enhanced Progress Display for Video Generation */}
+                {(currentJob.status === "processing" || currentJob.status === "pending") && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                        Video Generation Progress
+                      </h4>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {progressData.progress}%
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-3">
+                      <div 
+                        className={`h-3 rounded-full transition-all duration-300 ${
+                          progressData.stage === 'failed' 
+                            ? 'bg-red-500' 
+                            : progressData.stage === 'completed'
+                            ? 'bg-green-500'
+                            : 'bg-gradient-to-r from-purple-500 to-pink-600'
+                        }`}
+                        style={{ width: `${Math.max(0, Math.min(100, progressData.progress))}%` }}
+                      />
+                    </div>
+
+                    {/* Progress Message */}
+                    <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                      {progressData.message || 'Processing video generation...'}
+                    </div>
+
+                    {/* Time Information */}
+                    {(progressData.elapsedTime || progressData.estimatedTimeRemaining) && (
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        <span>
+                          {progressData.elapsedTime ? `Elapsed: ${Math.floor(progressData.elapsedTime)}s` : ''}
+                        </span>
+                        <span>
+                          {progressData.estimatedTimeRemaining ? `Est. remaining: ${Math.floor(progressData.estimatedTimeRemaining)}s` : ''}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Stage Indicator */}
+                    {progressData.stage && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          {progressData.stage === 'starting' && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>}
+                          {progressData.stage === 'loading_models' && <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>}
+                          {progressData.stage === 'processing_image' && <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>}
+                          {progressData.stage === 'generating_frames' && <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>}
+                          {progressData.stage === 'encoding_video' && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>}
+                          {progressData.stage === 'saving' && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>}
+                          {progressData.stage === 'completed' && <div className="w-2 h-2 rounded-full bg-green-500"></div>}
+                          {progressData.stage === 'failed' && <div className="w-2 h-2 rounded-full bg-red-500"></div>}
+                          <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                            {progressData.stage.replace('_', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fallback Legacy Progress (for jobs without enhanced progress) */}
+                {currentJob.progress !== undefined && 
+                 currentJob.status === "processing" && 
+                 !progressData.stage && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">

@@ -15,6 +15,11 @@ export interface GenerationJob {
   params?: any;
   comfyUIPromptId?: string;
   lastChecked?: string;
+  // Enhanced progress fields
+  stage?: string;
+  message?: string;
+  elapsedTime?: number;
+  estimatedTimeRemaining?: number;
 }
 
 export const sharedJobs = new Map<string, GenerationJob>();
@@ -43,7 +48,12 @@ export async function addJob(job: GenerationJob): Promise<void> {
         type: job.type || 'TEXT_TO_IMAGE', // Default to TEXT_TO_IMAGE if not specified
         params: job.params || {},
         comfyUIPromptId: job.comfyUIPromptId,
-        lastChecked: job.lastChecked ? new Date(job.lastChecked) : null
+        lastChecked: job.lastChecked ? new Date(job.lastChecked) : null,
+        // Enhanced progress fields
+        stage: job.stage,
+        message: job.message,
+        elapsedTime: job.elapsedTime,
+        estimatedTimeRemaining: job.estimatedTimeRemaining
       }
     });
     
@@ -82,7 +92,12 @@ export async function getJob(jobId: string): Promise<GenerationJob | undefined> 
       createdAt: job.createdAt,
       params: job.params,
       comfyUIPromptId: job.comfyUIPromptId || undefined,
-      lastChecked: job.lastChecked?.toISOString()
+      lastChecked: job.lastChecked?.toISOString(),
+      // Enhanced progress fields
+      stage: job.stage || undefined,
+      message: job.message || undefined,
+      elapsedTime: job.elapsedTime || undefined,
+      estimatedTimeRemaining: job.estimatedTimeRemaining || undefined
     };
   } catch (error) {
     console.error('💥 Error getting job from database:', error);
@@ -121,6 +136,19 @@ export async function updateJob(jobId: string, updates: Partial<GenerationJob>):
     if (updates.lastChecked !== undefined) {
       updateData.lastChecked = new Date(updates.lastChecked);
     }
+    // Enhanced progress fields
+    if (updates.stage !== undefined) {
+      updateData.stage = updates.stage;
+    }
+    if (updates.message !== undefined) {
+      updateData.message = updates.message;
+    }
+    if (updates.elapsedTime !== undefined) {
+      updateData.elapsedTime = updates.elapsedTime;
+    }
+    if (updates.estimatedTimeRemaining !== undefined) {
+      updateData.estimatedTimeRemaining = updates.estimatedTimeRemaining;
+    }
     
     const updated = await prisma.generationJob.update({
       where: { id: jobId },
@@ -141,7 +169,12 @@ export async function updateJob(jobId: string, updates: Partial<GenerationJob>):
       createdAt: updated.createdAt,
       params: updated.params,
       comfyUIPromptId: updated.comfyUIPromptId || undefined,
-      lastChecked: updated.lastChecked?.toISOString()
+      lastChecked: updated.lastChecked?.toISOString(),
+      // Enhanced progress fields
+      stage: updated.stage || undefined,
+      message: updated.message || undefined,
+      elapsedTime: updated.elapsedTime || undefined,
+      estimatedTimeRemaining: updated.estimatedTimeRemaining || undefined
     };
   } catch (error) {
     console.error('💥 Error updating job in database:', error);

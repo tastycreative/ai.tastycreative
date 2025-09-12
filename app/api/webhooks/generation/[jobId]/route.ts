@@ -21,16 +21,39 @@ export async function POST(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    // Extract webhook data
-    const { status, progress, message, images, videos, error, prompt_id } = body;
+    // Extract webhook data including enhanced progress fields
+    const { 
+      status, 
+      progress, 
+      message, 
+      images, 
+      videos, 
+      error, 
+      prompt_id,
+      stage,
+      elapsedTime,
+      estimatedTimeRemaining
+    } = body;
 
     console.log(`📊 Job ${jobId} status update: ${status}, progress: ${progress}%`);
 
-    // Prepare update data
+    // Prepare update data with proper status mapping
     const updateData: any = {};
 
     if (status) {
-      updateData.status = status.toUpperCase();
+      // Map incoming webhook status to Prisma JobStatus enum
+      const statusMapping: { [key: string]: string } = {
+        'PENDING': 'PENDING',
+        'IN_PROGRESS': 'PROCESSING',
+        'PROCESSING': 'PROCESSING',
+        'COMPLETED': 'COMPLETED',
+        'FAILED': 'FAILED',
+        'ERROR': 'FAILED'
+      };
+      
+      const mappedStatus = statusMapping[status.toUpperCase()] || 'PROCESSING';
+      updateData.status = mappedStatus;
+      console.log(`📝 Status mapping: ${status} -> ${mappedStatus}`);
     }
 
     if (progress !== undefined) {
@@ -43,6 +66,23 @@ export async function POST(
 
     if (prompt_id) {
       updateData.comfyUIPromptId = prompt_id;
+    }
+
+    // Add enhanced progress fields
+    if (stage) {
+      updateData.stage = stage;
+    }
+
+    if (message) {
+      updateData.message = message;
+    }
+
+    if (elapsedTime !== undefined) {
+      updateData.elapsedTime = elapsedTime;
+    }
+
+    if (estimatedTimeRemaining !== undefined) {
+      updateData.estimatedTimeRemaining = estimatedTimeRemaining;
     }
 
     // Handle completed generation with images
