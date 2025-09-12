@@ -641,7 +641,7 @@ export default function TextToImagePage() {
     console.log("=== STARTING JOB POLLING ===");
     console.log("Polling job ID:", jobId);
 
-    const maxAttempts = 300; // 5 minutes
+    const maxAttempts = 600; // 10 minutes (increased for image-to-video and complex generations)
     let attempts = 0;
 
     const poll = async () => {
@@ -808,20 +808,20 @@ export default function TextToImagePage() {
         if (attempts < maxAttempts) {
           setTimeout(poll, 1000);
         } else {
-          console.error("Polling timeout reached");
+          console.warn("Polling timeout reached - job may still be running");
           setIsGenerating(false);
-          setCurrentJob((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  status: "failed" as const,
-                  error: "Polling timeout - generation may still be running",
-                }
-              : null
-          );
-          alert(
-            "⏰ Generation polling timed out. Your images may still be processing in the background."
-          );
+          
+          // Don't mark as failed, just stop polling - webhooks will update the status
+          setProgressData({
+            progress: progressData.progress,
+            stage: 'timeout',
+            message: '⏱️ Polling timeout reached. Job may still be running via webhooks...',
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
+          
+          // Keep the job status as-is, don't mark as failed
+          console.log("Stopping polling but keeping job status. Webhooks will handle completion.");
         }
       } catch (error) {
         console.error("Polling error:", error);
@@ -829,19 +829,17 @@ export default function TextToImagePage() {
         if (attempts < maxAttempts) {
           setTimeout(poll, 500); // Faster retry with shorter delay
         } else {
+          console.warn("Polling timeout reached after errors");
           setIsGenerating(false);
-          setCurrentJob((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  status: "failed" as const,
-                  error: "Failed to get job status",
-                }
-              : null
-          );
-          alert(
-            "❌ Failed to get generation status. Please check the Generated Content gallery manually."
-          );
+          
+          // Don't mark as failed due to polling timeout
+          setProgressData({
+            progress: progressData.progress,
+            stage: 'timeout',
+            message: '⏱️ Polling timeout reached. Job may still be running via webhooks...',
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
         }
       }
     };
