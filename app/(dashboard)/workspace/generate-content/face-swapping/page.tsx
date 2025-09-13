@@ -1024,7 +1024,7 @@ export default function FaceSwappingPage() {
     console.log("=== STARTING REAL-TIME JOB POLLING ===");
     console.log("Polling job ID:", jobId);
 
-    const maxAttempts = 300; // 5 minutes
+    const maxAttempts = 1200; // 10 minutes (1200 attempts * 500ms = 600 seconds)
     let attempts = 0;
 
     const poll = async () => {
