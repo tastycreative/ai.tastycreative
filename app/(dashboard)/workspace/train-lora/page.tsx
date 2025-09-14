@@ -247,19 +247,6 @@ export default function TrainLoRAPage() {
 
       // Now create the training job with uploaded image URLs
       const preset = trainingPresets[selectedPreset];
-      
-      // Debug learning rate values
-      const learningRate = showAdvanced
-        ? advancedSettings.learningRate
-        : preset.config.train.lr;
-      
-      console.log('🔍 Debug training config:', {
-        showAdvanced,
-        advancedLearningRate: advancedSettings.learningRate,
-        presetLearningRate: preset.config.train.lr,
-        finalLearningRate: learningRate,
-        learningRateType: typeof learningRate
-      });
 
       const trainingConfig = {
         name: jobName,
@@ -305,7 +292,9 @@ export default function TrainLoRAPage() {
           optimizer: "adamw8bit" as const,
           timestep_type: "sigmoid" as const,
           content_or_style: preset.config.train.content_or_style,
-          lr: learningRate,
+          lr: showAdvanced
+            ? advancedSettings.learningRate
+            : preset.config.train.lr,
           optimizer_params: { weight_decay: 0.0001 },
           unload_text_encoder: false,
           cache_text_embeddings: false,
@@ -715,16 +704,12 @@ export default function TrainLoRAPage() {
                     <input
                       type="number"
                       value={advancedSettings.learningRate}
-                      onChange={(e) => {
-                        const value = parseFloat(e.target.value);
-                        const clampedValue = isNaN(value) 
-                          ? 0.0001 
-                          : Math.max(0.00001, Math.min(0.01, value));
+                      onChange={(e) =>
                         setAdvancedSettings((prev) => ({
                           ...prev,
-                          learningRate: clampedValue,
-                        }));
-                      }}
+                          learningRate: parseFloat(e.target.value) || 0.0001,
+                        }))
+                      }
                       step="0.00001"
                       min="0.00001"
                       max="0.01"
