@@ -517,14 +517,16 @@ def run_training_process(job_input, job_id, webhook_url):
         
         # Process each image
         image_count = 0
-        for idx, image_url in enumerate(job_input['imageUrls']):
+        for idx, image_info in enumerate(job_input['imageUrls']):
             try:
+                # image_info is expected to be a dict with at least a 'url' key
+                image_url = image_info['url'] if isinstance(image_info, dict) and 'url' in image_info else image_info
                 logger.info(f"📥 Processing image {idx + 1}/{len(job_input['imageUrls'])}: {image_url}")
-                
+
                 # Download image with timeout
                 response = requests.get(image_url, timeout=60)
                 response.raise_for_status()
-                
+
                 # Determine file extension from content-type or URL
                 content_type = response.headers.get('content-type', '').lower()
                 if 'jpeg' in content_type or 'jpg' in content_type:
@@ -538,17 +540,17 @@ def run_training_process(job_input, job_id, webhook_url):
                     ext = image_url.split('.')[-1].lower() if '.' in image_url else 'jpg'
                     if ext not in ['jpg', 'jpeg', 'png', 'webp']:
                         ext = 'jpg'  # Default fallback
-                
+
                 # Save image with proper naming
                 image_filename = f"image_{idx + 1:04d}.{ext}"
                 image_path = dataset_path / image_filename
-                
+
                 with open(image_path, 'wb') as f:
                     f.write(response.content)
-                
+
                 logger.info(f"✅ Saved image: {image_path}")
                 image_count += 1
-                
+
                 # Update progress for image processing (10-30%)
                 progress = 10 + (idx + 1) * 20 // len(job_input['imageUrls'])
                 send_webhook(webhook_url, {
@@ -557,7 +559,7 @@ def run_training_process(job_input, job_id, webhook_url):
                     'progress': progress,
                     'message': f'Processed {idx + 1}/{len(job_input["imageUrls"])} images'
                 })
-                
+
             except Exception as e:
                 logger.error(f"💥 Failed to process image {idx + 1}: {e}")
                 continue
