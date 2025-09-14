@@ -56,7 +56,7 @@ export class RunPodTrainingClient {
    */
   async startTraining(payload: TrainingJobPayload): Promise<RunPodTrainingResponse> {
     try {
-      console.log('🚀 Starting LoRA training on RunPod:', {
+      console.log('🚀 Starting RunPod training with payload:', {
         modelName: payload.model_name,
         userId: payload.user_id,
         jobId: payload.job_id,
@@ -66,21 +66,19 @@ export class RunPodTrainingClient {
       // Generate the ai-toolkit config YAML
       const aiToolkitConfig = this.generateAIToolkitConfig(payload);
 
-      // Instead of base64 encoding (which creates huge payloads), 
-      // send image URLs that RunPod can download directly
-      console.log('📥 Preparing image URLs for RunPod...');
+      // Validate Cloudinary URLs (they should be publicly accessible)
+      console.log('📥 Preparing Cloudinary image URLs for RunPod...');
       
-      // Validate that all URLs are accessible
+      // Validate that all Cloudinary URLs are accessible
       const validatedUrls = [];
       for (let i = 0; i < payload.image_urls.length; i++) {
         const url = payload.image_urls[i];
         try {
-          console.log(`📷 Validating image ${i + 1}: ${url}`);
+          console.log(`📷 Validating Cloudinary image ${i + 1}: ${url}`);
           
-          // Use proper headers for ngrok access
+          // Use proper headers for Cloudinary access
           const headers = {
             'User-Agent': 'RunPod-AI-Toolkit-Handler/1.0',
-            'ngrok-skip-browser-warning': 'true',
             'Accept': 'image/*'
           };
           
@@ -97,15 +95,14 @@ export class RunPodTrainingClient {
             filename: `image_${i.toString().padStart(4, '0')}.jpg`,
             caption: `Training image ${i + 1}`
           });
-          console.log(`✅ Image ${i + 1} is accessible`);
+          console.log(`✅ Cloudinary image ${i + 1} is accessible`);
         } catch (error) {
-          console.error(`❌ Failed to validate image ${i + 1}:`, error);
+          console.error(`❌ Failed to validate Cloudinary image ${i + 1}:`, error);
           throw new Error(`Failed to validate image ${i + 1}: ${error}`);
         }
       }
 
-      console.log(`✅ Validated ${validatedUrls.length} image URLs`);
-      console.log(`📦 Payload will be much smaller using URLs instead of base64`);
+      console.log(`✅ Validated ${validatedUrls.length} Cloudinary image URLs`);
 
       // Fix payload structure to match handler expectations exactly
       const runPodPayload = {
@@ -114,7 +111,7 @@ export class RunPodTrainingClient {
           name: payload.model_name,
           config: payload.training_config,
           datasets: payload.datasets || [],
-          imageUrls: validatedUrls,  // Send URLs instead of base64 data
+          imageUrls: validatedUrls,  // Send Cloudinary URLs
           webhook_url: payload.webhook_url
         }
       };

@@ -81,8 +81,10 @@ export class TrainingJobsDB {
               clerkId,
               filename: file.filename,
               caption: file.caption,
-              // Use the uploaded URL directly if provided, otherwise construct local path
-              storageUrl: (file as any).url || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/training/images/${clerkId}/${file.filename}`,
+              // Use Cloudinary URL from the uploaded file
+              storageUrl: (file as any).cloudinaryUrl || (file as any).url,
+              cloudinaryUrl: (file as any).cloudinaryUrl,
+              cloudinaryPublicId: (file as any).cloudinaryPublicId,
               format: file.filename.split('.').pop()?.toLowerCase(),
             }))
           }

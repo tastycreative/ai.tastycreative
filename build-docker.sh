@@ -3,7 +3,7 @@
 
 set -e
 
-VERSION="v1.0.12"  # Updated version with timeout improvements and step limits
+VERSION="v1.0.13"  # Updated with network volume upload and webhook fixes
 REGISTRY="rfldln01/ai-toolkit-trainer"
 PLATFORM=${2:-"linux/amd64"}  # Default to AMD64 for RunPod
 BUILD_LOCAL=${3:-"false"}     # Option to build locally without pushing
