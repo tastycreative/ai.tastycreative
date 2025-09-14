@@ -5,14 +5,16 @@ import { auth } from '@clerk/nextjs/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clerkId: string; filename: string } }
+  { params }: { params: Promise<{ clerkId: string; filename: string }> }
 ) {
   try {
+    const { clerkId, filename } = await params;
+    
     // Get the authenticated user
     const { userId } = await auth();
     
     // Check if user is authorized to access this image
-    if (!userId || userId !== params.clerkId) {
+    if (!userId || userId !== clerkId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -21,7 +23,7 @@ export async function GET(
     
     // Construct the file path
     const uploadDir = '/tmp/uploads/training';
-    const filePath = path.join(uploadDir, params.filename);
+    const filePath = path.join(uploadDir, filename);
     
     console.log(`📸 Serving training image: ${filePath}`);
     
@@ -29,7 +31,7 @@ export async function GET(
     const fileBuffer = await readFile(filePath);
     
     // Determine content type based on file extension
-    const extension = path.extname(params.filename).toLowerCase();
+    const extension = path.extname(filename).toLowerCase();
     let contentType = 'image/jpeg'; // default
     
     switch (extension) {
