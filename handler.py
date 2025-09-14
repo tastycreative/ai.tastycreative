@@ -346,10 +346,10 @@ def collect_output_files(output_path: Path) -> Dict[str, List[Dict]]:
         "log_files": log_files
     }
 
-def upload_model_to_network_volume(model_file_data, model_filename, job_id, step, job_input, webhook_url):
-    """Upload trained model directly to network volume storage and create database record"""
+def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job_input, webhook_url):
+    """Upload model file directly to ComfyUI and create database record via API"""
     try:
-        logger.info("🚀 Starting upload to network volume storage...")
+        logger.info("🚀 Starting direct upload to ComfyUI...")
         logger.info(f"📦 Model file: {model_filename} ({len(model_file_data)} bytes = {len(model_file_data) / 1024 / 1024:.1f}MB)")
         
         # Safely get model name from job_input
@@ -359,7 +359,10 @@ def upload_model_to_network_volume(model_file_data, model_filename, job_id, step
         elif isinstance(job_input, str):
             model_name = job_input
         
-        # Get user ID from training job lookup
+        # Generate unique filename with timestamp
+        timestamp = int(time.time() * 1000)
+        
+        # FIXED: Get user ID from training job lookup instead of fallback
         logger.info("🔍 Getting training job info for user ID...")
         base_url = webhook_url.split('/api/webhooks')[0]
         job_info_url = f"{base_url}/api/training/jobs/{job_id}"
@@ -381,68 +384,102 @@ def upload_model_to_network_volume(model_file_data, model_filename, job_id, step
                     logger.warning(f"⚠️ Invalid job info response: {job_info}")
             else:
                 logger.warning(f"⚠️ Job info request failed: {job_info_response.status_code}")
+                logger.warning(f"⚠️ Response: {job_info_response.text}")
         except Exception as e:
             logger.warning(f"⚠️ Error getting user ID from job info: {e}")
         
-        # If we don't have a user ID, use the training job ID as fallback
+        # If we still don't have a user ID, use the training job ID as fallback
         if not user_id:
             user_id = f'training_{job_id}'
             logger.warning(f"⚠️ Using fallback user ID: {user_id}")
         
-        # Upload to network volume via our API
-        logger.info("☁️ Uploading to network volume...")
+        # Use correct filename format: user_timestamp_originalname
+        unique_filename = f"{user_id}_{timestamp}_{model_filename}"
+        logger.info(f"📝 Generated filename: {unique_filename}")
         
-        base_url = webhook_url.split('/api/webhooks')[0]
-        upload_url = f"{base_url}/api/training/upload-model"
+        # Step 1: Upload directly to ComfyUI
+        logger.info("🎯 Uploading to ComfyUI...")
         
-        # Prepare multipart form data for network volume upload
+        # Get ComfyUI URL from environment (same as your frontend)
+        comfyui_url = os.environ.get('COMFYUI_URL', 'https://s4c6uzy7vbnbus-8188.proxy.runpod.net')
+        upload_url = f"{comfyui_url}/upload/image"
+        
+        # Prepare multipart form data for ComfyUI (exactly like your influencer tab)
         files = {
-            'file': (model_filename, model_file_data, 'application/octet-stream')
+            'image': (unique_filename, model_file_data, 'application/octet-stream')
         }
         
         data = {
-            'jobId': job_id,
-            'userId': user_id,
-            'modelName': model_name,
-            'originalFileName': model_filename
+            'subfolder': 'loras'  # Upload to loras subfolder
         }
         
-        # Upload to network volume with extended timeout
-        logger.info(f"📡 Uploading to network volume: {upload_url}")
-        upload_response = requests.post(
+        # Upload to ComfyUI with extended timeout
+        logger.info(f"📡 Uploading to ComfyUI: {upload_url}")
+        comfyui_response = requests.post(
             upload_url,
             files=files,
             data=data,
-            timeout=7200,  # 2 hour timeout for large files
+            timeout=7200,  # 2 hour timeout for large files (increased for long training jobs)
             headers={'User-Agent': 'RunPod-Training-Handler/1.0'}
         )
         
-        logger.info(f"📋 Network volume upload response: {upload_response.status_code}")
+        logger.info(f"📋 ComfyUI response: {comfyui_response.status_code}")
         
-        if upload_response.status_code != 200:
-            logger.error(f"❌ Network volume upload failed: {upload_response.status_code}")
-            logger.error(f"❌ Response: {upload_response.text}")
+        if comfyui_response.status_code != 200:
+            logger.error(f"❌ ComfyUI upload failed: {comfyui_response.status_code}")
+            logger.error(f"❌ Response: {comfyui_response.text}")
             return False
         
-        upload_result = upload_response.json()
-        if upload_result.get('success'):
-            logger.info(f"✅ Model uploaded to network volume successfully!")
-            logger.info(f"📁 Network path: {upload_result.get('networkVolumePath')}")
-            logger.info(f"� S3 key: {upload_result.get('s3Key')}")
-            
-            # Send webhook with completion info
-            send_webhook(webhook_url, {
-                'job_id': job_id,
-                'status': 'COMPLETED',
-                'progress': 100,
-                'message': 'Model uploaded to network volume',
-                'modelUrl': upload_result.get('networkVolumePath'),
-                'networkVolumePath': upload_result.get('networkVolumePath')
-            })
-            
+        try:
+            comfyui_result = comfyui_response.json()
+            logger.info(f"✅ Uploaded to ComfyUI successfully: {comfyui_result}")
+        except:
+            comfyui_result = {"name": unique_filename}
+            logger.info(f"✅ Uploaded to ComfyUI successfully (no JSON response)")
+        
+        # Step 2: Create database record via small API call (no file data)
+        logger.info("💾 Creating database record...")
+        
+        # Extract base URL from webhook URL
+        base_url = webhook_url.split('/api/webhooks')[0]
+        db_record_url = f"{base_url}/api/models/upload-from-training/create-record"
+        
+        record_data = {
+            'job_id': job_id,
+            'model_name': model_name,
+            'file_name': unique_filename,
+            'original_file_name': model_filename,
+            'file_size': len(model_file_data),
+            'comfyui_path': f'models/loras/{unique_filename}',
+            'sync_status': 'SYNCED',  # FIXED: Use proper enum value that matches database
+            'training_steps': str(step),
+            'final_loss': None,  # Could extract from training logs if needed
+            'user_id': user_id if not user_id.startswith('training_') else None  # Only pass real user IDs
+        }
+        
+        # Send small JSON payload to create database record
+        db_response = requests.post(
+            db_record_url,
+            json=record_data,
+            timeout=180,  # Increased timeout for database operations
+            headers={
+                'User-Agent': 'RunPod-Training-Handler/1.0',
+                'Content-Type': 'application/json'
+            }
+        )
+        
+        logger.info(f"📋 Database record response: {db_response.status_code}")
+        
+        if db_response.status_code == 200:
+            response_data = db_response.json()
+            logger.info("✅ Model uploaded to ComfyUI and database record created successfully!")
+            logger.info(f"📂 LoRA created: {response_data.get('lora', {}).get('name', 'Unknown')}")
             return True
         else:
-            logger.error(f"❌ Network volume upload failed: {upload_result}")
+            logger.error(f"❌ Database record creation failed: {db_response.status_code}")
+            logger.error(f"❌ Response: {db_response.text}")
+            # Even if DB record fails, the file is uploaded to ComfyUI
+            logger.info("⚠️ File uploaded to ComfyUI but database record failed")
             return False
             
     except requests.exceptions.Timeout:
@@ -510,39 +547,15 @@ def run_training_process(job_input, job_id, webhook_url):
         
         # Process each image
         image_count = 0
-        for idx, image_data in enumerate(job_input['imageUrls']):
+        for idx, image_url in enumerate(job_input['imageUrls']):
             try:
-                logger.info(f"📥 Processing image {idx + 1}/{len(job_input['imageUrls'])}: {image_data}")
+                logger.info(f"📥 Processing image {idx + 1}/{len(job_input['imageUrls'])}: {image_url}")
                 
-                # Extract URL from image data structure
-                if isinstance(image_data, dict):
-                    image_url = image_data.get('url')
-                    image_filename = image_data.get('filename', f"image_{idx:04d}.jpg")
-                    image_caption = image_data.get('caption', f"Training image {idx + 1}")
-                elif isinstance(image_data, str):
-                    # Fallback for simple URL strings
-                    image_url = image_data
-                    image_filename = f"image_{idx:04d}.jpg"
-                    image_caption = f"Training image {idx + 1}"
-                else:
-                    logger.error(f"💥 Invalid image data format: {image_data}")
-                    continue
-                
-                if not image_url:
-                    logger.error(f"💥 No URL found in image data: {image_data}")
-                    continue
-                
-                logger.info(f"🔗 Downloading from URL: {image_url}")
-                
-                # Download image with timeout and proper headers
-                headers = {
-                    'User-Agent': 'RunPod-AI-Toolkit-Handler/1.0',
-                    'Accept': 'image/*',
-                }
-                response = requests.get(image_url, timeout=60, headers=headers)
+                # Download image with timeout
+                response = requests.get(image_url, timeout=60)
                 response.raise_for_status()
                 
-                # Determine file extension from content-type or filename
+                # Determine file extension from content-type or URL
                 content_type = response.headers.get('content-type', '').lower()
                 if 'jpeg' in content_type or 'jpg' in content_type:
                     ext = 'jpg'
@@ -551,33 +564,19 @@ def run_training_process(job_input, job_id, webhook_url):
                 elif 'webp' in content_type:
                     ext = 'webp'
                 else:
-                    # Extract from original filename or URL
-                    if image_filename and '.' in image_filename:
-                        ext = image_filename.split('.')[-1].lower()
-                    elif '.' in image_url:
-                        ext = image_url.split('.')[-1].lower().split('?')[0]  # Remove query params
-                    else:
-                        ext = 'jpg'  # Default fallback
-                    
+                    # Fallback to extracting from URL
+                    ext = image_url.split('.')[-1].lower() if '.' in image_url else 'jpg'
                     if ext not in ['jpg', 'jpeg', 'png', 'webp']:
-                        ext = 'jpg'  # Safety fallback
+                        ext = 'jpg'  # Default fallback
                 
-                # Use original filename or create numbered one
-                if image_filename and not image_filename.startswith('image_'):
-                    # Keep original filename but ensure proper extension
-                    base_name = image_filename.rsplit('.', 1)[0] if '.' in image_filename else image_filename
-                    final_filename = f"{base_name}.{ext}"
-                else:
-                    # Create numbered filename
-                    final_filename = f"image_{idx:04d}.{ext}"
-                
-                # Save image
-                image_path = dataset_path / final_filename
+                # Save image with proper naming
+                image_filename = f"image_{idx + 1:04d}.{ext}"
+                image_path = dataset_path / image_filename
                 
                 with open(image_path, 'wb') as f:
                     f.write(response.content)
                 
-                logger.info(f"✅ Saved image: {image_path} (caption: {image_caption})")
+                logger.info(f"✅ Saved image: {image_path}")
                 image_count += 1
                 
                 # Update progress for image processing (10-30%)
@@ -591,16 +590,6 @@ def run_training_process(job_input, job_id, webhook_url):
                 
             except Exception as e:
                 logger.error(f"💥 Failed to process image {idx + 1}: {e}")
-                logger.error(f"💥 Image data was: {image_data}")
-                logger.error(f"💥 Error type: {type(e).__name__}")
-                
-                # If it's a connection adapter error, provide more details
-                if "connection adapters" in str(e).lower():
-                    logger.error(f"💥 Connection adapter error details:")
-                    logger.error(f"   - Image URL: {image_url if 'image_url' in locals() else 'Unknown'}")
-                    logger.error(f"   - Requests version: {requests.__version__}")
-                    logger.error(f"   - Available adapters: {list(requests.sessions.Session().adapters.keys())}")
-                
                 continue
         
         if image_count == 0:
@@ -820,7 +809,7 @@ def run_training_process(job_input, job_id, webhook_url):
                     model_file_data = f.read()
                 
                 # Use the existing upload function
-                upload_success = upload_model_to_network_volume(
+                upload_success = upload_model_file_comfyui(
                     model_file_data, 
                     model_file.name, 
                     job_id, 
@@ -1136,7 +1125,7 @@ def handler(job):
             model_upload_success = False
             if model_file_data and webhook_url:
                 # Use direct ComfyUI upload instead of Cloudinary
-                model_upload_success = upload_model_to_network_volume(
+                model_upload_success = upload_model_file_comfyui(
                     model_file_data, 
                     model_filename, 
                     job_id, 
