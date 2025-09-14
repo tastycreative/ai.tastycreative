@@ -3,7 +3,7 @@
 
 set -e
 
-VERSION="v1.0.14"  # Fixed ngrok webhook headers for proper communication
+VERSION="v1.0.16"  # Fixed webhook job lookup by using getTrainingJobById instead of getTrainingJob
 REGISTRY="rfldln01/ai-toolkit-trainer"
 PLATFORM=${2:-"linux/amd64"}  # Default to AMD64 for RunPod
 BUILD_LOCAL=${3:-"false"}     # Option to build locally without pushing

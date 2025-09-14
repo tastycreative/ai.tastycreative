@@ -46,7 +46,7 @@ export async function POST(
     }
 
     // Try to find the training job - first by our job ID, then by RunPod job ID
-    let trainingJob = await TrainingJobsDB.getTrainingJob(jobId, '');
+    let trainingJob = await TrainingJobsDB.getTrainingJobById(jobId);
     
     if (!trainingJob) {
       // Try to find by RunPod job ID
