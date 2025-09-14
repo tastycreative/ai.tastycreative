@@ -10,124 +10,136 @@ cloudinary.config({
 export interface CloudinaryUploadResult {
   public_id: string;
   secure_url: string;
-  url: string;
+  original_filename: string;
+  format: string;
+  resource_type: string;
+  bytes: number;
   width: number;
   height: number;
-  format: string;
-  bytes: number;
+  created_at: string;
 }
 
-export class CloudinaryService {
-  /**
-   * Upload an image buffer to Cloudinary
-   */
-  static async uploadImage(
-    buffer: Buffer,
-    options: {
-      filename?: string;
-      folder?: string;
-      public_id?: string;
-      transformation?: any;
-    } = {}
-  ): Promise<CloudinaryUploadResult> {
-    try {
-      return new Promise((resolve, reject) => {
-        const uploadOptions = {
-          resource_type: 'image' as const,
-          folder: options.folder || 'training-images',
-          public_id: options.public_id,
-          transformation: options.transformation,
-          overwrite: true,
-          invalidate: true,
-        };
+export interface UploadOptions {
+  folder?: string;
+  public_id?: string;
+  tags?: string[];
+  resource_type?: 'image' | 'video' | 'raw' | 'auto';
+  transformation?: object;
+}
 
-        cloudinary.uploader.upload_stream(
-          uploadOptions,
-          (error, result) => {
-            if (error) {
-              console.error('❌ Cloudinary upload error:', error);
-              reject(error);
-            } else if (result) {
-              console.log('✅ Cloudinary upload successful:', result.secure_url);
-              resolve(result as CloudinaryUploadResult);
-            } else {
-              reject(new Error('Upload failed - no result'));
-            }
+/**
+ * Upload a file buffer to Cloudinary
+ */
+export async function uploadToCloudinary(
+  buffer: Buffer,
+  options: UploadOptions = {}
+): Promise<CloudinaryUploadResult> {
+  try {
+    const uploadOptions = {
+      resource_type: 'auto' as const,
+      folder: options.folder || 'training-images',
+      tags: options.tags || ['training', 'ai-toolkit'],
+      ...options,
+    };
+
+    console.log(`☁️ Uploading to Cloudinary folder: ${uploadOptions.folder}`);
+
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        uploadOptions,
+        (error, result) => {
+          if (error) {
+            console.error('❌ Cloudinary upload error:', error);
+            reject(error);
+          } else if (result) {
+            console.log(`✅ Cloudinary upload success: ${result.secure_url}`);
+            resolve(result as CloudinaryUploadResult);
+          } else {
+            reject(new Error('Upload failed: No result returned'));
           }
-        ).end(buffer);
-      });
-    } catch (error) {
-      console.error('❌ Cloudinary upload failed:', error);
-      throw error;
-    }
+        }
+      );
+
+      uploadStream.end(buffer);
+    });
+  } catch (error) {
+    console.error('❌ Cloudinary service error:', error);
+    throw error;
   }
+}
 
-  /**
-   * Upload multiple images to Cloudinary
-   */
-  static async uploadMultipleImages(
-    images: Array<{
-      buffer: Buffer;
-      filename: string;
-      caption?: string;
-    }>,
-    options: {
-      folder?: string;
-      transformation?: any;
-    } = {}
-  ): Promise<Array<{
-    originalFilename: string;
-    cloudinaryUrl: string;
-    cloudinaryPublicId: string;
-    caption?: string;
-    width: number;
-    height: number;
-    bytes: number;
-  }>> {
-    const uploadPromises = images.map(async (image, index) => {
-      try {
-        // Generate a unique public_id for the image
-        const timestamp = Date.now();
-        const randomSuffix = Math.random().toString(36).substring(7);
-        const originalName = image.filename.replace(/\.[^/.]+$/, ''); // Remove extension
-        const public_id = `${originalName}_${timestamp}_${randomSuffix}`;
+/**
+ * Upload multiple files to Cloudinary in parallel
+ */
+export async function uploadMultipleToCloudinary(
+  files: Array<{ buffer: Buffer; filename: string; caption?: string }>,
+  options: UploadOptions = {}
+): Promise<Array<CloudinaryUploadResult & { originalFilename: string; caption?: string }>> {
+  try {
+    const uploadPromises = files.map(async (file, index) => {
+      const fileOptions = {
+        ...options,
+        public_id: file.filename.replace(/\.[^/.]+$/, '') + '_' + Date.now() + '_' + index,
+        tags: [...(options.tags || []), file.caption ? 'captioned' : 'uncaptioned'],
+      };
 
-        const result = await CloudinaryService.uploadImage(image.buffer, {
-          folder: options.folder,
-          public_id: public_id,
-          transformation: options.transformation,
-        });
-
-        return {
-          originalFilename: image.filename,
-          cloudinaryUrl: result.secure_url,
-          cloudinaryPublicId: result.public_id,
-          caption: image.caption,
-          width: result.width,
-          height: result.height,
-          bytes: result.bytes,
-        };
-      } catch (error) {
-        console.error(`❌ Failed to upload image ${index + 1}:`, error);
-        throw new Error(`Failed to upload image ${image.filename}: ${error}`);
-      }
+      const result = await uploadToCloudinary(file.buffer, fileOptions);
+      
+      return {
+        ...result,
+        originalFilename: file.filename,
+        caption: file.caption,
+      };
     });
 
-    return Promise.all(uploadPromises);
-  }
-
-  /**
-   * Delete an image from Cloudinary
-   */
-  static async deleteImage(publicId: string): Promise<void> {
-    try {
-      const result = await cloudinary.uploader.destroy(publicId);
-      console.log('🗑️ Cloudinary delete result:', result);
-    } catch (error) {
-      console.error('❌ Failed to delete from Cloudinary:', error);
-      throw error;
-    }
+    const results = await Promise.all(uploadPromises);
+    console.log(`✅ Successfully uploaded ${results.length} files to Cloudinary`);
+    
+    return results;
+  } catch (error) {
+    console.error('❌ Multiple upload error:', error);
+    throw error;
   }
 }
 
-export default CloudinaryService;
+/**
+ * Delete a file from Cloudinary
+ */
+export async function deleteFromCloudinary(publicId: string): Promise<any> {
+  try {
+    console.log(`🗑️ Deleting from Cloudinary: ${publicId}`);
+    const result = await cloudinary.uploader.destroy(publicId);
+    console.log(`✅ Deleted from Cloudinary: ${publicId}`);
+    return result;
+  } catch (error) {
+    console.error('❌ Cloudinary delete error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get a signed URL for direct uploads from client
+ */
+export function getCloudinarySignature(
+  timestamp: number,
+  folder: string = 'training-images'
+): { signature: string; timestamp: number; api_key: string; folder: string } {
+  const params = {
+    timestamp,
+    folder,
+  };
+
+  const signature = cloudinary.utils.api_sign_request(
+    params,
+    process.env.CLOUDINARY_API_SECRET!
+  );
+
+  return {
+    signature,
+    timestamp,
+    api_key: process.env.CLOUDINARY_API_KEY!,
+    folder,
+  };
+}
+
+export default cloudinary;

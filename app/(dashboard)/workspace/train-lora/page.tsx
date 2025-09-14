@@ -126,7 +126,7 @@ export default function TrainLoRAPage() {
   const uploadImagesInChunks = async (
     images: Array<{ file: File; caption: string }>
   ) => {
-    const CHUNK_SIZE = 5; // Upload 5 images per batch to avoid 413 errors
+    const CHUNK_SIZE = 3; // Reduced to 3 images per batch to avoid 413 errors
     const chunks = [];
 
     // Split images into chunks
@@ -165,9 +165,20 @@ export default function TrainLoRAPage() {
       }));
 
       const formData = new FormData();
-      chunk.forEach((img) => {
-        formData.append("images", img.file);
+      
+      // Add each image with proper field names and captions
+      chunk.forEach((img, index) => {
+        formData.append(`image_${index}`, img.file);
+        formData.append(`caption_${index}`, img.caption || '');
       });
+
+      console.log(`📋 FormData contents for chunk ${chunkNumber}:`, 
+        chunk.map((img, index) => ({
+          file: img.file.name,
+          size: img.file.size,
+          caption: img.caption || 'No caption'
+        }))
+      );
 
       const uploadResponse = await fetch("/api/upload/training-images", {
         method: "POST",
@@ -176,6 +187,7 @@ export default function TrainLoRAPage() {
 
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text();
+        console.error(`❌ Upload error for chunk ${chunkNumber}:`, errorText);
         setUploadProgress((prev) => ({ ...prev, isUploading: false }));
         throw new Error(`Failed to upload chunk ${chunkNumber}: ${errorText}`);
       }
@@ -196,7 +208,7 @@ export default function TrainLoRAPage() {
 
       // Small delay between chunks to avoid overwhelming the server
       if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1500)); // Increased delay
       }
     }
 

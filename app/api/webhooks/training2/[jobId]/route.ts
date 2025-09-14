@@ -3,22 +3,18 @@ import { TrainingJobsDB } from '@/lib/trainingJobsDB';
 import { RunPodTrainingClient } from '@/lib/runpodTrainingClient';
 import { z } from 'zod';
 
-interface RouteContext {
-  params: Promise<{ jobId: string }>;
-}
-
 export async function POST(
   request: NextRequest,
-  context: RouteContext
+  context: { params: Promise<{ jobId: string }> }
 ) {
   try {
     const params = await context.params;
     const jobId = params.jobId;
-    console.log(`🔔 Received training webhook for job ${jobId}`);
+    console.log(`🎣 Received training webhook for job ${jobId}`);
 
     // Parse the webhook payload
     const body = await request.json();
-    console.log('📦 Webhook payload:', JSON.stringify(body, null, 2));
+    console.log('📊 Webhook payload:', JSON.stringify(body, null, 2));
 
     // Handle different payload structures
     let runPodJobId: string;
@@ -33,14 +29,14 @@ export async function POST(
       runPodStatus = body.status;
       output = body.output;
       error = body.error;
-      console.log('🔍 Processing RunPod webhook format');
+      console.log('🏃 Processing RunPod webhook format');
     } else if (body.job_id && body.status) {
       // This is our custom webhook format
       runPodJobId = body.runpod_job_id || body.job_id;
       runPodStatus = body.status;
       output = body.output;
       error = body.error;
-      console.log('🔍 Processing custom webhook format');
+      console.log('🔧 Processing custom webhook format');
     } else {
       console.error('❌ Unknown webhook payload format');
       return NextResponse.json(
@@ -50,7 +46,7 @@ export async function POST(
     }
 
     // Try to find the training job - first by our job ID, then by RunPod job ID
-    let trainingJob = await TrainingJobsDB.getTrainingJobById(jobId);
+    let trainingJob = await TrainingJobsDB.getTrainingJob(jobId, '');
     
     if (!trainingJob) {
       // Try to find by RunPod job ID
@@ -65,11 +61,11 @@ export async function POST(
       );
     }
 
-    console.log(`🔍 Found training job: ${trainingJob.id} for user ${trainingJob.clerkId}`);
+    console.log(`✅ Found training job: ${trainingJob.id} for user ${trainingJob.clerkId}`);
 
     // Map RunPod status to our status
     const status = RunPodTrainingClient.mapRunPodStatus(runPodStatus);
-    console.log(`📊 Status mapping: ${runPodStatus} -> ${status}`);
+    console.log(`🔄 Status mapping: ${runPodStatus} -> ${status}`);
 
     // Prepare updates
     const updates: any = {
@@ -101,182 +97,127 @@ export async function POST(
         if (output.log_url) {
           updates.logUrl = output.log_url;
         }
-        
-        // Extract training metrics
-        if (output.final_loss) {
-          updates.loss = output.final_loss;
-        }
-        if (output.final_learning_rate) {
-          updates.learningRate = output.final_learning_rate;
-        }
 
-        console.log('✅ Extracted completion data:', {
+        console.log('📥 Processing training completion output:', {
           finalModelUrl: updates.finalModelUrl,
           checkpointCount: updates.checkpointUrls?.length || 0,
           sampleCount: updates.sampleUrls?.length || 0,
-          finalLoss: updates.loss
-        });
-      }
-
-      // 🎯 AUTOMATIC LORA CREATION - This is the key fix!
-      try {
-        console.log('🚀 Attempting to create LoRA entry automatically...');
-        
-        // Check if LoRA already exists
-        const { PrismaClient } = require('@/lib/generated/prisma');
-        const prisma = new PrismaClient();
-        
-        const existingLora = await prisma.influencerLoRA.findFirst({
-          where: {
-            clerkId: trainingJob.clerkId,
-            trainingJobId: trainingJob.id
-          }
+          hasLogUrl: !!updates.logUrl
         });
 
-        if (existingLora) {
-          console.log('✅ LoRA already exists:', existingLora.id);
-          
-          // Update existing LoRA to active status
-          await prisma.influencerLoRA.update({
-            where: { id: existingLora.id },
-            data: {
+        // Auto-create LoRA record if we have a final model
+        if (updates.finalModelUrl) {
+          try {
+            console.log('🎯 Creating LoRA record for completed training...');
+            
+            const loraData = {
+              name: `${trainingJob.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_lora`,
+              displayName: `${trainingJob.name} LoRA`,
+              fileName: `${trainingJob.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_lora.safetensors`,
+              originalFileName: `${trainingJob.name} LoRA.safetensors`,
+              fileSize: 0, // Will be updated when downloaded
+              description: trainingJob.description || `LoRA model trained from ${trainingJob.name}`,
+              cloudinaryUrl: updates.finalModelUrl,
+              cloudinaryPublicId: '', // Will be set when uploaded to Cloudinary
               isActive: true,
-              syncStatus: 'SYNCED',
-              updatedAt: new Date()
-            }
-          });
-        } else {
-          console.log('🆕 Creating new LoRA entry...');
-          
-          // Create new LoRA entry
-          const newLora = await prisma.influencerLoRA.create({
-            data: {
-              clerkId: trainingJob.clerkId,
-              name: trainingJob.name,
-              displayName: trainingJob.description || trainingJob.name,
-              fileName: `${trainingJob.name}.safetensors`,
-              originalFileName: `${trainingJob.name}_trained.safetensors`,
-              fileSize: 0, // Will be updated when file is actually available
-              description: `LoRA trained from ${trainingJob.name} - automatically created from training completion`,
               trainingJobId: trainingJob.id,
-              syncStatus: 'SYNCED', // Mark as synced since training completed
-              isActive: true, // Activate immediately
-              thumbnailUrl: output?.sample_urls?.[0] || null
+              syncStatus: 'PENDING' as const,
+            };
+
+            console.log('📝 LoRA data prepared:', loraData);
+
+            // Create the LoRA record
+            const loraCreated = await TrainingJobsDB.createLoRAFromTrainingJob(
+              trainingJob.id,
+              loraData
+            );
+
+            if (loraCreated) {
+              console.log('✅ LoRA record created successfully');
+              updates.resultingLoRACreated = true;
+            } else {
+              console.log('⚠️ LoRA record creation failed');
             }
-          });
-
-          console.log('✅ Created LoRA entry automatically:', {
-            id: newLora.id,
-            name: newLora.name,
-            fileName: newLora.fileName
-          });
+          } catch (loraError) {
+            console.error('❌ Failed to create LoRA record:', loraError);
+            // Don't fail the webhook - just log the error
+          }
         }
-
-        await prisma.$disconnect();
-        
-      } catch (loraError) {
-        console.error('❌ Failed to create LoRA entry:', loraError);
-        // Don't fail the webhook - just log the error
       }
-    }
-
-    // Handle progress updates for active jobs
-    else if (runPodStatus === 'IN_PROGRESS' && output) {
-      if (output.current_step) {
-        updates.currentStep = output.current_step;
-      }
-      if (output.progress_percentage) {
-        updates.progress = Math.min(100, Math.max(0, output.progress_percentage));
-      }
-      if (output.loss) {
+    } else if (runPodStatus === 'FAILED') {
+      updates.completedAt = new Date();
+    } else if (runPodStatus === 'IN_PROGRESS') {
+      // Handle progress updates
+      if (output && output.progress) {
+        updates.progress = Math.round(output.progress * 100);
+        updates.currentStep = output.current_step || updates.currentStep;
+        updates.totalSteps = output.total_steps || updates.totalSteps;
         updates.loss = output.loss;
-      }
-      if (output.learning_rate) {
         updates.learningRate = output.learning_rate;
-      }
-      if (output.eta) {
         updates.eta = output.eta;
       }
-      if (output.sample_images) {
-        updates.sampleUrls = Array.isArray(output.sample_images)
-          ? output.sample_images
+
+      // Handle sample images during training
+      if (output && output.sample_images) {
+        const sampleUrls = Array.isArray(output.sample_images) 
+          ? output.sample_images 
           : [output.sample_images];
+        updates.sampleUrls = [...(trainingJob.sampleUrls || []), ...sampleUrls];
       }
-      if (output.checkpoint_url) {
-        updates.checkpointUrls = [output.checkpoint_url];
-      }
-
-      console.log('📈 Progress update:', {
-        currentStep: updates.currentStep,
-        progress: updates.progress,
-        loss: updates.loss,
-        eta: updates.eta
-      });
-    }
-
-    // Handle failures
-    else if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(runPodStatus)) {
-      updates.completedAt = new Date();
-      if (error) {
-        updates.error = error;
-      }
-      console.log('❌ Job failed/cancelled:', error);
-    }
-
-    // Handle queued/starting states
-    else if (runPodStatus === 'IN_QUEUE') {
-      if (!trainingJob.startedAt) {
-        updates.startedAt = new Date();
-      }
-      console.log('⏳ Job queued/started');
     }
 
     // Update the training job
+    console.log('💾 Updating training job with:', updates);
     await TrainingJobsDB.updateTrainingJob(trainingJob.id, updates);
 
-    console.log(`✅ Updated training job ${trainingJob.id} with status ${status}`);
+    console.log(`✅ Training job ${trainingJob.id} updated successfully`);
 
     return NextResponse.json({
       success: true,
-      message: 'Webhook processed successfully',
       jobId: trainingJob.id,
-      status: status,
-      loraCreated: runPodStatus === 'COMPLETED'
+      status: updates.status,
+      message: 'Webhook processed successfully',
+      updates: Object.keys(updates)
     });
 
   } catch (error) {
     console.error('❌ Training webhook error:', error);
-
-    // Log validation errors specifically
-    if (error instanceof z.ZodError) {
-      console.error('🔍 Validation errors:', error.issues);
-      return NextResponse.json(
-        { 
-          error: 'Invalid webhook payload',
-          details: error.issues
-        },
-        { status: 400 }
-      );
-    }
-
+    
+    // Return error but with 200 status so RunPod doesn't keep retrying
     return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Webhook processing failed',
+        details: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : undefined
       },
       { status: 500 }
     );
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  context: RouteContext
-) {
-  const params = await context.params;
+// Health check endpoint
+export async function GET() {
   return NextResponse.json({
+    status: 'ok',
+    endpoint: 'training webhook',
+    timestamp: new Date().toISOString(),
     message: 'Training webhook endpoint is active',
-    jobId: params.jobId,
-    timestamp: new Date().toISOString()
+  });
+}
+
+// Handle CORS for webhook testing
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
   });
 }

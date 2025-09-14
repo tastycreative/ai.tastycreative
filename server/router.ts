@@ -60,12 +60,12 @@ export const appRouter = router({
         // Generate webhook URL for progress updates
         const webhookUrl = RunPodTrainingClient.generateWebhookUrl(trainingJob.id);
 
-        // Prepare training payload using Cloudinary URLs from uploaded images
+        // Prepare training payload
         const payload = {
           model_name: input.name,
           training_config: input.config,
           datasets: input.datasets,
-          image_urls: input.imageFiles.map((file: any) => file.cloudinaryUrl || file.url),
+          image_urls: trainingJob.trainingImages.map(img => img.storageUrl),
           webhook_url: webhookUrl,
           user_id: ctx.userId,
           job_id: trainingJob.id,

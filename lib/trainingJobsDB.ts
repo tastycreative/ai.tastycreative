@@ -77,16 +77,24 @@ export class TrainingJobsDB {
           modelConfig: input.config.model as any,
           sampleConfig: input.config.sample as any,
           trainingImages: {
-            create: input.imageFiles.map((file) => ({
-              clerkId,
-              filename: file.filename,
-              caption: file.caption,
-              // Use Cloudinary URL from the uploaded file
-              storageUrl: (file as any).cloudinaryUrl || (file as any).url,
-              cloudinaryUrl: (file as any).cloudinaryUrl,
-              cloudinaryPublicId: (file as any).cloudinaryPublicId,
-              format: file.filename.split('.').pop()?.toLowerCase(),
-            }))
+            create: input.imageFiles.map((file, index) => {
+              // Generate unique filename to avoid conflicts
+              const originalExt = file.filename.split('.').pop()?.toLowerCase() || 'jpg';
+              const timestamp = Date.now();
+              const uniqueFilename = `training_image_${index}_${timestamp}.${originalExt}`;
+              
+              return {
+                clerkId,
+                filename: uniqueFilename, // Use unique filename for database
+                caption: file.caption,
+                // Use the uploaded URL directly if provided, otherwise construct local path
+                storageUrl: (file as any).url || `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/training/images/${clerkId}/${uniqueFilename}`,
+                format: originalExt,
+                fileSize: (file as any).size || null,
+                width: (file as any).width || null,
+                height: (file as any).height || null,
+              };
+            })
           }
         },
         include: {
