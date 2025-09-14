@@ -261,7 +261,14 @@ def send_webhook(webhook_url: str, data: Dict) -> bool:
         return False
         
     try:
-        response = requests.post(webhook_url, json=data, timeout=120)  # Increased timeout for webhook responses
+        # Add headers to bypass ngrok warning page and ensure proper content type
+        headers = {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',  # Bypass ngrok warning page
+            'User-Agent': 'RunPod-AI-Toolkit/1.0'  # Identify as automated request
+        }
+        
+        response = requests.post(webhook_url, json=data, headers=headers, timeout=120)  # Increased timeout for webhook responses
         response.raise_for_status()
         logger.info(f"✅ Webhook sent: {data.get('message', 'No message')}")
         return True
@@ -346,10 +353,10 @@ def collect_output_files(output_path: Path) -> Dict[str, List[Dict]]:
         "log_files": log_files
     }
 
-def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job_input, webhook_url):
-    """Upload model file directly to ComfyUI and create database record via API"""
+def upload_model_to_network_volume(model_file_data, model_filename, job_id, step, job_input, webhook_url):
+    """Upload trained model directly to network volume storage and create database record"""
     try:
-        logger.info("🚀 Starting direct upload to ComfyUI...")
+        logger.info("🚀 Starting upload to network volume storage...")
         logger.info(f"📦 Model file: {model_filename} ({len(model_file_data)} bytes = {len(model_file_data) / 1024 / 1024:.1f}MB)")
         
         # Safely get model name from job_input
@@ -359,10 +366,7 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
         elif isinstance(job_input, str):
             model_name = job_input
         
-        # Generate unique filename with timestamp
-        timestamp = int(time.time() * 1000)
-        
-        # FIXED: Get user ID from training job lookup instead of fallback
+        # Get user ID from training job lookup
         logger.info("🔍 Getting training job info for user ID...")
         base_url = webhook_url.split('/api/webhooks')[0]
         job_info_url = f"{base_url}/api/training/jobs/{job_id}"
@@ -384,102 +388,68 @@ def upload_model_file_comfyui(model_file_data, model_filename, job_id, step, job
                     logger.warning(f"⚠️ Invalid job info response: {job_info}")
             else:
                 logger.warning(f"⚠️ Job info request failed: {job_info_response.status_code}")
-                logger.warning(f"⚠️ Response: {job_info_response.text}")
         except Exception as e:
             logger.warning(f"⚠️ Error getting user ID from job info: {e}")
         
-        # If we still don't have a user ID, use the training job ID as fallback
+        # If we don't have a user ID, use the training job ID as fallback
         if not user_id:
             user_id = f'training_{job_id}'
             logger.warning(f"⚠️ Using fallback user ID: {user_id}")
         
-        # Use correct filename format: user_timestamp_originalname
-        unique_filename = f"{user_id}_{timestamp}_{model_filename}"
-        logger.info(f"📝 Generated filename: {unique_filename}")
+        # Upload to network volume via our API
+        logger.info("☁️ Uploading to network volume...")
         
-        # Step 1: Upload directly to ComfyUI
-        logger.info("🎯 Uploading to ComfyUI...")
+        base_url = webhook_url.split('/api/webhooks')[0]
+        upload_url = f"{base_url}/api/training/upload-model"
         
-        # Get ComfyUI URL from environment (same as your frontend)
-        comfyui_url = os.environ.get('COMFYUI_URL', 'https://s4c6uzy7vbnbus-8188.proxy.runpod.net')
-        upload_url = f"{comfyui_url}/upload/image"
-        
-        # Prepare multipart form data for ComfyUI (exactly like your influencer tab)
+        # Prepare multipart form data for network volume upload
         files = {
-            'image': (unique_filename, model_file_data, 'application/octet-stream')
+            'file': (model_filename, model_file_data, 'application/octet-stream')
         }
         
         data = {
-            'subfolder': 'loras'  # Upload to loras subfolder
+            'jobId': job_id,
+            'userId': user_id,
+            'modelName': model_name,
+            'originalFileName': model_filename
         }
         
-        # Upload to ComfyUI with extended timeout
-        logger.info(f"📡 Uploading to ComfyUI: {upload_url}")
-        comfyui_response = requests.post(
+        # Upload to network volume with extended timeout
+        logger.info(f"📡 Uploading to network volume: {upload_url}")
+        upload_response = requests.post(
             upload_url,
             files=files,
             data=data,
-            timeout=7200,  # 2 hour timeout for large files (increased for long training jobs)
+            timeout=7200,  # 2 hour timeout for large files
             headers={'User-Agent': 'RunPod-Training-Handler/1.0'}
         )
         
-        logger.info(f"📋 ComfyUI response: {comfyui_response.status_code}")
+        logger.info(f"📋 Network volume upload response: {upload_response.status_code}")
         
-        if comfyui_response.status_code != 200:
-            logger.error(f"❌ ComfyUI upload failed: {comfyui_response.status_code}")
-            logger.error(f"❌ Response: {comfyui_response.text}")
+        if upload_response.status_code != 200:
+            logger.error(f"❌ Network volume upload failed: {upload_response.status_code}")
+            logger.error(f"❌ Response: {upload_response.text}")
             return False
         
-        try:
-            comfyui_result = comfyui_response.json()
-            logger.info(f"✅ Uploaded to ComfyUI successfully: {comfyui_result}")
-        except:
-            comfyui_result = {"name": unique_filename}
-            logger.info(f"✅ Uploaded to ComfyUI successfully (no JSON response)")
-        
-        # Step 2: Create database record via small API call (no file data)
-        logger.info("💾 Creating database record...")
-        
-        # Extract base URL from webhook URL
-        base_url = webhook_url.split('/api/webhooks')[0]
-        db_record_url = f"{base_url}/api/models/upload-from-training/create-record"
-        
-        record_data = {
-            'job_id': job_id,
-            'model_name': model_name,
-            'file_name': unique_filename,
-            'original_file_name': model_filename,
-            'file_size': len(model_file_data),
-            'comfyui_path': f'models/loras/{unique_filename}',
-            'sync_status': 'SYNCED',  # FIXED: Use proper enum value that matches database
-            'training_steps': str(step),
-            'final_loss': None,  # Could extract from training logs if needed
-            'user_id': user_id if not user_id.startswith('training_') else None  # Only pass real user IDs
-        }
-        
-        # Send small JSON payload to create database record
-        db_response = requests.post(
-            db_record_url,
-            json=record_data,
-            timeout=180,  # Increased timeout for database operations
-            headers={
-                'User-Agent': 'RunPod-Training-Handler/1.0',
-                'Content-Type': 'application/json'
-            }
-        )
-        
-        logger.info(f"📋 Database record response: {db_response.status_code}")
-        
-        if db_response.status_code == 200:
-            response_data = db_response.json()
-            logger.info("✅ Model uploaded to ComfyUI and database record created successfully!")
-            logger.info(f"📂 LoRA created: {response_data.get('lora', {}).get('name', 'Unknown')}")
+        upload_result = upload_response.json()
+        if upload_result.get('success'):
+            logger.info(f"✅ Model uploaded to network volume successfully!")
+            logger.info(f"📁 Network path: {upload_result.get('networkVolumePath')}")
+            logger.info(f"� S3 key: {upload_result.get('s3Key')}")
+            
+            # Send webhook with completion info
+            send_webhook(webhook_url, {
+                'job_id': job_id,
+                'status': 'COMPLETED',
+                'progress': 100,
+                'message': 'Model uploaded to network volume',
+                'modelUrl': upload_result.get('networkVolumePath'),
+                'networkVolumePath': upload_result.get('networkVolumePath')
+            })
+            
             return True
         else:
-            logger.error(f"❌ Database record creation failed: {db_response.status_code}")
-            logger.error(f"❌ Response: {db_response.text}")
-            # Even if DB record fails, the file is uploaded to ComfyUI
-            logger.info("⚠️ File uploaded to ComfyUI but database record failed")
+            logger.error(f"❌ Network volume upload failed: {upload_result}")
             return False
             
     except requests.exceptions.Timeout:
@@ -809,7 +779,7 @@ def run_training_process(job_input, job_id, webhook_url):
                     model_file_data = f.read()
                 
                 # Use the existing upload function
-                upload_success = upload_model_file_comfyui(
+                upload_success = upload_model_to_network_volume(
                     model_file_data, 
                     model_file.name, 
                     job_id, 
@@ -1125,7 +1095,7 @@ def handler(job):
             model_upload_success = False
             if model_file_data and webhook_url:
                 # Use direct ComfyUI upload instead of Cloudinary
-                model_upload_success = upload_model_file_comfyui(
+                model_upload_success = upload_model_to_network_volume(
                     model_file_data, 
                     model_filename, 
                     job_id, 
