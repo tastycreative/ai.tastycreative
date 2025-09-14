@@ -1,4 +1,5 @@
 import { initTRPC, TRPCError } from '@trpc/server';
+import { auth } from '@clerk/nextjs/server';
 
 interface Context {
   userId?: string | null;
@@ -20,3 +21,12 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
     },
   });
 });
+
+export const createContext = async (opts: { req: Request }) => {
+  // Get the current user from Clerk
+  const { userId } = await auth();
+  
+  return {
+    userId,
+  } as Context;
+};

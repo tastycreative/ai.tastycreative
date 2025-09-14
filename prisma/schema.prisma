@@ -187,20 +187,22 @@ model TrainingJob {
 }
 
 model TrainingImage {
-  id            String      @id @default(cuid())
-  clerkId       String
-  trainingJobId String
-  filename      String
-  caption       String?
-  fileSize      Int?
-  width         Int?
-  height        Int?
-  format        String?
-  storageUrl    String
-  localPath     String?
-  uploadedAt    DateTime    @default(now())
-  user          User        @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  trainingJob   TrainingJob @relation(fields: [trainingJobId], references: [id], onDelete: Cascade)
+  id                 String      @id @default(cuid())
+  clerkId            String
+  trainingJobId      String
+  filename           String
+  caption            String?
+  fileSize           Int?
+  width              Int?
+  height             Int?
+  format             String?
+  storageUrl         String
+  localPath          String?
+  cloudinaryUrl      String?
+  cloudinaryPublicId String?
+  uploadedAt         DateTime    @default(now())
+  user               User        @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  trainingJob        TrainingJob @relation(fields: [trainingJobId], references: [id], onDelete: Cascade)
 
   @@unique([trainingJobId, filename])
   @@index([trainingJobId])
