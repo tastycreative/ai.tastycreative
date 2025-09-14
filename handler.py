@@ -510,15 +510,39 @@ def run_training_process(job_input, job_id, webhook_url):
         
         # Process each image
         image_count = 0
-        for idx, image_url in enumerate(job_input['imageUrls']):
+        for idx, image_data in enumerate(job_input['imageUrls']):
             try:
-                logger.info(f"📥 Processing image {idx + 1}/{len(job_input['imageUrls'])}: {image_url}")
+                logger.info(f"📥 Processing image {idx + 1}/{len(job_input['imageUrls'])}: {image_data}")
                 
-                # Download image with timeout
-                response = requests.get(image_url, timeout=60)
+                # Extract URL from image data structure
+                if isinstance(image_data, dict):
+                    image_url = image_data.get('url')
+                    image_filename = image_data.get('filename', f"image_{idx:04d}.jpg")
+                    image_caption = image_data.get('caption', f"Training image {idx + 1}")
+                elif isinstance(image_data, str):
+                    # Fallback for simple URL strings
+                    image_url = image_data
+                    image_filename = f"image_{idx:04d}.jpg"
+                    image_caption = f"Training image {idx + 1}"
+                else:
+                    logger.error(f"💥 Invalid image data format: {image_data}")
+                    continue
+                
+                if not image_url:
+                    logger.error(f"💥 No URL found in image data: {image_data}")
+                    continue
+                
+                logger.info(f"🔗 Downloading from URL: {image_url}")
+                
+                # Download image with timeout and proper headers
+                headers = {
+                    'User-Agent': 'RunPod-AI-Toolkit-Handler/1.0',
+                    'Accept': 'image/*',
+                }
+                response = requests.get(image_url, timeout=60, headers=headers)
                 response.raise_for_status()
                 
-                # Determine file extension from content-type or URL
+                # Determine file extension from content-type or filename
                 content_type = response.headers.get('content-type', '').lower()
                 if 'jpeg' in content_type or 'jpg' in content_type:
                     ext = 'jpg'
@@ -527,19 +551,33 @@ def run_training_process(job_input, job_id, webhook_url):
                 elif 'webp' in content_type:
                     ext = 'webp'
                 else:
-                    # Fallback to extracting from URL
-                    ext = image_url.split('.')[-1].lower() if '.' in image_url else 'jpg'
-                    if ext not in ['jpg', 'jpeg', 'png', 'webp']:
+                    # Extract from original filename or URL
+                    if image_filename and '.' in image_filename:
+                        ext = image_filename.split('.')[-1].lower()
+                    elif '.' in image_url:
+                        ext = image_url.split('.')[-1].lower().split('?')[0]  # Remove query params
+                    else:
                         ext = 'jpg'  # Default fallback
+                    
+                    if ext not in ['jpg', 'jpeg', 'png', 'webp']:
+                        ext = 'jpg'  # Safety fallback
                 
-                # Save image with proper naming
-                image_filename = f"image_{idx + 1:04d}.{ext}"
-                image_path = dataset_path / image_filename
+                # Use original filename or create numbered one
+                if image_filename and not image_filename.startswith('image_'):
+                    # Keep original filename but ensure proper extension
+                    base_name = image_filename.rsplit('.', 1)[0] if '.' in image_filename else image_filename
+                    final_filename = f"{base_name}.{ext}"
+                else:
+                    # Create numbered filename
+                    final_filename = f"image_{idx:04d}.{ext}"
+                
+                # Save image
+                image_path = dataset_path / final_filename
                 
                 with open(image_path, 'wb') as f:
                     f.write(response.content)
                 
-                logger.info(f"✅ Saved image: {image_path}")
+                logger.info(f"✅ Saved image: {image_path} (caption: {image_caption})")
                 image_count += 1
                 
                 # Update progress for image processing (10-30%)
@@ -553,6 +591,16 @@ def run_training_process(job_input, job_id, webhook_url):
                 
             except Exception as e:
                 logger.error(f"💥 Failed to process image {idx + 1}: {e}")
+                logger.error(f"💥 Image data was: {image_data}")
+                logger.error(f"💥 Error type: {type(e).__name__}")
+                
+                # If it's a connection adapter error, provide more details
+                if "connection adapters" in str(e).lower():
+                    logger.error(f"💥 Connection adapter error details:")
+                    logger.error(f"   - Image URL: {image_url if 'image_url' in locals() else 'Unknown'}")
+                    logger.error(f"   - Requests version: {requests.__version__}")
+                    logger.error(f"   - Available adapters: {list(requests.sessions.Session().adapters.keys())}")
+                
                 continue
         
         if image_count == 0:
