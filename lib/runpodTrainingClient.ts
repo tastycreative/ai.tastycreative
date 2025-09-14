@@ -104,6 +104,9 @@ export class RunPodTrainingClient {
 
       console.log(`✅ Validated ${validatedUrls.length} Cloudinary image URLs`);
 
+      // Extract just the URLs for RunPod handler (it expects an array of URL strings)
+      const imageUrlStrings = validatedUrls.map(item => item.url);
+
       // Fix payload structure to match handler expectations exactly
       const runPodPayload = {
         input: {
@@ -111,7 +114,7 @@ export class RunPodTrainingClient {
           name: payload.model_name,
           config: payload.training_config,
           datasets: payload.datasets || [],
-          imageUrls: validatedUrls,  // Send Cloudinary URLs
+          imageUrls: imageUrlStrings,  // Send just URL strings, not objects
           webhook_url: payload.webhook_url
         }
       };
