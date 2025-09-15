@@ -3,7 +3,7 @@
 
 set -e
 
-VERSION="v2.0.9"  # Fixed S3 endpoint URL and bucket name for network volume
+VERSION="v2.0.12"  # Fixed S3 endpoint URL and bucket name for network volume
 REGISTRY="rfldln01/ai-toolkit-trainer"
 PLATFORM=${2:-"linux/amd64"}  # Default to AMD64 for RunPod
 BUILD_LOCAL=${3:-"false"}     # Option to build locally without pushing

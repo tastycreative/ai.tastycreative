@@ -9,6 +9,13 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     const expectedKey = process.env.TRAINING_UPLOAD_KEY;
     
+    // Enhanced debugging
+    console.log('🔍 Debug info:');
+    console.log('  - Authorization header present:', !!authHeader);
+    console.log('  - Expected key present:', !!expectedKey);
+    console.log('  - Expected key length:', expectedKey?.length || 0);
+    console.log('  - Auth header value (first 20 chars):', authHeader?.substring(0, 20) || 'none');
+    
     if (!authHeader || !expectedKey) {
       console.log('❌ Missing authorization header or key');
       return NextResponse.json(
@@ -18,8 +25,13 @@ export async function POST(request: NextRequest) {
     }
     
     const token = authHeader.replace('Bearer ', '');
+    console.log('  - Token length:', token.length);
+    console.log('  - Token matches expected:', token === expectedKey);
+    
     if (token !== expectedKey) {
       console.log('❌ Invalid training upload key');
+      console.log('  - Token (first 20 chars):', token.substring(0, 20));
+      console.log('  - Expected (first 20 chars):', expectedKey.substring(0, 20));
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
