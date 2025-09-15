@@ -105,38 +105,46 @@ export async function POST(
           hasLogUrl: !!updates.logUrl
         });
 
-        // Auto-create LoRA record if we have a final model
-        if (updates.finalModelUrl) {
+        // Auto-create LoRA record if we have a final model or network volume path
+        if (updates.finalModelUrl || output.network_volume_path || output.comfyui_path) {
           try {
             console.log('🎯 Creating LoRA record for completed training...');
             
-            const loraData = {
-              name: `${trainingJob.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_lora`,
-              displayName: `${trainingJob.name} LoRA`,
-              fileName: `${trainingJob.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_lora.safetensors`,
-              originalFileName: `${trainingJob.name} LoRA.safetensors`,
-              fileSize: 0, // Will be updated when downloaded
-              description: trainingJob.description || `LoRA model trained from ${trainingJob.name}`,
-              cloudinaryUrl: updates.finalModelUrl,
-              cloudinaryPublicId: '', // Will be set when uploaded to Cloudinary
-              isActive: true,
-              trainingJobId: trainingJob.id,
-              syncStatus: 'PENDING' as const,
-            };
-
-            console.log('📝 LoRA data prepared:', loraData);
-
-            // Create the LoRA record
-            const loraCreated = await TrainingJobsDB.createLoRAFromTrainingJob(
-              trainingJob.id,
-              loraData
-            );
-
-            if (loraCreated) {
-              console.log('✅ LoRA record created successfully');
+            // Check if LoRA record was already created during training
+            if (output.lora_record_created) {
+              console.log('✅ LoRA record already created during training process');
               updates.resultingLoRACreated = true;
             } else {
-              console.log('⚠️ LoRA record creation failed');
+              // Create LoRA record if not already created
+              const loraData = {
+                name: `${trainingJob.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_lora`,
+                displayName: `${trainingJob.name} LoRA`,
+                fileName: output.unique_filename || `${trainingJob.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_lora.safetensors`,
+                originalFileName: output.model_file || `${trainingJob.name} LoRA.safetensors`,
+                fileSize: output.model_size || 0,
+                description: trainingJob.description || `LoRA model trained from ${trainingJob.name}`,
+                cloudinaryUrl: updates.finalModelUrl,
+                cloudinaryPublicId: '', // Will be set when uploaded to Cloudinary
+                comfyUIPath: output.comfyui_path,
+                isActive: true,
+                trainingJobId: trainingJob.id,
+                syncStatus: output.network_volume_path ? 'SYNCED' as const : 'PENDING' as const,
+              };
+
+              console.log('📝 LoRA data prepared:', loraData);
+
+              // Create the LoRA record
+              const loraCreated = await TrainingJobsDB.createLoRAFromTrainingJob(
+                trainingJob.id,
+                loraData
+              );
+
+              if (loraCreated) {
+                console.log('✅ LoRA record created successfully');
+                updates.resultingLoRACreated = true;
+              } else {
+                console.log('⚠️ LoRA record creation failed');
+              }
             }
           } catch (loraError) {
             console.error('❌ Failed to create LoRA record:', loraError);

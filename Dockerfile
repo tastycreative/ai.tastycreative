@@ -1,4 +1,4 @@
-FROM runpod/pytorch:2.0.1-py3.10-cuda11.8.0-devel
+FROM runpod/pytorch:2.2.0-py3.10-cuda12.1.1-devel-ubuntu22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
@@ -18,27 +18,32 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libgomp1 \
     ffmpeg \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /workspace
 
-# Clone ai-toolkit (latest version)
+# Clone ai-toolkit with submodules (following official instructions)
 RUN git clone https://github.com/ostris/ai-toolkit.git && \
     cd ai-toolkit && \
-    git checkout main
+    git submodule update --init --recursive
 
-# Install ai-toolkit dependencies
+# Create and activate virtual environment, install dependencies
 WORKDIR /workspace/ai-toolkit
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m venv venv && \
+    . venv/bin/activate && \
+    pip install torch torchvision torchaudio && \
+    pip install -r requirements.txt
 
 # Install additional dependencies for RunPod integration
-RUN pip install --no-cache-dir \
+RUN . venv/bin/activate && pip install --no-cache-dir \
     runpod==1.6.2 \
     pyyaml==6.0.1 \
     requests==2.31.0 \
     pillow==10.0.1 \
-    python-multipart==0.0.6
+    python-multipart==0.0.6 \
+    boto3==1.34.0
 
 # Create necessary directories
 RUN mkdir -p /workspace/training_data \
@@ -51,6 +56,9 @@ RUN chmod +x /workspace/handler.py
 
 # Set working directory back to workspace
 WORKDIR /workspace
+
+# Activate venv by default for all subsequent commands
+ENV PATH="/workspace/ai-toolkit/venv/bin:$PATH"
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
