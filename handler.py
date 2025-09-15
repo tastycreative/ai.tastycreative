@@ -3,6 +3,7 @@ import os
 import yaml
 import subprocess
 import json
+import time
 import requests
 import shutil
 from pathlib import Path
@@ -23,7 +24,7 @@ from botocore.exceptions import ClientError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def upload_to_network_volume(model_file: Path, job_id: str, website_config: Dict, work_dir: Path) -> Dict:
+def upload_to_network_volume(model_file: Path, job_id: str, website_config: Dict, work_dir: Path, job_input: Dict = None) -> Dict:
     """Upload trained model to RunPod network volume via S3 and create database record"""
     try:
         logger.info(f"🚀 Starting network volume upload for {model_file.name}")
@@ -52,15 +53,23 @@ def upload_to_network_volume(model_file: Path, job_id: str, website_config: Dict
         )
         
         # Get user ID from website config (should be available in training jobs)
-        user_id = website_config.get('user_id') or website_config.get('userId') or 'unknown_user'
+        # Extract user ID from multiple sources
+        user_id = (
+            # Try job_input level first (where tRPC sends it)
+            (job_input.get('user_id') if job_input else None) or
+            # Then try website_config
+            website_config.get('user_id') or 
+            website_config.get('userId') or 
+            'unknown_user'
+        )
         
         # Create unique filename with timestamp
         timestamp = int(time.time())
         model_name = website_config.get('name', 'trained_model').lower().replace(' ', '_').replace('.', '_')
         unique_filename = f"{user_id}_{timestamp}_{model_name}.safetensors"
         
-        # S3 key for the model file
-        s3_key = f"models/loras/{user_id}/{unique_filename}"
+        # S3 key for the model file - save directly in loras folder  
+        s3_key = f"loras/{user_id}/{unique_filename}"
         
         logger.info(f"📦 Uploading to S3 key: {s3_key}")
         
@@ -74,19 +83,24 @@ def upload_to_network_volume(model_file: Path, job_id: str, website_config: Dict
             )
         
         # Create ComfyUI path
-        comfyui_path = f"models/loras/{user_id}/{unique_filename}"
-        network_path = f"/workspace/ComfyUI/models/loras/{user_id}/{unique_filename}"
+        comfyui_path = f"loras/{user_id}/{unique_filename}"
+        network_path = f"/workspace/ComfyUI/loras/{user_id}/{unique_filename}"
         
         logger.info(f"✅ Model uploaded to network volume: {network_path}")
         
         # Create database record via API call
         lora_record_created = False
         try:
-            # Get clerk user ID - try different sources
-            clerk_user_id = (website_config.get('clerkId') or 
-                           website_config.get('clerk_id') or 
-                           website_config.get('userId') or
-                           website_config.get('user_id'))
+            # Get clerk user ID - try different sources including job_input level
+            clerk_user_id = (
+                # Try job_input level first (where tRPC sends it)
+                (job_input.get('user_id') if job_input else None) or
+                # Then try website_config
+                website_config.get('clerkId') or 
+                website_config.get('clerk_id') or 
+                website_config.get('userId') or
+                website_config.get('user_id')
+            )
             
             if not clerk_user_id:
                 logger.warning("⚠️ No clerkId found in website_config, will rely on trainingJobId lookup")
@@ -115,13 +129,18 @@ def upload_to_network_volume(model_file: Path, job_id: str, website_config: Dict
             
             logger.info(f"📡 Creating LoRA record via API: {api_url}")
             
+            # Debug the authentication key
+            training_key = os.getenv("TRAINING_UPLOAD_KEY", "")
+            logger.info(f"🔍 Training key length: {len(training_key)}")
+            logger.info(f"🔍 Training key first 20 chars: {training_key[:20] if training_key else 'EMPTY'}")
+            
             # Create the record via webhook/API call
             response = requests.post(
                 api_url,
                 json=lora_data,
                 headers={
                     'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {os.getenv("TRAINING_UPLOAD_KEY", "")}'
+                    'Authorization': f'Bearer {training_key}'
                 },
                 timeout=30
             )
@@ -512,7 +531,7 @@ def run_training_process(job_input, job_id, webhook_url):
             try:
                 logger.info(f"🚀 Uploading trained model to network volume...")
                 network_upload_result = upload_to_network_volume(
-                    model_file, job_id, website_config, work_dir
+                    model_file, job_id, website_config, work_dir, job_input
                 )
                 logger.info(f"✅ Network volume upload successful: {network_upload_result}")
             except Exception as upload_error:
