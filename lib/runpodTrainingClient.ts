@@ -116,7 +116,8 @@ export class RunPodTrainingClient {
           config: payload.training_config,
           datasets: payload.datasets || [],
           imageUrls: validatedUrls,  // Send URLs instead of base64 data
-          webhook_url: payload.webhook_url
+          webhook_url: payload.webhook_url,
+          user_id: payload.user_id  // Add the missing user_id field
         }
       };
 
