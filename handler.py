@@ -320,6 +320,7 @@ def run_training_process(job_input, job_id, webhook_url):
         
         # Use the complete config sent from the website
         website_config = job_input['config']
+        job_name = website_config['name']  # Extract job name for progress tracking
         
         # Create ai-toolkit compatible config structure
         config = {
@@ -458,7 +459,7 @@ def run_training_process(job_input, job_id, webhook_url):
                     # Send training progress lines that contain percentage or step info
                     line_stripped = line.strip()
                     if any(keyword in line_stripped for keyword in [
-                        '%|', 'test', 'step', 'loss:', 'lr:', 'it/s]'
+                        '%|', job_name + ':', 'step', 'loss:', 'lr:', 'it/s]'
                     ]):
                         # This looks like a training progress line, send it immediately
                         send_webhook(webhook_url, {
