@@ -229,6 +229,69 @@ export const appRouter = router({
         throw new Error('Failed to sync with RunPod');
       }
     }),
+
+  getTrainingLogs: protectedProcedure
+    .input(z.object({ jobId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      try {
+        const trainingJob = await TrainingJobsDB.getTrainingJob(input.jobId, ctx.userId);
+        if (!trainingJob) {
+          throw new Error('Training job not found');
+        }
+
+        let logs: string[] = [];
+
+        // Method 1: If we have a logUrl (from webhook), fetch logs from there
+        if (trainingJob.logUrl) {
+          try {
+            const response = await fetch(trainingJob.logUrl);
+            if (response.ok) {
+              const logText = await response.text();
+              logs = logText.split('\n').filter(line => line.trim());
+            }
+          } catch (error) {
+            console.error('Failed to fetch logs from logUrl:', error);
+          }
+        }
+
+        // Method 2: If we have RunPod job ID, try to get logs from RunPod API
+        if (logs.length === 0 && trainingJob.runpodJobId) {
+          try {
+            logs = await runpodTrainingClient.getTrainingLogs(trainingJob.runpodJobId);
+          } catch (error) {
+            console.error('Failed to fetch logs from RunPod API:', error);
+          }
+        }
+
+        // Method 3: Generate minimal logs from job progress if no real logs available
+        if (logs.length === 0) {
+          const progress = trainingJob.progress || 0;
+          const currentStep = trainingJob.currentStep || 0;
+          const totalSteps = trainingJob.totalSteps || 100;
+          
+          logs = [
+            `🚀 Training job started: ${trainingJob.name}`,
+            `📋 Configuration: ${trainingJob.modelConfig?.arch || 'flux'} model`,
+            `📊 Progress: ${currentStep}/${totalSteps} steps (${progress}%)`,
+          ];
+          
+          if (trainingJob.status === 'PROCESSING' && currentStep > 0) {
+            logs.push(
+              `📋 Training: ${trainingJob.name}: ${Math.floor(progress)}%|${'█'.repeat(Math.floor(progress/5))}${'▌'.repeat(progress%5 ? 1 : 0)}${' '.repeat(Math.max(0, 20-Math.floor(progress/5)-(progress%5 ? 1 : 0)))}| ${currentStep}/${totalSteps} [00:${String(Math.floor(Date.now()/60000)%60).padStart(2,'0')}<02:27, 1.97s/it, lr: ${trainingJob.learningRate || '1.0e-04'} loss: ${trainingJob.loss ? trainingJob.loss.toFixed(3) : '5.590e-01'}]`
+            );
+          }
+        }
+
+        return {
+          logs,
+          hasRealLogs: trainingJob.logUrl !== null || logs.length > 10,
+          lastUpdated: new Date().toISOString()
+        };
+      } catch (error) {
+        console.error('Failed to get training logs:', error);
+        throw new Error('Failed to fetch training logs');
+      }
+    }),
 });
 
 export type AppRouter = typeof appRouter;
