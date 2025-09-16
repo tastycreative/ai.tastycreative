@@ -458,8 +458,8 @@ def run_training_process(job_input, job_id, webhook_url):
                     # Send training progress lines that contain percentage or step info
                     line_stripped = line.strip()
                     if any(keyword in line_stripped for keyword in [
-                        '%|', 'test3:', 'step', 'loss:', 'lr:'
-                    ]) or line_stripped.endswith('it/s]'):
+                        '%|', 'test', 'step', 'loss:', 'lr:', 'it/s]'
+                    ]):
                         # This looks like a training progress line, send it immediately
                         send_webhook(webhook_url, {
                             'job_id': job_id,

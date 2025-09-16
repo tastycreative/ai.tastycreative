@@ -5,11 +5,11 @@ import { z } from 'zod';
 
 // Function to parse training progress from RunPod log messages
 function parseTrainingProgress(message: string) {
-  // Match the RunPod training progress format: "test3:  69%|██████▉   | 69/100 [02:30<01:07,  2.19s/it, lr: 1.0e-04 loss: 3.096e-01]"
-  const progressMatch = message.match(/(\w+):\s*(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[[^\]]*\]\s*\[([^\]]*),\s*([^\]]*)\]\s*(?:lr:\s*([\d.e-]+)\s*)?(?:loss:\s*([\d.e-]+))?/);
+  // Match the RunPod training progress format: "test4:  7%|▋ | 7/100 [00:19<02:47, 1.80s/it, lr: 1.0e-04 loss: 4.501e-01]"
+  const progressMatch = message.match(/(test\d+):\s*(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[([^\]]*)<([^\]]*),\s*([^\]]*)\]\s*(?:lr:\s*([\d.e-]+)\s*)?(?:loss:\s*([\d.e-]+))?/);
   
   if (progressMatch) {
-    const [, jobName, progressPercent, currentStep, totalSteps, elapsed, eta, learningRate, loss] = progressMatch;
+    const [, jobName, progressPercent, currentStep, totalSteps, elapsed, eta, speed, learningRate, loss] = progressMatch;
     
     return {
       progress: parseInt(progressPercent, 10),
@@ -19,6 +19,7 @@ function parseTrainingProgress(message: string) {
       learningRate: learningRate ? parseFloat(learningRate) : undefined,
       eta: eta || undefined,
       elapsed: elapsed || undefined,
+      speed: speed || undefined,
       message: message.trim()
     };
   }
