@@ -67,13 +67,13 @@ interface GeneratedSample {
 function parseTrainingProgress(logs: string): { currentStep: number; totalSteps: number; progressPercentage: number; learningRate: number; loss: number; modelName: string; } | null {
   const lines = logs.split('\n');
   
-  // Look for training progress lines like:
-  // "📋 Training: ai model test: 25%|██▌ | 25/100 [00:54<02:27, 1.97s/it, lr: 1.0e-04 loss: 5.590e-01]"
+  // Look for training progress lines in the actual RunPod format:
+  // "ai test: 66%|██████▌ | 66/100 [02:20<01:16, 2.24s/it, lr: 1.0e-04 loss: 4.132e-01]"
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
     
-    // Match the exact format from your logs
-    const progressMatch = line.match(/📋 Training: (.+?):\s+(\d+)%\|([█▌▏▎▍▋▊▉ ]*)\|\s*(\d+)\/(\d+)\s*\[([0-9:]+)<([0-9:]+),\s*([0-9.]+)s\/it,\s*lr:\s*([0-9.e-]+)\s*loss:\s*([0-9.e-]+)\]/);
+    // Match the actual RunPod log format (without the "📋 Training:" prefix)
+    const progressMatch = line.match(/([^:]+):\s+(\d+)%\|([█▌▏▎▍▋▊▉ ]*)\|\s*(\d+)\/(\d+)\s*\[([0-9:]+)<([0-9:]+),\s*([0-9.]+)s\/it,\s*lr:\s*([0-9.e-]+)\s*loss:\s*([0-9.e-]+)\]/);
     
     if (progressMatch) {
       const [, modelName, percentage, progressBar, current, total, elapsed, remaining, speed, lr, loss] = progressMatch;
@@ -124,6 +124,15 @@ export default function TrainingJobDetailPage() {
     },
   });
 
+  // Fetch real training logs
+  const { data: logsData, refetch: refetchLogs } = trpc.getTrainingLogs.useQuery(
+    { jobId },
+    { 
+      enabled: !!jobId && !!job && ["PROCESSING", "INITIALIZING", "SAMPLING"].includes(job.status),
+      refetchInterval: autoRefresh ? refreshInterval : false 
+    }
+  );
+
   // Real-time updates with actual log parsing
   useEffect(() => {
     if (!job || !["PROCESSING", "INITIALIZING", "SAMPLING"].includes(job.status)) {
@@ -134,24 +143,29 @@ export default function TrainingJobDetailPage() {
     setIsConnected(true);
     
     const updateMetrics = () => {
-      // Parse actual progress from logs if available
-      const actualProgress = null;
-      // Note: The job doesn't have direct logs, but we can get them from RunPod or log files
-      // For now, we'll use the job's direct progress data
+      let actualProgress = null;
       
-      const progress = job.progress || 0;
-      const totalSteps = job.totalSteps || 100;
-      const currentStep = job.currentStep || Math.floor((progress / 100) * totalSteps);
+      // Parse real progress from logs if available
+      if (logsData?.logs?.length) {
+        const allLogsText = logsData.logs.join('\n');
+        actualProgress = parseTrainingProgress(allLogsText);
+      }
+      
+      // Use actual progress data if available, otherwise fallback to job data
+      const progress = actualProgress?.progressPercentage || job.progress || 0;
+      const totalSteps = actualProgress?.totalSteps || job.totalSteps || 100;
+      const currentStep = actualProgress?.currentStep || job.currentStep || Math.floor((progress / 100) * totalSteps);
+      const loss = actualProgress?.loss || job.loss || (0.5 + Math.random() * 0.1);
+      const learningRate = actualProgress?.learningRate || job.learningRate || 0.0001;
       const elapsed = Date.now() - new Date(job.startedAt || job.createdAt).getTime();
       
-      // Use actual data when available, fallback to estimates
       const baseMetrics: TrainingMetrics = {
         currentStep,
         totalSteps,
         currentEpoch: 1,
         totalEpochs: 1,
-        loss: job.loss || (0.5 + Math.random() * 0.3),
-        learningRate: job.learningRate || 0.0001,
+        loss,
+        learningRate,
         timeElapsed: elapsed,
         estimatedTimeRemaining: elapsed * (100 - progress) / Math.max(progress, 1),
         samplesGenerated: currentStep,
@@ -169,45 +183,48 @@ export default function TrainingJobDetailPage() {
       setMetrics(baseMetrics);
     };
 
-    updateMetrics();
-    const interval = setInterval(updateMetrics, refreshInterval);
+    const updateLogs = () => {
+      if (logsData?.logs?.length) {
+        // Convert real logs to our log format
+        const realLogs: TrainingLog[] = logsData.logs.map((logLine, index) => {
+          let level: "info" | "warning" | "error" | "debug" | "progress" = "info";
+          
+          // Determine log level based on content
+          if (logLine.includes('%|') && logLine.includes('loss:')) {
+            level = "progress";
+          } else if (logLine.includes('error') || logLine.includes('failed')) {
+            level = "error";
+          } else if (logLine.includes('warning') || logLine.includes('warn')) {
+            level = "warning";
+          } else if (logLine.includes('debug')) {
+            level = "debug";
+          }
 
-    // Generate logs from actual job logs if available
-    const generateLogs = () => {
-      const progress = job.progress || 0;
-      const totalSteps = job.totalSteps || 100;
-      const currentStep = job.currentStep || Math.floor((progress / 100) * totalSteps);
-      const elapsed = Date.now() - new Date(job.startedAt || job.createdAt).getTime();
-      
-      // Mock log generation since job doesn't have direct logs property
-      const logTypes = ["info", "progress", "debug"] as const;
-      const messages = [
-        "Loading model checkpoints...",
-        "Initializing optimizer...",
-        "Starting training epoch...",
-        "Saving checkpoint...",
-        "Generating sample images...",
-        `📋 Training: ai model test: ${Math.floor(progress)}%|${'█'.repeat(Math.floor(progress/5))}${'▌'.repeat(progress%5 ? 1 : 0)}${' '.repeat(Math.max(0, 20-Math.floor(progress/5)-(progress%5 ? 1 : 0)))}| ${currentStep}/${totalSteps} [${Math.floor(elapsed/60000)}:${String(Math.floor((elapsed%60000)/1000)).padStart(2,'0')}<02:27, 1.97s/it, lr: 1.0e-04 loss: ${(job.loss || 0.5).toFixed(3)}]`,
-      ];
+          return {
+            id: `log-${index}`,
+            timestamp: new Date().toISOString(),
+            level,
+            message: logLine,
+            rawMessage: logLine
+          };
+        }).reverse(); // Show newest logs first
 
-      const newLog: TrainingLog = {
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
-        level: logTypes[Math.floor(Math.random() * logTypes.length)],
-        message: messages[Math.floor(Math.random() * messages.length)],
-      };
-
-      setLogs((prev) => [newLog, ...prev.slice(0, 199)]);
+        setLogs(realLogs.slice(0, 200)); // Keep only latest 200 logs
+      }
     };
 
-    generateLogs();
-    const logInterval = setInterval(generateLogs, 2000);
+    updateMetrics();
+    updateLogs();
+    
+    const interval = setInterval(() => {
+      updateMetrics();
+      updateLogs();
+    }, refreshInterval);
 
     return () => {
       clearInterval(interval);
-      clearInterval(logInterval);
     };
-  }, [job, refreshInterval]);
+  }, [job, logsData, refreshInterval]);
 
   // Handle job actions
   const handleCancelJob = () => {
