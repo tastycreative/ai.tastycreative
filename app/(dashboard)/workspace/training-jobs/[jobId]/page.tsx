@@ -135,7 +135,7 @@ export default function TrainingJobDetailPage() {
     
     const updateMetrics = () => {
       // Parse actual progress from logs if available
-      let actualProgress = null;
+      const actualProgress = null;
       // Note: The job doesn't have direct logs, but we can get them from RunPod or log files
       // For now, we'll use the job's direct progress data
       
