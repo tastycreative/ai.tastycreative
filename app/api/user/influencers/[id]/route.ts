@@ -51,6 +51,7 @@ export async function DELETE(
               accessKeyId: S3_ACCESS_KEY,
               secretAccessKey: S3_SECRET_KEY,
             },
+            forcePathStyle: true,
           });
 
           // Try to delete from the S3 bucket
