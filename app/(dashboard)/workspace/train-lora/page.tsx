@@ -165,18 +165,19 @@ export default function TrainLoRAPage() {
       }));
 
       const formData = new FormData();
-      
+
       // Add each image with proper field names and captions
       chunk.forEach((img, index) => {
         formData.append(`image_${index}`, img.file);
-        formData.append(`caption_${index}`, img.caption || '');
+        formData.append(`caption_${index}`, img.caption || "");
       });
 
-      console.log(`📋 FormData contents for chunk ${chunkNumber}:`, 
+      console.log(
+        `📋 FormData contents for chunk ${chunkNumber}:`,
         chunk.map((img, index) => ({
           file: img.file.name,
           size: img.file.size,
-          caption: img.caption || 'No caption'
+          caption: img.caption || "No caption",
         }))
       );
 
