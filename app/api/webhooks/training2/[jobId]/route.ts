@@ -3,6 +3,39 @@ import { TrainingJobsDB } from '@/lib/trainingJobsDB';
 import { RunPodTrainingClient } from '@/lib/runpodTrainingClient';
 import { z } from 'zod';
 
+// Function to parse training progress from RunPod log messages
+function parseTrainingProgress(message: string) {
+  // Match the RunPod training progress format: "test3:  69%|██████▉   | 69/100 [02:30<01:07,  2.19s/it, lr: 1.0e-04 loss: 3.096e-01]"
+  const progressMatch = message.match(/(\w+):\s*(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[[^\]]*\]\s*\[([^\]]*),\s*([^\]]*)\]\s*(?:lr:\s*([\d.e-]+)\s*)?(?:loss:\s*([\d.e-]+))?/);
+  
+  if (progressMatch) {
+    const [, jobName, progressPercent, currentStep, totalSteps, elapsed, eta, learningRate, loss] = progressMatch;
+    
+    return {
+      progress: parseInt(progressPercent, 10),
+      currentStep: parseInt(currentStep, 10),
+      totalSteps: parseInt(totalSteps, 10),
+      loss: loss ? parseFloat(loss) : undefined,
+      learningRate: learningRate ? parseFloat(learningRate) : undefined,
+      eta: eta || undefined,
+      elapsed: elapsed || undefined,
+      message: message.trim()
+    };
+  }
+
+  // Also check for other training status messages
+  if (message.includes('Loading') || message.includes('Quantizing') || message.includes('Preparing')) {
+    return {
+      progress: 0,
+      currentStep: 0,
+      totalSteps: 100,
+      message: message.trim()
+    };
+  }
+
+  return null;
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ jobId: string }> }
@@ -155,7 +188,7 @@ export async function POST(
     } else if (runPodStatus === 'FAILED') {
       updates.completedAt = new Date();
     } else if (runPodStatus === 'IN_PROGRESS') {
-      // Handle progress updates
+      // Handle progress updates from structured output
       if (output && output.progress) {
         updates.progress = Math.round(output.progress * 100);
         updates.currentStep = output.current_step || updates.currentStep;
@@ -163,6 +196,24 @@ export async function POST(
         updates.loss = output.loss;
         updates.learningRate = output.learning_rate;
         updates.eta = output.eta;
+      }
+
+      // Parse progress from message field (RunPod training logs)
+      if (body.message && typeof body.message === 'string') {
+        const progressData = parseTrainingProgress(body.message);
+        if (progressData) {
+          updates.progress = progressData.progress;
+          updates.currentStep = progressData.currentStep;
+          updates.totalSteps = progressData.totalSteps;
+          updates.loss = progressData.loss;
+          updates.learningRate = progressData.learningRate;
+          updates.eta = progressData.eta;
+          
+          console.log('📈 Parsed training progress:', progressData);
+        } else {
+          // Store the message even if we can't parse structured progress
+          console.log('📝 Training status message:', body.message);
+        }
       }
 
       // Handle sample images during training
