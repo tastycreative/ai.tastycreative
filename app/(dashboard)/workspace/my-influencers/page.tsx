@@ -850,7 +850,7 @@ export default function MyInfluencersPage() {
     if (!apiClient) return;
 
     // Find the influencer to get its name for the confirmation
-    const influencer = influencers.find(inf => inf.id === id);
+    const influencer = influencers.find((inf) => inf.id === id);
     const influencerName = influencer?.displayName || "this influencer";
 
     if (
@@ -863,26 +863,31 @@ export default function MyInfluencersPage() {
 
     try {
       console.log(`🗑️ Deleting influencer: ${influencerName}`);
-      
+
       const response = await apiClient.delete(`/api/user/influencers/${id}`);
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
         throw new Error(errorData.error || "Failed to delete influencer");
       }
 
       const result = await response.json();
-      
+
       // Remove from local state
       setInfluencers((prev) => prev.filter((inf) => inf.id !== id));
-      
+
       // Show success message
-      alert(`✅ Successfully deleted "${influencerName}" from both database and storage!`);
-      
+      alert(
+        `✅ Successfully deleted "${influencerName}" from both database and storage!`
+      );
+
       console.log(`✅ Influencer deleted successfully: ${influencerName}`);
     } catch (error) {
       console.error("Delete error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete influencer";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to delete influencer";
       alert(`❌ Failed to delete "${influencerName}": ${errorMessage}`);
     }
   };
