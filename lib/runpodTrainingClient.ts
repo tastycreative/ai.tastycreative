@@ -200,21 +200,16 @@ export class RunPodTrainingClient {
 
   /**
    * Get training logs from RunPod
+   * Note: Serverless endpoints typically don't support direct log access
+   * Logs are usually provided via webhooks with logUrl
    */
   async getTrainingLogs(runpodJobId: string): Promise<string[]> {
     try {
-      const response = await fetch(`${this.apiUrl}/logs/${runpodJobId}`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to get training logs: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result.logs || [];
+      // For serverless endpoints, direct log access is not available
+      // Logs are typically provided via webhooks with a logUrl
+      console.log('ℹ️ RunPod serverless endpoints do not support direct log access');
+      console.log('💡 Logs should be accessed via logUrl provided in webhook payloads');
+      return [];
     } catch (error) {
       console.error('❌ Failed to get training logs:', error);
       return [];
