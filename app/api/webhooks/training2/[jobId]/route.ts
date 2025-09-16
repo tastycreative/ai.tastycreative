@@ -6,7 +6,8 @@ import { z } from 'zod';
 // Function to parse training progress from RunPod log messages
 function parseTrainingProgress(message: string) {
   // Match the RunPod training progress format: "test4:  7%|▋ | 7/100 [00:19<02:47, 1.80s/it, lr: 1.0e-04 loss: 4.501e-01]"
-  const progressMatch = message.match(/(test\d+):\s*(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[([^\]]*)<([^\]]*),\s*([^\]]*)\]\s*(?:lr:\s*([\d.e-]+)\s*)?(?:loss:\s*([\d.e-]+))?/);
+  // Now supports any job name, not just "test"
+  const progressMatch = message.match(/([^:]+):\s*(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)\s*\[([^\]]*)<([^\]]*),\s*([^\]]*)\]\s*(?:lr:\s*([\d.e-]+)\s*)?(?:loss:\s*([\d.e-]+))?/);
   
   if (progressMatch) {
     const [, jobName, progressPercent, currentStep, totalSteps, elapsed, eta, speed, learningRate, loss] = progressMatch;
