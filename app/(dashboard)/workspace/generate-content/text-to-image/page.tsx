@@ -277,6 +277,124 @@ export default function TextToImagePage() {
     }
   }, [progressData, isGenerating]);
 
+  // Update browser tab title and favicon for cross-tab generation progress indication
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const originalTitle = 'Text to Image - AI Creative Studio';
+      
+      if (isGenerating && currentJob) {
+        // Update document title with progress
+        const progress = Math.round(progressData.progress || 0);
+        const stage = progressData.stage || 'generating';
+        
+        let progressIcon = '🎨';
+        if (stage === 'starting') progressIcon = '🚀';
+        else if (stage === 'loading_models') progressIcon = '📦';
+        else if (stage === 'processing_prompt') progressIcon = '📝';
+        else if (stage === 'generating') progressIcon = '🎨';
+        else if (stage === 'saving') progressIcon = '💾';
+        else if (stage === 'completed') progressIcon = '✅';
+        else if (stage === 'failed') progressIcon = '❌';
+        
+        const titleWithProgress = `${progressIcon} ${progress}% - Generating Image | AI Creative Studio`;
+        document.title = titleWithProgress;
+        
+        // Create and update dynamic favicon with progress indicator
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 32;
+        canvas.height = 32;
+        
+        if (ctx) {
+          // Draw background circle
+          ctx.fillStyle = '#3B82F6'; // Blue background
+          ctx.beginPath();
+          ctx.arc(16, 16, 15, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Draw progress arc
+          if (progress > 0) {
+            ctx.strokeStyle = '#10B981'; // Green progress
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(16, 16, 12, -Math.PI / 2, (2 * Math.PI * progress / 100) - Math.PI / 2);
+            ctx.stroke();
+          }
+          
+          // Draw center dot
+          ctx.fillStyle = '#FFFFFF';
+          ctx.beginPath();
+          ctx.arc(16, 16, 4, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Update favicon
+          const faviconUrl = canvas.toDataURL('image/png');
+          let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+          if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            document.head.appendChild(favicon);
+          }
+          favicon.href = faviconUrl;
+        }
+        
+      } else {
+        // Reset to original title and favicon when not generating
+        document.title = originalTitle;
+        
+        // Reset favicon to default (you might want to set this to your actual favicon)
+        let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) {
+          favicon.href = '/favicon.ico'; // Update this to your actual favicon path
+        }
+      }
+    }
+    
+    // Cleanup function to reset title when component unmounts
+    return () => {
+      if (typeof window !== 'undefined') {
+        document.title = 'Text to Image - AI Creative Studio';
+      }
+    };
+  }, [isGenerating, currentJob, progressData]);
+
+  // Request notification permission on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
+  // Send browser notification when generation completes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && 
+        currentJob && currentJob.status === 'completed' && !isGenerating) {
+      
+      if (Notification.permission === 'granted') {
+        const notification = new Notification('🎨 Image Generation Complete!', {
+          body: 'Your AI-generated image is ready to view.',
+          icon: '/favicon.ico', // Update to your favicon path
+          badge: '/favicon.ico',
+          tag: 'generation-complete',
+          requireInteraction: false,
+        });
+
+        // Auto-close notification after 5 seconds
+        setTimeout(() => {
+          notification.close();
+        }, 5000);
+
+        // Focus window when notification is clicked
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+      }
+    }
+  }, [currentJob?.status, isGenerating]);
+
   // Initialize empty job history on mount
   useEffect(() => {
     if (!Array.isArray(jobHistory)) {
@@ -2381,78 +2499,125 @@ export default function TextToImagePage() {
                   (jobImages[currentJob.id] &&
                     jobImages[currentJob.id].length > 0)) && (
                   <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Generated Images
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Generated Images
+                      </h4>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                        {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
+                          ? `${jobImages[currentJob.id].length} image${jobImages[currentJob.id].length > 1 ? 's' : ''}`
+                          : currentJob.resultUrls && currentJob.resultUrls.length > 0
+                          ? `${currentJob.resultUrls.length} image${currentJob.resultUrls.length > 1 ? 's' : ''}`
+                          : '0 images'
+                        }
+                      </div>
+                    </div>
 
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className={`grid gap-3 ${
+                      // Dynamic grid based on number of images
+                      jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
+                        ? jobImages[currentJob.id].length === 1 
+                          ? 'grid-cols-1' 
+                          : jobImages[currentJob.id].length === 2 
+                          ? 'grid-cols-2' 
+                          : jobImages[currentJob.id].length <= 4 
+                          ? 'grid-cols-2' 
+                          : 'grid-cols-3'
+                        : currentJob.resultUrls && currentJob.resultUrls.length > 0
+                        ? currentJob.resultUrls.length === 1 
+                          ? 'grid-cols-1' 
+                          : currentJob.resultUrls.length === 2 
+                          ? 'grid-cols-2' 
+                          : currentJob.resultUrls.length <= 4 
+                          ? 'grid-cols-2' 
+                          : 'grid-cols-3'
+                        : 'grid-cols-1'
+                    }`}>
                       {/* Show database images if available */}
                       {jobImages[currentJob.id] &&
                       jobImages[currentJob.id].length > 0 ? (
-                        // Database images with dynamic URLs - only show images that have data
+                        // Database images with dynamic URLs - show all images, including those being processed
                         jobImages[currentJob.id]
-                          .filter((dbImage) => dbImage.dataUrl) // Only show images with data
                           .map((dbImage, index) => (
                             <div
                               key={`db-${dbImage.id}`}
                               className="relative group"
                             >
-                              <img
-                                src={dbImage.dataUrl}
-                                alt={`Generated image ${index + 1}`}
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                onError={(e) => {
-                                  // Fallback to placeholder for serverless RunPod
-                                  console.warn(
-                                    "⚠️ Database image failed to load:",
-                                    dbImage.filename,
-                                    "- switching to placeholder"
-                                  );
+                              {dbImage.dataUrl ? (
+                                // Image is ready to display
+                                <>
+                                  <img
+                                    src={dbImage.dataUrl}
+                                    alt={`Generated image ${index + 1}`}
+                                    className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
+                                    onError={(e) => {
+                                      // Fallback to placeholder for serverless RunPod
+                                      console.warn(
+                                        "⚠️ Database image failed to load:",
+                                        dbImage.filename,
+                                        "- switching to placeholder"
+                                      );
 
-                                  (e.target as HTMLImageElement).src =
-                                    "/api/placeholder-image";
-                                }}
-                              />
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex space-x-1">
-                                  <button
-                                    onClick={() =>
-                                      downloadDatabaseImage(dbImage)
-                                    }
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                    title={`Download ${dbImage.filename} (${
-                                      dbImage.fileSize
-                                        ? `${Math.round(
-                                            dbImage.fileSize / 1024
-                                          )}KB`
-                                        : "Unknown size"
-                                    })`}
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => shareImage(dbImage)}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </div>
+                                      (e.target as HTMLImageElement).src =
+                                        "/api/placeholder-image";
+                                    }}
+                                  />
+                                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex space-x-1">
+                                      <button
+                                        onClick={() =>
+                                          downloadDatabaseImage(dbImage)
+                                        }
+                                        className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                        title={`Download ${dbImage.filename} (${
+                                          dbImage.fileSize
+                                            ? `${Math.round(
+                                                dbImage.fileSize / 1024
+                                              )}KB`
+                                            : "Unknown size"
+                                        })`}
+                                      >
+                                        <Download className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => shareImage(dbImage)}
+                                        className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                      >
+                                        <Share2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
 
-                              {/* Image metadata */}
-                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                  {dbImage.width && dbImage.height
-                                    ? `${dbImage.width}×${dbImage.height}`
-                                    : "Unknown size"}
-                                  {dbImage.fileSize &&
-                                    ` • ${Math.round(
-                                      dbImage.fileSize / 1024
-                                    )}KB`}
-                                  {dbImage.format &&
-                                    ` • ${dbImage.format.toUpperCase()}`}
+                                  {/* Image metadata */}
+                                  <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                      {dbImage.width && dbImage.height
+                                        ? `${dbImage.width}×${dbImage.height}`
+                                        : "Unknown size"}
+                                      {dbImage.fileSize &&
+                                        ` • ${Math.round(
+                                          dbImage.fileSize / 1024
+                                        )}KB`}
+                                      {dbImage.format &&
+                                        ` • ${dbImage.format.toUpperCase()}`}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Image number indicator */}
+                                  <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                    {index + 1}
+                                  </div>
+                                </>
+                              ) : (
+                                // Image is still being processed
+                                <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg flex flex-col items-center justify-center">
+                                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center px-2">
+                                    Image {index + 1}<br />
+                                    Processing...
+                                  </p>
                                 </div>
-                              </div>
+                              )}
                             </div>
                           ))
                       ) : // Check if there are images without data (still processing)
@@ -2495,7 +2660,7 @@ export default function TextToImagePage() {
                             <img
                               src={url}
                               alt={`Generated image ${index + 1}`}
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                              className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
                               onError={(e) => {
                                 console.error("Legacy image load error:", url);
                                 (e.target as HTMLImageElement).style.display =
@@ -2525,6 +2690,11 @@ export default function TextToImagePage() {
                                   <Share2 className="w-4 h-4" />
                                 </button>
                               </div>
+                            </div>
+                            
+                            {/* Image number indicator for legacy images */}
+                            <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                              {index + 1}
                             </div>
                           </div>
                         ))
