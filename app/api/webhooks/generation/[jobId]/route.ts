@@ -12,7 +12,7 @@ export async function POST(
     const body = await request.json();
     
     console.log('🔔 Generation webhook received for job:', jobId);
-    console.log('📋 Webhook payload:', body);
+    console.log('📋 Webhook payload:', JSON.stringify(body, null, 2));
 
     // Verify job exists
     const existingJob = await getJob(jobId);
