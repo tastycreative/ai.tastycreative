@@ -198,6 +198,85 @@ export default function TextToImagePage() {
   );
   const [imageStats, setImageStats] = useState<any>(null);
 
+  // Persistent generation state keys
+  const STORAGE_KEYS = {
+    currentJob: 'text-to-image-current-job',
+    isGenerating: 'text-to-image-is-generating',
+    progressData: 'text-to-image-progress-data',
+  };
+
+  // Load persistent state on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && apiClient) {
+      try {
+        const savedCurrentJob = localStorage.getItem(STORAGE_KEYS.currentJob);
+        const savedIsGenerating = localStorage.getItem(STORAGE_KEYS.isGenerating);
+        const savedProgressData = localStorage.getItem(STORAGE_KEYS.progressData);
+
+        if (savedCurrentJob) {
+          const job = JSON.parse(savedCurrentJob);
+          setCurrentJob(job);
+          
+          // If there's a saved generating state and the job is still pending/processing, resume polling
+          if (savedIsGenerating === 'true' && (job.status === 'pending' || job.status === 'processing')) {
+            setIsGenerating(true);
+            
+            if (savedProgressData) {
+              setProgressData(JSON.parse(savedProgressData));
+            }
+            
+            // Resume polling for this job with a delay to ensure pollJobStatus is defined
+            console.log('🔄 Resuming generation monitoring for job:', job.id);
+            setTimeout(() => {
+              pollJobStatus(job.id);
+            }, 100);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading persistent state:', error);
+        // Clear corrupted data
+        clearPersistentState();
+      }
+    }
+  }, [apiClient]); // Add apiClient as dependency
+
+  // Clear persistent state helper
+  const clearPersistentState = () => {
+    if (typeof window !== 'undefined') {
+      Object.values(STORAGE_KEYS).forEach(key => {
+        localStorage.removeItem(key);
+      });
+    }
+  };
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (currentJob) {
+        localStorage.setItem(STORAGE_KEYS.currentJob, JSON.stringify(currentJob));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.currentJob);
+      }
+    }
+  }, [currentJob]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.isGenerating, isGenerating.toString());
+      
+      // Clear state when generation completes
+      if (!isGenerating) {
+        localStorage.removeItem(STORAGE_KEYS.progressData);
+      }
+    }
+  }, [isGenerating]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isGenerating) {
+      localStorage.setItem(STORAGE_KEYS.progressData, JSON.stringify(progressData));
+    }
+  }, [progressData, isGenerating]);
+
   // Initialize empty job history on mount
   useEffect(() => {
     if (!Array.isArray(jobHistory)) {
@@ -471,6 +550,9 @@ export default function TextToImagePage() {
 
     setIsGenerating(true);
     setCurrentJob(null);
+    
+    // Clear any previous persistent state when starting new generation
+    clearPersistentState();
 
     // Initialize progress tracking
     setProgressData({
@@ -737,6 +819,9 @@ export default function TextToImagePage() {
         if (job.status === "completed") {
           console.log("Job completed successfully!");
           setIsGenerating(false);
+          
+          // Clear persistent state when generation completes
+          clearPersistentState();
 
           // Reset progress tracking
           setProgressData({
@@ -790,6 +875,9 @@ export default function TextToImagePage() {
         } else if (job.status === "failed") {
           console.log("Job failed:", job.error);
           setIsGenerating(false);
+          
+          // Clear persistent state when generation fails
+          clearPersistentState();
 
           // Reset progress tracking to show failure
           setProgressData({
@@ -810,6 +898,9 @@ export default function TextToImagePage() {
         } else {
           console.warn("Polling timeout reached - job may still be running");
           setIsGenerating(false);
+          
+          // Clear persistent state on timeout (but don't mark job as failed)
+          clearPersistentState();
 
           // Don't mark as failed, just stop polling - webhooks will update the status
           setProgressData({
@@ -834,6 +925,9 @@ export default function TextToImagePage() {
         } else {
           console.warn("Polling timeout reached after errors");
           setIsGenerating(false);
+          
+          // Clear persistent state on error timeout
+          clearPersistentState();
 
           // Don't mark as failed due to polling timeout
           setProgressData({
@@ -1110,6 +1204,53 @@ export default function TextToImagePage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Persistent Generation Status Banner */}
+      {isGenerating && currentJob && (
+        <div className="sticky top-0 z-50 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-white p-4 rounded-lg shadow-lg border-l-4 border-orange-600 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              </div>
+              <div>
+                <div className="font-bold text-lg">
+                  🎨 Generation in Progress
+                </div>
+                <div className="text-sm opacity-90">
+                  {progressData.message || 'Creating your image...'}
+                </div>
+                {progressData.progress > 0 && (
+                  <div className="text-xs opacity-75 mt-1">
+                    Progress: {Math.round(progressData.progress)}%
+                    {progressData.estimatedTimeRemaining && progressData.estimatedTimeRemaining > 0 && (
+                      <span> • ETA: {Math.round(progressData.estimatedTimeRemaining / 60)}m</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="text-sm bg-white/20 px-3 py-1 rounded-full">
+                Job ID: {currentJob.id.slice(-8)}
+              </div>
+              <Loader2 className="w-5 h-5 animate-spin" />
+            </div>
+          </div>
+          {progressData.progress > 0 && (
+            <div className="mt-3">
+              <div className="w-full bg-white/20 rounded-full h-2">
+                <div
+                  className="bg-white h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.max(5, progressData.progress)}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Enhanced Header */}
       <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-indigo-800 p-8 text-white">
         {/* Background Pattern */}
@@ -1553,7 +1694,7 @@ export default function TextToImagePage() {
                   <input
                     type="range"
                     min="1"
-                    max="4"
+                    max="15"
                     value={params.batchSize}
                     onChange={(e) =>
                       setParams((prev) => ({
@@ -1565,15 +1706,15 @@ export default function TextToImagePage() {
                     style={{
                       background: `linear-gradient(to right, 
                         rgb(249 115 22) 0%, 
-                        rgb(249 115 22) ${((params.batchSize - 1) / 3) * 100}%, 
+                        rgb(249 115 22) ${((params.batchSize - 1) / 14) * 100}%, 
                         rgb(209 213 219) ${
-                          ((params.batchSize - 1) / 3) * 100
+                          ((params.batchSize - 1) / 14) * 100
                         }%, 
                         rgb(209 213 219) 100%)`,
                     }}
                   />
                   <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 font-medium mt-2">
-                    {[1, 2, 3, 4].map((num) => (
+                    {[1, 5, 10, 15].map((num) => (
                       <div
                         key={num}
                         className={`flex flex-col items-center ${
@@ -1609,9 +1750,10 @@ export default function TextToImagePage() {
                   </div>
                   <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">
                     {params.batchSize === 1 && "Single image"}
-                    {params.batchSize === 2 && "More variety"}
-                    {params.batchSize === 3 && "Good selection"}
-                    {params.batchSize === 4 && "Maximum choice"}
+                    {params.batchSize >= 2 && params.batchSize <= 3 && "More variety"}
+                    {params.batchSize >= 4 && params.batchSize <= 7 && "Good selection"}
+                    {params.batchSize >= 8 && params.batchSize <= 12 && "Great variety"}
+                    {params.batchSize >= 13 && "Maximum choice"}
                   </div>
                 </div>
               </div>
