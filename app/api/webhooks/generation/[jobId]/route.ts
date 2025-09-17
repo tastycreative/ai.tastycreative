@@ -48,7 +48,9 @@ export async function POST(
         'PROCESSING': 'PROCESSING',
         'COMPLETED': 'COMPLETED',
         'FAILED': 'FAILED',
-        'ERROR': 'FAILED'
+        'ERROR': 'FAILED',
+        'IMAGE_CHUNK': 'PROCESSING', // Handle chunked image delivery as still processing
+        'DELIVERY_COMPLETE': 'COMPLETED' // Final delivery completion
       };
       
       const mappedStatus = statusMapping[status.toUpperCase()] || 'PROCESSING';
@@ -86,8 +88,9 @@ export async function POST(
     }
 
     // Handle completed generation with images
-    if (status === 'COMPLETED' && images && Array.isArray(images)) {
-      console.log(`🖼️ Processing ${images.length} generated images for job ${jobId}`);
+    if ((status === 'COMPLETED' || status === 'IMAGE_CHUNK') && images && Array.isArray(images)) {
+      const isChunkDelivery = status === 'IMAGE_CHUNK';
+      console.log(`🖼️ Processing ${images.length} generated images for job ${jobId}${isChunkDelivery ? ' (chunk delivery)' : ''}`);
       
       // Store images in database and get URLs
       const imageUrls: string[] = [];
