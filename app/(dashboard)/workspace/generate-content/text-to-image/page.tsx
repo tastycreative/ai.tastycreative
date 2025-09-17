@@ -755,7 +755,7 @@ export default function TextToImagePage() {
 
       // Try the manual RunPod status check endpoint
       const runpodResponse = await apiClient.get(
-        `/api/jobs/${jobId}/runpod-status`
+        `/api/jobs/${jobId}/status`
       );
 
       if (runpodResponse.ok) {
