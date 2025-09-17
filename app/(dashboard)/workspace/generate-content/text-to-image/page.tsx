@@ -343,7 +343,7 @@ export default function TextToImagePage() {
         document.title = originalTitle;
         
         // Reset favicon to default (you might want to set this to your actual favicon)
-        let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
         if (favicon) {
           favicon.href = '/favicon.ico'; // Update this to your actual favicon path
         }
