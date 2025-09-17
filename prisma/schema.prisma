@@ -58,26 +58,25 @@ model InfluencerLoRA {
 }
 
 model GenerationJob {
-  id                       String           @id @default(cuid())
-  clerkId                  String
-  status                   JobStatus        @default(PENDING)
-  progress                 Int?             @default(0)
-  resultUrls               String[]         @default([])
-  error                    String?
-  type                     GenerationType   @default(TEXT_TO_IMAGE)
-  createdAt                DateTime         @default(now())
-  updatedAt                DateTime         @updatedAt
-  lastChecked              DateTime?
-  comfyUIPromptId          String?
-  params                   Json?
-  // Enhanced progress fields
-  stage                    String?
-  message                  String?
-  elapsedTime              Int?
-  estimatedTimeRemaining   Int?
-  images                   GeneratedImage[]
-  videos                   GeneratedVideo[]
-  user                     User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  id                     String           @id @default(cuid())
+  clerkId                String
+  status                 JobStatus        @default(PENDING)
+  progress               Int?             @default(0)
+  resultUrls             String[]         @default([])
+  error                  String?
+  type                   GenerationType   @default(TEXT_TO_IMAGE)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  lastChecked            DateTime?
+  comfyUIPromptId        String?
+  params                 Json?
+  stage                  String?
+  message                String?
+  elapsedTime            Int?
+  estimatedTimeRemaining Int?
+  images                 GeneratedImage[]
+  videos                 GeneratedVideo[]
+  user                   User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
   @@index([status])
