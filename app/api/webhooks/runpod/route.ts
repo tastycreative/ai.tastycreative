@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract webhook data
-    const { status, progress, message, images, videos, error, prompt_id } = body;
+    const { status, progress, message, images, videos, error, prompt_id, resultUrls, allImages } = body;
 
     console.log(`📊 Job ${jobId} status update: ${status}, progress: ${progress}%`);
 
@@ -87,6 +87,12 @@ export async function POST(request: NextRequest) {
 
     if (prompt_id) {
       updateData.comfyUIPromptId = prompt_id;
+    }
+
+    // Handle resultUrls for completed generations
+    if (resultUrls && Array.isArray(resultUrls) && resultUrls.length > 0) {
+      updateData.resultUrls = resultUrls;
+      console.log(`📊 Adding ${resultUrls.length} result URLs to job ${jobId}`);
     }
 
     // Handle completed generation with images
@@ -145,6 +151,68 @@ export async function POST(request: NextRequest) {
       } catch (imageError) {
         console.error('❌ Error processing images:', imageError);
         updateData.error = 'Failed to process generated images';
+        updateData.status = 'failed';
+      }
+    }
+
+    // Handle completed generation with allImages (from final completion webhook)
+    if (status === 'COMPLETED' && allImages && Array.isArray(allImages)) {
+      console.log(`🖼️ Processing ${allImages.length} images from completion webhook for job ${jobId}`);
+      
+      try {
+        const savedImages = [];
+        
+        for (const imageData of allImages) {
+          const { filename, subfolder, type, data } = imageData;
+          
+          // Create path info object
+          const pathInfo = { filename, subfolder, type };
+          
+          console.log(`💾 Saving completion image: ${filename}`);
+          console.log(`📦 Image data available: ${data ? 'YES' : 'NO'}`);
+          
+          // Convert base64 data to Buffer if provided
+          let imageBuffer: Buffer | undefined;
+          if (data) {
+            try {
+              // Remove data:image/png;base64, prefix if present
+              const base64Data = data.replace(/^data:image\/[a-z]+;base64,/, '');
+              imageBuffer = Buffer.from(base64Data, 'base64');
+              console.log(`✅ Converted base64 to buffer: ${imageBuffer.length} bytes`);
+            } catch (error) {
+              console.error('❌ Failed to convert base64 to buffer:', error);
+            }
+          }
+          
+          // Save to database (check if not already saved to avoid duplicates)
+          const savedImage = await saveImageToDatabase(
+            existingJob.clerkId,
+            jobId,
+            pathInfo,
+            {
+              saveData: true,
+              extractMetadata: true,
+              providedData: imageBuffer
+            }
+          );
+          
+          if (savedImage) {
+            savedImages.push(savedImage);
+            console.log(`✅ Completion image saved to database: ${savedImage.id}`);
+          } else {
+            console.log(`ℹ️ Image may already exist: ${filename}`);
+          }
+        }
+        
+        updateData.completedAt = new Date();
+        if (savedImages.length > 0) {
+          updateData.resultImages = savedImages;
+        }
+        
+        console.log(`✅ Processed ${savedImages.length} completion images for job ${jobId}`);
+      } catch (imageError) {
+        console.error('❌ Error processing completion images:', imageError);
+        updateData.error = 'Failed to process completion images';
         updateData.status = 'failed';
       }
     }
