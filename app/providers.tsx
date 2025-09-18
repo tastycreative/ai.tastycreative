@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { ClerkProvider } from '@clerk/nextjs';
 import { trpc } from '../lib/trpc-client';
 import { ThemeProvider } from '../components/providers/theme-provider';
+import { GenerationProvider } from '../lib/generationContext';
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return '';
@@ -38,8 +39,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            {children}
-            <ReactQueryDevtools initialIsOpen={false} />
+            <GenerationProvider>
+              {children}
+              <ReactQueryDevtools initialIsOpen={false} />
+            </GenerationProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </trpc.Provider>

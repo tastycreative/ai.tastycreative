@@ -14,13 +14,6 @@ export async function POST(
     console.log('🔔 Generation webhook received for job:', jobId);
     console.log('📋 Webhook payload:', JSON.stringify(body, null, 2));
 
-    // Verify job exists
-    const existingJob = await getJob(jobId);
-    if (!existingJob) {
-      console.error('❌ Job not found:', jobId);
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-    }
-
     // Extract webhook data including enhanced progress fields
     const { 
       status, 
@@ -34,6 +27,40 @@ export async function POST(
       elapsedTime,
       estimatedTimeRemaining
     } = body;
+
+    // Verify job exists
+    const existingJob = await getJob(jobId);
+    if (!existingJob) {
+      console.error('❌ Job not found:', jobId);
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    console.log(`🔍 Existing job status: ${existingJob.status}, Webhook status: ${status}`);
+
+    // Check if job was already cancelled - ignore completion webhooks for cancelled jobs
+    if (existingJob.status === 'failed' && existingJob.error === 'Job canceled by user') {
+      if (status === 'COMPLETED' || status === 'DELIVERY_COMPLETE') {
+        console.log('🛑 Ignoring completion webhook for cancelled job:', jobId);
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Ignored completion for cancelled job',
+          jobId: jobId,
+          status: 'cancelled'
+        });
+      }
+    }
+
+    // Also ignore any status updates if the job was manually cancelled
+    if (existingJob.status === 'failed' && existingJob.error === 'Job canceled by user' && 
+        status !== 'FAILED' && status !== 'ERROR') {
+      console.log(`🛑 Ignoring status update (${status}) for cancelled job:`, jobId);
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Ignored status update for cancelled job',
+        jobId: jobId,
+        status: 'cancelled'
+      });
+    }
 
     console.log(`📊 Job ${jobId} status update: ${status}, progress: ${progress}%`);
 

@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
+import { useUser } from "@clerk/nextjs";
+import { useGenerationProgress } from "@/lib/generationContext";
 import {
   Video,
   Upload,
@@ -13,12 +15,14 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
+  XCircle,
   Sparkles,
   Sliders,
   RefreshCw,
   X,
   Play,
   Pause,
+  Layers,
   ImageIcon,
   Clock,
 } from "lucide-react";
@@ -291,6 +295,20 @@ const VideoPlayer = ({
 
 export default function ImageToVideoPage() {
   const apiClient = useApiClient();
+  const { user } = useUser();
+  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+
+  // Refs for managing browser interactions
+  const progressUpdateRef = useRef<((progress: any) => void) | null>(null);
+  const notificationRef = useRef<Notification | null>(null);
+
+  // Storage keys for persistence
+  const STORAGE_KEYS = {
+    currentJob: 'image-to-video-current-job',
+    isGenerating: 'image-to-video-is-generating',
+    progressData: 'image-to-video-progress-data',
+    jobHistory: 'image-to-video-job-history',
+  };
 
   const [params, setParams] = useState<GenerationParams>({
     prompt: "",
@@ -343,6 +361,126 @@ export default function ImageToVideoPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Helper function to determine if a failed job was actually cancelled
+  const isJobCancelled = (job: GenerationJob) => {
+    return job.status === 'failed' && job.error === 'Job canceled by user';
+  };
+
+  // Helper function to clear persistent state
+  const clearPersistentState = () => {
+    if (typeof window !== 'undefined') {
+      Object.values(STORAGE_KEYS).forEach(key => {
+        if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    // Also clear global progress
+    clearGlobalProgress();
+  };
+
+  // Cancel generation function
+  const cancelGeneration = async () => {
+    if (!apiClient || !currentJob?.id) {
+      alert("No active generation to cancel");
+      return;
+    }
+
+    // Confirm cancellation
+    const confirmed = confirm(
+      "Are you sure you want to cancel this generation? This action cannot be undone."
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      console.log("🛑 Canceling generation:", currentJob.id);
+
+      // Show immediate feedback
+      setProgressData(prev => ({
+        ...prev,
+        stage: "canceling",
+        message: "🛑 Canceling generation...",
+      }));
+
+      // Update global progress
+      updateGlobalProgress({
+        isGenerating: true,
+        progress: progressData.progress,
+        stage: "canceling",
+        message: "🛑 Canceling generation...",
+        generationType: 'image-to-video',
+        jobId: currentJob.id,
+        elapsedTime: progressData.elapsedTime,
+        estimatedTimeRemaining: 0,
+      });
+
+      const response = await apiClient.post(`/api/jobs/${currentJob.id}/cancel`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Cancel failed:", response.status, errorText);
+        throw new Error(`Cancel failed: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Cancel result:", result);
+
+      // Update job status
+      const canceledJob = {
+        ...currentJob,
+        status: 'failed' as const,
+        error: 'Job canceled by user',
+      };
+
+      setCurrentJob(canceledJob);
+      setJobHistory(prev => 
+        prev.map(job => 
+          job?.id === currentJob.id ? canceledJob : job
+        ).filter(Boolean).slice(0, 5)
+      );
+
+      // Stop generation state
+      setIsGenerating(false);
+      
+      // Clear persistent state
+      clearPersistentState();
+
+      // Update progress to show cancellation
+      setProgressData({
+        progress: 0,
+        stage: "canceled",
+        message: "🛑 Generation canceled by user",
+        elapsedTime: progressData.elapsedTime,
+        estimatedTimeRemaining: 0,
+      });
+
+      // Clear global progress after a short delay
+      setTimeout(() => {
+        clearGlobalProgress();
+      }, 2000);
+
+      alert("✅ Generation canceled successfully");
+
+    } catch (error) {
+      console.error("❌ Error canceling generation:", error);
+      
+      // Reset progress on error
+      setProgressData(prev => ({
+        ...prev,
+        stage: prev.stage === "canceling" ? "processing" : prev.stage,
+        message: prev.stage === "canceling" ? "Processing..." : prev.message,
+      }));
+
+      alert(
+        "❌ Failed to cancel generation: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
+    }
+  };
+
   // Initialize and fetch data
   useEffect(() => {
     if (!Array.isArray(jobHistory)) {
@@ -350,6 +488,191 @@ export default function ImageToVideoPage() {
     }
     fetchVideoStats();
   }, []);
+
+  // Progress tracking with browser integration
+  useEffect(() => {
+    if (typeof window !== 'undefined' && apiClient) {
+      try {
+        const savedCurrentJob = localStorage.getItem(STORAGE_KEYS.currentJob);
+        const savedIsGenerating = localStorage.getItem(STORAGE_KEYS.isGenerating);
+        const savedProgressData = localStorage.getItem(STORAGE_KEYS.progressData);
+        const savedJobHistory = localStorage.getItem(STORAGE_KEYS.jobHistory);
+
+        // Load job history first
+        if (savedJobHistory) {
+          try {
+            const history = JSON.parse(savedJobHistory);
+            if (Array.isArray(history)) {
+              setJobHistory(history.slice(0, 5)); // Limit to 5 jobs
+            }
+          } catch (error) {
+            console.error('Error parsing job history:', error);
+          }
+        }
+
+        if (savedIsGenerating === 'true' && savedCurrentJob) {
+          const job = JSON.parse(savedCurrentJob);
+          const progressData = savedProgressData ? JSON.parse(savedProgressData) : {};
+          
+          // Only restore if job is still pending or processing
+          if (job.status === 'pending' || job.status === 'processing') {
+            setIsGenerating(true);
+            setCurrentJob(job);
+            
+            // Resume progress tracking
+            updateGlobalProgress({
+              isGenerating: true,
+              progress: progressData.progress || 50,
+              stage: progressData.stage || 'Reconnecting to video generation...',
+              message: progressData.message || 'Restoring your video generation session',
+              generationType: 'image-to-video',
+              jobId: job.id,
+              elapsedTime: progressData.elapsedTime,
+              estimatedTimeRemaining: progressData.estimatedTimeRemaining
+            });
+
+            // Resume polling
+            pollJobStatus(job.id);
+          } else {
+            // Clean up completed/failed jobs
+            Object.values(STORAGE_KEYS).forEach(key => {
+              if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                localStorage.removeItem(key);
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring image-to-video state:', error);
+        Object.values(STORAGE_KEYS).forEach(key => {
+          if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+            localStorage.removeItem(key);
+          }
+        });
+      }
+    }
+  }, [apiClient, updateGlobalProgress]);
+
+  // Save current job to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (currentJob) {
+        localStorage.setItem(STORAGE_KEYS.currentJob, JSON.stringify(currentJob));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.currentJob);
+      }
+    }
+  }, [currentJob]);
+
+  // Save generating state to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.isGenerating, isGenerating.toString());
+    }
+  }, [isGenerating]);
+
+  // Save job history to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && jobHistory.length > 0) {
+      const validHistory = jobHistory.filter(job => job && job.id);
+      if (validHistory.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.jobHistory, JSON.stringify(validHistory.slice(0, 5)));
+      }
+    }
+  }, [jobHistory]);
+
+  // Browser tab title and favicon updates
+  useEffect(() => {
+    const updateBrowserState = () => {
+      if (isGenerating && currentJob) {
+        // Update page title
+        document.title = `🎬 Generating Video... - TastyCreative AI`;
+        
+        // Update favicon to indicate activity
+        let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (!favicon) {
+          favicon = document.createElement('link');
+          favicon.rel = 'icon';
+          document.head.appendChild(favicon);
+        }
+        favicon.href = '/favicon-generating.ico';
+      } else {
+        // Reset to normal state
+        document.title = 'TastyCreative AI - Image to Video';
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) {
+          favicon.href = '/favicon.ico';
+        }
+      }
+    };
+
+    updateBrowserState();
+    
+    // Cleanup on unmount
+    return () => {
+      if (!isGenerating) {
+        document.title = 'TastyCreative AI - Image to Video';
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) {
+          favicon.href = '/favicon.ico';
+        }
+      }
+    };
+  }, [isGenerating, currentJob]);
+
+  // Notification management
+  useEffect(() => {
+    const manageNotifications = async () => {
+      if (isGenerating && currentJob) {
+        // Request notification permission if needed
+        if ('Notification' in window && Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
+      } else if (!isGenerating && currentJob && currentJob.status === 'completed' && !isJobCancelled(currentJob)) {
+        // Show completion notification only for successfully completed jobs, not cancelled ones
+        if ('Notification' in window && Notification.permission === 'granted') {
+          // Close any existing notification
+          if (notificationRef.current) {
+            notificationRef.current.close();
+          }
+          
+          // Show completion notification
+          notificationRef.current = new Notification('🎬 Video Generation Complete!', {
+            body: 'Your video is ready to view and download.',
+            icon: '/favicon.ico',
+            tag: 'video-generation-complete'
+          });
+          
+          // Auto-close after 5 seconds
+          setTimeout(() => {
+            if (notificationRef.current) {
+              notificationRef.current.close();
+              notificationRef.current = null;
+            }
+          }, 5000);
+        }
+      }
+    };
+
+    manageNotifications();
+    
+    // Cleanup notifications on unmount
+    return () => {
+      if (notificationRef.current) {
+        notificationRef.current.close();
+        notificationRef.current = null;
+      }
+    };
+  }, [isGenerating, currentJob]);
+
+  // Clear global progress when component unmounts or generation ends
+  useEffect(() => {
+    return () => {
+      if (!isGenerating) {
+        clearGlobalProgress();
+      }
+    };
+  }, [isGenerating, clearGlobalProgress]);
 
   // Auto-fetch videos when current job completes
   useEffect(() => {
@@ -445,7 +768,7 @@ export default function ImageToVideoPage() {
                       .filter(Boolean),
                   }
                 : job
-            )
+            ).slice(0, 5)
           );
         }
 
@@ -812,7 +1135,7 @@ export default function ImageToVideoPage() {
       };
 
       setCurrentJob(newJob);
-      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)]);
+      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)].slice(0, 5));
 
       // Start polling for job status (serverless jobs are handled via webhooks, but we still poll for updates)
       pollJobStatus(jobId);
@@ -857,10 +1180,29 @@ export default function ImageToVideoPage() {
           );
 
           if (response.status === 404) {
-            console.error(
-              "I2V Serverless Job not found - this might be a storage issue"
-            );
-            if (attempts < 10) {
+            console.log("I2V Serverless Job not found - likely completed and cleaned up");
+            
+            // If we've been polling for a while and job is not found,
+            // it probably completed and was cleaned up
+            if (attempts > 5) {
+              console.log("Job not found after multiple attempts - assuming completed and cleaned up");
+              setIsGenerating(false);
+              
+              // Clear localStorage and stop polling
+              setTimeout(() => {
+                if (typeof window !== 'undefined') {
+                  Object.values(STORAGE_KEYS).forEach(key => {
+                    if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                      localStorage.removeItem(key);
+                    }
+                  });
+                }
+                clearGlobalProgress();
+              }, 1000);
+              
+              return; // Stop polling completely
+            } else {
+              // Early attempts - retry a few times in case of temporary storage lag
               setTimeout(poll, 3000);
               return;
             }
@@ -878,13 +1220,32 @@ export default function ImageToVideoPage() {
 
         // Update progress tracking state
         if (job.status === "processing") {
-          setProgressData({
+          const progressUpdate = {
             progress: job.progress || 0,
             stage: job.stage || "",
             message: job.message || "Processing video generation...",
             elapsedTime: job.elapsedTime,
             estimatedTimeRemaining: job.estimatedTimeRemaining,
+          };
+
+          setProgressData(progressUpdate);
+
+          // Update global progress and localStorage
+          updateGlobalProgress({
+            isGenerating: true,
+            progress: progressUpdate.progress,
+            stage: progressUpdate.stage,
+            message: progressUpdate.message,
+            generationType: 'image-to-video',
+            jobId: jobId,
+            elapsedTime: progressUpdate.elapsedTime,
+            estimatedTimeRemaining: progressUpdate.estimatedTimeRemaining
           });
+
+          // Save progress to localStorage for cross-tab sync
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEYS.progressData, JSON.stringify(progressUpdate));
+          }
         }
 
         setCurrentJob(job);
@@ -900,6 +1261,7 @@ export default function ImageToVideoPage() {
               return j;
             })
             .filter(Boolean)
+            .slice(0, 5)
         );
 
         if (job.status === "completed") {
@@ -907,13 +1269,39 @@ export default function ImageToVideoPage() {
           setIsGenerating(false);
 
           // Reset progress tracking to show completion
-          setProgressData({
+          const completionProgress = {
             progress: 100,
             stage: "completed",
             message: "✅ Video generation completed successfully!",
             elapsedTime: progressData.elapsedTime,
             estimatedTimeRemaining: 0,
+          };
+
+          setProgressData(completionProgress);
+
+          // Update global progress with completion
+          updateGlobalProgress({
+            isGenerating: false,
+            progress: 100,
+            stage: "completed",
+            message: "✅ Video generation completed successfully!",
+            generationType: 'image-to-video',
+            jobId: jobId,
+            elapsedTime: completionProgress.elapsedTime,
+            estimatedTimeRemaining: 0
           });
+
+          // Clear localStorage keys after completion
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              Object.values(STORAGE_KEYS).forEach(key => {
+                if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                  localStorage.removeItem(key);
+                }
+              });
+            }
+            clearGlobalProgress();
+          }, 5000);
 
           // Fetch videos for completed job - try multiple times with delays
           console.log("🔄 Attempting to fetch job videos...");
@@ -948,7 +1336,7 @@ export default function ImageToVideoPage() {
           setIsGenerating(false);
 
           // Reset progress tracking to show failure
-          setProgressData({
+          const failureProgress = {
             progress: 0,
             stage: "failed",
             message: `❌ Video generation failed: ${
@@ -956,7 +1344,33 @@ export default function ImageToVideoPage() {
             }`,
             elapsedTime: progressData.elapsedTime,
             estimatedTimeRemaining: 0,
+          };
+
+          setProgressData(failureProgress);
+
+          // Update global progress with failure
+          updateGlobalProgress({
+            isGenerating: false,
+            progress: 0,
+            stage: "failed",
+            message: `❌ Video generation failed: ${job.error || "Unknown error"}`,
+            generationType: 'image-to-video',
+            jobId: jobId,
+            elapsedTime: failureProgress.elapsedTime,
+            estimatedTimeRemaining: 0
           });
+
+          // Clear localStorage keys after failure
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              Object.values(STORAGE_KEYS).forEach(key => {
+                if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                  localStorage.removeItem(key);
+                }
+              });
+            }
+            clearGlobalProgress();
+          }, 5000);
 
           return;
         }
@@ -987,6 +1401,31 @@ export default function ImageToVideoPage() {
         }
       } catch (error) {
         console.error("I2V Serverless Polling error:", error);
+
+        // Check if this is a 404 "Job not found" error
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('404')) {
+          console.log("Job not found (404) - likely completed and cleaned up");
+          
+          if (attempts > 5) {
+            console.log("Stopping polling - job probably completed and was cleaned up");
+            setIsGenerating(false);
+            
+            // Clear localStorage and stop polling
+            setTimeout(() => {
+              if (typeof window !== 'undefined') {
+                Object.values(STORAGE_KEYS).forEach(key => {
+                  if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                    localStorage.removeItem(key);
+                  }
+                });
+              }
+              clearGlobalProgress();
+            }, 1000);
+            
+            return; // Stop polling completely
+          }
+        }
 
         if (attempts < maxAttempts) {
           setTimeout(poll, 2000); // Slower retry on errors
@@ -1664,11 +2103,14 @@ export default function ImageToVideoPage() {
                     {currentJob.status === "completed" && (
                       <CheckCircle className="w-4 h-4 text-green-500" />
                     )}
-                    {currentJob.status === "failed" && (
+                    {currentJob.status === "failed" && !isJobCancelled(currentJob) && (
                       <AlertCircle className="w-4 h-4 text-red-500" />
                     )}
+                    {isJobCancelled(currentJob) && (
+                      <XCircle className="w-4 h-4 text-orange-500" />
+                    )}
                     <span className="text-sm font-medium capitalize">
-                      {currentJob.status}
+                      {isJobCancelled(currentJob) ? 'cancelled' : currentJob.status}
                     </span>
                   </div>
                 </div>
@@ -1923,12 +2365,23 @@ export default function ImageToVideoPage() {
                     </div>
                   )}
 
-                {currentJob.error && (
+                {currentJob.error && !isJobCancelled(currentJob) && (
                   <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <p className="text-sm text-red-600 dark:text-red-400">
                       {currentJob.error}
                     </p>
                   </div>
+                )}
+
+                {/* Cancel Button - placed at bottom of current generation */}
+                {isGenerating && currentJob && (
+                  <button
+                    onClick={cancelGeneration}
+                    className="w-full py-3 px-6 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2 mt-4"
+                  >
+                    <XCircle className="w-5 h-5" />
+                    <span className="drop-shadow-sm">Cancel Generation</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -1953,8 +2406,11 @@ export default function ImageToVideoPage() {
                         {job.status === "completed" && (
                           <CheckCircle className="w-4 h-4 text-green-500" />
                         )}
-                        {job.status === "failed" && (
+                        {job.status === "failed" && !isJobCancelled(job) && (
                           <AlertCircle className="w-4 h-4 text-red-500" />
+                        )}
+                        {isJobCancelled(job) && (
+                          <XCircle className="w-4 h-4 text-orange-500" />
                         )}
                         {(job.status === "pending" ||
                           job.status === "processing") && (
@@ -1965,7 +2421,7 @@ export default function ImageToVideoPage() {
                             {formatJobTime(job.createdAt)}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                            {job.status || "unknown"}
+                            {isJobCancelled(job) ? 'cancelled' : (job.status || "unknown")}
                           </p>
                         </div>
                       </div>

@@ -129,6 +129,11 @@ export async function POST(req: NextRequest) {
       data: { 
         status: 'PROCESSING',
         progress: 5,
+        comfyUIPromptId: runpodResult.id, // Store RunPod job ID for cancellation
+        params: {
+          ...(validatedData.params || {}),
+          runpodJobId: runpodResult.id, // Also store in params for reference
+        }
       },
     });
 
@@ -146,7 +151,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({
         error: 'Invalid request data',
-        details: error.errors
+        details: error.issues
       }, { status: 400 });
     }
 

@@ -23,6 +23,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
+    console.log(`🔍 Existing job status: ${existingJob.status}, Webhook status: ${status}`);
+
+    // Check if job was already cancelled - ignore completion webhooks for cancelled jobs
+    if (existingJob.status === 'FAILED' && existingJob.error === 'Job canceled by user') {
+      if (status === 'completed') {
+        console.log('🛑 Ignoring completion webhook for cancelled job:', jobId);
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Ignored completion for cancelled job',
+          jobId: jobId,
+          status: 'cancelled'
+        });
+      }
+    }
+
+    // Also ignore any status updates if the job was manually cancelled
+    if (existingJob.status === 'FAILED' && existingJob.error === 'Job canceled by user' && status !== 'failed') {
+      console.log(`🛑 Ignoring status update (${status}) for cancelled job:`, jobId);
+      return NextResponse.json({ 
+        success: true, 
+        message: 'Ignored status update for cancelled job',
+        jobId: jobId,
+        status: 'cancelled'
+      });
+    }
+
     // Update the job status in the database
     const updateData: any = {
       updatedAt: new Date(),

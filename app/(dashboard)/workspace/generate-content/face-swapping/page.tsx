@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useApiClient } from "@/lib/apiClient";
+import { useUser } from "@clerk/nextjs";
+import { useGenerationProgress } from "@/lib/generationContext";
 import {
   ImageIcon,
   Wand2,
@@ -12,6 +14,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
+  XCircle,
   Users,
   Sliders,
   Copy,
@@ -19,6 +22,7 @@ import {
   Upload,
   X,
   Image as ImageIconLucide,
+  Layers,
 } from "lucide-react";
 
 // Types
@@ -143,6 +147,20 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 
 export default function FaceSwappingPage() {
   const apiClient = useApiClient();
+  const { user } = useUser();
+  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+
+  // Refs for managing browser interactions
+  const progressUpdateRef = useRef<((progress: any) => void) | null>(null);
+  const notificationRef = useRef<Notification | null>(null);
+
+  // Storage keys for persistence
+  const STORAGE_KEYS = {
+    currentJob: 'face-swap-current-job',
+    isGenerating: 'face-swap-is-generating',
+    progressData: 'face-swap-progress-data',
+    jobHistory: 'face-swap-job-history',
+  };
 
   const [params, setParams] = useState<FaceSwapParams>({
     prompt:
@@ -247,6 +265,130 @@ export default function FaceSwappingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const shouldContinuePolling = useRef<boolean>(true);
+
+  // Helper function to determine if a failed job was actually cancelled
+  const isJobCancelled = (job: GenerationJob) => {
+    return job.status === 'failed' && job.error === 'Job canceled by user';
+  };
+
+  // Helper function to clear persistent state
+  const clearPersistentState = () => {
+    if (typeof window !== 'undefined') {
+      Object.values(STORAGE_KEYS).forEach(key => {
+        if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    // Also clear global progress
+    clearGlobalProgress();
+  };
+
+  // Cancel generation function
+  const cancelGeneration = async () => {
+    if (!apiClient || !currentJob?.id) {
+      alert("No active generation to cancel");
+      return;
+    }
+
+    // Confirm cancellation
+    const confirmed = confirm(
+      "Are you sure you want to cancel this generation? This action cannot be undone."
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      console.log("🛑 Canceling generation:", currentJob.id);
+
+      // Show immediate feedback
+      setProgressData(prev => ({
+        ...prev,
+        stage: "canceling",
+        message: "🛑 Canceling generation...",
+      }));
+
+      // Update global progress
+      updateGlobalProgress({
+        isGenerating: true,
+        progress: progressData.progress,
+        stage: "canceling",
+        message: "🛑 Canceling generation...",
+        generationType: 'face-swap',
+        jobId: currentJob.id,
+        elapsedTime: progressData.elapsedTime,
+        estimatedTimeRemaining: 0,
+      });
+
+      const response = await apiClient.post(`/api/jobs/${currentJob.id}/cancel`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Cancel failed:", response.status, errorText);
+        throw new Error(`Cancel failed: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Cancel result:", result);
+
+      // Update job status
+      const canceledJob = {
+        ...currentJob,
+        status: 'failed' as const,
+        error: 'Job canceled by user',
+      };
+
+      setCurrentJob(canceledJob);
+      setJobHistory(prev => 
+        prev.map(job => 
+          job?.id === currentJob.id ? canceledJob : job
+        ).filter(Boolean).slice(0, 5)
+      );
+
+      // Stop generation state
+      setIsGenerating(false);
+      
+      // Stop polling immediately
+      shouldContinuePolling.current = false;
+      
+      // Clear persistent state
+      clearPersistentState();
+
+      // Update progress to show cancellation immediately
+      setProgressData({
+        progress: 0,
+        stage: "canceled",
+        message: "🛑 Generation canceled by user",
+        elapsedTime: progressData.elapsedTime,
+        estimatedTimeRemaining: 0,
+      });
+
+      // Clear global progress after a short delay
+      setTimeout(() => {
+        clearGlobalProgress();
+      }, 2000);
+
+      alert("✅ Generation canceled successfully");
+
+    } catch (error) {
+      console.error("❌ Error canceling generation:", error);
+      
+      // Reset progress on error
+      setProgressData(prev => ({
+        ...prev,
+        stage: prev.stage === "canceling" ? "processing" : prev.stage,
+        message: prev.stage === "canceling" ? "Processing..." : prev.message,
+      }));
+
+      alert(
+        "❌ Failed to cancel generation: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
+    }
+  };
 
   // Initialize empty job history on mount
   useEffect(() => {
@@ -261,6 +403,192 @@ export default function FaceSwappingPage() {
       fetchImageStats();
     }
   }, [apiClient]);
+
+  // Progress tracking with browser integration
+  useEffect(() => {
+    if (typeof window !== 'undefined' && apiClient) {
+      try {
+        const savedCurrentJob = localStorage.getItem(STORAGE_KEYS.currentJob);
+        const savedIsGenerating = localStorage.getItem(STORAGE_KEYS.isGenerating);
+        const savedProgressData = localStorage.getItem(STORAGE_KEYS.progressData);
+        const savedJobHistory = localStorage.getItem(STORAGE_KEYS.jobHistory);
+
+        // Load job history first
+        if (savedJobHistory) {
+          try {
+            const history = JSON.parse(savedJobHistory);
+            if (Array.isArray(history)) {
+              setJobHistory(history.slice(0, 5)); // Limit to 5 jobs
+            }
+          } catch (error) {
+            console.error('Error parsing job history:', error);
+          }
+        }
+
+        if (savedIsGenerating === 'true' && savedCurrentJob) {
+          const job = JSON.parse(savedCurrentJob);
+          const progressData = savedProgressData ? JSON.parse(savedProgressData) : {};
+          
+          // Only restore if job is still pending or processing
+          if (job.status === 'pending' || job.status === 'processing') {
+            setIsGenerating(true);
+            setCurrentJob(job);
+            
+            // Resume progress tracking
+            updateGlobalProgress({
+              isGenerating: true,
+              progress: progressData.progress || 50,
+              stage: progressData.stage || 'Reconnecting to face swap...',
+              message: progressData.message || 'Restoring your face swap session',
+              generationType: 'face-swap',
+              jobId: job.id,
+              elapsedTime: progressData.elapsedTime,
+              estimatedTimeRemaining: progressData.estimatedTimeRemaining
+            });
+
+            // Resume polling
+            shouldContinuePolling.current = true; // Enable polling for resumed job
+            pollJobStatus(job.id);
+          } else {
+            // Clean up completed/failed jobs
+            Object.values(STORAGE_KEYS).forEach(key => {
+              if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                localStorage.removeItem(key);
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring face swap state:', error);
+        Object.values(STORAGE_KEYS).forEach(key => {
+          if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+            localStorage.removeItem(key);
+          }
+        });
+      }
+    }
+  }, [apiClient, updateGlobalProgress]);
+
+  // Save current job to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (currentJob) {
+        localStorage.setItem(STORAGE_KEYS.currentJob, JSON.stringify(currentJob));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.currentJob);
+      }
+    }
+  }, [currentJob]);
+
+  // Save generating state to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.isGenerating, isGenerating.toString());
+    }
+  }, [isGenerating]);
+
+  // Save job history to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && jobHistory.length > 0) {
+      const validHistory = jobHistory.filter(job => job && job.id);
+      if (validHistory.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.jobHistory, JSON.stringify(validHistory.slice(0, 5)));
+      }
+    }
+  }, [jobHistory]);
+
+  // Browser tab title and favicon updates
+  useEffect(() => {
+    const updateBrowserState = () => {
+      if (isGenerating && currentJob) {
+        // Update page title
+        document.title = `🔄 Face Swapping... - TastyCreative AI`;
+        
+        // Update favicon to indicate activity
+        let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (!favicon) {
+          favicon = document.createElement('link');
+          favicon.rel = 'icon';
+          document.head.appendChild(favicon);
+        }
+        favicon.href = '/favicon-generating.ico';
+      } else {
+        // Reset to normal state
+        document.title = 'TastyCreative AI - Face Swapping';
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) {
+          favicon.href = '/favicon.ico';
+        }
+      }
+    };
+
+    updateBrowserState();
+    
+    // Cleanup on unmount
+    return () => {
+      if (!isGenerating) {
+        document.title = 'TastyCreative AI - Face Swapping';
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) {
+          favicon.href = '/favicon.ico';
+        }
+      }
+    };
+  }, [isGenerating, currentJob]);
+
+  // Notification management
+  useEffect(() => {
+    const manageNotifications = async () => {
+      if (isGenerating && currentJob) {
+        // Request notification permission if needed
+        if ('Notification' in window && Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
+      } else if (!isGenerating && currentJob && currentJob.status === 'completed' && !isJobCancelled(currentJob)) {
+        // Show completion notification ONLY for successfully completed jobs (not cancelled)
+        if ('Notification' in window && Notification.permission === 'granted') {
+          // Close any existing notification
+          if (notificationRef.current) {
+            notificationRef.current.close();
+          }
+          
+          // Show completion notification
+          notificationRef.current = new Notification('🔄 Face Swap Complete!', {
+            body: 'Your face swap images are ready to view and download.',
+            icon: '/favicon.ico',
+            tag: 'face-swap-complete'
+          });
+          
+          // Auto-close after 5 seconds
+          setTimeout(() => {
+            if (notificationRef.current) {
+              notificationRef.current.close();
+              notificationRef.current = null;
+            }
+          }, 5000);
+        }
+      }
+    };
+
+    manageNotifications();
+    
+    // Cleanup notifications on unmount
+    return () => {
+      if (notificationRef.current) {
+        notificationRef.current.close();
+        notificationRef.current = null;
+      }
+    };
+  }, [isGenerating, currentJob]);
+
+  // Clear global progress when component unmounts or generation ends
+  useEffect(() => {
+    return () => {
+      if (!isGenerating) {
+        clearGlobalProgress();
+      }
+    };
+  }, [isGenerating, clearGlobalProgress]);
 
   // Handle original image upload
   const handleOriginalImageUpload = (
@@ -981,9 +1309,10 @@ export default function FaceSwappingPage() {
       };
 
       setCurrentJob(newJob);
-      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)]);
+      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)].slice(0, 5));
 
       // Start polling for job status
+      shouldContinuePolling.current = true; // Enable polling for new job
       pollJobStatus(jobId);
     } catch (error) {
       console.error("Face swap generation error:", error);
@@ -1029,6 +1358,12 @@ export default function FaceSwappingPage() {
 
     const poll = async () => {
       try {
+        // Check if polling should continue
+        if (!shouldContinuePolling.current) {
+          console.log("🛑 Polling stopped - generation was cancelled");
+          return;
+        }
+
         attempts++;
         console.log(
           `🔍 Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
@@ -1041,10 +1376,38 @@ export default function FaceSwappingPage() {
           const errorText = await response.text();
           console.error("❌ Job status error:", response.status, errorText);
 
-          if (response.status === 404 && attempts < 30) {
-            // Retry for up to 30 attempts for new jobs (serverless jobs might take time to appear)
-            console.log("⏳ Job not found yet, retrying...");
-            setTimeout(poll, 2000);
+          if (response.status === 404) {
+            console.log("Job not found - likely completed and cleaned up or still initializing");
+            
+            if (attempts > 10 && shouldContinuePolling.current) {
+              console.log("Job not found after multiple attempts - assuming completed and cleaned up");
+              setIsGenerating(false);
+              shouldContinuePolling.current = false;
+              
+              // Clear localStorage and stop polling
+              setTimeout(() => {
+                if (typeof window !== 'undefined') {
+                  Object.values(STORAGE_KEYS).forEach(key => {
+                    if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                      localStorage.removeItem(key);
+                    }
+                  });
+                }
+                clearGlobalProgress();
+              }, 1000);
+              
+              return; // Stop polling completely
+            } else if (attempts < 30 && shouldContinuePolling.current) {
+              // Retry for new jobs (serverless jobs might take time to appear)
+              console.log("⏳ Job not found yet, retrying...");
+              setTimeout(poll, 2000);
+              return;
+            } else if (!shouldContinuePolling.current) {
+              console.log("🛑 Polling stopped due to cancellation (404 retry)");
+              return;
+            }
+          } else if (!shouldContinuePolling.current) {
+            console.log("🛑 Polling stopped due to cancellation");
             return;
           }
 
@@ -1061,7 +1424,7 @@ export default function FaceSwappingPage() {
 
         // Update progress data with enhanced information
         if (job.progress !== undefined || job.stage || job.message) {
-          setProgressData({
+          const progressUpdate = {
             progress: job.progress || 0,
             stage: job.stage || "",
             message:
@@ -1069,7 +1432,26 @@ export default function FaceSwappingPage() {
               (job.status === "processing" ? "Processing..." : ""),
             elapsedTime: job.elapsedTime || 0,
             estimatedTimeRemaining: job.estimatedTimeRemaining || 0,
+          };
+
+          setProgressData(progressUpdate);
+
+          // Update global progress and localStorage
+          updateGlobalProgress({
+            isGenerating: true,
+            progress: progressUpdate.progress,
+            stage: progressUpdate.stage,
+            message: progressUpdate.message,
+            generationType: 'face-swap',
+            jobId: jobId,
+            elapsedTime: progressUpdate.elapsedTime,
+            estimatedTimeRemaining: progressUpdate.estimatedTimeRemaining
           });
+
+          // Save progress to localStorage for cross-tab sync
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEYS.progressData, JSON.stringify(progressUpdate));
+          }
         }
 
         setCurrentJob(job);
@@ -1085,6 +1467,7 @@ export default function FaceSwappingPage() {
               return j;
             })
             .filter(Boolean)
+            .slice(0, 5)
         );
 
         if (job.status === "completed") {
@@ -1116,7 +1499,7 @@ export default function FaceSwappingPage() {
           // Refresh image stats
           await fetchImageStats();
 
-          // Clear progress after a brief delay
+          // Clear progress and global progress after a brief delay
           setTimeout(() => {
             setProgressData({
               progress: 0,
@@ -1125,24 +1508,74 @@ export default function FaceSwappingPage() {
               elapsedTime: 0,
               estimatedTimeRemaining: 0,
             });
+            clearGlobalProgress();
+            
+            // Clear localStorage keys
+            if (typeof window !== 'undefined') {
+              Object.values(STORAGE_KEYS).forEach(key => {
+                localStorage.removeItem(key);
+              });
+            }
           }, 5000);
 
           return;
         } else if (job.status === "failed") {
           console.log("❌ Face swap job failed:", job.error);
 
-          // Update progress with error
-          setProgressData({
-            progress: 0,
-            stage: "failed",
-            message: job.error || "Generation failed",
-            elapsedTime: job.elapsedTime || 0,
-            estimatedTimeRemaining: 0,
-          });
+          // Check if this was a user cancellation vs actual failure
+          if (isJobCancelled(job)) {
+            // Update progress with cancellation
+            const cancelProgress = {
+              progress: 0,
+              stage: "cancelled",
+              message: "🛑 Face swap cancelled by user",
+              elapsedTime: job.elapsedTime || 0,
+              estimatedTimeRemaining: 0,
+            };
+
+            setProgressData(cancelProgress);
+
+            // Update global progress with cancellation
+            updateGlobalProgress({
+              isGenerating: false,
+              progress: 0,
+              stage: "cancelled",
+              message: "🛑 Face swap cancelled by user",
+              generationType: 'face-swap',
+              jobId: jobId,
+              elapsedTime: cancelProgress.elapsedTime,
+              estimatedTimeRemaining: 0
+            });
+
+            console.log("✅ Face swap was cancelled by user");
+          } else {
+            // Update progress with error
+            const errorProgress = {
+              progress: 0,
+              stage: "failed",
+              message: job.error || "Generation failed",
+              elapsedTime: job.elapsedTime || 0,
+              estimatedTimeRemaining: 0,
+            };
+
+            setProgressData(errorProgress);
+
+            // Update global progress with error
+            updateGlobalProgress({
+              isGenerating: false,
+              progress: 0,
+              stage: "failed",
+              message: job.error || "Face swap generation failed",
+              generationType: 'face-swap',
+              jobId: jobId,
+              elapsedTime: errorProgress.elapsedTime,
+              estimatedTimeRemaining: 0
+            });
+          }
 
           setIsGenerating(false);
 
-          // Clear error progress after delay
+          // Clear error progress and localStorage after delay
           setTimeout(() => {
             setProgressData({
               progress: 0,
@@ -1151,6 +1584,14 @@ export default function FaceSwappingPage() {
               elapsedTime: 0,
               estimatedTimeRemaining: 0,
             });
+            clearGlobalProgress();
+            
+            // Clear localStorage keys
+            if (typeof window !== 'undefined') {
+              Object.values(STORAGE_KEYS).forEach(key => {
+                localStorage.removeItem(key);
+              });
+            }
           }, 5000);
 
           return;
@@ -1159,20 +1600,37 @@ export default function FaceSwappingPage() {
         // Continue polling if still processing
         if (
           attempts < maxAttempts &&
-          (job.status === "pending" || job.status === "processing")
+          (job.status === "pending" || job.status === "processing") &&
+          shouldContinuePolling.current
         ) {
           // More frequent polling for better real-time updates
           setTimeout(poll, 500);
+        } else if (!shouldContinuePolling.current) {
+          console.log("🛑 Polling stopped due to cancellation");
         } else if (attempts >= maxAttempts) {
           console.error("⏰ Polling timeout reached");
           setIsGenerating(false);
 
-          setProgressData({
+          const timeoutProgress = {
             progress: 0,
             stage: "failed",
             message: "Generation timeout - may still be running in background",
             elapsedTime: 0,
             estimatedTimeRemaining: 0,
+          };
+
+          setProgressData(timeoutProgress);
+
+          // Update global progress with timeout
+          updateGlobalProgress({
+            isGenerating: false,
+            progress: 0,
+            stage: "failed",
+            message: "Face swap generation timeout",
+            generationType: 'face-swap',
+            jobId: jobId,
+            elapsedTime: 0,
+            estimatedTimeRemaining: 0
           });
 
           setCurrentJob((prev) =>
@@ -1184,12 +1642,25 @@ export default function FaceSwappingPage() {
                 }
               : null
           );
+
+          // Clear timeout progress and localStorage after delay
+          setTimeout(() => {
+            clearGlobalProgress();
+            
+            if (typeof window !== 'undefined') {
+              Object.values(STORAGE_KEYS).forEach(key => {
+                localStorage.removeItem(key);
+              });
+            }
+          }, 5000);
         }
       } catch (error) {
         console.error("❌ Polling error:", error);
 
-        if (attempts < maxAttempts) {
+        if (attempts < maxAttempts && shouldContinuePolling.current) {
           setTimeout(poll, 2000); // Retry with longer delay
+        } else if (!shouldContinuePolling.current) {
+          console.log("🛑 Polling stopped due to cancellation (error handler)");
         } else {
           setIsGenerating(false);
           setCurrentJob((prev) =>
@@ -2173,98 +2644,7 @@ export default function FaceSwappingPage() {
             )}
           </div>
 
-          {/* Real-Time Progress Bar */}
-          {(isGenerating || progressData.progress > 0) && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
-                  Face Swap Progress
-                </h3>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {progressData.progress}%
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-4">
-                <div
-                  className={`h-3 rounded-full transition-all duration-300 ${
-                    progressData.stage === "failed"
-                      ? "bg-red-500"
-                      : progressData.stage === "completed"
-                      ? "bg-green-500"
-                      : "bg-gradient-to-r from-indigo-500 to-purple-600"
-                  }`}
-                  style={{
-                    width: `${Math.max(
-                      0,
-                      Math.min(100, progressData.progress)
-                    )}%`,
-                  }}
-                ></div>
-              </div>
-
-              {/* Progress Message */}
-              <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                {progressData.message || "Initializing..."}
-              </div>
-
-              {/* Time Information */}
-              {(progressData.elapsedTime ||
-                progressData.estimatedTimeRemaining) && (
-                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span>
-                    {progressData.elapsedTime
-                      ? `Elapsed: ${Math.floor(progressData.elapsedTime)}s`
-                      : ""}
-                  </span>
-                  <span>
-                    {progressData.estimatedTimeRemaining
-                      ? `Est. remaining: ${Math.floor(
-                          progressData.estimatedTimeRemaining
-                        )}s`
-                      : ""}
-                  </span>
-                </div>
-              )}
-
-              {/* Stage Indicator */}
-              {progressData.stage && (
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    {progressData.stage === "starting" && (
-                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                    )}
-                    {progressData.stage === "loading_images" && (
-                      <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
-                    )}
-                    {progressData.stage === "face_detection" && (
-                      <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
-                    )}
-                    {progressData.stage === "preprocessing" && (
-                      <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
-                    )}
-                    {progressData.stage === "face_swapping" && (
-                      <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
-                    )}
-                    {progressData.stage === "postprocessing" && (
-                      <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>
-                    )}
-                    {progressData.stage === "completed" && (
-                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                    )}
-                    {progressData.stage === "failed" && (
-                      <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                    )}
-                    <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                      {progressData.stage.replace("_", " ")}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Progress information is now shown in the "Current Face Swap" section below */}
 
           {/* Generate Button */}
           <button
@@ -2295,6 +2675,8 @@ export default function FaceSwappingPage() {
               </>
             )}
           </button>
+
+          {/* Cancel button is now available in the "Current Face Swap" section below */}
         </div>
 
         {/* Right Panel - Results */}
@@ -2359,32 +2741,60 @@ export default function FaceSwappingPage() {
                     {currentJob.status === "completed" && (
                       <CheckCircle className="w-4 h-4 text-green-500" />
                     )}
-                    {currentJob.status === "failed" && (
+                    {currentJob.status === "failed" && !isJobCancelled(currentJob) && (
                       <AlertCircle className="w-4 h-4 text-red-500" />
                     )}
+                    {isJobCancelled(currentJob) && (
+                      <XCircle className="w-4 h-4 text-orange-500" />
+                    )}
                     <span className="text-sm font-medium capitalize">
-                      {currentJob.status}
+                      {isJobCancelled(currentJob) ? 'cancelled' : currentJob.status}
                     </span>
                   </div>
                 </div>
 
-                {currentJob.progress !== undefined && (
-                  <div className="space-y-2">
+                {/* Progress and Status Details */}
+                {(currentJob.status === "pending" || currentJob.status === "processing") && progressData.progress > 0 && (
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
                         Progress
                       </span>
                       <span className="text-sm font-medium">
-                        {currentJob.progress}%
+                        {progressData.progress}%
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                       <div
-                        className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${currentJob.progress}%` }}
+                        className="bg-gradient-to-r from-indigo-500 to-purple-600 h-3 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.max(0, Math.min(100, progressData.progress))}%` }}
                       />
                     </div>
+                    {progressData.message && (
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                        {progressData.message}
+                      </div>
+                    )}
+                    {progressData.stage && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          {progressData.stage.replace("_", " ")}
+                        </span>
+                      </div>
+                    )}
                   </div>
+                )}
+
+                {/* Cancel Button - placed below progress */}
+                {(currentJob.status === "pending" || currentJob.status === "processing") && (
+                  <button
+                    onClick={cancelGeneration}
+                    className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>Cancel Face Swap</span>
+                  </button>
                 )}
 
                 {/* Show loading or no images message for completed jobs */}
@@ -2638,52 +3048,80 @@ export default function FaceSwappingPage() {
             </div>
           )}
 
-          {/* Generation History */}
+          {/* Recent Face Swaps - Persistent History */}
           {jobHistory.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Recent Face Swaps
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Recent Face Swaps
+                </h3>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {jobHistory.length}/5 jobs
+                </span>
+              </div>
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {jobHistory
                   .filter((job) => job && job.id)
-                  .slice(0, 10)
+                  .slice(0, 5) // Limit to 5 jobs
                   .map((job, index) => (
                     <div
                       key={job.id || `job-${index}`}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3 flex-1">
                         {job.status === "completed" && (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                         )}
-                        {job.status === "failed" && (
-                          <AlertCircle className="w-4 h-4 text-red-500" />
+                        {job.status === "failed" && !isJobCancelled(job) && (
+                          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        )}
+                        {isJobCancelled(job) && (
+                          <XCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
                         )}
                         {(job.status === "pending" ||
                           job.status === "processing") && (
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-500 flex-shrink-0" />
                         )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                             {formatJobTime(job.createdAt)}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                            {job.status || "unknown"}
+                            {isJobCancelled(job) ? 'cancelled' : (job.status || "unknown")}
                           </p>
                         </div>
                       </div>
-                      {job.resultUrls && job.resultUrls.length > 0 && (
-                        <div className="flex space-x-1">
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        {job.status === "completed" && jobImages[job.id]?.length > 0 && (
+                          <button
+                            onClick={() => {
+                              // Scroll to images for this job
+                              const imageSection = document.getElementById(`job-images-${job.id}`);
+                              imageSection?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
+                          >
+                            View Results
+                          </button>
+                        )}
+                        {job.resultUrls && job.resultUrls.length > 0 && (
                           <button
                             onClick={() => fetchJobImages(job.id)}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                            className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
                             title="Refresh images"
                           >
                             <RefreshCw className="w-4 h-4" />
                           </button>
-                        </div>
-                      )}
+                        )}
+                        {(job.status === "pending" || job.status === "processing") && job.id === currentJob?.id && (
+                          <button
+                            onClick={() => pollJobStatus(job.id)}
+                            className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 rounded hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors"
+                          >
+                            Refresh
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
               </div>
