@@ -48,7 +48,33 @@ export async function POST(request: NextRequest) {
     const updateData: any = {};
 
     if (status) {
-      updateData.status = status.toLowerCase();
+      // Map webhook status to database JobStatus enum
+      let mappedStatus: string;
+      switch (status.toUpperCase()) {
+        case 'PENDING':
+        case 'QUEUED':
+          mappedStatus = 'PENDING';
+          break;
+        case 'PROCESSING':
+        case 'IN_PROGRESS':
+        case 'RUNNING':
+          mappedStatus = 'PROCESSING';
+          break;
+        case 'COMPLETED':
+        case 'IMAGE_READY':
+        case 'FINISHED':
+        case 'SUCCESS':
+          mappedStatus = 'COMPLETED';
+          break;
+        case 'FAILED':
+        case 'ERROR':
+        case 'CANCELLED':
+          mappedStatus = 'FAILED';
+          break;
+        default:
+          mappedStatus = status.toUpperCase();
+      }
+      updateData.status = mappedStatus;
     }
 
     if (progress !== undefined) {
