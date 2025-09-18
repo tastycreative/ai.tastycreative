@@ -1,8 +1,10 @@
 // app/(dashboard)/workspace/generate-content/skin-enhancer/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useApiClient } from "@/lib/apiClient";
+import { useUser } from "@clerk/nextjs";
+import { useGenerationProgress } from "@/lib/generationContext";
 import {
   ImageIcon,
   Wand2,
@@ -18,6 +20,8 @@ import {
   ArrowRightLeft,
   Eye,
   EyeOff,
+  Layers,
+  XCircle,
 } from "lucide-react";
 
 // Types
@@ -48,6 +52,8 @@ interface GenerationJob {
   userId?: string;
   lastChecked?: string;
   comfyUIPromptId?: string;
+  imagesReady?: number;
+  totalImages?: number;
 }
 
 interface LoRAModel {
@@ -166,6 +172,20 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 
 export default function SkinEnhancerPage() {
   const apiClient = useApiClient();
+  const { user } = useUser();
+  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+
+  // Refs for managing browser interactions
+  const progressUpdateRef = useRef<((progress: any) => void) | null>(null);
+  const notificationRef = useRef<Notification | null>(null);
+
+  // Storage keys for persistence
+  const STORAGE_KEYS = {
+    currentJob: 'skin-enhancer-current-job',
+    isGenerating: 'skin-enhancer-is-generating',
+    progressData: 'skin-enhancer-progress-data',
+    jobHistory: 'skin-enhancer-job-history',
+  };
 
   const [params, setParams] = useState<EnhancementParams>({
     // Only show main prompt in UI
@@ -211,10 +231,127 @@ export default function SkinEnhancerPage() {
     "split" | "overlay" | "toggle"
   >("split");
 
-  // Initialize empty job history on mount
+  // Helper function to determine if a failed job was actually cancelled
+  const isJobCancelled = (job: GenerationJob) => {
+    return job.status === 'failed' && job.error === 'Job canceled by user';
+  };
+
+  // Helper function to clear persistent state
+  const clearPersistentState = () => {
+    if (typeof window !== 'undefined') {
+      Object.values(STORAGE_KEYS).forEach(key => {
+        if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    // Also clear global progress
+    clearGlobalProgress();
+  };
+
+  // Cancel generation function
+  const cancelGeneration = async () => {
+    if (!apiClient || !currentJob?.id) {
+      alert("No active generation to cancel");
+      return;
+    }
+
+    // Confirm cancellation
+    const confirmed = confirm(
+      "Are you sure you want to cancel this generation? This action cannot be undone."
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      console.log("🛑 Canceling generation:", currentJob.id);
+
+      // Update global progress
+      updateGlobalProgress({
+        isGenerating: true,
+        progress: 0,
+        stage: "canceling",
+        message: "🛑 Canceling generation...",
+        generationType: 'skin-enhancer',
+        jobId: currentJob.id,
+        elapsedTime: 0,
+        estimatedTimeRemaining: 0,
+      });
+
+      const response = await apiClient.post(`/api/jobs/${currentJob.id}/cancel`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Cancel failed:", response.status, errorText);
+        throw new Error(`Cancel failed: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Cancel result:", result);
+
+      // Create cancelled job for history
+      const canceledJob = {
+        ...currentJob,
+        status: 'failed' as const,
+        error: 'Job canceled by user',
+        progress: undefined, // Clear progress
+      };
+
+      // Update job history with cancelled job
+      setJobHistory(prev => 
+        prev.map(job => 
+          job?.id === currentJob.id ? canceledJob : job
+        ).filter(Boolean).slice(0, 5)
+      );
+
+      // Stop generation state immediately and clear current job
+      setIsGenerating(false);
+      setCurrentJob(null); // Clear the current job completely
+      
+      // Clear persistent state
+      clearPersistentState();
+
+      // Clear global progress immediately
+      clearGlobalProgress();
+
+      alert("✅ Generation canceled successfully");
+
+    } catch (error) {
+      console.error("❌ Error canceling generation:", error);
+      
+      alert(
+        "❌ Failed to cancel generation: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
+    }
+  };
+
+  // Initialize job history from localStorage on mount
   useEffect(() => {
-    if (!Array.isArray(jobHistory)) {
-      setJobHistory([]);
+    if (typeof window !== 'undefined') {
+      try {
+        const savedHistory = localStorage.getItem(STORAGE_KEYS.jobHistory);
+        if (savedHistory) {
+          const parsedHistory = JSON.parse(savedHistory);
+          if (Array.isArray(parsedHistory)) {
+            // Ensure we only keep valid jobs and limit to 5
+            const validHistory = parsedHistory
+              .filter(job => job && job.id)
+              .slice(0, 5)
+              .map(job => ({
+                ...job,
+                createdAt: typeof job.createdAt === 'string' ? new Date(job.createdAt) : job.createdAt
+              }));
+            setJobHistory(validHistory);
+            console.log("📚 Loaded job history from localStorage:", validHistory.length, "jobs");
+          }
+        }
+      } catch (error) {
+        console.error("Error loading job history from localStorage:", error);
+        setJobHistory([]);
+      }
     }
   }, []);
 
@@ -223,12 +360,260 @@ export default function SkinEnhancerPage() {
     fetchImageStats();
   }, []);
 
+  // Browser tab title and favicon updates
+  useEffect(() => {
+    const updateBrowserState = () => {
+      if (isGenerating && currentJob) {
+        // Update page title
+        document.title = `🎨 Enhancing Skin... - TastyCreative AI`;
+        
+        // Update favicon to indicate activity
+        let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (!favicon) {
+          favicon = document.createElement('link');
+          favicon.rel = 'icon';
+          document.head.appendChild(favicon);
+        }
+        favicon.href = '/favicon-generating.ico';
+      } else {
+        // Reset to normal state
+        document.title = 'TastyCreative AI - Skin Enhancer';
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) {
+          favicon.href = '/favicon.ico';
+        }
+      }
+    };
+
+    updateBrowserState();
+    
+    // Cleanup on unmount
+    return () => {
+      if (!isGenerating) {
+        document.title = 'TastyCreative AI - Skin Enhancer';
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) {
+          favicon.href = '/favicon.ico';
+        }
+      }
+    };
+  }, [isGenerating, currentJob]);
+
+  // Notification management
+  useEffect(() => {
+    const manageNotifications = async () => {
+      if (isGenerating && currentJob) {
+        // Request notification permission if needed
+        if ('Notification' in window && Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
+      } else if (!isGenerating && currentJob && currentJob.status === 'completed' && !isJobCancelled(currentJob)) {
+        // Show completion notification only for successfully completed jobs, not cancelled ones
+        if ('Notification' in window && Notification.permission === 'granted') {
+          // Close any existing notification
+          if (notificationRef.current) {
+            notificationRef.current.close();
+          }
+          
+          // Show completion notification
+          notificationRef.current = new Notification('🎨 Skin Enhancement Complete!', {
+            body: 'Your enhanced images are ready to view and download.',
+            icon: '/favicon.ico',
+            tag: 'skin-enhancement-complete'
+          });
+          
+          // Auto-close after 5 seconds
+          setTimeout(() => {
+            if (notificationRef.current) {
+              notificationRef.current.close();
+              notificationRef.current = null;
+            }
+          }, 5000);
+        }
+      }
+    };
+
+    manageNotifications();
+    
+    // Cleanup notifications on unmount
+    return () => {
+      if (notificationRef.current) {
+        notificationRef.current.close();
+        notificationRef.current = null;
+      }
+    };
+  }, [isGenerating, currentJob]);
+
+  // Clear global progress when component unmounts or generation ends
+  useEffect(() => {
+    return () => {
+      if (!isGenerating) {
+        clearGlobalProgress();
+      }
+    };
+  }, [isGenerating, clearGlobalProgress]);
+
+  // Persistent state management with localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && apiClient) {
+      try {
+        const savedCurrentJob = localStorage.getItem(STORAGE_KEYS.currentJob);
+        const savedIsGenerating = localStorage.getItem(STORAGE_KEYS.isGenerating);
+        const savedProgressData = localStorage.getItem(STORAGE_KEYS.progressData);
+        const savedJobHistory = localStorage.getItem(STORAGE_KEYS.jobHistory);
+
+        // Load job history first
+        if (savedJobHistory) {
+          try {
+            const history = JSON.parse(savedJobHistory);
+            if (Array.isArray(history)) {
+              setJobHistory(history.slice(0, 5)); // Limit to 5 jobs
+            }
+          } catch (error) {
+            console.error('Error parsing job history:', error);
+          }
+        }
+
+        if (savedIsGenerating === 'true' && savedCurrentJob) {
+          const job = JSON.parse(savedCurrentJob);
+          const progressData = savedProgressData ? JSON.parse(savedProgressData) : {};
+          
+          // Only restore if job is still pending or processing
+          if (job.status === 'pending' || job.status === 'processing') {
+            setIsGenerating(true);
+            setCurrentJob(job);
+            
+            // Resume progress tracking
+            updateGlobalProgress({
+              isGenerating: true,
+              progress: progressData.progress || 50,
+              stage: progressData.stage || 'Reconnecting to enhancement...',
+              message: progressData.message || 'Restoring your skin enhancement session',
+              generationType: 'skin-enhancer',
+              jobId: job.id,
+              elapsedTime: progressData.elapsedTime,
+              estimatedTimeRemaining: progressData.estimatedTimeRemaining
+            });
+
+            // Resume polling
+            pollJobStatus(job.id);
+          } else {
+            // Clean up completed/failed jobs
+            Object.values(STORAGE_KEYS).forEach(key => {
+              if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                localStorage.removeItem(key);
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring skin enhancer state:', error);
+        Object.values(STORAGE_KEYS).forEach(key => {
+          if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+            localStorage.removeItem(key);
+          }
+        });
+      }
+    }
+  }, [apiClient, updateGlobalProgress]);
+
+  // Save current job to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (currentJob) {
+        localStorage.setItem(STORAGE_KEYS.currentJob, JSON.stringify(currentJob));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.currentJob);
+      }
+    }
+  }, [currentJob]);
+
+  // Save generating state to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.isGenerating, isGenerating.toString());
+    }
+  }, [isGenerating]);
+
+  // Save job history to localStorage with proper validation and 5 job limit
+  useEffect(() => {
+    if (typeof window !== 'undefined' && jobHistory.length > 0) {
+      try {
+        // Filter out any invalid jobs and limit to 5 most recent
+        const validHistory = jobHistory
+          .filter(job => job && job.id && job.status)
+          .slice(0, 5)
+          .map(job => ({
+            ...job,
+            // Ensure createdAt is serializable
+            createdAt: job.createdAt instanceof Date ? job.createdAt.toISOString() : job.createdAt
+          }));
+        
+        if (validHistory.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.jobHistory, JSON.stringify(validHistory));
+          console.log("💾 Saved job history to localStorage:", validHistory.length, "jobs");
+        }
+      } catch (error) {
+        console.error("Error saving job history to localStorage:", error);
+      }
+    }
+  }, [jobHistory]);
+
+  // Save progress data to localStorage for cross-tab sync
+  useEffect(() => {
+    const saveProgressData = (progressData: any) => {
+      if (typeof window !== 'undefined') {
+        if (isGenerating && progressData) {
+          localStorage.setItem(STORAGE_KEYS.progressData, JSON.stringify(progressData));
+        } else {
+          localStorage.removeItem(STORAGE_KEYS.progressData);
+        }
+      }
+    };
+
+    // Set up stable progress update function
+    progressUpdateRef.current = (progress: any) => {
+      saveProgressData(progress);
+      updateGlobalProgress({
+        isGenerating: isGenerating,
+        progress: progress.percentage || progress.progress || 0,
+        stage: progress.stage || 'Starting...',
+        message: progress.message || '',
+        generationType: 'skin-enhancer',
+        jobId: currentJob?.id || null,
+        elapsedTime: progress.elapsedTime,
+        estimatedTimeRemaining: progress.estimatedTimeRemaining
+      });
+    };
+  }, [isGenerating, currentJob?.id, updateGlobalProgress]);
+
+  // Cross-tab progress synchronization
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.progressData && e.newValue) {
+        try {
+          const progressData = JSON.parse(e.newValue);
+          if (progressUpdateRef.current) {
+            progressUpdateRef.current(progressData);
+          }
+        } catch (error) {
+          console.error('Error parsing progress data:', error);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   // Function to fetch images for a completed job
   const fetchJobImages = async (jobId: string): Promise<boolean> => {
     if (!apiClient) return false;
 
     try {
       console.log("🖼️ Fetching database images for job:", jobId);
+      console.log("🖼️ Current job state:", currentJob);
+      console.log("🖼️ All job images state:", jobImages);
 
       const response = await apiClient.get(`/api/jobs/${jobId}/images`);
       console.log("📡 Image fetch response status:", response.status);
@@ -247,10 +632,15 @@ export default function SkinEnhancerPage() {
       console.log("📊 Job images data:", data);
 
       if (data.success && data.images && Array.isArray(data.images)) {
-        setJobImages((prev) => ({
-          ...prev,
-          [jobId]: data.images,
-        }));
+        console.log("📊 Raw images from database:", data.images);
+        setJobImages((prev) => {
+          const updated = {
+            ...prev,
+            [jobId]: data.images,
+          };
+          console.log("📊 Updated jobImages state:", updated);
+          return updated;
+        });
         console.log(
           "✅ Updated job images state for job:",
           jobId,
@@ -512,6 +902,7 @@ export default function SkinEnhancerPage() {
             return j;
           })
           .filter(Boolean)
+          .slice(0, 5)
       );
 
       // If job completed, try to fetch images
@@ -543,12 +934,32 @@ export default function SkinEnhancerPage() {
     setIsGenerating(true);
     setCurrentJob(null);
 
+    // Initialize global progress
+    updateGlobalProgress({
+      isGenerating: true,
+      progress: 0,
+      stage: 'Preparing enhancement...',
+      message: 'Setting up skin enhancement workflow',
+      generationType: 'skin-enhancer',
+      jobId: null
+    });
+
     try {
       console.log("=== STARTING SKIN ENHANCEMENT ===");
       console.log("Enhancement params:", params);
 
       const workflow = createSkinEnhancerWorkflowJson(params);
       console.log("Created skin enhancer workflow for submission");
+
+      // Update progress
+      updateGlobalProgress({
+        isGenerating: true,
+        progress: 10,
+        stage: 'Submitting to AI...',
+        message: 'Sending your enhancement request',
+        generationType: 'skin-enhancer',
+        jobId: null
+      });
 
       const response = await apiClient.post("/api/generate/skin-enhancer", {
         workflow,
@@ -560,6 +971,7 @@ export default function SkinEnhancerPage() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Enhancement failed:", response.status, errorText);
+        clearGlobalProgress();
         throw new Error(
           `Enhancement failed: ${response.status} - ${errorText}`
         );
@@ -569,6 +981,7 @@ export default function SkinEnhancerPage() {
       console.log("Received job ID:", jobId);
 
       if (!jobId) {
+        clearGlobalProgress();
         throw new Error("No job ID received from server");
       }
 
@@ -580,18 +993,33 @@ export default function SkinEnhancerPage() {
       };
 
       setCurrentJob(newJob);
-      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)]);
+      setJobHistory((prev) => {
+        const updatedHistory = [newJob, ...prev.filter(job => job?.id !== jobId)].slice(0, 5);
+        console.log("📝 Updated job history with new job:", updatedHistory.length, "total jobs");
+        return updatedHistory;
+      });
+
+      // Update progress with job ID
+      updateGlobalProgress({
+        isGenerating: true,
+        progress: 20,
+        stage: 'Enhancement started',
+        message: 'Your job has been queued for processing',
+        generationType: 'skin-enhancer',
+        jobId: jobId
+      });
 
       // Start polling for job status
       pollJobStatus(jobId);
     } catch (error) {
       console.error("Enhancement error:", error);
       setIsGenerating(false);
+      clearGlobalProgress();
       alert(error instanceof Error ? error.message : "Enhancement failed");
     }
   };
 
-  // Updated poll job status with database image fetching
+  // Updated poll job status with database image fetching and progress tracking
   const pollJobStatus = async (jobId: string) => {
     if (!apiClient) {
       console.error("API client not ready for polling");
@@ -603,15 +1031,53 @@ export default function SkinEnhancerPage() {
 
     const maxAttempts = 300; // 5 minutes for complex skin enhancement workflow
     let attempts = 0;
+    const startTime = Date.now();
 
     const poll = async () => {
       if (!apiClient) return;
 
       try {
         attempts++;
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
         console.log(
           `Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
         );
+
+        // Calculate progress based on attempts and typical workflow duration
+        const estimatedDuration = 180; // 3 minutes typical for skin enhancement
+        const timeProgress = Math.min(elapsed / estimatedDuration, 0.9) * 100;
+        const attemptProgress = Math.min((attempts / 60) * 100, 85); // Cap at 85% until completion
+        const currentProgress = Math.max(timeProgress, attemptProgress, 25);
+
+        // Update progress with time-based estimates
+        const estimatedRemaining = Math.max(estimatedDuration - elapsed, 10);
+        
+        const progressData = {
+          progress: currentProgress,
+          stage: attempts < 20 ? 'Initializing enhancement...' : 
+                 attempts < 40 ? 'Processing with FLUX model...' :
+                 attempts < 80 ? 'Applying skin enhancement...' :
+                 'Finalizing results...',
+          message: `Processing your skin enhancement (${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, '0')})`,
+          elapsedTime: elapsed,
+          estimatedTimeRemaining: estimatedRemaining
+        };
+
+        // Save to localStorage for cross-tab sync
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.progressData, JSON.stringify(progressData));
+        }
+        
+        updateGlobalProgress({
+          isGenerating: true,
+          progress: currentProgress,
+          stage: progressData.stage,
+          message: progressData.message,
+          generationType: 'skin-enhancer',
+          jobId: jobId,
+          elapsedTime: elapsed,
+          estimatedTimeRemaining: estimatedRemaining
+        });
 
         const response = await apiClient.get(`/api/jobs/${jobId}`);
         console.log("Job status response:", response.status);
@@ -621,10 +1087,30 @@ export default function SkinEnhancerPage() {
           console.error("Job status error:", response.status, errorText);
 
           if (response.status === 404) {
-            console.error("Job not found - this might be a storage issue");
-            if (attempts < 10) {
-              // Retry a few times for new jobs
-              setTimeout(poll, 3000); // Longer delay for 404s
+            console.log("Job not found - likely completed and cleaned up");
+            
+            // If we've been polling for a while and job is not found,
+            // it probably completed and was cleaned up
+            if (attempts > 5) {
+              console.log("Job not found after multiple attempts - assuming completed and cleaned up");
+              setIsGenerating(false);
+              
+              // Clear localStorage and stop polling
+              setTimeout(() => {
+                if (typeof window !== 'undefined') {
+                  Object.values(STORAGE_KEYS).forEach(key => {
+                    if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                      localStorage.removeItem(key);
+                    }
+                  });
+                }
+                clearGlobalProgress();
+              }, 1000);
+              
+              return; // Stop polling completely
+            } else {
+              // Early attempts - retry a few times in case of temporary storage lag
+              setTimeout(poll, 3000);
               return;
             }
           }
@@ -640,6 +1126,65 @@ export default function SkinEnhancerPage() {
           job.createdAt = new Date(job.createdAt);
         }
 
+        // Handle chunked image uploads for batch skin enhancement generations
+        if (job.status === "IMAGE_READY" && job.image) {
+          console.log(`🎨 Received chunked enhanced skin image ${job.imageCount || 1} of ${job.totalImages || 1}`);
+          
+          // Update progress with individual image info
+          const progressData = {
+            progress: job.progress || 0,
+            stage: job.stage || "uploading_images",
+            message: job.message || `🎨 Enhanced skin image ${job.imageCount || 1} ready`,
+            elapsedTime: job.elapsedTime,
+            estimatedTimeRemaining: job.estimatedTimeRemaining,
+            imageCount: job.imageCount || 1,
+            totalImages: job.totalImages || 1,
+          };
+
+          // Save progress to localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(STORAGE_KEYS.progressData, JSON.stringify(progressData));
+          }
+
+          // Update global progress
+          updateGlobalProgress({
+            isGenerating: true,
+            progress: progressData.progress,
+            stage: progressData.stage,
+            message: progressData.message,
+            generationType: 'skin-enhancer',
+            jobId: jobId,
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: progressData.estimatedTimeRemaining
+          });
+
+          // Process the individual image immediately
+          try {
+            const saveResponse = await apiClient.post("/api/images/save", {
+              jobId: jobId,
+              filename: job.image.filename,
+              subfolder: job.image.subfolder || "",
+              type: job.image.type || "output",
+              data: job.image.data,
+            });
+
+            if (saveResponse.ok) {
+              console.log(`✅ Saved chunked enhanced skin image ${job.imageCount}: ${job.image.filename}`);
+              
+              // Refresh job images to show the new image immediately
+              await fetchJobImages(jobId);
+            } else {
+              console.error(`❌ Failed to save chunked enhanced skin image ${job.imageCount}:`, await saveResponse.text());
+            }
+          } catch (saveError) {
+            console.error(`❌ Error saving chunked enhanced skin image ${job.imageCount}:`, saveError);
+          }
+
+          // Continue polling for more images or completion
+          setTimeout(poll, 500);
+          return;
+        }
+
         setCurrentJob(job);
         setJobHistory((prev) =>
           prev
@@ -653,10 +1198,23 @@ export default function SkinEnhancerPage() {
               return j;
             })
             .filter(Boolean)
+            .slice(0, 5)
         );
 
         if (job.status === "completed") {
           console.log("✅ Job completed successfully!");
+          
+          // Update to completion
+          updateGlobalProgress({
+            isGenerating: true,
+            progress: 100,
+            stage: 'Enhancement complete!',
+            message: 'Fetching your enhanced images...',
+            generationType: 'skin-enhancer',
+            jobId: jobId,
+            elapsedTime: elapsed
+          });
+
           setIsGenerating(false);
 
           // Fetch database images for completed job with retry logic
@@ -671,10 +1229,28 @@ export default function SkinEnhancerPage() {
             }, 3000);
           }
 
+          // Clear progress after a brief delay to show completion
+          setTimeout(() => {
+            clearGlobalProgress();
+            // Clean up localStorage
+            if (typeof window !== 'undefined') {
+              Object.values(STORAGE_KEYS).forEach(key => {
+                localStorage.removeItem(key);
+              });
+            }
+          }, 2000);
+
           return;
         } else if (job.status === "failed") {
           console.log("❌ Job failed:", job.error);
           setIsGenerating(false);
+          clearGlobalProgress();
+          // Clean up localStorage
+          if (typeof window !== 'undefined') {
+            Object.values(STORAGE_KEYS).forEach(key => {
+              localStorage.removeItem(key);
+            });
+          }
           return;
         }
 
@@ -690,6 +1266,13 @@ export default function SkinEnhancerPage() {
             "attempts"
           );
           setIsGenerating(false);
+          clearGlobalProgress();
+          // Clean up localStorage on timeout
+          if (typeof window !== 'undefined') {
+            Object.values(STORAGE_KEYS).forEach(key => {
+              localStorage.removeItem(key);
+            });
+          }
           setCurrentJob((prev) =>
             prev
               ? {
@@ -704,6 +1287,31 @@ export default function SkinEnhancerPage() {
       } catch (error) {
         console.error("💥 Polling error:", error);
 
+        // Check if this is a 404 "Job not found" error
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('404')) {
+          console.log("Job not found (404) - likely completed and cleaned up");
+          
+          if (attempts > 5) {
+            console.log("Stopping polling - job probably completed and was cleaned up");
+            setIsGenerating(false);
+            
+            // Clear localStorage and stop polling
+            setTimeout(() => {
+              if (typeof window !== 'undefined') {
+                Object.values(STORAGE_KEYS).forEach(key => {
+                  if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                    localStorage.removeItem(key);
+                  }
+                });
+              }
+              clearGlobalProgress();
+            }, 1000);
+            
+            return; // Stop polling completely
+          }
+        }
+
         if (attempts < maxAttempts) {
           // Use exponential backoff for errors
           const retryDelay = Math.min(
@@ -714,13 +1322,21 @@ export default function SkinEnhancerPage() {
           setTimeout(poll, retryDelay);
         } else {
           setIsGenerating(false);
+          clearGlobalProgress();
+          // Clean up localStorage on error
+          if (typeof window !== 'undefined') {
+            Object.values(STORAGE_KEYS).forEach(key => {
+              if (key !== STORAGE_KEYS.jobHistory) { // Preserve job history
+                localStorage.removeItem(key);
+              }
+            });
+          }
           setCurrentJob((prev) =>
             prev
               ? {
                   ...prev,
                   status: "failed" as const,
-                  error:
-                    "Failed to get job status - please check your connection and try again",
+                  error: "Enhancement failed after multiple attempts",
                 }
               : null
           );
@@ -1325,6 +1941,67 @@ export default function SkinEnhancerPage() {
                 ))}
               </div>
             </div>
+
+            {/* Batch Size Slider */}
+            <div className="space-y-4 mb-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
+                  <Layers className="w-4 h-4 mr-2 text-green-600" />
+                  Batch Size
+                </label>
+                <div className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 px-3 py-1 rounded-full">
+                  <span className="text-sm font-bold text-green-700 dark:text-green-300">
+                    {params.batchSize} {params.batchSize > 1 ? 'images' : 'image'}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="relative">
+                {/* Slider Track */}
+                <div className="relative h-2 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 rounded-full shadow-inner">
+                  {/* Progress Fill */}
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 rounded-full shadow-lg transition-all duration-300 ease-out"
+                    style={{ width: `${(params.batchSize / 15) * 100}%` }}
+                  />
+                  
+                  {/* Slider Handle */}
+                  <div 
+                    className="absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-white dark:bg-gray-200 border-2 border-green-500 rounded-full shadow-lg cursor-pointer hover:scale-110 transition-all duration-200 ring-4 ring-green-200/50 dark:ring-green-400/30"
+                    style={{ left: `${(params.batchSize / 15) * 100}%` }}
+                  />
+                </div>
+                
+                {/* Invisible Input Range */}
+                <input
+                  type="range"
+                  min="1"
+                  max="15"
+                  value={params.batchSize}
+                  onChange={(e) => setParams((prev) => ({ ...prev, batchSize: parseInt(e.target.value) }))}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                
+                {/* Scale Markers */}
+                <div className="flex justify-between mt-3 px-1">
+                  {[1, 5, 10, 15].map((marker) => (
+                    <div key={marker} className="flex flex-col items-center">
+                      <div className={`w-1 h-2 rounded-full transition-colors ${
+                        params.batchSize >= marker 
+                          ? 'bg-green-500' 
+                          : 'bg-gray-300 dark:bg-gray-600'
+                      }`} />
+                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {marker}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Generate multiple enhanced versions in one batch. Higher batch sizes may take longer to process.
+              </p>
+            </div>
           </div>
 
           {/* Enhance Button */}
@@ -1398,7 +2075,11 @@ export default function SkinEnhancerPage() {
                   )}
                   {currentJob.status === "completed" && (
                     <button
-                      onClick={() => fetchJobImages(currentJob.id)}
+                      onClick={() => {
+                        console.log("🔄 Manual refresh clicked for job:", currentJob.id);
+                        console.log("🔄 Current job state:", currentJob);
+                        fetchJobImages(currentJob.id);
+                      }}
                       className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                       title="Refresh enhanced images"
                     >
@@ -1430,31 +2111,43 @@ export default function SkinEnhancerPage() {
                     {currentJob.status === "completed" && (
                       <CheckCircle className="w-4 h-4 text-green-500" />
                     )}
-                    {currentJob.status === "failed" && (
+                    {currentJob.status === "failed" && !isJobCancelled(currentJob) && (
                       <AlertCircle className="w-4 h-4 text-red-500" />
                     )}
+                    {currentJob.status === "failed" && isJobCancelled(currentJob) && (
+                      <XCircle className="w-4 h-4 text-orange-500" />
+                    )}
                     <span className="text-sm font-medium capitalize">
-                      {currentJob.status}
+                      {currentJob.status === "failed" && isJobCancelled(currentJob)
+                        ? "cancelled"
+                        : currentJob.status}
                       {currentJob.status === "processing" &&
                         " (may take 3-5 minutes)"}
                     </span>
                   </div>
                 </div>
 
-                {currentJob.progress !== undefined && (
+                {currentJob.progress !== undefined && 
+                 currentJob.status !== "failed" && 
+                 !isJobCancelled(currentJob) && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">
                         Progress
+                        {currentJob.imagesReady && currentJob.totalImages && (
+                          <span className="ml-2 text-xs">
+                            (Image {currentJob.imagesReady} of {currentJob.totalImages})
+                          </span>
+                        )}
                       </span>
                       <span className="text-sm font-medium">
-                        {currentJob.progress}%
+                        {Number(currentJob.progress) && !isNaN(Number(currentJob.progress)) && Math.round(Number(currentJob.progress)) >= 0 ? Math.round(Number(currentJob.progress)) : 0}%
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                       <div
                         className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${currentJob.progress}%` }}
+                        style={{ width: `${Number(currentJob.progress) && !isNaN(Number(currentJob.progress)) && Math.round(Number(currentJob.progress)) >= 0 ? Math.round(Number(currentJob.progress)) : 0}%` }}
                       />
                     </div>
                     {currentJob.status === "processing" &&
@@ -1664,7 +2357,7 @@ export default function SkinEnhancerPage() {
                   </div>
                 )}
 
-                {currentJob.error && (
+                {currentJob.error && !isJobCancelled(currentJob) && (
                   <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                     <div className="flex items-start justify-between">
                       <div>
@@ -1689,56 +2382,88 @@ export default function SkinEnhancerPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Cancel Button - placed at bottom of current enhancement */}
+                {isGenerating && currentJob && (
+                  <button
+                    onClick={cancelGeneration}
+                    className="w-full py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                  >
+                    <XCircle className="w-5 h-5" />
+                    <span>Cancel Enhancement</span>
+                  </button>
+                )}
               </div>
             </div>
           )}
 
-          {/* Enhancement History */}
+          {/* Recent Enhancements - Persistent History */}
           {jobHistory.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Recent Enhancements
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Recent Enhancements
+                </h3>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {jobHistory.length}/5 jobs
+                </span>
+              </div>
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {jobHistory
                   .filter((job) => job && job.id)
-                  .slice(0, 10)
+                  .slice(0, 5) // Limit to 5 jobs
                   .map((job, index) => (
                     <div
                       key={job.id || `job-${index}`}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3 flex-1">
                         {job.status === "completed" && (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                         )}
-                        {job.status === "failed" && (
-                          <AlertCircle className="w-4 h-4 text-red-500" />
+                        {job.status === "failed" && !isJobCancelled(job) && (
+                          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        )}
+                        {job.status === "failed" && isJobCancelled(job) && (
+                          <XCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
                         )}
                         {(job.status === "pending" ||
                           job.status === "processing") && (
-                          <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+                          <Loader2 className="w-4 h-4 animate-spin text-green-500 flex-shrink-0" />
                         )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                             {formatJobTime(job.createdAt)}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                            {job.status || "unknown"}
+                            {job.status === "failed" && isJobCancelled(job)
+                              ? "cancelled"
+                              : job.status || "unknown"}
                           </p>
                         </div>
                       </div>
-                      {job.resultUrls && job.resultUrls.length > 0 && (
-                        <div className="flex space-x-1">
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        {job.status === "completed" && jobImages[job.id]?.length > 0 && (
                           <button
-                            onClick={() => fetchJobImages(job.id)}
-                            className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
-                            title="Refresh images"
+                            onClick={() => {
+                              // Scroll to images for this job
+                              const imageSection = document.getElementById(`job-images-${job.id}`);
+                              imageSection?.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
                           >
-                            <RefreshCw className="w-4 h-4" />
+                            View Results
                           </button>
-                        </div>
-                      )}
+                        )}
+                        {(job.status === "pending" || job.status === "processing") && job.id === currentJob?.id && (
+                          <button
+                            onClick={() => checkJobStatus(job.id)}
+                            className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                          >
+                            Refresh
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
               </div>

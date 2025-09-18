@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
+import { useGenerationProgress } from "@/lib/generationContext";
 import Link from "next/link";
 import {
   ImageIcon,
@@ -15,6 +16,7 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle,
+  XCircle,
   Sparkles,
   Sliders,
   Copy,
@@ -24,6 +26,7 @@ import {
   Monitor,
   User,
   ChevronDown,
+  X,
 } from "lucide-react";
 
 // Types
@@ -141,6 +144,7 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 export default function TextToImagePage() {
   const apiClient = useApiClient();
   const { user } = useUser();
+  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
 
   const [params, setParams] = useState<GenerationParams>({
     prompt: "",
@@ -168,12 +172,16 @@ export default function TextToImagePage() {
     message: string;
     elapsedTime?: number;
     estimatedTimeRemaining?: number;
+    imageCount?: number; // For batch progress
+    totalImages?: number; // For batch progress
   }>({
     progress: 0,
     stage: "",
     message: "",
     elapsedTime: 0,
     estimatedTimeRemaining: 0,
+    imageCount: 0,
+    totalImages: 0,
   });
 
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -203,6 +211,7 @@ export default function TextToImagePage() {
     currentJob: 'text-to-image-current-job',
     isGenerating: 'text-to-image-is-generating',
     progressData: 'text-to-image-progress-data',
+    jobHistory: 'text-to-image-job-history',
   };
 
   // Load persistent state on component mount
@@ -212,6 +221,21 @@ export default function TextToImagePage() {
         const savedCurrentJob = localStorage.getItem(STORAGE_KEYS.currentJob);
         const savedIsGenerating = localStorage.getItem(STORAGE_KEYS.isGenerating);
         const savedProgressData = localStorage.getItem(STORAGE_KEYS.progressData);
+        const savedJobHistory = localStorage.getItem(STORAGE_KEYS.jobHistory);
+
+        // Load job history first
+        if (savedJobHistory) {
+          try {
+            const history = JSON.parse(savedJobHistory);
+            if (Array.isArray(history)) {
+              setJobHistory(history.slice(0, 5)); // Limit to 5 most recent
+              console.log('📚 Loaded text-to-image job history:', history.length, 'jobs');
+            }
+          } catch (error) {
+            console.error('Error parsing saved job history:', error);
+            localStorage.removeItem(STORAGE_KEYS.jobHistory);
+          }
+        }
 
         if (savedCurrentJob) {
           const job = JSON.parse(savedCurrentJob);
@@ -241,12 +265,43 @@ export default function TextToImagePage() {
   }, [apiClient]); // Add apiClient as dependency
 
   // Clear persistent state helper
+  // Clear persistent state helper
   const clearPersistentState = () => {
     if (typeof window !== 'undefined') {
+      // Clear all keys except job history
+      const keysToKeep = [STORAGE_KEYS.jobHistory];
       Object.values(STORAGE_KEYS).forEach(key => {
-        localStorage.removeItem(key);
+        if (!keysToKeep.includes(key)) {
+          localStorage.removeItem(key);
+        }
       });
     }
+    // Also clear global progress
+    clearGlobalProgress();
+  };
+
+  // Helper function to determine if a failed job was actually cancelled
+  const isJobCancelled = (job: GenerationJob) => {
+    return job.status === 'failed' && job.error === 'Job canceled by user';
+  };
+
+  // Helper function to get display status and icon
+  const getJobStatusDisplay = (job: GenerationJob) => {
+    if (isJobCancelled(job)) {
+      return {
+        status: 'cancelled',
+        icon: 'cancelled' as const,
+        color: 'text-orange-500'
+      };
+    }
+    
+    return {
+      status: job.status,
+      icon: job.status,
+      color: job.status === 'failed' ? 'text-red-500' : 
+             job.status === 'completed' ? 'text-green-500' : 
+             'text-blue-500'
+    };
   };
 
   // Save state to localStorage whenever it changes
@@ -264,18 +319,62 @@ export default function TextToImagePage() {
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEYS.isGenerating, isGenerating.toString());
       
+      // Update global progress
+      if (isGenerating && currentJob) {
+        updateGlobalProgress({
+          isGenerating: true,
+          progress: progressData.progress || 0,
+          stage: progressData.stage || '',
+          message: progressData.message || 'Text-to-image generation in progress...',
+          generationType: 'text-to-image',
+          jobId: currentJob.id,
+          elapsedTime: progressData.elapsedTime,
+          estimatedTimeRemaining: progressData.estimatedTimeRemaining,
+        });
+      }
+      
       // Clear state when generation completes
       if (!isGenerating) {
         localStorage.removeItem(STORAGE_KEYS.progressData);
+        clearGlobalProgress();
       }
     }
-  }, [isGenerating]);
+  }, [isGenerating, currentJob?.id, progressData.progress, progressData.stage, progressData.message, progressData.elapsedTime, progressData.estimatedTimeRemaining, progressData.imageCount, progressData.totalImages, updateGlobalProgress, clearGlobalProgress]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && isGenerating) {
       localStorage.setItem(STORAGE_KEYS.progressData, JSON.stringify(progressData));
+      
+      // Update global progress when progress data changes
+      if (currentJob) {
+        updateGlobalProgress({
+          isGenerating: true,
+          progress: progressData.progress || 0,
+          stage: progressData.stage || '',
+          message: progressData.message || 'Text-to-image generation in progress...',
+          generationType: 'text-to-image',
+          jobId: currentJob.id,
+          elapsedTime: progressData.elapsedTime,
+          estimatedTimeRemaining: progressData.estimatedTimeRemaining,
+        });
+      }
     }
-  }, [progressData, isGenerating]);
+  }, [progressData.progress, progressData.stage, progressData.message, progressData.elapsedTime, progressData.estimatedTimeRemaining, progressData.imageCount, progressData.totalImages, isGenerating, currentJob?.id, updateGlobalProgress]);
+
+  // Save job history to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && Array.isArray(jobHistory) && jobHistory.length > 0) {
+      // Only save valid jobs and limit to 5 most recent
+      const validHistory = jobHistory
+        .filter(job => job && job.id && job.status)
+        .slice(0, 5);
+      
+      if (validHistory.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.jobHistory, JSON.stringify(validHistory));
+        console.log('💾 Saved text-to-image job history:', validHistory.length, 'jobs');
+      }
+    }
+  }, [jobHistory]);
 
   // Update browser tab title and favicon for cross-tab generation progress indication
   useEffect(() => {
@@ -679,6 +778,8 @@ export default function TextToImagePage() {
       message: "🚀 Initializing text-to-image generation...",
       elapsedTime: 0,
       estimatedTimeRemaining: 180, // 3 minutes initial estimate
+      imageCount: 0,
+      totalImages: params.batchSize, // Set expected batch size
     });
 
     try {
@@ -732,7 +833,7 @@ export default function TextToImagePage() {
       };
 
       setCurrentJob(newJob);
-      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)]);
+      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)].slice(0, 5)); // Limit to 5 jobs
 
       // Start polling for job status
       pollJobStatus(jobId);
@@ -908,6 +1009,48 @@ export default function TextToImagePage() {
           job.createdAt = new Date(job.createdAt);
         }
 
+        // Handle chunked image uploads for batch generations
+        if (job.status === "IMAGE_READY" && job.image) {
+          console.log(`📸 Received chunked image ${job.imageCount || 1} of ${job.totalImages || 1}`);
+          
+          // Update progress with individual image info
+          setProgressData({
+            progress: job.progress || 0,
+            stage: job.stage || "uploading_images",
+            message: job.message || `📸 Image ${job.imageCount || 1} ready`,
+            elapsedTime: job.elapsedTime,
+            estimatedTimeRemaining: job.estimatedTimeRemaining,
+            imageCount: job.imageCount || 1,
+            totalImages: job.totalImages || 1,
+          });
+
+          // Process the individual image immediately
+          try {
+            const saveResponse = await apiClient.post("/api/images/save", {
+              jobId: jobId,
+              filename: job.image.filename,
+              subfolder: job.image.subfolder || "",
+              type: job.image.type || "output",
+              data: job.image.data,
+            });
+
+            if (saveResponse.ok) {
+              console.log(`✅ Saved chunked image ${job.imageCount}: ${job.image.filename}`);
+              
+              // Refresh job images to show the new image immediately
+              await fetchJobImages(jobId);
+            } else {
+              console.error(`❌ Failed to save chunked image ${job.imageCount}:`, await saveResponse.text());
+            }
+          } catch (saveError) {
+            console.error(`❌ Error saving chunked image ${job.imageCount}:`, saveError);
+          }
+
+          // Continue polling for more images or completion
+          setTimeout(poll, 500);
+          return;
+        }
+
         // Update progress tracking state
         if (job.status === "processing") {
           setProgressData({
@@ -932,6 +1075,7 @@ export default function TextToImagePage() {
               return j;
             })
             .filter(Boolean)
+            .slice(0, 5) // Limit to 5 jobs
         );
 
         if (job.status === "completed") {
@@ -997,16 +1141,24 @@ export default function TextToImagePage() {
           // Clear persistent state when generation fails
           clearPersistentState();
 
-          // Reset progress tracking to show failure
+          const wasCancelled = isJobCancelled(job);
+          const statusText = wasCancelled ? "cancelled" : "failed";
+          const emoji = wasCancelled ? "🛑" : "❌";
+
+          // Reset progress tracking to show failure/cancellation
           setProgressData({
             progress: 0,
-            stage: "failed",
-            message: `❌ Generation failed: ${job.error || "Unknown error"}`,
+            stage: statusText,
+            message: `${emoji} Generation ${statusText}: ${job.error || "Unknown error"}`,
             elapsedTime: progressData.elapsedTime,
             estimatedTimeRemaining: 0,
           });
 
-          alert(`❌ Generation failed: ${job.error || "Unknown error"}`);
+          // Only show alert for actual failures, not user cancellations
+          // (user cancellations are handled by the cancel function itself)
+          if (!wasCancelled) {
+            alert(`${emoji} Generation ${statusText}: ${job.error || "Unknown error"}`);
+          }
           return;
         }
 
@@ -1249,7 +1401,7 @@ export default function TextToImagePage() {
 
       setCurrentJob(job);
       setJobHistory((prev) =>
-        prev.map((j) => (j?.id === currentJob.id ? job : j)).filter(Boolean)
+        prev.map((j) => (j?.id === currentJob.id ? job : j)).filter(Boolean).slice(0, 5) // Limit to 5 jobs
       );
 
       alert(`Job Status: ${job.status}\nProgress: ${job.progress || 0}%`);
@@ -1257,6 +1409,108 @@ export default function TextToImagePage() {
       console.error("Manual check error:", error);
       alert(
         "Manual check failed: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
+    }
+  };
+
+  // Cancel generation function
+  const cancelGeneration = async () => {
+    if (!apiClient || !currentJob?.id) {
+      alert("No active generation to cancel");
+      return;
+    }
+
+    // Confirm cancellation
+    const confirmed = confirm(
+      "Are you sure you want to cancel this generation? This action cannot be undone."
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      console.log("🛑 Canceling generation:", currentJob.id);
+
+      // Show immediate feedback
+      setProgressData(prev => ({
+        ...prev,
+        stage: "canceling",
+        message: "🛑 Canceling generation...",
+      }));
+
+      // Update global progress
+      updateGlobalProgress({
+        isGenerating: true,
+        progress: progressData.progress,
+        stage: "canceling",
+        message: "🛑 Canceling generation...",
+        generationType: 'text-to-image',
+        jobId: currentJob.id,
+        elapsedTime: progressData.elapsedTime,
+        estimatedTimeRemaining: 0,
+      });
+
+      const response = await apiClient.post(`/api/jobs/${currentJob.id}/cancel`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Cancel failed:", response.status, errorText);
+        throw new Error(`Cancel failed: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Cancel result:", result);
+
+      // Update job status
+      const canceledJob = {
+        ...currentJob,
+        status: 'failed' as const,
+        error: 'Job canceled by user',
+      };
+
+      setCurrentJob(canceledJob);
+      setJobHistory(prev => 
+        prev.map(job => 
+          job?.id === currentJob.id ? canceledJob : job
+        ).filter(Boolean).slice(0, 5) // Limit to 5 jobs
+      );
+
+      // Stop generation state
+      setIsGenerating(false);
+      
+      // Clear persistent state
+      clearPersistentState();
+
+      // Update progress to show cancellation
+      setProgressData({
+        progress: 0,
+        stage: "canceled",
+        message: "🛑 Generation canceled by user",
+        elapsedTime: progressData.elapsedTime,
+        estimatedTimeRemaining: 0,
+      });
+
+      // Clear global progress after a short delay
+      setTimeout(() => {
+        clearGlobalProgress();
+      }, 2000);
+
+      alert("✅ Generation canceled successfully");
+
+    } catch (error) {
+      console.error("❌ Error canceling generation:", error);
+      
+      // Reset progress on error
+      setProgressData(prev => ({
+        ...prev,
+        stage: prev.stage === "canceling" ? "processing" : prev.stage,
+        message: prev.stage === "canceling" ? "Processing..." : prev.message,
+      }));
+
+      alert(
+        "❌ Failed to cancel generation: " +
           (error instanceof Error ? error.message : "Unknown error")
       );
     }
@@ -1322,53 +1576,6 @@ export default function TextToImagePage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Persistent Generation Status Banner */}
-      {isGenerating && currentJob && (
-        <div className="sticky top-0 z-50 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-white p-4 rounded-lg shadow-lg border-l-4 border-orange-600 animate-pulse">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              </div>
-              <div>
-                <div className="font-bold text-lg">
-                  🎨 Generation in Progress
-                </div>
-                <div className="text-sm opacity-90">
-                  {progressData.message || 'Creating your image...'}
-                </div>
-                {progressData.progress > 0 && (
-                  <div className="text-xs opacity-75 mt-1">
-                    Progress: {Math.round(progressData.progress)}%
-                    {progressData.estimatedTimeRemaining && progressData.estimatedTimeRemaining > 0 && (
-                      <span> • ETA: {Math.round(progressData.estimatedTimeRemaining / 60)}m</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="text-sm bg-white/20 px-3 py-1 rounded-full">
-                Job ID: {currentJob.id.slice(-8)}
-              </div>
-              <Loader2 className="w-5 h-5 animate-spin" />
-            </div>
-          </div>
-          {progressData.progress > 0 && (
-            <div className="mt-3">
-              <div className="w-full bg-white/20 rounded-full h-2">
-                <div
-                  className="bg-white h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.max(5, progressData.progress)}%` }}
-                ></div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Enhanced Header */}
       <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-indigo-800 p-8 text-white">
         {/* Background Pattern */}
@@ -2113,55 +2320,39 @@ export default function TextToImagePage() {
                 </div>
               </div>
 
-              <button
-                onClick={handleGenerate}
-                disabled={isGenerating || !params.prompt.trim()}
-                className={`group relative w-full py-5 px-8 rounded-2xl transition-all duration-500 flex items-center justify-center space-x-4 font-bold text-xl overflow-hidden ${
-                  isGenerating || !params.prompt.trim()
-                    ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed text-white/80"
-                    : "bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 hover:from-purple-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-2xl hover:shadow-purple-500/30 hover:scale-105 active:scale-95"
-                }`}
-              >
-                {/* Animated background */}
-                <div
-                  className={`absolute inset-0 rounded-2xl transition-opacity duration-500 ${
-                    isGenerating || !params.prompt.trim()
-                      ? "opacity-0"
-                      : "opacity-100 bg-gradient-to-r from-purple-400/20 via-blue-400/20 to-indigo-400/20 animate-pulse"
+              {/* Generate Button */}
+              {!isGenerating && (
+                <button
+                  onClick={handleGenerate}
+                  disabled={!params.prompt.trim()}
+                  className={`group relative w-full py-5 px-8 rounded-2xl transition-all duration-500 flex items-center justify-center space-x-4 font-bold text-xl overflow-hidden ${
+                    !params.prompt.trim()
+                      ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed text-white/80"
+                      : "bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 hover:from-purple-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-2xl hover:shadow-purple-500/30 hover:scale-105 active:scale-95"
                   }`}
-                ></div>
+                >
+                  {/* Animated background */}
+                  <div
+                    className={`absolute inset-0 rounded-2xl transition-opacity duration-500 ${
+                      !params.prompt.trim()
+                        ? "opacity-0"
+                        : "opacity-100 bg-gradient-to-r from-purple-400/20 via-blue-400/20 to-indigo-400/20 animate-pulse"
+                    }`}
+                  ></div>
 
-                {/* Button content */}
-                <div className="relative flex items-center justify-center space-x-4">
-                  {isGenerating ? (
-                    <>
-                      <div className="relative">
-                        <Loader2 className="w-8 h-8 animate-spin" />
-                        <div className="absolute inset-0 w-8 h-8 border-2 border-white/30 rounded-full animate-ping"></div>
+                  {/* Button content */}
+                  <div className="relative flex items-center justify-center space-x-4">
+                    <div className="relative">
+                      <Sparkles className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-lg">
-                          Creating Your Masterpiece
-                        </span>
-                        <span className="text-sm opacity-80 font-normal">
-                          AI is working its magic...
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="relative">
-                        <Sparkles className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
-                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></div>
-                        </div>
-                      </div>
-                      <span className="drop-shadow-sm">Generate AI Art</span>
-                      <Wand2 className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
-                    </>
-                  )}
-                </div>
-              </button>
+                    </div>
+                    <span className="drop-shadow-sm">Generate AI Art</span>
+                    <Wand2 className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
+                  </div>
+                </button>
+              )}
 
               {/* Status messages */}
               {!params.prompt.trim() ? (
@@ -2288,11 +2479,14 @@ export default function TextToImagePage() {
                     {currentJob.status === "completed" && (
                       <CheckCircle className="w-4 h-4 text-green-500" />
                     )}
-                    {currentJob.status === "failed" && (
+                    {currentJob.status === "failed" && !isJobCancelled(currentJob) && (
                       <AlertCircle className="w-4 h-4 text-red-500" />
                     )}
+                    {isJobCancelled(currentJob) && (
+                      <XCircle className="w-4 h-4 text-orange-500" />
+                    )}
                     <span className="text-sm font-medium capitalize">
-                      {currentJob.status}
+                      {isJobCancelled(currentJob) ? 'cancelled' : currentJob.status}
                     </span>
                   </div>
                 </div>
@@ -2317,6 +2511,8 @@ export default function TextToImagePage() {
                         className={`h-3 rounded-full transition-all duration-300 ${
                           progressData.stage === "failed"
                             ? "bg-red-500"
+                            : progressData.stage === "cancelled"
+                            ? "bg-orange-500"
                             : progressData.stage === "completed"
                             ? "bg-green-500"
                             : "bg-gradient-to-r from-blue-500 to-purple-600"
@@ -2334,6 +2530,39 @@ export default function TextToImagePage() {
                     <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
                       {progressData.message || "Processing..."}
                     </div>
+
+                    {/* Batch Progress Indicator */}
+                    {progressData.totalImages && progressData.totalImages > 1 && (
+                      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300 mb-2">
+                        <span className="flex items-center space-x-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                          <span>
+                            Image {progressData.imageCount || 0} of {progressData.totalImages}
+                          </span>
+                        </span>
+                        <span className="text-xs font-medium bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full">
+                          Batch Generation
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Individual Image Progress Bar for Batch */}
+                    {progressData.totalImages && progressData.totalImages > 1 && (
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                          <span>Images Completed</span>
+                          <span>{progressData.imageCount || 0} / {progressData.totalImages}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${((progressData.imageCount || 0) / (progressData.totalImages || 1)) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Time Information */}
                     {(progressData.elapsedTime ||
@@ -2377,6 +2606,9 @@ export default function TextToImagePage() {
                           )}
                           {progressData.stage === "saving" && (
                             <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></div>
+                          )}
+                          {progressData.stage === "uploading_images" && (
+                            <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
                           )}
                           {progressData.stage === "completed" && (
                             <div className="w-2 h-2 rounded-full bg-green-500"></div>
@@ -2710,6 +2942,27 @@ export default function TextToImagePage() {
                     </p>
                   </div>
                 )}
+
+                {/* Cancel Button - only show for pending/processing jobs */}
+                {isGenerating && (currentJob.status === "pending" || currentJob.status === "processing") && (
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={cancelGeneration}
+                      className="group relative w-full py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center space-x-3 font-semibold text-lg overflow-hidden bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:from-red-600 hover:via-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-red-500/30 hover:scale-105 active:scale-95"
+                    >
+                      {/* Animated background */}
+                      <div className="absolute inset-0 rounded-xl opacity-100 bg-gradient-to-r from-red-400/20 via-red-500/20 to-red-600/20 animate-pulse"></div>
+
+                      {/* Button content */}
+                      <div className="relative flex items-center justify-center space-x-3">
+                        <div className="relative">
+                          <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300 drop-shadow-lg" />
+                        </div>
+                        <span className="drop-shadow-sm">Cancel Generation</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2733,8 +2986,11 @@ export default function TextToImagePage() {
                         {job.status === "completed" && (
                           <CheckCircle className="w-4 h-4 text-green-500" />
                         )}
-                        {job.status === "failed" && (
+                        {job.status === "failed" && !isJobCancelled(job) && (
                           <AlertCircle className="w-4 h-4 text-red-500" />
+                        )}
+                        {isJobCancelled(job) && (
+                          <XCircle className="w-4 h-4 text-orange-500" />
                         )}
                         {(job.status === "pending" ||
                           job.status === "processing") && (
@@ -2745,7 +3001,7 @@ export default function TextToImagePage() {
                             {formatJobTime(job.createdAt)}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                            {job.status || "unknown"}
+                            {isJobCancelled(job) ? 'cancelled' : (job.status || "unknown")}
                           </p>
                         </div>
                       </div>

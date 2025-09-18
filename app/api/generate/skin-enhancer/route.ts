@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     const runpodResult = await runpodResponse.json();
     console.log('✅ RunPod skin enhancement job submitted:', runpodResult);
 
-    // Update job with RunPod job ID
+    // Update job with RunPod job ID - store in both params and comfyUIPromptId for cancellation
     if (runpodResult.id) {
       const updatedParams = {
         ...params,
@@ -170,8 +170,11 @@ export async function POST(request: NextRequest) {
       
       await updateJob(jobId, {
         params: updatedParams,
+        comfyUIPromptId: runpodResult.id, // Store RunPod job ID for cancellation
         status: 'processing'
       });
+      
+      console.log('💾 Stored RunPod job ID for cancellation:', runpodResult.id);
     }
 
     // Return job ID to frontend for polling

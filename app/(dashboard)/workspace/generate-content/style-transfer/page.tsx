@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useApiClient } from "@/lib/apiClient";
+import { useUser } from "@clerk/nextjs";
+import { useGenerationProgress } from "@/lib/generationContext";
 import MaskEditor from "@/components/MaskEditor";
 import {
   ImageIcon,
@@ -21,9 +23,11 @@ import {
   X,
   Image as ImageIconLucide,
   Palette,
+  Layers,
   Monitor,
   Eye,
   Users,
+  XCircle,
 } from "lucide-react";
 
 // Types
@@ -58,6 +62,12 @@ interface GenerationJob {
   userId?: string;
   lastChecked?: string;
   comfyUIPromptId?: string;
+  
+  // Enhanced progress fields
+  stage?: string;
+  message?: string;
+  elapsedTime?: number;
+  estimatedTimeRemaining?: number;
 }
 
 interface LoRAModel {
@@ -135,6 +145,8 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
 
 export default function StyleTransferPage() {
   const apiClient = useApiClient();
+  const { user } = useUser();
+  const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
 
   const [params, setParams] = useState<StyleTransferParams>({
     prompt: "",
@@ -159,6 +171,26 @@ export default function StyleTransferPage() {
 
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
   const [jobHistory, setJobHistory] = useState<GenerationJob[]>([]);
+
+  // Real-time progress tracking
+  const [progressData, setProgressData] = useState<{
+    progress: number;
+    stage: string;
+    message: string;
+    elapsedTime?: number;
+    estimatedTimeRemaining?: number;
+    imageCount?: number; // For batch progress
+    totalImages?: number; // For batch progress
+  }>({
+    progress: 0,
+    stage: "",
+    message: "",
+    elapsedTime: 0,
+    estimatedTimeRemaining: 0,
+    imageCount: 0,
+    totalImages: 0,
+  });
+
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [availableLoRAs, setAvailableLoRAs] = useState<LoRAModel[]>([
@@ -189,6 +221,409 @@ export default function StyleTransferPage() {
   const [imageStats, setImageStats] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const shouldContinuePolling = useRef<boolean>(true);
+
+  // Helper function to determine if a failed job was actually cancelled
+  const isJobCancelled = (job: GenerationJob) => {
+    return job.status === 'failed' && job.error === 'Job canceled by user';
+  };
+
+  // Helper function to clear persistent state
+  const clearPersistentState = () => {
+    if (typeof window !== 'undefined') {
+      // Clear all keys except job history
+      const keysToKeep = [STORAGE_KEYS.jobHistory];
+      Object.values(STORAGE_KEYS).forEach(key => {
+        if (!keysToKeep.includes(key)) {
+          localStorage.removeItem(key);
+        }
+      });
+    }
+    // Also clear global progress
+    clearGlobalProgress();
+  };
+
+  // Helper function to move currentJob to history when it's completed
+  const moveCurrentJobToHistory = () => {
+    if (currentJob && (currentJob.status === 'completed' || currentJob.status === 'failed')) {
+      setJobHistory(prev => {
+        // Check if job is already in history
+        const existsInHistory = prev.some(job => job?.id === currentJob.id);
+        if (!existsInHistory) {
+          // Add to front of history and limit to 5
+          return [currentJob, ...prev.filter(Boolean)].slice(0, 5);
+        }
+        return prev.slice(0, 5); // Just ensure limit
+      });
+    }
+  };
+
+  // Manual state reset for stuck jobs
+  const resetStuckJob = () => {
+    console.log("🔄 Manually resetting stuck job state");
+    
+    // Move current job to history before clearing
+    moveCurrentJobToHistory();
+    
+    shouldContinuePolling.current = false;
+    setIsGenerating(false);
+    setCurrentJob(null);
+    clearPersistentState();
+    setProgressData({
+      progress: 0,
+      stage: "",
+      message: "",
+      elapsedTime: 0,
+      estimatedTimeRemaining: 0,
+    });
+  };
+
+  // Cancel generation function
+  const cancelGeneration = async () => {
+    if (!apiClient || !currentJob?.id) {
+      alert("No active generation to cancel");
+      return;
+    }
+
+    // Confirm cancellation
+    const confirmed = confirm(
+      "Are you sure you want to cancel this generation? This action cannot be undone."
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      console.log("🛑 Canceling generation:", currentJob.id);
+
+      // Update global progress
+      updateGlobalProgress({
+        isGenerating: true,
+        progress: 0,
+        stage: "canceling",
+        message: "🛑 Canceling generation...",
+        generationType: 'style-transfer',
+        jobId: currentJob.id,
+        elapsedTime: 0,
+        estimatedTimeRemaining: 0,
+      });
+
+      const response = await apiClient.post(`/api/jobs/${currentJob.id}/cancel`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Cancel failed:", response.status, errorText);
+        throw new Error(`Cancel failed: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Cancel result:", result);
+
+      // Update job status
+      const canceledJob = {
+        ...currentJob,
+        status: 'failed' as const,
+        error: 'Job canceled by user',
+      };
+
+      setCurrentJob(canceledJob);
+      setJobHistory(prev => 
+        prev.map(job => 
+          job?.id === currentJob.id ? canceledJob : job
+        ).filter(Boolean).slice(0, 5) // Limit to 5 jobs
+      );
+
+      // Stop generation state
+      setIsGenerating(false);
+      
+      // Stop polling immediately
+      shouldContinuePolling.current = false;
+      
+      // Add a small delay to ensure any in-flight polling requests complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Reset progress data immediately
+      setProgressData({
+        progress: 0,
+        stage: "cancelled",
+        message: "🛑 Generation cancelled by user",
+        elapsedTime: 0,
+        estimatedTimeRemaining: 0,
+      });
+      
+      // Clear persistent state
+      clearPersistentState();
+
+      // Clear global progress after a short delay
+      setTimeout(() => {
+        clearGlobalProgress();
+      }, 2000);
+
+      alert("✅ Generation canceled successfully");
+
+    } catch (error) {
+      console.error("❌ Error canceling generation:", error);
+      
+      alert(
+        "❌ Failed to cancel generation: " +
+          (error instanceof Error ? error.message : "Unknown error")
+      );
+    }
+  };
+
+  // Persistent generation state keys
+  const STORAGE_KEYS = {
+    currentJob: 'style-transfer-current-job',
+    isGenerating: 'style-transfer-is-generating',
+    progressData: 'style-transfer-progress-data',
+    jobHistory: 'style-transfer-job-history',
+  };
+
+  // Load persistent state on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && apiClient) {
+      try {
+        const savedCurrentJob = localStorage.getItem(STORAGE_KEYS.currentJob);
+        const savedIsGenerating = localStorage.getItem(STORAGE_KEYS.isGenerating);
+        const savedProgressData = localStorage.getItem(STORAGE_KEYS.progressData);
+        const savedJobHistory = localStorage.getItem(STORAGE_KEYS.jobHistory);
+
+        // Load job history first
+        if (savedJobHistory) {
+          try {
+            const history = JSON.parse(savedJobHistory);
+            if (Array.isArray(history)) {
+              setJobHistory(history.slice(0, 5)); // Limit to 5 most recent
+              console.log('📚 Loaded job history:', history.length, 'jobs');
+            }
+          } catch (error) {
+            console.error('Error parsing saved job history:', error);
+            localStorage.removeItem(STORAGE_KEYS.jobHistory);
+          }
+        }
+
+        if (savedCurrentJob) {
+          const job = JSON.parse(savedCurrentJob);
+          setCurrentJob(job);
+          
+          // If there's a saved generating state and the job is still pending/processing, resume polling
+          // But don't resume for cancelled jobs
+          if (savedIsGenerating === 'true' && 
+              (job.status === 'pending' || job.status === 'processing') && 
+              !(job.status === 'failed' && job.error === 'Job canceled by user')) {
+            setIsGenerating(true);
+            
+            if (savedProgressData) {
+              setProgressData(JSON.parse(savedProgressData));
+            }
+            
+            // Resume polling for this job with a delay to ensure pollJobStatus is defined
+            console.log('🔄 Resuming style transfer monitoring for job:', job.id);
+            shouldContinuePolling.current = true; // Enable polling for resumed job
+            setTimeout(() => {
+              pollJobStatus(job.id);
+            }, 100);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading persistent state:', error);
+        // Clear corrupted data
+        clearPersistentState();
+      }
+    }
+  }, [apiClient]); // Add apiClient as dependency
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (currentJob) {
+        localStorage.setItem(STORAGE_KEYS.currentJob, JSON.stringify(currentJob));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.currentJob);
+      }
+    }
+  }, [currentJob]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.isGenerating, isGenerating.toString());
+      
+      // Update global progress
+      if (isGenerating && currentJob) {
+        updateGlobalProgress({
+          isGenerating: true,
+          progress: progressData.progress || 0,
+          stage: progressData.stage || '',
+          message: progressData.message || 'Style transfer in progress...',
+          generationType: 'style-transfer',
+          jobId: currentJob.id,
+          elapsedTime: progressData.elapsedTime,
+          estimatedTimeRemaining: progressData.estimatedTimeRemaining,
+        });
+      }
+      
+      // Clear state when generation completes
+      if (!isGenerating) {
+        localStorage.removeItem(STORAGE_KEYS.progressData);
+        clearGlobalProgress();
+      }
+    }
+  }, [isGenerating, currentJob?.id, progressData.progress, progressData.stage, progressData.message, progressData.elapsedTime, progressData.estimatedTimeRemaining, progressData.imageCount, progressData.totalImages, updateGlobalProgress, clearGlobalProgress]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isGenerating) {
+      localStorage.setItem(STORAGE_KEYS.progressData, JSON.stringify(progressData));
+      
+      // Update global progress when progress data changes
+      if (currentJob) {
+        updateGlobalProgress({
+          isGenerating: true,
+          progress: progressData.progress || 0,
+          stage: progressData.stage || '',
+          message: progressData.message || 'Style transfer in progress...',
+          generationType: 'style-transfer',
+          jobId: currentJob.id,
+          elapsedTime: progressData.elapsedTime,
+          estimatedTimeRemaining: progressData.estimatedTimeRemaining,
+        });
+      }
+    }
+  }, [progressData.progress, progressData.stage, progressData.message, progressData.elapsedTime, progressData.estimatedTimeRemaining, progressData.imageCount, progressData.totalImages, isGenerating, currentJob?.id, updateGlobalProgress]);
+
+  // Save job history to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && Array.isArray(jobHistory) && jobHistory.length > 0) {
+      // Only save valid jobs and limit to 5 most recent
+      const validHistory = jobHistory
+        .filter(job => job && job.id && job.status)
+        .slice(0, 5);
+      
+      if (validHistory.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.jobHistory, JSON.stringify(validHistory));
+        console.log('💾 Saved job history:', validHistory.length, 'jobs');
+      }
+    }
+  }, [jobHistory]);
+
+  // Update browser tab title and favicon for cross-tab generation progress indication
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const originalTitle = 'Style Transfer - AI Creative Studio';
+      
+      if (isGenerating && currentJob) {
+        // Update document title with progress
+        const progress = Math.round(progressData.progress || 0);
+        const stage = progressData.stage || 'generating';
+        
+        let progressIcon = '🎨';
+        if (stage === 'starting') progressIcon = '🚀';
+        else if (stage === 'loading_models') progressIcon = '📦';
+        else if (stage === 'processing_prompt') progressIcon = '📝';
+        else if (stage === 'processing_image') progressIcon = '🖼️';
+        else if (stage === 'generating') progressIcon = '🎨';
+        else if (stage === 'saving') progressIcon = '💾';
+        else if (stage === 'completed') progressIcon = '✅';
+        else if (stage === 'failed') progressIcon = '❌';
+        
+        const titleWithProgress = `${progressIcon} ${progress}% - Style Transfer | AI Creative Studio`;
+        document.title = titleWithProgress;
+        
+        // Create and update dynamic favicon with progress indicator
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 32;
+        canvas.height = 32;
+        
+        if (ctx) {
+          // Draw background circle
+          ctx.fillStyle = '#8B5CF6'; // Purple background for style transfer
+          ctx.beginPath();
+          ctx.arc(16, 16, 15, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Draw progress arc
+          if (progress > 0) {
+            ctx.strokeStyle = '#10B981'; // Green progress
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(16, 16, 12, -Math.PI / 2, (2 * Math.PI * progress / 100) - Math.PI / 2);
+            ctx.stroke();
+          }
+          
+          // Draw center dot
+          ctx.fillStyle = '#FFFFFF';
+          ctx.beginPath();
+          ctx.arc(16, 16, 4, 0, 2 * Math.PI);
+          ctx.fill();
+          
+          // Update favicon
+          const faviconUrl = canvas.toDataURL('image/png');
+          let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+          if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            document.head.appendChild(favicon);
+          }
+          favicon.href = faviconUrl;
+        }
+        
+      } else {
+        // Reset to original title and favicon when not generating
+        document.title = originalTitle;
+        
+        // Reset favicon to default
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) {
+          favicon.href = '/favicon.ico';
+        }
+      }
+    }
+    
+    // Cleanup function to reset title when component unmounts
+    return () => {
+      if (typeof window !== 'undefined') {
+        document.title = 'Style Transfer - AI Creative Studio';
+      }
+    };
+  }, [isGenerating, currentJob, progressData]);
+
+  // Request notification permission on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
+  // Send browser notification when generation completes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && 
+        currentJob && currentJob.status === 'completed' && !isGenerating) {
+      
+      if (Notification.permission === 'granted') {
+        const notification = new Notification('🎨 Style Transfer Complete!', {
+          body: 'Your stylized image is ready to view.',
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: 'style-transfer-complete',
+          requireInteraction: false,
+        });
+
+        // Auto-close notification after 5 seconds
+        setTimeout(() => {
+          notification.close();
+        }, 5000);
+
+        // Focus window when notification is clicked
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+      }
+    }
+  }, [currentJob?.status, isGenerating]);
 
   // Initialize empty job history on mount
   useEffect(() => {
@@ -199,8 +634,10 @@ export default function StyleTransferPage() {
 
   // Fetch image stats on mount
   useEffect(() => {
-    fetchImageStats();
-  }, []);
+    if (apiClient) {
+      fetchImageStats();
+    }
+  }, [apiClient]);
 
   // Handle reference image upload
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -531,6 +968,17 @@ export default function StyleTransferPage() {
     setIsGenerating(true);
     setCurrentJob(null);
 
+    // Initialize progress tracking with batch size
+    setProgressData({
+      progress: 0,
+      stage: "starting",
+      message: "🚀 Initializing style transfer generation...",
+      elapsedTime: 0,
+      estimatedTimeRemaining: 180, // 3 minutes initial estimate
+      imageCount: 0,
+      totalImages: params.batchSize, // Set expected batch size
+    });
+
     try {
       console.log("=== STARTING STYLE TRANSFER GENERATION (SERVERLESS) ===");
       console.log("Generation params:", params);
@@ -595,9 +1043,10 @@ export default function StyleTransferPage() {
       };
 
       setCurrentJob(newJob);
-      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)]);
+      setJobHistory((prev) => [newJob, ...prev.filter(Boolean)].slice(0, 5)); // Limit to 5 jobs
 
       // Start polling for job status (serverless webhooks + polling)
+      shouldContinuePolling.current = true; // Enable polling for new job
       pollJobStatus(jobId);
     } catch (error) {
       console.error("Serverless generation error:", error);
@@ -608,96 +1057,305 @@ export default function StyleTransferPage() {
     }
   };
 
-  // Updated poll job status for serverless with database image fetching
+  // Updated poll job status for serverless with database image fetching and enhanced progress tracking
   const pollJobStatus = async (jobId: string) => {
     if (!apiClient) {
-      console.error("API client not ready for polling");
+      console.error("❌ API client not available for job polling");
+      setIsGenerating(false);
       return;
     }
 
-    console.log("=== STARTING SERVERLESS STYLE TRANSFER JOB POLLING ===");
-    console.log("Polling serverless style transfer job ID:", jobId);
+    console.log("=== STARTING STYLE TRANSFER JOB POLLING ===");
+    console.log("Polling style transfer job ID:", jobId);
 
-    const maxAttempts = 180; // 6 minutes for serverless style transfer (webhooks handle most updates)
+    const maxAttempts = 600; // 10 minutes (increased for complex generations)
     let attempts = 0;
 
     const poll = async () => {
-      if (!apiClient) return;
-
       try {
+        // Check if polling should continue
+        if (!shouldContinuePolling.current) {
+          console.log("🛑 Polling stopped - generation was cancelled");
+          return;
+        }
+
         attempts++;
         console.log(
-          `📡 Polling attempt ${attempts}/${maxAttempts} for serverless job: ${jobId}`
+          `Polling attempt ${attempts}/${maxAttempts} for job ${jobId}`
         );
 
-        const response = await apiClient.get(`/api/jobs/${jobId}/status`);
+        let response = await apiClient.get(`/api/jobs/${jobId}`);
+        console.log("Job status response:", response.status);
 
-        if (response.ok) {
-          const jobStatus = await response.json();
-          console.log("📊 Serverless job status:", jobStatus);
+        // If job status endpoint fails, try RunPod status endpoint as fallback
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Job status error:", response.status, errorText);
 
-          const updatedJob: GenerationJob = {
-            id: jobId,
-            status: jobStatus.status || "pending",
-            progress: jobStatus.progress || 0,
-            error: jobStatus.error,
-            createdAt: currentJob?.createdAt || new Date(),
-            lastChecked: new Date().toISOString(),
-            comfyUIPromptId: jobStatus.comfyUIPromptId,
-          };
+          // Try RunPod serverless completion check as fallback
+          if (response.status === 404 || response.status >= 500) {
+            console.log(
+              "🔄 Trying RunPod serverless completion check as fallback..."
+            );
+            try {
+              const serverlessResponse = await apiClient.post(
+                "/api/jobs/check-runpod-serverless",
+                {
+                  jobId,
+                }
+              );
 
-          setCurrentJob(updatedJob);
+              if (serverlessResponse.ok) {
+                response = serverlessResponse;
+                console.log("✅ RunPod serverless check successful");
+              } else {
+                console.error("❌ RunPod serverless check also failed");
+              }
+            } catch (serverlessError) {
+              console.error(
+                "❌ RunPod serverless check error:",
+                serverlessError
+              );
+            }
+          }
 
-          // Update job history
-          setJobHistory((prev) =>
-            prev.map((job) => (job.id === jobId ? updatedJob : job))
+          if (!response.ok) {
+            if (response.status === 404) {
+              console.error("Job not found - this might be a storage issue");
+              if (attempts < 10 && shouldContinuePolling.current) {
+                // Retry a few times for new jobs
+                setTimeout(poll, 500); // Faster polling for better progress updates
+                return;
+              } else if (!shouldContinuePolling.current) {
+                console.log("🛑 Polling stopped due to cancellation (404 retry)");
+                return;
+              }
+            }
+
+            throw new Error(`Job status check failed: ${response.status}`);
+          }
+        }
+
+        const job = await response.json();
+        console.log("Job status data:", job);
+
+        // Handle date conversion safely
+        if (job.createdAt && typeof job.createdAt === "string") {
+          job.createdAt = new Date(job.createdAt);
+        }
+
+        // Handle chunked image uploads for batch style transfer generations
+        if (job.status === "IMAGE_READY" && job.image) {
+          console.log(`🎨 Received chunked style transfer image ${job.imageCount || 1} of ${job.totalImages || 1}`);
+          
+          // Update progress with individual image info
+          setProgressData({
+            progress: job.progress || 0,
+            stage: job.stage || "uploading_images",
+            message: job.message || `🎨 Style transfer image ${job.imageCount || 1} ready`,
+            elapsedTime: job.elapsedTime,
+            estimatedTimeRemaining: job.estimatedTimeRemaining,
+            imageCount: job.imageCount || 1,
+            totalImages: job.totalImages || 1,
+          });
+
+          // Process the individual image immediately
+          try {
+            const saveResponse = await apiClient.post("/api/images/save", {
+              jobId: jobId,
+              filename: job.image.filename,
+              subfolder: job.image.subfolder || "",
+              type: job.image.type || "output",
+              data: job.image.data,
+            });
+
+            if (saveResponse.ok) {
+              console.log(`✅ Saved chunked style transfer image ${job.imageCount}: ${job.image.filename}`);
+              
+              // Refresh job images to show the new image immediately
+              await fetchJobImages(jobId);
+            } else {
+              console.error(`❌ Failed to save chunked style transfer image ${job.imageCount}:`, await saveResponse.text());
+            }
+          } catch (saveError) {
+            console.error(`❌ Error saving chunked style transfer image ${job.imageCount}:`, saveError);
+          }
+
+          // Continue polling for more images or completion
+          setTimeout(poll, 500);
+          return;
+        }
+
+        // Update progress tracking state
+        if (job.status === "processing") {
+          setProgressData({
+            progress: job.progress || 0,
+            stage: job.stage || "",
+            message: job.message || "Processing style transfer...",
+            elapsedTime: job.elapsedTime,
+            estimatedTimeRemaining: job.estimatedTimeRemaining,
+            imageCount: job.imageCount,
+            totalImages: job.totalImages,
+          });
+        }
+
+        // Don't override locally cancelled jobs - check if current job was cancelled by user
+        if (currentJob && isJobCancelled(currentJob)) {
+          console.log("🛑 Not overriding locally cancelled job");
+          return; // Exit polling immediately for cancelled jobs
+        }
+
+        setCurrentJob(job);
+        setJobHistory((prev) =>
+          prev
+            .map((j) => {
+              if (j?.id === jobId) {
+                // Don't override locally cancelled jobs in history
+                if (isJobCancelled(j)) {
+                  return j; // Keep the cancelled job as-is
+                }
+                return {
+                  ...job,
+                  createdAt: job.createdAt || j.createdAt,
+                };
+              }
+              return j;
+            })
+            .filter(Boolean)
+            .slice(0, 5) // Limit to 5 jobs
+        );
+
+        if (job.status === "completed") {
+          console.log("Style transfer job completed successfully!");
+          setIsGenerating(false);
+          
+          // Clear persistent state when generation completes
+          clearPersistentState();
+
+          // Reset progress tracking
+          setProgressData({
+            progress: 100,
+            stage: "completed",
+            message: "✅ Style transfer generation completed successfully!",
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
+
+          // Fetch database images for completed job with retry logic
+          console.log("🔄 Attempting to fetch job images...");
+          const fetchSuccess = await fetchJobImages(jobId);
+
+          // If fetch failed or no images found, retry after a short delay
+          if (!fetchSuccess) {
+            console.log("🔄 Retrying image fetch after delay...");
+            setTimeout(() => {
+              fetchJobImages(jobId);
+            }, 3000);
+          }
+
+          // Also trigger auto-processing for serverless jobs (fallback)
+          try {
+            console.log("🔄 Triggering auto-processing for serverless jobs...");
+            const autoProcessResponse = await apiClient.post(
+              "/api/jobs/auto-process-serverless"
+            );
+            if (autoProcessResponse.ok) {
+              console.log("✅ Auto-processing triggered successfully");
+              // Refresh images again after auto-processing
+              setTimeout(() => {
+                fetchJobImages(jobId);
+                fetchImageStats();
+              }, 2000);
+            }
+          } catch (autoProcessError) {
+            console.error("❌ Auto-processing failed:", autoProcessError);
+          }
+
+          // Refresh image stats after completion
+          console.log("📊 Refreshing image stats after generation completion");
+          await fetchImageStats();
+
+          // Show success notification in console only
+          console.log(
+            "✅ Style transfer completed! Images should appear automatically in the gallery and below."
           );
 
-          if (jobStatus.status === "completed") {
-            console.log("🎉 Serverless style transfer job completed!");
+          return;
+        } else if (job.status === "failed") {
+          console.log("Style transfer job failed:", job.error);
+          setIsGenerating(false);
+          
+          // Clear persistent state when generation fails
+          clearPersistentState();
 
-            // Fetch database images for completed job
-            const imagesLoaded = await fetchJobImages(jobId);
-            console.log("📸 Database images loaded:", imagesLoaded);
-
-            // Refresh image stats
-            await fetchImageStats();
-
-            setIsGenerating(false);
-            console.log(
-              "✅ Serverless style transfer polling completed successfully"
-            );
-            return;
-          } else if (jobStatus.status === "failed") {
-            console.error(
-              "💥 Serverless style transfer job failed:",
-              jobStatus.error
-            );
-            setIsGenerating(false);
-            alert(`Serverless style transfer failed: ${jobStatus.error}`);
-            return;
+          // Check if this was a user cancellation vs actual failure
+          if (isJobCancelled(job)) {
+            // Reset progress tracking to show cancellation
+            setProgressData({
+              progress: 0,
+              stage: "cancelled",
+              message: "🛑 Style transfer cancelled by user",
+              elapsedTime: progressData.elapsedTime,
+              estimatedTimeRemaining: 0,
+            });
+            // Don't show alert for user cancellations
+            console.log("✅ Style transfer was cancelled by user");
+          } else {
+            // Reset progress tracking to show failure
+            setProgressData({
+              progress: 0,
+              stage: "failed",
+              message: `❌ Style transfer failed: ${job.error || "Unknown error"}`,
+              elapsedTime: progressData.elapsedTime,
+              estimatedTimeRemaining: 0,
+            });
+            // Only show alert for actual failures
+            alert(`❌ Style transfer failed: ${job.error || "Unknown error"}`);
           }
+          return;
+        }
+
+        // Continue polling
+        if (attempts < maxAttempts && shouldContinuePolling.current) {
+          setTimeout(poll, 500); // Poll every 500ms for smooth progress updates
+        } else if (!shouldContinuePolling.current) {
+          console.log("🛑 Polling stopped due to cancellation");
         } else {
-          console.warn(`⚠️ Status check failed: ${response.status}`);
+          console.error("❌ Style transfer polling timeout");
+          setIsGenerating(false);
+          
+          // Clear persistent state on timeout
+          clearPersistentState();
+
+          // Reset progress tracking to show timeout
+          setProgressData({
+            progress: 0,
+            stage: "failed",
+            message: "❌ Style transfer timeout - please try again",
+            elapsedTime: progressData.elapsedTime,
+            estimatedTimeRemaining: 0,
+          });
+
+          alert("Style transfer generation timeout - please try again");
         }
       } catch (error) {
-        console.error("💥 Polling error:", error);
-      }
-
-      // Continue polling if not complete and within limits
-      if (attempts < maxAttempts) {
-        setTimeout(poll, 3000); // Poll every 3 seconds for serverless
-      } else {
-        console.error("❌ Serverless style transfer polling timeout");
-        setIsGenerating(false);
-        alert(
-          "Style transfer generation timeout - please check your job status"
-        );
+        console.error("❌ Polling error:", error);
+        
+        // Continue polling on errors (network issues, etc.)
+        if (attempts < maxAttempts && shouldContinuePolling.current) {
+          setTimeout(poll, 2000); // Longer delay on errors
+        } else if (!shouldContinuePolling.current) {
+          console.log("🛑 Polling stopped due to cancellation (error handler)");
+        } else {
+          setIsGenerating(false);
+          clearPersistentState();
+          alert("Style transfer monitoring failed - please refresh and try again");
+        }
       }
     };
 
-    // Start polling after 3 seconds (give serverless time to start)
-    setTimeout(poll, 3000);
+    // Start polling immediately
+    poll();
   };
 
   // Create workflow JSON for style transfer - matches your ComfyUI workflow exactly
@@ -1201,6 +1859,67 @@ export default function StyleTransferPage() {
                 </div>
               </div>
 
+              {/* Batch Size */}
+              <div className="space-y-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-slate-800 dark:text-white flex items-center">
+                    <Layers className="w-4 h-4 mr-2 text-purple-600" />
+                    Batch Size
+                  </label>
+                  <div className="bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 px-3 py-1 rounded-full">
+                    <span className="text-sm font-bold text-purple-700 dark:text-purple-300">
+                      {params.batchSize} {params.batchSize > 1 ? 'images' : 'image'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="relative">
+                  {/* Slider Track */}
+                  <div className="relative h-2 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 rounded-full shadow-inner">
+                    {/* Progress Fill */}
+                    <div 
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-600 rounded-full shadow-lg transition-all duration-300 ease-out"
+                      style={{ width: `${(params.batchSize / 15) * 100}%` }}
+                    />
+                    
+                    {/* Slider Handle */}
+                    <div 
+                      className="absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-white dark:bg-gray-200 border-2 border-purple-500 rounded-full shadow-lg cursor-pointer hover:scale-110 transition-all duration-200 ring-4 ring-purple-200/50 dark:ring-purple-400/30"
+                      style={{ left: `${(params.batchSize / 15) * 100}%` }}
+                    />
+                  </div>
+                  
+                  {/* Invisible Input Range */}
+                  <input
+                    type="range"
+                    min="1"
+                    max="15"
+                    value={params.batchSize}
+                    onChange={(e) => setParams((prev) => ({ ...prev, batchSize: parseInt(e.target.value) }))}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  
+                  {/* Scale Markers */}
+                  <div className="flex justify-between mt-3 px-1">
+                    {[1, 5, 10, 15].map((marker) => (
+                      <div key={marker} className="flex flex-col items-center">
+                        <div className={`w-1 h-2 rounded-full transition-colors ${
+                          params.batchSize >= marker 
+                            ? 'bg-purple-500' 
+                            : 'bg-gray-300 dark:bg-gray-600'
+                        }`} />
+                        <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {marker}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  💡 Generate multiple style variations simultaneously
+                </p>
+              </div>
+
               {/* Advanced Settings Toggle */}
               <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
@@ -1499,6 +2218,16 @@ export default function StyleTransferPage() {
                       <RefreshCw className="w-4 h-4" />
                     </button>
                   )}
+                  {/* Reset button for stuck jobs */}
+                  {(currentJob.status === "processing" || currentJob.status === "pending") && !isGenerating && (
+                    <button
+                      onClick={resetStuckJob}
+                      className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      title="Reset stuck job state"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-4">
@@ -1514,38 +2243,118 @@ export default function StyleTransferPage() {
                       {currentJob.status === "completed" && (
                         <CheckCircle className="w-4 h-4 text-green-600" />
                       )}
-                      {currentJob.status === "failed" && (
+                      {currentJob.status === "failed" && !isJobCancelled(currentJob) && (
                         <AlertCircle className="w-4 h-4 text-red-600" />
                       )}
+                      {currentJob.status === "failed" && isJobCancelled(currentJob) && (
+                        <XCircle className="w-4 h-4 text-orange-600" />
+                      )}
                       <span className="text-sm font-semibold capitalize text-slate-900 dark:text-white">
-                        {currentJob.status}
+                        {currentJob.status === "failed" && isJobCancelled(currentJob)
+                          ? "cancelled"
+                          : currentJob.status}
                       </span>
                     </div>
                   </div>
 
-                  {currentJob.progress !== undefined && (
-                    <div className="space-y-3">
+                  {(currentJob.progress !== undefined || progressData.progress > 0) && 
+                   !isJobCancelled(currentJob) && (
+                    <div className="space-y-4">
+                      {/* Enhanced Progress Display */}
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                           Progress
                         </span>
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">
-                          {currentJob.progress}%
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">
+                            {Math.round(progressData.progress || currentJob.progress || 0)}%
+                          </span>
+                          {progressData.estimatedTimeRemaining && 
+                           Number(progressData.estimatedTimeRemaining) > 0 && 
+                           Math.round(Number(progressData.estimatedTimeRemaining)) > 0 && (
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              ({Math.round(Number(progressData.estimatedTimeRemaining))}s left)
+                            </span>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Progress Bar */}
                       <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-indigo-600 to-purple-600 h-full rounded-full transition-all duration-300 relative"
-                          style={{ width: `${currentJob.progress}%` }}
+                          className="bg-gradient-to-r from-purple-600 to-pink-600 h-full rounded-full transition-all duration-300 relative"
+                          style={{ width: `${Math.round(progressData.progress || currentJob.progress || 0)}%` }}
                         >
                           <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                         </div>
                       </div>
+
+                      {/* Stage and Message Display */}
+                      {(progressData.stage || progressData.message) && (
+                        <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                          {progressData.stage && (
+                            <div className="flex items-center space-x-2 mb-2">
+                              <div className="w-2 h-2 bg-purple-600 rounded-full animate-pulse"></div>
+                              <span className="text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                                {progressData.stage.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                          )}
+                          {progressData.message && (
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                              {progressData.message}
+                            </p>
+                          )}
+
+                          {/* Batch Progress Indicator for Style Transfer */}
+                          {progressData.totalImages && progressData.totalImages > 1 && (
+                            <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-300 mb-2">
+                              <span className="flex items-center space-x-2">
+                                <div className="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
+                                <span>
+                                  Style Transfer Image {progressData.imageCount || 0} of {progressData.totalImages}
+                                </span>
+                              </span>
+                              <span className="text-xs font-medium bg-purple-100 dark:bg-purple-900/30 px-2 py-1 rounded-full">
+                                Batch Generation
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Individual Image Progress Bar for Batch Style Transfer */}
+                          {progressData.totalImages && progressData.totalImages > 1 && (
+                            <div className="mb-3">
+                              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+                                <span>Images Completed</span>
+                                <span>{progressData.imageCount || 0} / {progressData.totalImages}</span>
+                              </div>
+                              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                                <div
+                                  className="bg-gradient-to-r from-purple-500 to-indigo-600 h-2 rounded-full transition-all duration-300"
+                                  style={{
+                                    width: `${((progressData.imageCount || 0) / (progressData.totalImages || 1)) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {progressData.elapsedTime && Number(progressData.elapsedTime) > 0 && (
+                            <div className="flex items-center justify-between mt-2 text-xs text-slate-500 dark:text-slate-400">
+                              <span>Elapsed: {Math.round(Number(progressData.elapsedTime))}s</span>
+                              {progressData.estimatedTimeRemaining && 
+                               Number(progressData.estimatedTimeRemaining) > 0 && 
+                               Math.round(Number(progressData.estimatedTimeRemaining)) > 0 && (
+                                <span>Remaining: ~{Math.round(Number(progressData.estimatedTimeRemaining))}s</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Show loading or no images message for completed jobs */}
-                  {currentJob.status === "completed" &&
+                  {!isJobCancelled(currentJob) && currentJob.status === "completed" &&
                     (!currentJob.resultUrls ||
                       currentJob.resultUrls.length === 0) &&
                     (!jobImages[currentJob.id] ||
@@ -1571,164 +2380,233 @@ export default function StyleTransferPage() {
                       </div>
                     )}
 
-                  {/* Enhanced image display with dynamic URL support */}
-                  {((currentJob.resultUrls &&
+                  {/* Enhanced image display with dynamic URL support - matching text-to-image format */}
+                  {!isJobCancelled(currentJob) && ((currentJob.resultUrls &&
                     currentJob.resultUrls.length > 0) ||
                     (jobImages[currentJob.id] &&
                       jobImages[currentJob.id].length > 0)) && (
                     <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Generated Images
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Generated Images
+                        </h4>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                          {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
+                            ? `${jobImages[currentJob.id].length} image${jobImages[currentJob.id].length > 1 ? 's' : ''}`
+                            : currentJob.resultUrls && currentJob.resultUrls.length > 0
+                            ? `${currentJob.resultUrls.length} image${currentJob.resultUrls.length > 1 ? 's' : ''}`
+                            : '0 images'
+                          }
+                        </div>
+                      </div>
 
-                      <div className="grid grid-cols-1 gap-3">
+                      <div className={`grid gap-3 ${
+                        // Dynamic grid based on number of images
+                        jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
+                          ? jobImages[currentJob.id].length === 1 
+                            ? 'grid-cols-1' 
+                            : jobImages[currentJob.id].length === 2 
+                            ? 'grid-cols-2' 
+                            : jobImages[currentJob.id].length <= 4 
+                            ? 'grid-cols-2' 
+                            : 'grid-cols-3'
+                          : currentJob.resultUrls && currentJob.resultUrls.length > 0
+                          ? currentJob.resultUrls.length === 1 
+                            ? 'grid-cols-1' 
+                            : currentJob.resultUrls.length === 2 
+                            ? 'grid-cols-2' 
+                            : currentJob.resultUrls.length <= 4 
+                            ? 'grid-cols-2' 
+                            : 'grid-cols-3'
+                          : 'grid-cols-1'
+                      }`}>
                         {/* Show database images if available */}
                         {jobImages[currentJob.id] &&
-                        jobImages[currentJob.id].length > 0
-                          ? // Database images with dynamic URLs
-                            jobImages[currentJob.id].map((dbImage, index) => (
+                        jobImages[currentJob.id].length > 0 ? (
+                          // Database images with dynamic URLs - show all images, including those being processed
+                          jobImages[currentJob.id]
+                            .map((dbImage, index) => (
                               <div
                                 key={`db-${dbImage.id}`}
                                 className="relative group"
                               >
-                                <img
-                                  src={dbImage.dataUrl || dbImage.url}
-                                  alt={`Style transfer result ${index + 1}`}
-                                  className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                  onError={(e) => {
-                                    console.error(
-                                      "Image load error for:",
-                                      dbImage.filename
-                                    );
+                                {dbImage.dataUrl ? (
+                                  // Image is ready to display
+                                  <>
+                                    <img
+                                      src={dbImage.dataUrl}
+                                      alt={`Style transfer result ${index + 1}`}
+                                      className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
+                                      onError={(e) => {
+                                        // Fallback to placeholder for serverless RunPod
+                                        console.warn(
+                                          "⚠️ Database image failed to load:",
+                                          dbImage.filename,
+                                          "- switching to placeholder"
+                                        );
 
-                                    // Smart fallback logic
-                                    const currentSrc = (
-                                      e.target as HTMLImageElement
-                                    ).src;
+                                        (e.target as HTMLImageElement).src =
+                                          "/api/placeholder-image";
+                                      }}
+                                    />
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="flex space-x-1">
+                                        <button
+                                          onClick={() =>
+                                            downloadDatabaseImage(dbImage)
+                                          }
+                                          className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                          title={`Download ${dbImage.filename} (${
+                                            dbImage.fileSize
+                                              ? `${Math.round(
+                                                  dbImage.fileSize / 1024
+                                                )}KB`
+                                              : "Unknown size"
+                                          })`}
+                                        >
+                                          <Download className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => shareImage(dbImage)}
+                                          className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                        >
+                                          <Share2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </div>
 
-                                    if (
-                                      currentSrc === dbImage.dataUrl &&
-                                      dbImage.url
-                                    ) {
-                                      console.log(
-                                        "Falling back to ComfyUI URL"
-                                      );
-                                      (e.target as HTMLImageElement).src =
-                                        dbImage.url;
-                                    } else if (
-                                      currentSrc === dbImage.url &&
-                                      dbImage.dataUrl
-                                    ) {
-                                      console.log(
-                                        "Falling back to database URL"
-                                      );
-                                      (e.target as HTMLImageElement).src =
-                                        dbImage.dataUrl;
-                                    } else {
-                                      console.error(
-                                        "All URLs failed for:",
-                                        dbImage.filename
-                                      );
-                                      (
-                                        e.target as HTMLImageElement
-                                      ).style.display = "none";
-                                    }
-                                  }}
-                                />
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <div className="flex space-x-1">
-                                    <button
-                                      onClick={() =>
-                                        downloadDatabaseImage(dbImage)
-                                      }
-                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                      title={`Download ${dbImage.filename}`}
-                                    >
-                                      <Download className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => shareImage(dbImage)}
-                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                    >
-                                      <Share2 className="w-4 h-4" />
-                                    </button>
+                                    {/* Image metadata */}
+                                    <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                        {dbImage.width && dbImage.height
+                                          ? `${dbImage.width}×${dbImage.height}`
+                                          : "Unknown size"}
+                                        {dbImage.fileSize &&
+                                          ` • ${Math.round(
+                                            dbImage.fileSize / 1024
+                                          )}KB`}
+                                        {dbImage.format &&
+                                          ` • ${dbImage.format.toUpperCase()}`}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Image number indicator */}
+                                    <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                      {index + 1}
+                                    </div>
+                                  </>
+                                ) : (
+                                  // Image is still being processed
+                                  <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg flex flex-col items-center justify-center">
+                                    <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center px-2">
+                                      Image {index + 1}<br />
+                                      Processing...
+                                    </p>
                                   </div>
-                                </div>
-
-                                {/* Image metadata */}
-                                <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                    {dbImage.width && dbImage.height
-                                      ? `${dbImage.width}×${dbImage.height}`
-                                      : "Unknown size"}
-                                    {dbImage.fileSize &&
-                                      ` • ${Math.round(
-                                        dbImage.fileSize / 1024
-                                      )}KB`}
-                                    {dbImage.format &&
-                                      ` • ${dbImage.format.toUpperCase()}`}
-                                  </div>
-                                </div>
+                                )}
                               </div>
                             ))
-                          : // Fallback to legacy URLs if no database images
-                            currentJob.resultUrls &&
-                            currentJob.resultUrls.length > 0 &&
-                            currentJob.resultUrls.map((url, index) => (
-                              <div
-                                key={`legacy-${currentJob.id}-${index}`}
-                                className="relative group"
-                              >
-                                <img
-                                  src={url}
-                                  alt={`Style transfer result ${index + 1}`}
-                                  className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                  onError={(e) => {
-                                    console.error(
-                                      "Legacy image load error:",
-                                      url
-                                    );
-                                    (
-                                      e.target as HTMLImageElement
-                                    ).style.display = "none";
-                                  }}
-                                />
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <div className="flex space-x-1">
-                                    <button
-                                      onClick={() =>
-                                        downloadFromUrl(
-                                          url,
-                                          `style-transfer-${index + 1}.png`
-                                        )
-                                      }
-                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                    >
-                                      <Download className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(url);
-                                        alert("Image URL copied to clipboard!");
-                                      }}
-                                      className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                    >
-                                      <Share2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
+                        ) : // Check if there are images without data (still processing)
+                        jobImages[currentJob.id] &&
+                          jobImages[currentJob.id].length > 0 &&
+                          jobImages[currentJob.id].some((img) => !img.dataUrl) ? (
+                          <div className="text-center py-8">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full mb-4">
+                              <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                            <p className="text-gray-600 dark:text-gray-400 mb-2">
+                              Style transfer images are being processed...
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-500">
+                              {
+                                jobImages[currentJob.id].filter(
+                                  (img) => !img.dataUrl
+                                ).length
+                              }{" "}
+                              image(s) saving to database
+                            </p>
+                            <button
+                              onClick={() =>
+                                currentJob.id && fetchJobImages(currentJob.id)
+                              }
+                              className="mt-4 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 transition-colors"
+                            >
+                              Check Again
+                            </button>
+                          </div>
+                        ) : (
+                          // Fallback to legacy URLs if no database images
+                          currentJob.resultUrls &&
+                          currentJob.resultUrls.length > 0 &&
+                          currentJob.resultUrls.map((url, index) => (
+                            <div
+                              key={`legacy-${currentJob.id}-${index}`}
+                              className="relative group"
+                            >
+                              <img
+                                src={url}
+                                alt={`Style transfer result ${index + 1}`}
+                                className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
+                                onError={(e) => {
+                                  console.error("Legacy image load error:", url);
+                                  (e.target as HTMLImageElement).style.display =
+                                    "none";
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadFromUrl(
+                                        url,
+                                        `style-transfer-${index + 1}.png`
+                                      )
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(url);
+                                      alert("Image URL copied to clipboard!");
+                                    }}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
                                 </div>
                               </div>
-                            ))}
+                              
+                              {/* Image number indicator for legacy images */}
+                              <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                {index + 1}
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
                   )}
 
-                  {currentJob.error && (
+                  {currentJob.error && !isJobCancelled(currentJob) && (
                     <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                       <p className="text-sm text-red-600 dark:text-red-400">
                         {currentJob.error}
                       </p>
                     </div>
+                  )}
+
+                  {/* Cancel Button */}
+                  {isGenerating && (currentJob.status === "pending" || currentJob.status === "processing") && (
+                    <button
+                      onClick={cancelGeneration}
+                      className="w-full py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2 mt-4"
+                    >
+                      <XCircle className="w-5 h-5" />
+                      <span>Cancel Style Transfer</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -1744,7 +2622,7 @@ export default function StyleTransferPage() {
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {jobHistory
                     .filter((job) => job && job.id)
-                    .slice(0, 10)
+                    .slice(0, 5) // Show only 5 most recent jobs
                     .map((job, index) => (
                       <div
                         key={job.id || `job-${index}`}
@@ -1754,8 +2632,11 @@ export default function StyleTransferPage() {
                           {job.status === "completed" && (
                             <CheckCircle className="w-4 h-4 text-green-500" />
                           )}
-                          {job.status === "failed" && (
+                          {job.status === "failed" && !isJobCancelled(job) && (
                             <AlertCircle className="w-4 h-4 text-red-500" />
+                          )}
+                          {job.status === "failed" && isJobCancelled(job) && (
+                            <XCircle className="w-4 h-4 text-orange-500" />
                           )}
                           {(job.status === "pending" ||
                             job.status === "processing") && (
@@ -1766,7 +2647,9 @@ export default function StyleTransferPage() {
                               {formatJobTime(job.createdAt)}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                              {job.status || "unknown"}
+                              {job.status === "failed" && isJobCancelled(job)
+                                ? "cancelled"
+                                : job.status || "unknown"}
                             </p>
                           </div>
                         </div>
