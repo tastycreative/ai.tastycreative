@@ -17,6 +17,7 @@ import {
   Sparkles,
   Copy,
   RefreshCw,
+  ArrowRightLeft,
   Eye,
   EyeOff,
   Layers,
@@ -71,7 +72,7 @@ interface DatabaseImage {
   width?: number;
   height?: number;
   format?: string;
-  url?: string; // Dynamically constructed ComfyUI URL
+  url?: string | null; // Dynamically constructed ComfyUI URL (can be null for serverless)
   dataUrl?: string; // Database-served image URL
   createdAt: Date | string;
 }
@@ -219,6 +220,16 @@ export default function SkinEnhancerPage() {
     {}
   );
   const [imageStats, setImageStats] = useState<any>(null);
+
+  // Comparison states
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonImages, setComparisonImages] = useState<{
+    initial?: DatabaseImage;
+    final?: DatabaseImage;
+  }>({});
+  const [comparisonMode, setComparisonMode] = useState<
+    "split" | "overlay" | "toggle"
+  >("split");
 
   // Helper function to determine if a failed job was actually cancelled
   const isJobCancelled = (job: GenerationJob) => {
@@ -650,13 +661,21 @@ export default function SkinEnhancerPage() {
         );
 
         if (initialImage && finalImage) {
-          console.log("🔄 Found initial and final images:", {
+          setComparisonImages({
+            initial: initialImage,
+            final: finalImage,
+          });
+          console.log("🔄 Set up two-way comparison images:", {
             initial: initialImage.filename,
             final: finalImage.filename,
           });
         } else if (data.images.length >= 2) {
           // Fallback: use first and last images
-          console.log("🔄 Found comparison images (fallback):", {
+          setComparisonImages({
+            initial: data.images[0],
+            final: data.images[data.images.length - 1],
+          });
+          console.log("🔄 Set up two-way comparison images (fallback):", {
             initial: data.images[0].filename,
             final: data.images[data.images.length - 1].filename,
           });
@@ -1525,6 +1544,210 @@ export default function SkinEnhancerPage() {
   };
 
   // Skin Comparison Component - Two-way comparison
+  const SkinComparisonViewer = ({
+    initial,
+    final,
+  }: {
+    initial: DatabaseImage;
+    final: DatabaseImage;
+  }) => {
+    const [sliderPosition, setSliderPosition] = useState(50);
+    const [toggleState, setToggleState] = useState<"initial" | "final">(
+      "initial"
+    );
+
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+            <ArrowRightLeft className="w-5 h-5" />
+            <span>Before & After Comparison</span>
+          </h3>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setComparisonMode("split")}
+              className={`px-3 py-1 text-xs rounded ${
+                comparisonMode === "split"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+              }`}
+            >
+              Split
+            </button>
+            <button
+              onClick={() => setComparisonMode("overlay")}
+              className={`px-3 py-1 text-xs rounded ${
+                comparisonMode === "overlay"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+              }`}
+            >
+              Overlay
+            </button>
+            <button
+              onClick={() => setComparisonMode("toggle")}
+              className={`px-3 py-1 text-xs rounded ${
+                comparisonMode === "toggle"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+              }`}
+            >
+              Toggle
+            </button>
+          </div>
+        </div>
+
+        {comparisonMode === "split" && (
+          <div className="relative w-full max-w-4xl mx-auto">
+            <div className="relative overflow-hidden rounded-lg">
+              <div className="flex divide-x-2 divide-white">
+                <div className="w-1/2 relative">
+                  <img
+                    src={(initial.dataUrl || initial.url) || ''}
+                    alt="Before enhancement"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-2 left-2 bg-blue-500 text-white px-2 py-1 rounded text-xs">
+                    Before
+                  </div>
+                </div>
+                <div className="w-1/2 relative">
+                  <img
+                    src={(final.dataUrl || final.url) || ''}
+                    alt="After enhancement"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+                    After
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {comparisonMode === "overlay" && (
+          <div className="relative w-full max-w-2xl mx-auto">
+            <div
+              className="relative overflow-hidden rounded-lg"
+              style={{ aspectRatio: "1" }}
+            >
+              {/* Final image (background) */}
+              <img
+                src={(final.dataUrl || final.url) || ''}
+                alt="After enhancement"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              {/* Initial image with clip-path */}
+              <img
+                src={(initial.dataUrl || initial.url) || ''}
+                alt="Before enhancement"
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{
+                  clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
+                }}
+              />
+              {/* Slider line */}
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
+                style={{ left: `${sliderPosition}%` }}
+              />
+              {/* Labels */}
+              <div className="absolute top-2 left-2 bg-blue-500 text-white px-2 py-1 rounded text-xs">
+                Before
+              </div>
+              <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs">
+                After
+              </div>
+            </div>
+            {/* Slider control */}
+            <div className="mt-4">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={sliderPosition}
+                onChange={(e) => setSliderPosition(Number(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Before</span>
+                <span>After</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {comparisonMode === "toggle" && (
+          <div className="relative w-full max-w-2xl mx-auto">
+            <div className="relative overflow-hidden rounded-lg">
+              <img
+                src={
+                  toggleState === "initial"
+                    ? (initial.dataUrl || initial.url) || ''
+                    : (final.dataUrl || final.url) || ''
+                }
+                alt={`${
+                  toggleState === "initial" ? "Before" : "After"
+                } enhancement`}
+                className="w-full rounded-lg"
+              />
+              <div
+                className={`absolute top-2 left-2 px-2 py-1 rounded text-xs text-white ${
+                  toggleState === "initial" ? "bg-blue-500" : "bg-green-500"
+                }`}
+              >
+                {toggleState === "initial" ? "Before" : "After"}
+              </div>
+            </div>
+            <div className="mt-4 flex justify-center space-x-2">
+              <button
+                onClick={() => setToggleState("initial")}
+                className={`px-3 py-2 rounded-lg flex items-center space-x-1 text-sm ${
+                  toggleState === "initial"
+                    ? "bg-blue-500 text-white"
+                    : "bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                <span>Before</span>
+              </button>
+              <button
+                onClick={() => setToggleState("final")}
+                className={`px-3 py-2 rounded-lg flex items-center space-x-1 text-sm ${
+                  toggleState === "final"
+                    ? "bg-green-500 text-white"
+                    : "bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/30"
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                <span>After</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Download buttons */}
+        <div className="mt-4 flex justify-center space-x-2">
+          <button
+            onClick={() => downloadDatabaseImage(initial)}
+            className="px-3 py-2 bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/30 flex items-center space-x-1 text-sm"
+          >
+            <Download className="w-4 h-4" />
+            <span>Before</span>
+          </button>
+          <button
+            onClick={() => downloadDatabaseImage(final)}
+            className="px-3 py-2 bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/30 flex items-center space-x-1 text-sm"
+          >
+            <Download className="w-4 h-4" />
+            <span>After</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // Show loading state while API client initializes
   if (!apiClient) {
     return (
@@ -1968,234 +2191,168 @@ export default function SkinEnhancerPage() {
                 {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
                   (jobImages[currentJob.id] &&
                     jobImages[currentJob.id].length > 0)) && (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Enhanced Images
                       </h4>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
-                        {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
-                          ? `${jobImages[currentJob.id].length} image${jobImages[currentJob.id].length > 1 ? 's' : ''}`
-                          : currentJob.resultUrls && currentJob.resultUrls.length > 0
-                          ? `${currentJob.resultUrls.length} image${currentJob.resultUrls.length > 1 ? 's' : ''}`
-                          : '0 images'
-                        }
-                      </div>
+                      {comparisonImages.initial && comparisonImages.final && (
+                        <button
+                          onClick={() => setShowComparison(!showComparison)}
+                          className="px-3 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/30 flex items-center space-x-1 text-sm"
+                        >
+                          <ArrowRightLeft className="w-4 h-4" />
+                          <span>
+                            {showComparison ? "Hide" : "Show"} Two-Way
+                            Comparison
+                          </span>
+                        </button>
+                      )}
                     </div>
 
-                    <div className={`grid gap-3 ${
-                      // Dynamic grid based on number of images
-                      jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
-                        ? jobImages[currentJob.id].length === 1 
-                          ? 'grid-cols-1' 
-                          : jobImages[currentJob.id].length === 2 
-                          ? 'grid-cols-2' 
-                          : jobImages[currentJob.id].length <= 4 
-                          ? 'grid-cols-2' 
-                          : 'grid-cols-3'
-                        : currentJob.resultUrls && currentJob.resultUrls.length > 0
-                        ? currentJob.resultUrls.length === 1 
-                          ? 'grid-cols-1' 
-                          : currentJob.resultUrls.length === 2 
-                          ? 'grid-cols-2' 
-                          : currentJob.resultUrls.length <= 4 
-                          ? 'grid-cols-2' 
-                          : 'grid-cols-3'
-                        : 'grid-cols-1'
-                    }`}>
+                    {/* Show comparison if enabled */}
+                    {showComparison &&
+                      comparisonImages.initial &&
+                      comparisonImages.final && (
+                        <SkinComparisonViewer
+                          initial={comparisonImages.initial}
+                          final={comparisonImages.final}
+                        />
+                      )}
+
+                    <div className="grid grid-cols-1 gap-3">
                       {/* Show database images if available */}
                       {jobImages[currentJob.id] &&
-                      jobImages[currentJob.id].length > 0 ? (
-                        // Database images with dynamic URLs - show all images, including those being processed
-                        jobImages[currentJob.id]
-                          .map((dbImage, index) => (
+                      jobImages[currentJob.id].length > 0
+                        ? // Database images with dynamic URLs
+                          jobImages[currentJob.id].map((dbImage, index) => (
                             <div
                               key={`db-${dbImage.id}`}
                               className="relative group"
                             >
-                              {dbImage.dataUrl ? (
-                                // Image is ready to display
-                                <>
-                                  <img
-                                    src={dbImage.dataUrl || dbImage.url}
-                                    alt={`Enhanced image ${index + 1}`}
-                                    className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
-                                    onError={(e) => {
-                                      console.error(
-                                        "Image load error for:",
-                                        dbImage.filename
-                                      );
+                              <img
+                                src={(dbImage.dataUrl || dbImage.url) || ''}
+                                alt={`Enhanced image ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                onError={(e) => {
+                                  console.error(
+                                    "Image load error for:",
+                                    dbImage.filename
+                                  );
 
-                                      // Smart fallback logic
-                                      const currentSrc = (
-                                        e.target as HTMLImageElement
-                                      ).src;
+                                  // Smart fallback logic
+                                  const currentSrc = (
+                                    e.target as HTMLImageElement
+                                  ).src;
 
-                                      if (
-                                        currentSrc === dbImage.dataUrl &&
-                                        dbImage.url
-                                      ) {
-                                        console.log("Falling back to ComfyUI URL");
-                                        (e.target as HTMLImageElement).src =
-                                          dbImage.url;
-                                      } else if (
-                                        currentSrc === dbImage.url &&
-                                        dbImage.dataUrl
-                                      ) {
-                                        console.log("Falling back to database URL");
-                                        (e.target as HTMLImageElement).src =
-                                          dbImage.dataUrl;
-                                      } else {
-                                        console.error(
-                                          "All URLs failed for:",
-                                          dbImage.filename
-                                        );
-                                        (
-                                          e.target as HTMLImageElement
-                                        ).style.display = "none";
-                                      }
-                                    }}
-                                  />
-                                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <div className="flex space-x-1">
-                                      <button
-                                        onClick={() =>
-                                          downloadDatabaseImage(dbImage)
-                                        }
-                                        className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                        title={`Download ${dbImage.filename} (${
-                                          dbImage.fileSize
-                                            ? `${Math.round(
-                                                dbImage.fileSize / 1024
-                                              )}KB`
-                                            : "Unknown size"
-                                        })`}
-                                      >
-                                        <Download className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => shareImage(dbImage)}
-                                        className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                      >
-                                        <Share2 className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {/* Image metadata */}
-                                  <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                      {dbImage.width && dbImage.height
-                                        ? `${dbImage.width}×${dbImage.height}`
-                                        : "Unknown size"}
-                                      {dbImage.fileSize &&
-                                        ` • ${Math.round(
-                                          dbImage.fileSize / 1024
-                                        )}KB`}
-                                      {dbImage.format &&
-                                        ` • ${dbImage.format.toUpperCase()}`}
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Image number indicator */}
-                                  <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                    {index + 1}
-                                  </div>
-                                </>
-                              ) : (
-                                // Image is still being processed
-                                <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg flex flex-col items-center justify-center">
-                                  <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center px-2">
-                                    Image {index + 1}<br />
-                                    Processing...
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          ))
-                      ) : // Check if there are images without data (still processing)
-                      jobImages[currentJob.id] &&
-                        jobImages[currentJob.id].length > 0 &&
-                        jobImages[currentJob.id].some((img) => !img.dataUrl) ? (
-                        <div className="text-center py-8">
-                          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 dark:bg-emerald-900 rounded-full mb-4">
-                            <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-                          </div>
-                          <p className="text-gray-600 dark:text-gray-400 mb-2">
-                            Images are being processed...
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-500">
-                            {
-                              jobImages[currentJob.id].filter(
-                                (img) => !img.dataUrl
-                              ).length
-                            }{" "}
-                            image(s) saving to database
-                          </p>
-                          <button
-                            onClick={() =>
-                              currentJob.id && fetchJobImages(currentJob.id)
-                            }
-                            className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 transition-colors"
-                          >
-                            Check Again
-                          </button>
-                        </div>
-                      ) : // Fallback to legacy URLs if no database images
-                        currentJob.resultUrls &&
-                        currentJob.resultUrls.length > 0 &&
-                        currentJob.resultUrls.map((url, index) => (
-                          <div
-                            key={`legacy-${currentJob.id}-${index}`}
-                            className="relative group"
-                          >
-                            <img
-                              src={url}
-                              alt={`Enhanced image ${index + 1}`}
-                              className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
-                              onError={(e) => {
-                                console.error(
-                                  "Legacy image load error:",
-                                  url
-                                );
-                                (e.target as HTMLImageElement).style.display =
-                                  "none";
-                              }}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <div className="flex space-x-1">
-                                <button
-                                  onClick={() =>
-                                    downloadFromUrl(
-                                      url,
-                                      `enhanced-image-${index + 1}.png`
-                                    )
+                                  if (
+                                    currentSrc === dbImage.dataUrl &&
+                                    dbImage.url
+                                  ) {
+                                    console.log("Falling back to ComfyUI URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.url;
+                                  } else if (
+                                    currentSrc === dbImage.url &&
+                                    dbImage.dataUrl
+                                  ) {
+                                    console.log("Falling back to database URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.dataUrl;
+                                  } else {
+                                    console.error(
+                                      "All URLs failed for:",
+                                      dbImage.filename
+                                    );
+                                    (
+                                      e.target as HTMLImageElement
+                                    ).style.display = "none";
                                   }
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  title={`Download enhanced image ${index + 1}`}
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(url);
-                                    alert("Image URL copied to clipboard!");
-                                  }}
-                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadDatabaseImage(dbImage)
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    title={`Download ${dbImage.filename}`}
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => shareImage(dbImage)}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Image metadata */}
+                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                  {dbImage.width && dbImage.height
+                                    ? `${dbImage.width}×${dbImage.height}`
+                                    : "Unknown size"}
+                                  {dbImage.fileSize &&
+                                    ` • ${Math.round(
+                                      dbImage.fileSize / 1024
+                                    )}KB`}
+                                  {dbImage.format &&
+                                    ` • ${dbImage.format.toUpperCase()}`}
+                                </div>
                               </div>
                             </div>
-                            
-                            {/* Image number indicator */}
-                            <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                              {index + 1}
+                          ))
+                        : // Fallback to legacy URLs if no database images
+                          currentJob.resultUrls &&
+                          currentJob.resultUrls.length > 0 &&
+                          currentJob.resultUrls.map((url, index) => (
+                            <div
+                              key={`legacy-${currentJob.id}-${index}`}
+                              className="relative group"
+                            >
+                              <img
+                                src={url}
+                                alt={`Enhanced image ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                onError={(e) => {
+                                  console.error(
+                                    "Legacy image load error:",
+                                    url
+                                  );
+                                  (e.target as HTMLImageElement).style.display =
+                                    "none";
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex space-x-1">
+                                  <button
+                                    onClick={() =>
+                                      downloadFromUrl(
+                                        url,
+                                        `enhanced-image-${index + 1}.png`
+                                      )
+                                    }
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(url);
+                                      alert("Image URL copied to clipboard!");
+                                    }}
+                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))
-                      }
+                          ))}
                     </div>
                   </div>
                 )}
