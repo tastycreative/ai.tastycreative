@@ -1969,116 +1969,202 @@ export default function SkinEnhancerPage() {
                   (jobImages[currentJob.id] &&
                     jobImages[currentJob.id].length > 0)) && (
                   <div className="space-y-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-gradient-to-br from-emerald-100 to-green-100 dark:from-emerald-900/30 dark:to-green-900/30 rounded-lg">
-                        <Eye className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                      </div>
-                      <div>
-                        <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                          Enhanced Images
-                        </h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Your AI-enhanced skin perfection results
-                        </p>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Enhanced Images
+                      </h4>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                        {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
+                          ? `${jobImages[currentJob.id].length} image${jobImages[currentJob.id].length > 1 ? 's' : ''}`
+                          : currentJob.resultUrls && currentJob.resultUrls.length > 0
+                          ? `${currentJob.resultUrls.length} image${currentJob.resultUrls.length > 1 ? 's' : ''}`
+                          : '0 images'
+                        }
                       </div>
                     </div>
 
-                    {/* Simple Grid Layout based on batch size */}
-                    <div className={`grid gap-4 ${
-                      jobImages[currentJob.id]?.length === 1 
-                        ? 'grid-cols-1 max-w-md mx-auto'
-                        : jobImages[currentJob.id]?.length === 2 
-                        ? 'grid-cols-1 sm:grid-cols-2'
-                        : jobImages[currentJob.id]?.length === 3
-                        ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-                        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                    <div className={`grid gap-3 ${
+                      // Dynamic grid based on number of images
+                      jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
+                        ? jobImages[currentJob.id].length === 1 
+                          ? 'grid-cols-1' 
+                          : jobImages[currentJob.id].length === 2 
+                          ? 'grid-cols-2' 
+                          : jobImages[currentJob.id].length <= 4 
+                          ? 'grid-cols-2' 
+                          : 'grid-cols-3'
+                        : currentJob.resultUrls && currentJob.resultUrls.length > 0
+                        ? currentJob.resultUrls.length === 1 
+                          ? 'grid-cols-1' 
+                          : currentJob.resultUrls.length === 2 
+                          ? 'grid-cols-2' 
+                          : currentJob.resultUrls.length <= 4 
+                          ? 'grid-cols-2' 
+                          : 'grid-cols-3'
+                        : 'grid-cols-1'
                     }`}>
                       {/* Show database images if available */}
                       {jobImages[currentJob.id] &&
-                      jobImages[currentJob.id].length > 0
-                        ? // Database images with dynamic URLs
-                          jobImages[currentJob.id].map((dbImage, index) => (
+                      jobImages[currentJob.id].length > 0 ? (
+                        // Database images with dynamic URLs - show all images, including those being processed
+                        jobImages[currentJob.id]
+                          .map((dbImage, index) => (
                             <div
                               key={`db-${dbImage.id}`}
-                              className="group relative rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
+                              className="relative group"
                             >
-                              <img
-                                src={dbImage.dataUrl || dbImage.url}
-                                alt={`Enhanced image ${index + 1}`}
-                                className="w-full h-auto object-cover"
-                                onError={(e) => {
-                                  console.error(
-                                    "Image load error for:",
-                                    dbImage.filename
-                                  );
+                              {dbImage.dataUrl ? (
+                                // Image is ready to display
+                                <>
+                                  <img
+                                    src={dbImage.dataUrl || dbImage.url}
+                                    alt={`Enhanced image ${index + 1}`}
+                                    className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
+                                    onError={(e) => {
+                                      console.error(
+                                        "Image load error for:",
+                                        dbImage.filename
+                                      );
 
-                                  // Smart fallback logic
-                                  const currentSrc = (
-                                    e.target as HTMLImageElement
-                                  ).src;
+                                      // Smart fallback logic
+                                      const currentSrc = (
+                                        e.target as HTMLImageElement
+                                      ).src;
 
-                                  if (
-                                    currentSrc === dbImage.dataUrl &&
-                                    dbImage.url
-                                  ) {
-                                    console.log("Falling back to ComfyUI URL");
-                                    (e.target as HTMLImageElement).src =
-                                      dbImage.url;
-                                  } else if (
-                                    currentSrc === dbImage.url &&
-                                    dbImage.dataUrl
-                                  ) {
-                                    console.log("Falling back to database URL");
-                                    (e.target as HTMLImageElement).src =
-                                      dbImage.dataUrl;
-                                  } else {
-                                    console.error(
-                                      "All URLs failed for:",
-                                      dbImage.filename
-                                    );
-                                    (
-                                      e.target as HTMLImageElement
-                                    ).style.display = "none";
-                                  }
-                                }}
-                              />
-                              
-                              {/* Simple hover overlay with download button */}
-                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-                                <button
-                                  onClick={() => downloadDatabaseImage(dbImage)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-3 bg-white rounded-full shadow-lg hover:shadow-xl"
-                                  title={`Download ${dbImage.filename}`}
-                                >
-                                  <Download className="w-5 h-5 text-gray-700" />
-                                </button>
-                              </div>
+                                      if (
+                                        currentSrc === dbImage.dataUrl &&
+                                        dbImage.url
+                                      ) {
+                                        console.log("Falling back to ComfyUI URL");
+                                        (e.target as HTMLImageElement).src =
+                                          dbImage.url;
+                                      } else if (
+                                        currentSrc === dbImage.url &&
+                                        dbImage.dataUrl
+                                      ) {
+                                        console.log("Falling back to database URL");
+                                        (e.target as HTMLImageElement).src =
+                                          dbImage.dataUrl;
+                                      } else {
+                                        console.error(
+                                          "All URLs failed for:",
+                                          dbImage.filename
+                                        );
+                                        (
+                                          e.target as HTMLImageElement
+                                        ).style.display = "none";
+                                      }
+                                    }}
+                                  />
+                                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex space-x-1">
+                                      <button
+                                        onClick={() =>
+                                          downloadDatabaseImage(dbImage)
+                                        }
+                                        className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                        title={`Download ${dbImage.filename} (${
+                                          dbImage.fileSize
+                                            ? `${Math.round(
+                                                dbImage.fileSize / 1024
+                                              )}KB`
+                                            : "Unknown size"
+                                        })`}
+                                      >
+                                        <Download className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => shareImage(dbImage)}
+                                        className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                      >
+                                        <Share2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Image metadata */}
+                                  <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                      {dbImage.width && dbImage.height
+                                        ? `${dbImage.width}×${dbImage.height}`
+                                        : "Unknown size"}
+                                      {dbImage.fileSize &&
+                                        ` • ${Math.round(
+                                          dbImage.fileSize / 1024
+                                        )}KB`}
+                                      {dbImage.format &&
+                                        ` • ${dbImage.format.toUpperCase()}`}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Image number indicator */}
+                                  <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                    {index + 1}
+                                  </div>
+                                </>
+                              ) : (
+                                // Image is still being processed
+                                <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg flex flex-col items-center justify-center">
+                                  <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center px-2">
+                                    Image {index + 1}<br />
+                                    Processing...
+                                  </p>
+                                </div>
+                              )}
                             </div>
                           ))
-                        : // Fallback to legacy URLs if no database images
-                          currentJob.resultUrls &&
-                          currentJob.resultUrls.length > 0 &&
-                          currentJob.resultUrls.map((url, index) => (
-                            <div
-                              key={`legacy-${currentJob.id}-${index}`}
-                              className="group relative rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
-                            >
-                              <img
-                                src={url}
-                                alt={`Enhanced image ${index + 1}`}
-                                className="w-full h-auto object-cover"
-                                onError={(e) => {
-                                  console.error(
-                                    "Legacy image load error:",
-                                    url
-                                  );
-                                  (e.target as HTMLImageElement).style.display =
-                                    "none";
-                                }}
-                              />
-                              
-                              {/* Simple hover overlay with download button */}
-                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                      ) : // Check if there are images without data (still processing)
+                      jobImages[currentJob.id] &&
+                        jobImages[currentJob.id].length > 0 &&
+                        jobImages[currentJob.id].some((img) => !img.dataUrl) ? (
+                        <div className="text-center py-8">
+                          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 dark:bg-emerald-900 rounded-full mb-4">
+                            <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                          </div>
+                          <p className="text-gray-600 dark:text-gray-400 mb-2">
+                            Images are being processed...
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-500">
+                            {
+                              jobImages[currentJob.id].filter(
+                                (img) => !img.dataUrl
+                              ).length
+                            }{" "}
+                            image(s) saving to database
+                          </p>
+                          <button
+                            onClick={() =>
+                              currentJob.id && fetchJobImages(currentJob.id)
+                            }
+                            className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 transition-colors"
+                          >
+                            Check Again
+                          </button>
+                        </div>
+                      ) : // Fallback to legacy URLs if no database images
+                        currentJob.resultUrls &&
+                        currentJob.resultUrls.length > 0 &&
+                        currentJob.resultUrls.map((url, index) => (
+                          <div
+                            key={`legacy-${currentJob.id}-${index}`}
+                            className="relative group"
+                          >
+                            <img
+                              src={url}
+                              alt={`Enhanced image ${index + 1}`}
+                              className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
+                              onError={(e) => {
+                                console.error(
+                                  "Legacy image load error:",
+                                  url
+                                );
+                                (e.target as HTMLImageElement).style.display =
+                                  "none";
+                              }}
+                            />
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex space-x-1">
                                 <button
                                   onClick={() =>
                                     downloadFromUrl(
@@ -2086,14 +2172,29 @@ export default function SkinEnhancerPage() {
                                       `enhanced-image-${index + 1}.png`
                                     )
                                   }
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-3 bg-white rounded-full shadow-lg hover:shadow-xl"
+                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
                                   title={`Download enhanced image ${index + 1}`}
                                 >
-                                  <Download className="w-5 h-5 text-gray-700" />
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(url);
+                                    alert("Image URL copied to clipboard!");
+                                  }}
+                                  className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                >
+                                  <Share2 className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
-                          ))
+                            
+                            {/* Image number indicator */}
+                            <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                              {index + 1}
+                            </div>
+                          </div>
+                        ))
                       }
                     </div>
                   </div>
