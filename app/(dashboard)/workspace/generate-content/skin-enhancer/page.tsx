@@ -17,7 +17,6 @@ import {
   Sparkles,
   Copy,
   RefreshCw,
-  ArrowRightLeft,
   Eye,
   EyeOff,
   Layers,
@@ -220,16 +219,6 @@ export default function SkinEnhancerPage() {
     {}
   );
   const [imageStats, setImageStats] = useState<any>(null);
-
-  // Comparison states
-  const [showComparison, setShowComparison] = useState(false);
-  const [comparisonImages, setComparisonImages] = useState<{
-    initial?: DatabaseImage;
-    final?: DatabaseImage;
-  }>({});
-  const [comparisonMode, setComparisonMode] = useState<
-    "split" | "overlay" | "toggle"
-  >("split");
 
   // Helper function to determine if a failed job was actually cancelled
   const isJobCancelled = (job: GenerationJob) => {
@@ -661,21 +650,13 @@ export default function SkinEnhancerPage() {
         );
 
         if (initialImage && finalImage) {
-          setComparisonImages({
-            initial: initialImage,
-            final: finalImage,
-          });
-          console.log("🔄 Set up two-way comparison images:", {
+          console.log("🔄 Found initial and final images:", {
             initial: initialImage.filename,
             final: finalImage.filename,
           });
         } else if (data.images.length >= 2) {
           // Fallback: use first and last images
-          setComparisonImages({
-            initial: data.images[0],
-            final: data.images[data.images.length - 1],
-          });
-          console.log("🔄 Set up two-way comparison images (fallback):", {
+          console.log("🔄 Found comparison images (fallback):", {
             initial: data.images[0].filename,
             final: data.images[data.images.length - 1].filename,
           });
@@ -1544,343 +1525,6 @@ export default function SkinEnhancerPage() {
   };
 
   // Skin Comparison Component - Two-way comparison
-  const SkinComparisonViewer = ({
-    initial,
-    final,
-  }: {
-    initial: DatabaseImage;
-    final: DatabaseImage;
-  }) => {
-    const [sliderPosition, setSliderPosition] = useState(50);
-    const [toggleState, setToggleState] = useState<"initial" | "final">(
-      "initial"
-    );
-
-    return (
-      <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-gray-800 dark:via-gray-850 dark:to-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8">
-        {/* Enhanced Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 space-y-4 sm:space-y-0">
-          <div className="flex items-center space-x-3">
-            <div className="p-3 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl shadow-lg">
-              <ArrowRightLeft className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                Before & After Comparison
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                See the AI enhancement results side by side
-              </p>
-            </div>
-          </div>
-          
-          {/* View Mode Selector */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-xl p-1 space-x-1">
-            <button
-              onClick={() => setComparisonMode("split")}
-              className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
-                comparisonMode === "split"
-                  ? "bg-emerald-500 text-white shadow-md"
-                  : "text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-              }`}
-            >
-              Split View
-            </button>
-            <button
-              onClick={() => setComparisonMode("overlay")}
-              className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
-                comparisonMode === "overlay"
-                  ? "bg-emerald-500 text-white shadow-md"
-                  : "text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-              }`}
-            >
-              Overlay
-            </button>
-            <button
-              onClick={() => setComparisonMode("toggle")}
-              className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
-                comparisonMode === "toggle"
-                  ? "bg-emerald-500 text-white shadow-md"
-                  : "text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-              }`}
-            >
-              Toggle
-            </button>
-          </div>
-        </div>
-
-        {/* Enhanced Split View */}
-        {comparisonMode === "split" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Before Image */}
-              <div className="group">
-                <div className="relative overflow-hidden rounded-2xl shadow-lg bg-gray-100 dark:bg-gray-700">
-                  <img
-                    src={initial.dataUrl || initial.url}
-                    alt="Before enhancement"
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="absolute top-4 left-4 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-white rounded-full" />
-                      <span>Original</span>
-                    </div>
-                  </div>
-                  
-                  {/* Download Button */}
-                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <button
-                      onClick={() => downloadDatabaseImage(initial)}
-                      className="p-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg hover:bg-white dark:hover:bg-gray-800 transition-all duration-200"
-                      title="Download original image"
-                    >
-                      <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Image Info */}
-                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
-                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Original Image</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-blue-600 dark:text-blue-400">Dimensions:</span>
-                      <p className="font-medium text-blue-900 dark:text-blue-100">
-                        {initial.width && initial.height
-                          ? `${initial.width}×${initial.height}`
-                          : "Unknown"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-blue-600 dark:text-blue-400">File Size:</span>
-                      <p className="font-medium text-blue-900 dark:text-blue-100">
-                        {initial.fileSize
-                          ? `${Math.round(initial.fileSize / 1024)} KB`
-                          : "Unknown"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* After Image */}
-              <div className="group">
-                <div className="relative overflow-hidden rounded-2xl shadow-lg bg-gray-100 dark:bg-gray-700">
-                  <img
-                    src={final.dataUrl || final.url}
-                    alt="After enhancement"
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="absolute top-4 left-4 bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                      <span>Enhanced</span>
-                    </div>
-                  </div>
-                  
-                  {/* Download Button */}
-                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <button
-                      onClick={() => downloadDatabaseImage(final)}
-                      className="p-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg hover:bg-white dark:hover:bg-gray-800 transition-all duration-200"
-                      title="Download enhanced image"
-                    >
-                      <Download className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Image Info */}
-                <div className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
-                  <h4 className="font-semibold text-emerald-900 dark:text-emerald-100 mb-2">Enhanced Image</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-emerald-600 dark:text-emerald-400">Dimensions:</span>
-                      <p className="font-medium text-emerald-900 dark:text-emerald-100">
-                        {final.width && final.height
-                          ? `${final.width}×${final.height}`
-                          : "Unknown"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-emerald-600 dark:text-emerald-400">File Size:</span>
-                      <p className="font-medium text-emerald-900 dark:text-emerald-100">
-                        {final.fileSize
-                          ? `${Math.round(final.fileSize / 1024)} KB`
-                          : "Unknown"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Download Both Button */}
-            <div className="flex justify-center pt-4">
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => downloadDatabaseImage(initial)}
-                  className="px-6 py-3 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/50 flex items-center space-x-2 text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                >
-                  <Download className="w-5 h-5" />
-                  <span>Download Original</span>
-                </button>
-                <button
-                  onClick={() => downloadDatabaseImage(final)}
-                  className="px-6 py-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-xl hover:bg-emerald-200 dark:hover:bg-emerald-900/50 flex items-center space-x-2 text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
-                >
-                  <Download className="w-5 h-5" />
-                  <span>Download Enhanced</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {comparisonMode === "overlay" && (
-          <div className="relative w-full max-w-3xl mx-auto">
-            <div
-              className="relative overflow-hidden rounded-2xl shadow-xl"
-              style={{ aspectRatio: "1" }}
-            >
-              {/* Final image (background) */}
-              <img
-                src={final.dataUrl || final.url}
-                alt="After enhancement"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              {/* Initial image with clip-path */}
-              <img
-                src={initial.dataUrl || initial.url}
-                alt="Before enhancement"
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{
-                  clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
-                }}
-              />
-              {/* Enhanced slider line */}
-              <div
-                className="absolute top-0 bottom-0 w-1 bg-white shadow-2xl"
-                style={{ left: `${sliderPosition}%` }}
-              />
-              <div
-                className="absolute top-0 bottom-0 w-1 bg-emerald-400"
-                style={{ left: `${sliderPosition}%` }}
-              />
-              {/* Enhanced Labels */}
-              <div className="absolute top-4 left-4 bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg">
-                Original
-              </div>
-              <div className="absolute top-4 right-4 bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium shadow-lg">
-                Enhanced
-              </div>
-            </div>
-            {/* Enhanced Slider control */}
-            <div className="mt-6 space-y-3">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={sliderPosition}
-                onChange={(e) => setSliderPosition(Number(e.target.value))}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 slider-thumb"
-                style={{
-                  background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${sliderPosition}%, #10b981 ${sliderPosition}%, #10b981 100%)`
-                }}
-              />
-              <div className="flex justify-between text-sm font-medium">
-                <span className="text-blue-600 dark:text-blue-400">← Original</span>
-                <span className="text-emerald-600 dark:text-emerald-400">Enhanced →</span>
-              </div>
-            </div>
-            
-            {/* Download buttons for overlay mode */}
-            <div className="mt-6 flex justify-center space-x-4">
-              <button
-                onClick={() => downloadDatabaseImage(initial)}
-                className="px-4 py-2 bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/30 flex items-center space-x-2 text-sm transition-all duration-200"
-              >
-                <Download className="w-4 h-4" />
-                <span>Original</span>
-              </button>
-              <button
-                onClick={() => downloadDatabaseImage(final)}
-                className="px-4 py-2 bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/30 flex items-center space-x-2 text-sm transition-all duration-200"
-              >
-                <Download className="w-4 h-4" />
-                <span>Enhanced</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {comparisonMode === "toggle" && (
-          <div className="relative w-full max-w-2xl mx-auto">
-            <div className="relative overflow-hidden rounded-2xl shadow-xl">
-              <img
-                src={
-                  toggleState === "initial"
-                    ? initial.dataUrl || initial.url
-                    : final.dataUrl || final.url
-                }
-                alt={`${
-                  toggleState === "initial" ? "Before" : "After"
-                } enhancement`}
-                className="w-full rounded-2xl transition-all duration-300"
-              />
-              <div
-                className={`absolute top-4 left-4 px-3 py-2 rounded-lg text-sm font-medium text-white shadow-lg ${
-                  toggleState === "initial" ? "bg-blue-500" : "bg-emerald-500"
-                }`}
-              >
-                {toggleState === "initial" ? "Original" : "Enhanced"}
-              </div>
-              
-              {/* Download button for current image */}
-              <div className="absolute top-4 right-4">
-                <button
-                  onClick={() => downloadDatabaseImage(toggleState === "initial" ? initial : final)}
-                  className="p-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg hover:bg-white dark:hover:bg-gray-800 transition-all duration-200"
-                  title={`Download ${toggleState === "initial" ? "original" : "enhanced"} image`}
-                >
-                  <Download className={`w-5 h-5 ${toggleState === "initial" ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"}`} />
-                </button>
-              </div>
-            </div>
-            
-            <div className="mt-6 flex justify-center space-x-3">
-              <button
-                onClick={() => setToggleState("initial")}
-                className={`px-6 py-3 rounded-xl flex items-center space-x-2 text-sm font-medium transition-all duration-200 ${
-                  toggleState === "initial"
-                    ? "bg-blue-500 text-white shadow-lg"
-                    : "bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/30"
-                }`}
-              >
-                <Eye className="w-5 h-5" />
-                <span>Original</span>
-              </button>
-              <button
-                onClick={() => setToggleState("final")}
-                className={`px-6 py-3 rounded-xl flex items-center space-x-2 text-sm font-medium transition-all duration-200 ${
-                  toggleState === "final"
-                    ? "bg-emerald-500 text-white shadow-lg"
-                    : "bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-900/30"
-                }`}
-              >
-                <Eye className="w-5 h-5" />
-                <span>Enhanced</span>
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // Show loading state while API client initializes
   if (!apiClient) {
     return (
@@ -2324,54 +1968,31 @@ export default function SkinEnhancerPage() {
                 {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
                   (jobImages[currentJob.id] &&
                     jobImages[currentJob.id].length > 0)) && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-gradient-to-br from-emerald-100 to-green-100 dark:from-emerald-900/30 dark:to-green-900/30 rounded-lg">
-                          <Eye className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                        </div>
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-                            Enhanced Images
-                          </h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Your AI-enhanced skin perfection results
-                          </p>
-                        </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-gradient-to-br from-emerald-100 to-green-100 dark:from-emerald-900/30 dark:to-green-900/30 rounded-lg">
+                        <Eye className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                       </div>
-                      {comparisonImages.initial && comparisonImages.final && (
-                        <button
-                          onClick={() => setShowComparison(!showComparison)}
-                          className={`px-4 py-2 rounded-xl flex items-center space-x-2 text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg ${
-                            showComparison
-                              ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700"
-                              : "bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 text-purple-700 dark:text-purple-300 hover:from-purple-200 hover:to-indigo-200 dark:hover:from-purple-900/50 dark:hover:to-indigo-900/50"
-                          }`}
-                        >
-                          <div className={`p-1 rounded-lg ${showComparison ? "bg-white/20" : "bg-purple-200 dark:bg-purple-800/50"}`}>
-                            <ArrowRightLeft className={`w-4 h-4 ${showComparison ? "text-white" : "text-purple-600 dark:text-purple-400"}`} />
-                          </div>
-                          <span>
-                            {showComparison ? "Hide" : "Show"} Enhanced Comparison
-                          </span>
-                          {!showComparison && (
-                            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                          )}
-                        </button>
-                      )}
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-900 dark:text-white">
+                          Enhanced Images
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Your AI-enhanced skin perfection results
+                        </p>
+                      </div>
                     </div>
 
-                    {/* Show comparison if enabled */}
-                    {showComparison &&
-                      comparisonImages.initial &&
-                      comparisonImages.final && (
-                        <SkinComparisonViewer
-                          initial={comparisonImages.initial}
-                          final={comparisonImages.final}
-                        />
-                      )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Simple Grid Layout based on batch size */}
+                    <div className={`grid gap-4 ${
+                      jobImages[currentJob.id]?.length === 1 
+                        ? 'grid-cols-1 max-w-md mx-auto'
+                        : jobImages[currentJob.id]?.length === 2 
+                        ? 'grid-cols-1 sm:grid-cols-2'
+                        : jobImages[currentJob.id]?.length === 3
+                        ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                        : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                    }`}>
                       {/* Show database images if available */}
                       {jobImages[currentJob.id] &&
                       jobImages[currentJob.id].length > 0
@@ -2379,134 +2000,58 @@ export default function SkinEnhancerPage() {
                           jobImages[currentJob.id].map((dbImage, index) => (
                             <div
                               key={`db-${dbImage.id}`}
-                              className="group relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-850 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 dark:border-gray-700"
+                              className="group relative rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
                             >
-                              {/* Enhanced Image Display */}
-                              <div className="relative overflow-hidden">
-                                <img
-                                  src={dbImage.dataUrl || dbImage.url}
-                                  alt={`Enhanced image ${index + 1}`}
-                                  className="w-full h-auto rounded-t-2xl transition-all duration-300 group-hover:scale-105"
-                                  onError={(e) => {
+                              <img
+                                src={dbImage.dataUrl || dbImage.url}
+                                alt={`Enhanced image ${index + 1}`}
+                                className="w-full h-auto object-cover"
+                                onError={(e) => {
+                                  console.error(
+                                    "Image load error for:",
+                                    dbImage.filename
+                                  );
+
+                                  // Smart fallback logic
+                                  const currentSrc = (
+                                    e.target as HTMLImageElement
+                                  ).src;
+
+                                  if (
+                                    currentSrc === dbImage.dataUrl &&
+                                    dbImage.url
+                                  ) {
+                                    console.log("Falling back to ComfyUI URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.url;
+                                  } else if (
+                                    currentSrc === dbImage.url &&
+                                    dbImage.dataUrl
+                                  ) {
+                                    console.log("Falling back to database URL");
+                                    (e.target as HTMLImageElement).src =
+                                      dbImage.dataUrl;
+                                  } else {
                                     console.error(
-                                      "Image load error for:",
+                                      "All URLs failed for:",
                                       dbImage.filename
                                     );
-
-                                    // Smart fallback logic
-                                    const currentSrc = (
+                                    (
                                       e.target as HTMLImageElement
-                                    ).src;
-
-                                    if (
-                                      currentSrc === dbImage.dataUrl &&
-                                      dbImage.url
-                                    ) {
-                                      console.log("Falling back to ComfyUI URL");
-                                      (e.target as HTMLImageElement).src =
-                                        dbImage.url;
-                                    } else if (
-                                      currentSrc === dbImage.url &&
-                                      dbImage.dataUrl
-                                    ) {
-                                      console.log("Falling back to database URL");
-                                      (e.target as HTMLImageElement).src =
-                                        dbImage.dataUrl;
-                                    } else {
-                                      console.error(
-                                        "All URLs failed for:",
-                                        dbImage.filename
-                                      );
-                                      (
-                                        e.target as HTMLImageElement
-                                      ).style.display = "none";
-                                    }
-                                  }}
-                                />
-                                
-                                {/* Gradient Overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                
-                                {/* Enhanced Badge */}
-                                <div className="absolute top-3 left-3">
-                                  <div className="flex items-center space-x-2 bg-emerald-500 text-white px-3 py-1.5 rounded-lg shadow-lg">
-                                    <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                                    <span className="text-sm font-medium">Enhanced</span>
-                                  </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                  <div className="flex space-x-2">
-                                    <button
-                                      onClick={() =>
-                                        downloadDatabaseImage(dbImage)
-                                      }
-                                      className="p-2.5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg hover:bg-white dark:hover:bg-gray-800 transition-all duration-200 hover:scale-110"
-                                      title={`Download ${dbImage.filename}`}
-                                    >
-                                      <Download className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                                    </button>
-                                    <button
-                                      onClick={() => shareImage(dbImage)}
-                                      className="p-2.5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl shadow-lg hover:bg-white dark:hover:bg-gray-800 transition-all duration-200 hover:scale-110"
-                                      title="Share image"
-                                    >
-                                      <Share2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Enhanced Image Info Card */}
-                              <div className="p-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <h5 className="font-semibold text-gray-900 dark:text-white">
-                                    Enhanced Image {index + 1}
-                                  </h5>
-                                  <div className="flex items-center space-x-1 text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded-full">
-                                    <Sparkles className="w-3 h-3" />
-                                    <span>AI Enhanced</span>
-                                  </div>
-                                </div>
-                                
-                                {/* Metadata Grid */}
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
-                                    <span className="text-gray-600 dark:text-gray-400 block text-xs">Dimensions</span>
-                                    <span className="font-medium text-gray-900 dark:text-white">
-                                      {dbImage.width && dbImage.height
-                                        ? `${dbImage.width}×${dbImage.height}`
-                                        : "Unknown"}
-                                    </span>
-                                  </div>
-                                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
-                                    <span className="text-gray-600 dark:text-gray-400 block text-xs">Size</span>
-                                    <span className="font-medium text-gray-900 dark:text-white">
-                                      {dbImage.fileSize
-                                        ? `${Math.round(dbImage.fileSize / 1024)} KB`
-                                        : "Unknown"}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex space-x-2 pt-2">
-                                  <button
-                                    onClick={() => downloadDatabaseImage(dbImage)}
-                                    className="flex-1 px-3 py-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-lg hover:bg-emerald-200 dark:hover:bg-emerald-900/50 flex items-center justify-center space-x-1 text-sm font-medium transition-all duration-200"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                    <span>Download</span>
-                                  </button>
-                                  <button
-                                    onClick={() => shareImage(dbImage)}
-                                    className="px-3 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 flex items-center justify-center transition-all duration-200"
-                                    title="Share image"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
-                                </div>
+                                    ).style.display = "none";
+                                  }
+                                }}
+                              />
+                              
+                              {/* Simple hover overlay with download button */}
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                                <button
+                                  onClick={() => downloadDatabaseImage(dbImage)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-3 bg-white rounded-full shadow-lg hover:shadow-xl"
+                                  title={`Download ${dbImage.filename}`}
+                                >
+                                  <Download className="w-5 h-5 text-gray-700" />
+                                </button>
                               </div>
                             </div>
                           ))
@@ -2516,12 +2061,12 @@ export default function SkinEnhancerPage() {
                           currentJob.resultUrls.map((url, index) => (
                             <div
                               key={`legacy-${currentJob.id}-${index}`}
-                              className="relative group"
+                              className="group relative rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-200"
                             >
                               <img
                                 src={url}
                                 alt={`Enhanced image ${index + 1}`}
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                className="w-full h-auto object-cover"
                                 onError={(e) => {
                                   console.error(
                                     "Legacy image load error:",
@@ -2531,32 +2076,25 @@ export default function SkinEnhancerPage() {
                                     "none";
                                 }}
                               />
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex space-x-1">
-                                  <button
-                                    onClick={() =>
-                                      downloadFromUrl(
-                                        url,
-                                        `enhanced-image-${index + 1}.png`
-                                      )
-                                    }
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  >
-                                    <Download className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(url);
-                                      alert("Image URL copied to clipboard!");
-                                    }}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
-                                </div>
+                              
+                              {/* Simple hover overlay with download button */}
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                                <button
+                                  onClick={() =>
+                                    downloadFromUrl(
+                                      url,
+                                      `enhanced-image-${index + 1}.png`
+                                    )
+                                  }
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-3 bg-white rounded-full shadow-lg hover:shadow-xl"
+                                  title={`Download enhanced image ${index + 1}`}
+                                >
+                                  <Download className="w-5 h-5 text-gray-700" />
+                                </button>
                               </div>
                             </div>
-                          ))}
+                          ))
+                      }
                     </div>
                   </div>
                 )}
