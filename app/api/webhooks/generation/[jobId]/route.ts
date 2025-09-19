@@ -13,6 +13,14 @@ export async function POST(
     
     console.log('🔔 Generation webhook received for job:', jobId);
     console.log('📋 Webhook payload:', JSON.stringify(body, null, 2));
+    
+    // Debug: Log key fields for troubleshooting
+    console.log('🔍 Debug - Key fields:');
+    console.log('  - status:', body.status);
+    console.log('  - images array:', body.images ? `${body.images.length} items` : 'not present');
+    console.log('  - single image:', body.image ? 'present' : 'not present');
+    console.log('  - allImages array:', body.allImages ? `${body.allImages.length} items` : 'not present');
+    console.log('  - resultUrls:', body.resultUrls ? `${body.resultUrls.length} items` : 'not present');
 
     // Extract webhook data including enhanced progress fields
     const { 
@@ -77,6 +85,7 @@ export async function POST(
         'FAILED': 'FAILED',
         'ERROR': 'FAILED',
         'IMAGE_CHUNK': 'PROCESSING', // Handle chunked image delivery as still processing
+        'IMAGE_READY': 'PROCESSING', // Handle skin enhancer chunked delivery as still processing
         'DELIVERY_COMPLETE': 'COMPLETED' // Final delivery completion
       };
       
@@ -114,15 +123,32 @@ export async function POST(
       updateData.estimatedTimeRemaining = estimatedTimeRemaining;
     }
 
-    // Handle completed generation with images
-    if ((status === 'COMPLETED' || status === 'IMAGE_CHUNK') && images && Array.isArray(images)) {
-      const isChunkDelivery = status === 'IMAGE_CHUNK';
-      console.log(`🖼️ Processing ${images.length} generated images for job ${jobId}${isChunkDelivery ? ' (chunk delivery)' : ''}`);
+    // Handle completed generation with images (including skin enhancer chunked delivery)
+    const imagesToProcess: any[] = [];
+    
+    // Handle different image delivery formats
+    if (images && Array.isArray(images)) {
+      imagesToProcess.push(...images);
+    } else if (body.image) {
+      // Handle single chunked image delivery (from skin enhancer)
+      imagesToProcess.push(body.image);
+    } else if (body.allImages && Array.isArray(body.allImages)) {
+      // Handle skin enhancer final completion with all images
+      imagesToProcess.push(...body.allImages);
+    }
+    
+    // Check if the webhook provides resultUrls directly (for final completion)
+    if (status === 'COMPLETED' && body.resultUrls && Array.isArray(body.resultUrls)) {
+      console.log(`📋 Using provided resultUrls from webhook: ${body.resultUrls.length} URLs`);
+      updateData.resultUrls = body.resultUrls;
+    } else if ((status === 'COMPLETED' || status === 'IMAGE_CHUNK' || status === 'IMAGE_READY') && imagesToProcess.length > 0) {
+      const isChunkDelivery = status === 'IMAGE_CHUNK' || status === 'IMAGE_READY';
+      console.log(`🖼️ Processing ${imagesToProcess.length} generated images for job ${jobId}${isChunkDelivery ? ' (chunk delivery)' : ''}`);
       
       // Store images in database and get URLs
       const imageUrls: string[] = [];
       
-      for (const imageInfo of images) {
+      for (const imageInfo of imagesToProcess) {
         try {
           console.log('📸 Processing image:', imageInfo.filename);
           
@@ -189,8 +215,17 @@ export async function POST(
         }
       }
       
-      updateData.resultUrls = imageUrls;
-      console.log(`✅ Stored ${imageUrls.length} image URLs for job ${jobId}`);
+      // Handle resultUrls appropriately for chunked vs complete delivery
+      if (isChunkDelivery && status === 'IMAGE_READY') {
+        // For chunked delivery, append to existing URLs
+        const currentUrls = existingJob.resultUrls || [];
+        updateData.resultUrls = [...currentUrls, ...imageUrls];
+        console.log(`✅ Added ${imageUrls.length} chunked images. Total: ${updateData.resultUrls.length} images for job ${jobId}`);
+      } else {
+        // For complete delivery or final completion, set all URLs
+        updateData.resultUrls = imageUrls;
+        console.log(`✅ Stored ${imageUrls.length} image URLs for job ${jobId}`);
+      }
     }
 
     // Handle completed generation with videos (for image-to-video)
