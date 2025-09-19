@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { updateJob, getJob } from '@/lib/jobsStorage';
 import { saveImageToDatabase, buildComfyUIUrl } from '@/lib/imageStorage';
 import { saveVideoToDatabase, buildComfyUIVideoUrl } from '@/lib/videoStorage';
+import { prisma } from '@/lib/database';
 
 export async function POST(request: NextRequest) {
   try {
@@ -93,6 +94,65 @@ export async function POST(request: NextRequest) {
     if (resultUrls && Array.isArray(resultUrls) && resultUrls.length > 0) {
       updateData.resultUrls = resultUrls;
       console.log(`📊 Adding ${resultUrls.length} result URLs to job ${jobId}`);
+      
+      // For completed status with resultUrls, create GeneratedImage records
+      if (status === 'COMPLETED') {
+        console.log(`🖼️ Processing ${resultUrls.length} result URLs for job ${jobId}`);
+        
+        try {
+          const savedImages = [];
+          
+          for (const url of resultUrls) {
+            // Parse the ComfyUI URL to get path components
+            const { parseComfyUIUrl } = await import('@/lib/imageStorage');
+            const pathInfo = parseComfyUIUrl(url);
+            
+            if (pathInfo) {
+              console.log(`💾 Creating image record from URL: ${pathInfo.filename}`);
+              
+              // Check if this image already exists
+              const existingImage = await prisma.generatedImage.findFirst({
+                where: {
+                  jobId: jobId,
+                  filename: pathInfo.filename,
+                  subfolder: pathInfo.subfolder,
+                  type: pathInfo.type
+                }
+              });
+              
+              if (!existingImage) {
+                // Create the GeneratedImage record
+                const savedImage = await prisma.generatedImage.create({
+                  data: {
+                    clerkId: existingJob.clerkId,
+                    jobId: jobId,
+                    filename: pathInfo.filename,
+                    subfolder: pathInfo.subfolder,
+                    type: pathInfo.type,
+                    metadata: { sourceUrl: url }
+                  }
+                });
+                
+                savedImages.push(savedImage);
+                console.log(`✅ Image record created from URL: ${savedImage.id}`);
+              } else {
+                console.log(`ℹ️ Image already exists: ${pathInfo.filename}`);
+                savedImages.push(existingImage);
+              }
+            } else {
+              console.error(`❌ Failed to parse ComfyUI URL: ${url}`);
+            }
+          }
+          
+          if (savedImages.length > 0) {
+            updateData.resultImages = savedImages;
+            console.log(`✅ Created ${savedImages.length} image records from URLs for job ${jobId}`);
+          }
+        } catch (urlError) {
+          console.error('❌ Error processing result URLs:', urlError);
+          updateData.error = 'Failed to process result URLs';
+        }
+      }
     }
 
     // Handle completed generation with images
