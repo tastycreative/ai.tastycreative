@@ -123,6 +123,121 @@ export async function POST(
       updateData.estimatedTimeRemaining = estimatedTimeRemaining;
     }
 
+    // Handle completed generation with S3 network volume paths (NEW: S3 API storage)
+    if (status === 'COMPLETED' && body.network_volume_paths && Array.isArray(body.network_volume_paths)) {
+      console.log(`🖼️ Processing ${body.network_volume_paths.length} S3 network volume images for job ${jobId}`);
+      
+      try {
+        const savedImages = [];
+        
+        for (const pathData of body.network_volume_paths) {
+          const { filename, subfolder, type, s3_key, file_size } = pathData;
+          
+          console.log(`💾 Saving S3 network volume image: ${filename} with S3 key: ${s3_key}`);
+          
+          // Save to database with S3 key (no image data stored)
+          const savedImage = await saveImageToDatabase(
+            existingJob.clerkId,
+            jobId,
+            { filename, subfolder, type },
+            {
+              saveData: false, // Don't save image bytes to database
+              extractMetadata: false, // Don't extract metadata (we have it from handler)
+              s3Key: s3_key, // NEW: Store S3 key instead of network volume path
+              fileSize: file_size
+            }
+          );
+          
+          if (savedImage) {
+            savedImages.push(savedImage);
+            console.log(`✅ S3 network volume image saved to database: ${savedImage.id}`);
+          } else {
+            console.error(`❌ Failed to save S3 network volume image: ${filename}`);
+          }
+        }
+        
+        updateData.completedAt = new Date();
+        updateData.resultImages = savedImages;
+        
+        console.log(`✅ Saved ${savedImages.length} S3 network volume images for job ${jobId}`);
+      } catch (imageError) {
+        console.error('❌ Error processing S3 network volume images:', imageError);
+        updateData.error = 'Failed to process S3 network volume images';
+        updateData.status = 'failed';
+      }
+    }
+
+    // Handle S3 keys from style transfer handler (NEW: Enhanced S3 support)
+    if (status === 'COMPLETED' && body.s3Keys && Array.isArray(body.s3Keys) && body.s3Keys.length > 0) {
+      console.log(`📤 Processing ${body.s3Keys.length} S3 keys from style transfer handler for job ${jobId}`);
+      
+      try {
+        const savedImages = [];
+        const s3Keys = body.s3Keys;
+        const networkVolumePaths = body.networkVolumePaths || [];
+        const resultUrls = body.resultUrls || [];
+        
+        for (let i = 0; i < s3Keys.length; i++) {
+          const s3Key = s3Keys[i];
+          const networkVolumePath = networkVolumePaths[i];
+          const resultUrl = resultUrls[i];
+          
+          // Parse filename from result URL or S3 key
+          let filename = `image_${i + 1}.png`;
+          let subfolder = '';
+          let type = 'output';
+          
+          if (resultUrl) {
+            try {
+              const url = new URL(resultUrl);
+              filename = url.searchParams.get('filename') || filename;
+              subfolder = url.searchParams.get('subfolder') || '';
+              type = url.searchParams.get('type') || 'output';
+            } catch (urlError) {
+              console.warn('⚠️ Failed to parse result URL:', resultUrl);
+            }
+          } else if (s3Key) {
+            // Extract filename from S3 key: generated-images/jobId/filename
+            const keyParts = s3Key.split('/');
+            if (keyParts.length >= 3) {
+              filename = keyParts[keyParts.length - 1];
+            }
+          }
+          
+          console.log(`💾 Saving S3 image: ${filename} with S3 key: ${s3Key}`);
+          
+          // Save to database with S3 key and network volume path
+          const savedImage = await saveImageToDatabase(
+            existingJob.clerkId,
+            jobId,
+            { filename, subfolder, type },
+            {
+              saveData: false, // Don't save image bytes (use S3)
+              extractMetadata: false, // Handler already provided metadata
+              s3Key: s3Key,
+              networkVolumePath: networkVolumePath
+            }
+          );
+          
+          if (savedImage) {
+            savedImages.push(savedImage);
+            console.log(`✅ S3 image saved to database: ${savedImage.id}`);
+          } else {
+            console.error(`❌ Failed to save S3 image: ${filename}`);
+          }
+        }
+        
+        updateData.completedAt = new Date();
+        updateData.resultImages = savedImages;
+        
+        console.log(`✅ Saved ${savedImages.length} S3 images for job ${jobId}`);
+      } catch (imageError) {
+        console.error('❌ Error processing S3 images:', imageError);
+        updateData.error = 'Failed to process S3 images';
+        updateData.status = 'failed';
+      }
+    }
+
     // Handle completed generation with images (including skin enhancer chunked delivery)
     const imagesToProcess: any[] = [];
     
@@ -152,7 +267,7 @@ export async function POST(
         try {
           console.log('📸 Processing image:', imageInfo.filename);
           
-          // Check if image data is provided directly in webhook (from text_to_image_handler.py)
+          // Check if image data is provided directly in webhook (from text_to_image_handler.py or style_transfer_handler.py)
           if (imageInfo.data) {
             console.log('💾 Image data provided in webhook, saving directly to database');
             
@@ -162,7 +277,35 @@ export async function POST(
             
             console.log(`📊 Processing webhook image: ${imageInfo.filename}, size: ${imageBuffer.length} bytes`);
             
-            // Save directly to database with provided data
+            // Include S3 and network volume data if provided
+            const saveOptions: any = { 
+              extractMetadata: true,
+              providedData: imageBuffer // Pass the buffer directly
+            };
+            
+            // Add S3 key if provided by the handler
+            if (imageInfo.s3Key) {
+              saveOptions.s3Key = imageInfo.s3Key;
+              saveOptions.saveData = false; // Don't save blob data when S3 key is available
+              console.log('📤 S3 key provided - using S3 optimization:', imageInfo.s3Key);
+            } else {
+              saveOptions.saveData = true; // Save blob data only when no S3 key
+              console.log('⚠️ No S3 key provided - saving blob data to database (legacy mode)');
+            }
+            
+            // Add network volume path if provided by the handler
+            if (imageInfo.networkVolumePath) {
+              saveOptions.networkVolumePath = imageInfo.networkVolumePath;
+              console.log('💾 Network volume path provided:', imageInfo.networkVolumePath);
+            }
+            
+            // Add file size if provided
+            if (imageInfo.fileSize) {
+              saveOptions.fileSize = imageInfo.fileSize;
+              console.log('📏 File size provided:', imageInfo.fileSize);
+            }
+            
+            // Save directly to database with provided data and S3/network volume info
             const imageRecord = await saveImageToDatabase(
               existingJob.clerkId,
               jobId,
@@ -171,11 +314,7 @@ export async function POST(
                 subfolder: imageInfo.subfolder || '',
                 type: imageInfo.type || 'output'
               },
-              { 
-                saveData: true,
-                extractMetadata: true,
-                providedData: imageBuffer // Pass the buffer directly
-              }
+              saveOptions
             );
             
             if (imageRecord && imageRecord.dataUrl) {

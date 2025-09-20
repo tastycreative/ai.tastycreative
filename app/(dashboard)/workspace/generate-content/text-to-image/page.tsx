@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { getBestImageUrl, hasS3Storage, buildS3ImageUrl } from "@/lib/s3Utils";
 import Link from "next/link";
 import {
   ImageIcon,
@@ -87,8 +88,10 @@ interface DatabaseImage {
   width?: number;
   height?: number;
   format?: string;
-  url?: string | null; // Dynamically constructed ComfyUI URL (can be null for serverless)
-  dataUrl?: string; // Database-served image URL
+  url?: string | null; // Dynamically constructed URL (network volume or ComfyUI URL)
+  dataUrl?: string; // Database-served image URL (fallback)
+  s3Key?: string; // S3 key for network volume storage
+  networkVolumePath?: string; // Path on network volume
   createdAt: Date | string;
 }
 
@@ -205,6 +208,7 @@ export default function TextToImagePage() {
     {}
   );
   const [imageStats, setImageStats] = useState<any>(null);
+  const [refreshingImages, setRefreshingImages] = useState(false);
 
   // Persistent generation state keys
   const STORAGE_KEYS = {
@@ -508,6 +512,64 @@ export default function TextToImagePage() {
     }
   }, [apiClient]);
 
+  // Auto-refresh for ALL jobs - check every 3 seconds for faster loading
+  useEffect(() => {
+    if (!apiClient || !currentJob) {
+      return;
+    }
+
+    // More aggressive auto-refresh for ANY job that might have images
+    const autoRefreshInterval = setInterval(async () => {
+      console.log('🔄 Auto-refresh: Checking for job images...');
+      
+      // Always check for images if we don't have them yet
+      const hasImages = jobImages[currentJob.id] && jobImages[currentJob.id].length > 0;
+      
+      if (!hasImages) {
+        console.log('🔄 Auto-refresh: No images found, fetching...');
+        await fetchJobImages(currentJob.id);
+        
+        // Also try auto-processing every few cycles
+        if (Math.random() < 0.3) { // 30% chance each cycle
+          try {
+            await apiClient.post("/api/jobs/auto-process-serverless");
+            console.log("🔄 Auto-processing triggered during auto-refresh");
+          } catch (error) {
+            // Silent fail for auto-processing
+          }
+        }
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(autoRefreshInterval);
+  }, [apiClient, currentJob, jobImages]);
+
+  // Watch for job status changes and immediately fetch images when completed
+  useEffect(() => {
+    if (currentJob && currentJob.status === 'completed' && !isGenerating) {
+      const hasImages = jobImages[currentJob.id] && jobImages[currentJob.id].length > 0;
+      
+      if (!hasImages) {
+        console.log('🎯 Job completed, immediately fetching images...');
+        // Fetch immediately when job completes
+        fetchJobImages(currentJob.id);
+        
+        // Also set up aggressive retry for the first minute
+        const retryIntervals = [1000, 2000, 5000, 10000, 15000]; // 1s, 2s, 5s, 10s, 15s
+        
+        retryIntervals.forEach((delay, index) => {
+          setTimeout(async () => {
+            const currentImages = jobImages[currentJob.id];
+            if (!currentImages || currentImages.length === 0) {
+              console.log(`🔄 Retry ${index + 1}: Still no images, fetching again...`);
+              await fetchJobImages(currentJob.id);
+            }
+          }, delay);
+        });
+      }
+    }
+  }, [currentJob?.status, currentJob?.id, isGenerating, jobImages]);
+
   // Function to fetch images for a completed job
   const fetchJobImages = async (jobId: string): Promise<boolean> => {
     try {
@@ -535,10 +597,12 @@ export default function TextToImagePage() {
       console.log("📊 Job images data:", data);
 
       if (data.success && data.images && Array.isArray(data.images)) {
+        // Update job images state
         setJobImages((prev) => ({
           ...prev,
           [jobId]: data.images,
         }));
+        
         console.log(
           "✅ Updated job images state for job:",
           jobId,
@@ -552,9 +616,25 @@ export default function TextToImagePage() {
             filename: data.images[0].filename,
             hasDataUrl: !!data.images[0].dataUrl,
             hasUrl: !!data.images[0].url,
+            hasS3Key: !!data.images[0].s3Key,
+            hasNetworkVolume: !!data.images[0].networkVolumePath,
+            id: data.images[0].id,
+          });
+          
+          // Always accept images even if they don't have displayable URLs yet
+          // They may be processing in the background
+          console.log("📸 Sample image data:", {
+            filename: data.images[0].filename,
+            hasDataUrl: !!data.images[0].dataUrl,
+            hasUrl: !!data.images[0].url,
+            hasS3Key: !!data.images[0].s3Key,
+            hasNetworkVolume: !!data.images[0].networkVolumePath,
             id: data.images[0].id,
           });
         }
+
+        // Force a re-render by updating a counter or timestamp
+        setJobImages((prev) => ({ ...prev }));
 
         return data.images.length > 0;
       } else {
@@ -599,8 +679,31 @@ export default function TextToImagePage() {
     try {
       console.log("📥 Downloading image:", image.filename);
 
+      // Priority 1: Download from S3 network volume
+      if (hasS3Storage(image)) {
+        const s3Url = getBestImageUrl(image);
+        console.log("🚀 Downloading from S3:", s3Url);
+        
+        try {
+          const response = await fetch(s3Url);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = image.filename;
+            link.click();
+            URL.revokeObjectURL(url);
+            console.log("✅ S3 image downloaded");
+            return;
+          }
+        } catch (s3Error) {
+          console.warn("⚠️ S3 download failed, trying fallback:", s3Error);
+        }
+      }
+
+      // Priority 2: Download from database
       if (image.dataUrl) {
-        // Priority 1: Download from database
         const response = await apiClient.get(image.dataUrl);
 
         if (response.ok) {
@@ -618,8 +721,8 @@ export default function TextToImagePage() {
         }
       }
 
+      // Priority 3: Download from ComfyUI (dynamic URL)
       if (image.url) {
-        // Priority 2: Download from ComfyUI (dynamic URL)
         const link = document.createElement("a");
         link.href = image.url;
         link.download = image.filename;
@@ -642,11 +745,14 @@ export default function TextToImagePage() {
   const shareImage = (image: DatabaseImage) => {
     let urlToShare = "";
 
-    if (image.dataUrl) {
-      // Priority 1: Share database URL (more reliable)
+    // Priority 1: Share S3 URL (fastest and most reliable)
+    if (hasS3Storage(image)) {
+      urlToShare = getBestImageUrl(image);
+    } else if (image.dataUrl) {
+      // Priority 2: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
     } else if (image.url) {
-      // Priority 2: Share ComfyUI URL (dynamic, may not work for serverless)
+      // Priority 3: Share ComfyUI URL (dynamic, may not work for serverless)
       urlToShare = image.url;
     } else {
       alert("No shareable URL available for this image");
@@ -1094,16 +1200,61 @@ export default function TextToImagePage() {
             estimatedTimeRemaining: 0,
           });
 
-          // Fetch database images for completed job with retry logic
-          console.log("🔄 Attempting to fetch job images...");
+          // Fetch database images for completed job with aggressive retry logic
+          console.log("🔄 Attempting to fetch job images immediately...");
+          
+          // First, trigger auto-processing to ensure serverless jobs are processed
+          try {
+            console.log("🔄 Pre-triggering auto-processing for serverless jobs...");
+            const autoProcessResponse = await apiClient.post("/api/jobs/auto-process-serverless");
+            if (autoProcessResponse.ok) {
+              console.log("✅ Pre-processing triggered successfully");
+              // Wait briefly for processing
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          } catch (error) {
+            console.error("❌ Pre-processing failed:", error);
+          }
+          
           const fetchSuccess = await fetchJobImages(jobId);
 
-          // If fetch failed or no images found, retry after a short delay
+          // If fetch failed or no images found, retry with multiple attempts
           if (!fetchSuccess) {
-            console.log("🔄 Retrying image fetch after delay...");
-            setTimeout(() => {
-              fetchJobImages(jobId);
-            }, 3000);
+            console.log("🔄 First fetch failed, starting aggressive retry sequence...");
+            
+            // Retry with shorter intervals: 0.5s, 1s, 2s, 3s, 5s
+            const retryDelays = [500, 1000, 2000, 3000, 5000];
+            
+            for (let i = 0; i < retryDelays.length; i++) {
+              await new Promise(resolve => setTimeout(resolve, retryDelays[i]));
+              console.log(`🔄 Retry attempt ${i + 1} after ${retryDelays[i]}ms delay...`);
+              
+              const retrySuccess = await fetchJobImages(jobId);
+              if (retrySuccess) {
+                console.log(`✅ Images fetched successfully on retry ${i + 1}`);
+                break;
+              }
+              
+              if (i === retryDelays.length - 1) {
+                console.warn("⚠️ All retry attempts failed, triggering auto-processing...");
+                
+                // Force auto-processing as last resort
+                try {
+                  const autoProcessResponse = await apiClient.post("/api/jobs/auto-process-serverless");
+                  if (autoProcessResponse.ok) {
+                    // Wait a bit and try one more time
+                    setTimeout(async () => {
+                      console.log("🔄 Final attempt after auto-processing...");
+                      await fetchJobImages(jobId);
+                    }, 2000);
+                  }
+                } catch (error) {
+                  console.error("❌ Auto-processing failed:", error);
+                }
+              }
+            }
+          } else {
+            console.log("✅ Images fetched successfully on first attempt");
           }
 
           // Also trigger auto-processing for serverless jobs (fallback)
@@ -2671,11 +2822,19 @@ export default function TextToImagePage() {
                             </p>
                             <div className="flex flex-wrap gap-2">
                               <button
-                                onClick={() => fetchJobImages(currentJob.id)}
-                                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 transition-colors flex items-center space-x-1"
+                                onClick={async () => {
+                                  setRefreshingImages(true);
+                                  try {
+                                    await fetchJobImages(currentJob.id);
+                                  } finally {
+                                    setRefreshingImages(false);
+                                  }
+                                }}
+                                disabled={refreshingImages}
+                                className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-medium hover:bg-amber-700 disabled:bg-amber-400 transition-colors flex items-center space-x-1"
                               >
-                                <RefreshCw className="w-3 h-3" />
-                                <span>Refresh Images</span>
+                                <RefreshCw className={`w-3 h-3 ${refreshingImages ? 'animate-spin' : ''}`} />
+                                <span>{refreshingImages ? 'Refreshing...' : 'Refresh Images'}</span>
                               </button>
                               <button
                                 onClick={async () => {
@@ -2735,13 +2894,32 @@ export default function TextToImagePage() {
                       <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Generated Images
                       </h4>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
-                        {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
-                          ? `${jobImages[currentJob.id].length} image${jobImages[currentJob.id].length > 1 ? 's' : ''}`
-                          : currentJob.resultUrls && currentJob.resultUrls.length > 0
-                          ? `${currentJob.resultUrls.length} image${currentJob.resultUrls.length > 1 ? 's' : ''}`
-                          : '0 images'
-                        }
+                      <div className="flex items-center space-x-2">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+                          {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0 
+                            ? `${jobImages[currentJob.id].length} image${jobImages[currentJob.id].length > 1 ? 's' : ''}`
+                            : currentJob.resultUrls && currentJob.resultUrls.length > 0
+                            ? `${currentJob.resultUrls.length} image${currentJob.resultUrls.length > 1 ? 's' : ''}`
+                            : '0 images'
+                          }
+                        </div>
+                        <button
+                          onClick={async () => {
+                            console.log('🔄 Manual refresh: Fetching latest images for job:', currentJob.id);
+                            setRefreshingImages(true);
+                            try {
+                              await fetchJobImages(currentJob.id);
+                            } finally {
+                              setRefreshingImages(false);
+                            }
+                          }}
+                          disabled={refreshingImages}
+                          className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-xs font-medium transition-colors flex items-center space-x-1"
+                          title="Refresh images"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${refreshingImages ? 'animate-spin' : ''}`} />
+                          <span>{refreshingImages ? 'Refreshing...' : 'Refresh'}</span>
+                        </button>
                       </div>
                     </div>
 
@@ -2775,23 +2953,36 @@ export default function TextToImagePage() {
                               key={`db-${dbImage.id}`}
                               className="relative group"
                             >
-                              {dbImage.dataUrl ? (
+                              {hasS3Storage(dbImage) || dbImage.dataUrl ? (
                                 // Image is ready to display
                                 <>
                                   <img
-                                    src={dbImage.dataUrl}
+                                    src={getBestImageUrl(dbImage)}
                                     alt={`Generated image ${index + 1}`}
                                     className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
                                     onError={(e) => {
-                                      // Fallback to placeholder for serverless RunPod
                                       console.warn(
-                                        "⚠️ Database image failed to load:",
-                                        dbImage.filename,
-                                        "- switching to placeholder"
+                                        "⚠️ Image failed to load:",
+                                        dbImage.filename
                                       );
 
-                                      (e.target as HTMLImageElement).src =
-                                        "/api/placeholder-image";
+                                      const currentSrc = (e.target as HTMLImageElement).src;
+                                      
+                                      // Try fallback URLs in order: S3 -> Database -> Placeholder
+                                      if (dbImage.s3Key && !currentSrc.includes(dbImage.s3Key)) {
+                                        console.log("Trying S3 URL for:", dbImage.filename);
+                                        (e.target as HTMLImageElement).src = buildS3ImageUrl(dbImage.s3Key);
+                                      } else if (dbImage.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
+                                        console.log("Trying S3 URL from network path for:", dbImage.filename);
+                                        const s3Key = dbImage.networkVolumePath.replace('/runpod-volume/', '');
+                                        (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                                      } else if (dbImage.dataUrl && !currentSrc.includes('/api/images/')) {
+                                        console.log("Falling back to database URL for:", dbImage.filename);
+                                        (e.target as HTMLImageElement).src = dbImage.dataUrl;
+                                      } else {
+                                        console.log("Switching to placeholder for:", dbImage.filename);
+                                        (e.target as HTMLImageElement).src = "/api/placeholder-image";
+                                      }
                                     }}
                                   />
                                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">

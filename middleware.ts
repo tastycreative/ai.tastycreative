@@ -31,6 +31,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/trpc/getTodos(.*)',
   '/api/debug(.*)',
   '/api/test(.*)',
+  '/api/diagnostic(.*)', // ✅ Add diagnostic routes as public
   '/api/webhooks(.*)',  // ✅ Add webhooks as public API routes
   '/api/webhook-test(.*)', // ✅ Also add your test webhook
   '/api/models/upload-from-training(.*)', // ✅ Add training upload endpoint
@@ -38,6 +39,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/influencers/training-complete(.*)', // ✅ Add training complete endpoint for RunPod handler
   '/api/proxy(.*)', // ✅ Add proxy routes as public (needed for image loading)
   '/api/instagram(.*)', // ✅ Add Instagram API routes as public
+  '/api/images/s3(.*)', // ✅ Add S3 image proxy as public for browser image loading
 ]);
 
 // ✅ Special handling for API routes that need custom auth

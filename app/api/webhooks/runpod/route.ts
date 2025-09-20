@@ -95,7 +95,67 @@ export async function POST(request: NextRequest) {
       console.log(`📊 Adding ${resultUrls.length} result URLs to job ${jobId}`);
     }
 
-    // Handle completed generation with images
+    // Handle completed generation with S3 network volume paths
+    if (status === 'COMPLETED' && body.network_volume_paths && Array.isArray(body.network_volume_paths)) {
+      console.log(`🖼️ Processing ${body.network_volume_paths.length} S3 network volume images for job ${jobId}`);
+      
+      try {
+        const savedImages = [];
+        const resultUrls = [];
+        
+        for (const pathData of body.network_volume_paths) {
+          const { filename, subfolder, type, s3_key, network_volume_path, file_size } = pathData;
+          
+          console.log(`💾 Saving S3 network volume image: ${filename} at ${s3_key || network_volume_path}`);
+          
+          // Save to database with S3 key and network volume path
+          const savedImage = await saveImageToDatabase(
+            existingJob.clerkId,
+            jobId,
+            { filename, subfolder, type },
+            {
+              saveData: false, // Don't save image bytes to database
+              extractMetadata: false, // Don't extract metadata (we have it from handler)
+              s3Key: s3_key,
+              networkVolumePath: network_volume_path,
+              fileSize: file_size
+            }
+          );
+          
+          if (savedImage) {
+            savedImages.push(savedImage);
+            
+            // Generate S3 proxy URL for frontend
+            if (s3_key) {
+              const proxyUrl = `/api/images/s3/${encodeURIComponent(s3_key)}`;
+              resultUrls.push(proxyUrl);
+              console.log(`✅ Generated S3 proxy URL: ${proxyUrl}`);
+            }
+            
+            console.log(`✅ S3 network volume image saved to database: ${savedImage.id}`);
+          } else {
+            console.error(`❌ Failed to save S3 network volume image: ${filename}`);
+          }
+        }
+        
+        updateData.completedAt = new Date();
+        updateData.resultImages = savedImages;
+        
+        // Add S3 proxy URLs to job resultUrls
+        if (resultUrls.length > 0) {
+          updateData.resultUrls = resultUrls;
+          console.log(`✅ Added ${resultUrls.length} S3 proxy URLs to job resultUrls`);
+        }
+        
+        console.log(`✅ Saved ${savedImages.length} S3 network volume images for job ${jobId}`);
+      } catch (imageError) {
+        console.error('❌ Error processing S3 network volume images:', imageError);
+        updateData.error = 'Failed to process S3 network volume images';
+        updateData.status = 'failed';
+      }
+    }
+
+    // Handle completed generation with images (legacy support - base64 data)
     if (status === 'COMPLETED' && images && Array.isArray(images)) {
       console.log(`🖼️ Processing ${images.length} generated images for job ${jobId}`);
       

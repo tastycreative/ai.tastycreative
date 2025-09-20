@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
+import { getBestImageUrl, hasS3Storage, buildS3ImageUrl } from "@/lib/s3Utils";
 import {
   ImageIcon,
   Download,
@@ -41,6 +42,8 @@ interface GeneratedImage {
   format?: string;
   url?: string; // Dynamically constructed ComfyUI URL
   dataUrl?: string; // Database-served image URL
+  s3Key?: string; // S3 key for network volume storage
+  networkVolumePath?: string; // Path on network volume
   createdAt: Date | string;
   jobId: string;
 }
@@ -58,6 +61,8 @@ interface GeneratedVideo {
   format?: string;
   url?: string; // Dynamically constructed ComfyUI URL
   dataUrl?: string; // Database-served video URL
+  s3Key?: string; // S3 key for network volume storage
+  networkVolumePath?: string; // Path on network volume
   createdAt: Date | string;
   jobId: string;
 }
@@ -464,8 +469,31 @@ export default function GeneratedContentPage() {
     try {
       console.log("📥 Downloading image:", image.filename);
 
+      // Priority 1: Download from S3 network volume
+      if (hasS3Storage(image)) {
+        const s3Url = getBestImageUrl(image);
+        console.log("🚀 Downloading from S3:", s3Url);
+        
+        try {
+          const response = await fetch(s3Url);
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = image.filename;
+            link.click();
+            URL.revokeObjectURL(url);
+            console.log("✅ S3 image downloaded");
+            return;
+          }
+        } catch (s3Error) {
+          console.warn("⚠️ S3 download failed, trying fallback:", s3Error);
+        }
+      }
+
+      // Priority 2: Download from database
       if (image.dataUrl) {
-        // Priority 1: Download from database
         const response = await apiClient.get(image.dataUrl);
         if (response.ok) {
           const blob = await response.blob();
@@ -480,8 +508,8 @@ export default function GeneratedContentPage() {
         }
       }
 
+      // Priority 3: Download from ComfyUI (dynamic URL)
       if (image.url) {
-        // Priority 2: Download from ComfyUI (dynamic URL)
         const link = document.createElement("a");
         link.href = image.url;
         link.download = image.filename;
@@ -504,11 +532,14 @@ export default function GeneratedContentPage() {
   const shareImage = (image: GeneratedImage) => {
     let urlToShare = "";
 
-    if (image.dataUrl) {
-      // Priority 1: Share database URL (more reliable)
+    // Priority 1: Share S3 URL (fastest and most reliable)
+    if (hasS3Storage(image)) {
+      urlToShare = getBestImageUrl(image);
+    } else if (image.dataUrl) {
+      // Priority 2: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
     } else if (image.url) {
-      // Priority 2: Share ComfyUI URL (dynamic)
+      // Priority 3: Share ComfyUI URL (dynamic)
       urlToShare = image.url;
     } else {
       alert("No shareable URL available for this image");
@@ -1258,7 +1289,7 @@ export default function GeneratedContentPage() {
                       />
                     ) : (
                       <img
-                        src={item.dataUrl || item.url}
+                        src={getBestImageUrl(item)}
                         alt={item.filename}
                         className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
                         onClick={() => setSelectedItem(item)}
@@ -1269,51 +1300,24 @@ export default function GeneratedContentPage() {
                           );
 
                           const currentSrc = (e.target as HTMLImageElement).src;
-                          const currentPath =
-                            new URL(currentSrc).pathname +
-                            new URL(currentSrc).search;
-
-                          // For serverless mode, only use dataUrl or placeholder
-                          if (
-                            process.env.NEXT_PUBLIC_RUNPOD_SERVERLESS === "true"
-                          ) {
-                            if (
-                              item.dataUrl &&
-                              currentPath !== "/api/placeholder-image"
-                            ) {
-                              console.log(
-                                "Switching to placeholder for serverless mode"
-                              );
-                              (e.target as HTMLImageElement).src =
-                                "/api/placeholder-image";
-                            }
-                            return;
-                          }
-
-                          // Legacy fallback logic for non-serverless mode
-                          if (
-                            item.dataUrl &&
-                            currentPath === item.dataUrl &&
-                            item.url
-                          ) {
-                            console.log("Falling back to ComfyUI URL");
-                            (e.target as HTMLImageElement).src = item.url;
-                          }
-                          // Check if current URL matches the ComfyUI URL
-                          else if (
-                            item.url &&
-                            currentSrc === item.url &&
-                            item.dataUrl
-                          ) {
-                            console.log("Falling back to database URL");
+                          
+                          // Try fallback URLs in order: S3 -> Database -> ComfyUI -> Placeholder
+                          if (item.s3Key && !currentSrc.includes(item.s3Key)) {
+                            console.log("Trying S3 URL for:", item.filename);
+                            (e.target as HTMLImageElement).src = buildS3ImageUrl(item.s3Key);
+                          } else if (item.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
+                            console.log("Trying S3 URL from network path for:", item.filename);
+                            const s3Key = item.networkVolumePath.replace('/runpod-volume/', '');
+                            (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                          } else if (item.dataUrl && !currentSrc.includes('/api/images/')) {
+                            console.log("Falling back to database URL for:", item.filename);
                             (e.target as HTMLImageElement).src = item.dataUrl;
+                          } else if (item.url && currentSrc !== item.url) {
+                            console.log("Falling back to ComfyUI URL for:", item.filename);
+                            (e.target as HTMLImageElement).src = item.url;
                           } else {
-                            console.error(
-                              "All URLs failed for:",
-                              item.filename
-                            );
-                            (e.target as HTMLImageElement).style.display =
-                              "none";
+                            console.error("All URLs failed for:", item.filename);
+                            (e.target as HTMLImageElement).src = "/api/placeholder-image";
                           }
                         }}
                       />
@@ -1524,7 +1528,7 @@ export default function GeneratedContentPage() {
                           </>
                         ) : (
                           <img
-                            src={item.dataUrl || item.url}
+                            src={getBestImageUrl(item)}
                             alt={item.filename}
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => setSelectedItem(item)}
@@ -1534,42 +1538,25 @@ export default function GeneratedContentPage() {
                                 item.filename
                               );
 
-                              const currentSrc = (e.target as HTMLImageElement)
-                                .src;
-
-                              // For serverless mode, only use dataUrl or placeholder
-                              if (
-                                process.env.NEXT_PUBLIC_RUNPOD_SERVERLESS ===
-                                "true"
-                              ) {
-                                if (currentSrc !== "/api/placeholder-image") {
-                                  console.log(
-                                    "Switching to placeholder for serverless mode"
-                                  );
-                                  (e.target as HTMLImageElement).src =
-                                    "/api/placeholder-image";
-                                }
-                                return;
-                              }
-
-                              // Legacy fallback logic for non-serverless mode
-                              if (currentSrc === item.dataUrl && item.url) {
-                                console.log("Falling back to ComfyUI URL");
+                              const currentSrc = (e.target as HTMLImageElement).src;
+                              
+                              // Try fallback URLs in order: S3 -> Database -> ComfyUI -> Placeholder
+                              if (item.s3Key && !currentSrc.includes(item.s3Key)) {
+                                console.log("Trying S3 URL for:", item.filename);
+                                (e.target as HTMLImageElement).src = buildS3ImageUrl(item.s3Key);
+                              } else if (item.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
+                                console.log("Trying S3 URL from network path for:", item.filename);
+                                const s3Key = item.networkVolumePath.replace('/runpod-volume/', '');
+                                (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                              } else if (item.dataUrl && !currentSrc.includes('/api/images/')) {
+                                console.log("Falling back to database URL for:", item.filename);
+                                (e.target as HTMLImageElement).src = item.dataUrl;
+                              } else if (item.url && currentSrc !== item.url) {
+                                console.log("Falling back to ComfyUI URL for:", item.filename);
                                 (e.target as HTMLImageElement).src = item.url;
-                              } else if (
-                                currentSrc === item.url &&
-                                item.dataUrl
-                              ) {
-                                console.log("Falling back to database URL");
-                                (e.target as HTMLImageElement).src =
-                                  item.dataUrl;
                               } else {
-                                console.warn(
-                                  "All URLs failed for:",
-                                  item.filename
-                                );
-                                (e.target as HTMLImageElement).style.display =
-                                  "none";
+                                console.error("All URLs failed for:", item.filename);
+                                (e.target as HTMLImageElement).src = "/api/placeholder-image";
                               }
                             }}
                           />
@@ -1850,7 +1837,7 @@ export default function GeneratedContentPage() {
                 />
               ) : (
                 <img
-                  src={selectedItem.dataUrl || selectedItem.url}
+                  src={getBestImageUrl(selectedItem)}
                   alt={selectedItem.filename}
                   className="max-w-full max-h-[80vh] object-contain"
                   onError={(e) => {
@@ -1860,36 +1847,23 @@ export default function GeneratedContentPage() {
                     );
                     const currentSrc = (e.target as HTMLImageElement).src;
 
-                    // For serverless mode, only use dataUrl or placeholder
-                    if (process.env.NEXT_PUBLIC_RUNPOD_SERVERLESS === "true") {
-                      if (currentSrc !== "/api/placeholder-image") {
-                        console.log(
-                          "Modal switching to placeholder for serverless mode"
-                        );
-                        (e.target as HTMLImageElement).src =
-                          "/api/placeholder-image";
-                      }
-                      return;
-                    }
-
-                    // Legacy fallback logic for non-serverless mode
-                    if (
-                      currentSrc === selectedItem.dataUrl &&
-                      selectedItem.url
-                    ) {
-                      console.log("Modal falling back to ComfyUI URL");
-                      (e.target as HTMLImageElement).src = selectedItem.url;
-                    } else if (
-                      currentSrc === selectedItem.url &&
-                      selectedItem.dataUrl
-                    ) {
+                    // Try fallback URLs in order: S3 -> Database -> ComfyUI -> Placeholder
+                    if (selectedItem.s3Key && !currentSrc.includes(selectedItem.s3Key)) {
+                      console.log("Modal trying S3 URL for:", selectedItem.filename);
+                      (e.target as HTMLImageElement).src = buildS3ImageUrl(selectedItem.s3Key);
+                    } else if (selectedItem.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
+                      console.log("Modal trying S3 URL from network path for:", selectedItem.filename);
+                      const s3Key = selectedItem.networkVolumePath.replace('/runpod-volume/', '');
+                      (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                    } else if (selectedItem.dataUrl && !currentSrc.includes('/api/images/')) {
                       console.log("Modal falling back to database URL");
                       (e.target as HTMLImageElement).src = selectedItem.dataUrl;
+                    } else if (selectedItem.url && currentSrc !== selectedItem.url) {
+                      console.log("Modal falling back to ComfyUI URL");
+                      (e.target as HTMLImageElement).src = selectedItem.url;
                     } else {
-                      console.error(
-                        "All modal URLs failed for:",
-                        selectedItem.filename
-                      );
+                      console.error("All modal URLs failed for:", selectedItem.filename);
+                      (e.target as HTMLImageElement).src = "/api/placeholder-image";
                     }
                   }}
                 />

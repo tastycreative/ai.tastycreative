@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
+import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import {
   ChevronLeft,
   ChevronRight,
@@ -27,6 +28,7 @@ import {
   Wand2,
   PlayCircle,
   Bot,
+  Shield,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -43,122 +45,6 @@ interface NavSection {
   collapsible?: boolean;
 }
 
-const navigation: (NavItem | NavSection)[] = [
-  {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: Home,
-  },
-  {
-    name: "Workspace",
-    collapsible: true,
-    items: [
-      {
-        name: "My Influencers",
-        href: "/workspace/my-influencers",
-        icon: Users,
-      },
-      {
-        name: "Generated Content",
-        href: "/workspace/generated-content",
-        icon: FileText,
-      },
-      {
-        name: "Social Media",
-        href: "/workspace/social-media",
-        icon: Share2,
-      },
-    ],
-  },
-  {
-    name: "Generate Content",
-    collapsible: true,
-    items: [
-      {
-        name: "Text to Image",
-        href: "/workspace/generate-content/text-to-image",
-        icon: ImageIcon,
-      },
-      {
-        name: "Style Transfer",
-        href: "/workspace/generate-content/style-transfer",
-        icon: Palette,
-      },
-      {
-        name: "Image to Video",
-        href: "/workspace/generate-content/image-to-video",
-        icon: Video,
-      },
-      {
-        name: "Face Swapping",
-        href: "/workspace/generate-content/face-swapping",
-        icon: Shuffle,
-      },
-      {
-        name: "Skin Enhancer",
-        href: "/workspace/generate-content/skin-enhancer",
-        icon: Sparkles,
-      },
-    ],
-  },
-  {
-    name: "Train Models",
-    collapsible: true,
-    items: [
-      {
-        name: "Train LoRA",
-        href: "/workspace/train-lora",
-        icon: PlusCircle,
-      },
-      {
-        name: "Training Jobs",
-        href: "/workspace/training-jobs",
-        icon: BarChart3,
-      },
-    ],
-  },
-  {
-    name: "AI Tools",
-    collapsible: true,
-    items: [
-      {
-        name: "Instagram Extractor",
-        href: "/workspace/ai-tools/instagram-extractor",
-        icon: Instagram,
-      },
-      {
-        name: "Style Transfer Prompts",
-        href: "/workspace/ai-tools/style-transfer-prompts",
-        icon: Wand2,
-      },
-      {
-        name: "Video Prompts",
-        href: "/workspace/ai-tools/video-prompts",
-        icon: PlayCircle,
-      },
-    ],
-  },
-  {
-    name: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
-  {
-    name: "Billing",
-    href: "/billing",
-    icon: CreditCard,
-  },
-  {
-    name: "Team",
-    href: "/team",
-    icon: UserCheck,
-  },
-];
-
-function classNames(...classes: string[]) {
-  return classes.filter(Boolean).join(" ");
-}
-
 export default function DashboardLayout({
   children,
 }: {
@@ -173,11 +59,135 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { signOut } = useClerk();
   const { user } = useUser();
+  const { isAdmin } = useIsAdmin();
+
+  // Dynamic navigation based on user permissions
+  const navigation: (NavItem | NavSection)[] = [
+    {
+      name: "Dashboard",
+      href: "/dashboard",
+      icon: Home,
+    },
+    {
+      name: "Workspace",
+      collapsible: true,
+      items: [
+        {
+          name: "My Influencers",
+          href: "/workspace/my-influencers",
+          icon: Users,
+        },
+        {
+          name: "Generated Content",
+          href: "/workspace/generated-content",
+          icon: FileText,
+        },
+        {
+          name: "Social Media",
+          href: "/workspace/social-media",
+          icon: Share2,
+        },
+      ],
+    },
+    {
+      name: "Generate Content",
+      collapsible: true,
+      items: [
+        {
+          name: "Text to Image",
+          href: "/workspace/generate-content/text-to-image",
+          icon: ImageIcon,
+        },
+        {
+          name: "Style Transfer",
+          href: "/workspace/generate-content/style-transfer",
+          icon: Palette,
+        },
+        {
+          name: "Image to Video",
+          href: "/workspace/generate-content/image-to-video",
+          icon: Video,
+        },
+        {
+          name: "Face Swapping",
+          href: "/workspace/generate-content/face-swapping",
+          icon: Shuffle,
+        },
+        {
+          name: "Skin Enhancer",
+          href: "/workspace/generate-content/skin-enhancer",
+          icon: Sparkles,
+        },
+      ],
+    },
+    {
+      name: "Train Models",
+      collapsible: true,
+      items: [
+        {
+          name: "Train LoRA",
+          href: "/workspace/train-lora",
+          icon: PlusCircle,
+        },
+        {
+          name: "Training Jobs",
+          href: "/workspace/training-jobs",
+          icon: BarChart3,
+        },
+      ],
+    },
+    {
+      name: "AI Tools",
+      collapsible: true,
+      items: [
+        {
+          name: "Instagram Extractor",
+          href: "/workspace/ai-tools/instagram-extractor",
+          icon: Instagram,
+        },
+        {
+          name: "Style Transfer Prompts",
+          href: "/workspace/ai-tools/style-transfer-prompts",
+          icon: Wand2,
+        },
+        {
+          name: "Video Prompts",
+          href: "/workspace/ai-tools/video-prompts",
+          icon: PlayCircle,
+        },
+      ],
+    },
+    // Conditionally add admin link
+    ...(isAdmin ? [{
+      name: "Admin",
+      href: "/admin",
+      icon: Shield,
+    }] : []),
+    {
+      name: "Settings",
+      href: "/settings",
+      icon: Settings,
+    },
+    {
+      name: "Billing",
+      href: "/billing",
+      icon: CreditCard,
+    },
+    {
+      name: "Team",
+      href: "/team",
+      icon: UserCheck,
+    },
+  ];
 
   // Get user's first name or fallback
   const firstName = user?.firstName || user?.username || "User";
   const email = user?.emailAddresses?.[0]?.emailAddress || "";
   const initials = firstName.charAt(0).toUpperCase();
+
+  function classNames(...classes: string[]) {
+    return classes.filter(Boolean).join(" ");
+  }
 
   // Handle mobile detection and sidebar state
   useEffect(() => {

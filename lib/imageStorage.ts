@@ -15,11 +15,13 @@ export interface GeneratedImage {
   height?: number;
   format?: string;
   data?: Buffer;
+  networkVolumePath?: string; // Path to image on network volume
+  s3Key?: string; // S3 key for network volume storage
   metadata?: any;
   createdAt: Date | string;
   updatedAt: Date | string;
   // Dynamic properties
-  url?: string | null; // Constructed dynamically, can be null for serverless
+  url?: string | null; // Constructed dynamically (S3, network volume or ComfyUI URL)
   dataUrl?: string; // For database-served images
 }
 
@@ -79,6 +81,9 @@ export async function saveImageToDatabase(
     saveData?: boolean; // Whether to store actual image bytes
     extractMetadata?: boolean; // Whether to extract image dimensions/format
     providedData?: Buffer; // Pre-downloaded image data to use instead of downloading
+    networkVolumePath?: string; // Path to image on network volume
+    s3Key?: string; // S3 key for network volume storage
+    fileSize?: number; // File size if known
   } = {}
 ): Promise<GeneratedImage | null> {
   console.log('💾 Saving image to database:', pathInfo.filename);
@@ -190,19 +195,40 @@ export async function saveImageToDatabase(
       }
     }
 
-    // Save to database
-    const savedImage = await prisma.generatedImage.create({
-      data: {
+    // Save to database using upsert to handle potential duplicates
+    const savedImage = await prisma.generatedImage.upsert({
+      where: {
+        jobId_filename_subfolder_type: {
+          jobId,
+          filename: pathInfo.filename,
+          subfolder: pathInfo.subfolder,
+          type: pathInfo.type
+        }
+      },
+      update: {
+        // Update with new data if image already exists
+        fileSize: options.fileSize || fileSize,
+        width,
+        height,
+        format,
+        data: imageData,
+        networkVolumePath: options.networkVolumePath,
+        s3Key: options.s3Key,
+        metadata
+      },
+      create: {
         clerkId,
         jobId,
         filename: pathInfo.filename,
         subfolder: pathInfo.subfolder,
         type: pathInfo.type,
-        fileSize,
+        fileSize: options.fileSize || fileSize,
         width,
         height,
         format,
         data: imageData,
+        networkVolumePath: options.networkVolumePath,
+        s3Key: options.s3Key,
         metadata
       }
     });
@@ -221,14 +247,18 @@ export async function saveImageToDatabase(
       height: savedImage.height || undefined,
       format: savedImage.format || undefined,
       data: savedImage.data ? Buffer.from(savedImage.data) : undefined,
+      networkVolumePath: savedImage.networkVolumePath || undefined,
       metadata: savedImage.metadata,
       createdAt: savedImage.createdAt,
       updatedAt: savedImage.updatedAt,
-      url: buildComfyUIUrl({
-        filename: savedImage.filename,
-        subfolder: savedImage.subfolder,
-        type: savedImage.type
-      }),
+      // Prioritize network volume path over ComfyUI URL
+      url: savedImage.networkVolumePath ? 
+           `/api/images/${savedImage.id}/network-volume` : 
+           buildComfyUIUrl({
+             filename: savedImage.filename,
+             subfolder: savedImage.subfolder,
+             type: savedImage.type
+           }),
       dataUrl: savedImage.data ? `/api/images/${savedImage.id}/data` : undefined
     };
     
@@ -268,6 +298,8 @@ export async function getUserImages(
         height: true,
         format: true,
         data: options.includeData || false,
+        networkVolumePath: true,
+        s3Key: true,
         metadata: true,
         createdAt: true,
         updatedAt: true
@@ -306,11 +338,16 @@ export async function getUserImages(
       width: img.width || undefined,
       height: img.height || undefined,
       format: img.format || undefined,
-      url: buildComfyUIUrl({
-        filename: img.filename,
-        subfolder: img.subfolder,
-        type: img.type
-      }),
+      networkVolumePath: img.networkVolumePath || undefined,
+      s3Key: img.s3Key || undefined,
+      // Prioritize network volume path over ComfyUI URL
+      url: img.networkVolumePath ? 
+           `/api/images/${img.id}/network-volume` : 
+           buildComfyUIUrl({
+             filename: img.filename,
+             subfolder: img.subfolder,
+             type: img.type
+           }),
       // Set dataUrl if image has data stored (either from included data or separate check)
       dataUrl: (img.data || imageDataStatus[img.id]) ? `/api/images/${img.id}/data` : undefined
     }));
@@ -343,6 +380,8 @@ export async function getJobImages(
         height: true,
         format: true,
         data: options.includeData || false,
+        networkVolumePath: true,
+        s3Key: true,
         metadata: true,
         createdAt: true,
         updatedAt: true
@@ -379,11 +418,16 @@ export async function getJobImages(
       width: img.width || undefined,
       height: img.height || undefined,
       format: img.format || undefined,
-      url: buildComfyUIUrl({
-        filename: img.filename,
-        subfolder: img.subfolder,
-        type: img.type
-      }),
+      networkVolumePath: img.networkVolumePath || undefined,
+      s3Key: img.s3Key || undefined,
+      // Prioritize network volume path over ComfyUI URL
+      url: img.networkVolumePath ? 
+           `/api/images/${img.id}/network-volume` : 
+           buildComfyUIUrl({
+             filename: img.filename,
+             subfolder: img.subfolder,
+             type: img.type
+           }),
       // Set dataUrl if image has data stored (either from included data or separate check)
       dataUrl: (img.data || imageDataStatus[img.id]) ? `/api/images/${img.id}/data` : undefined
     }));
@@ -552,4 +596,38 @@ export async function migrateUrlsToPathComponents(): Promise<void> {
     console.error('💥 Migration error:', error);
     throw error;
   }
+}
+
+/**
+ * Get the appropriate URL for an image based on its storage type
+ */
+export function getImageUrl(image: GeneratedImage): string | null {
+  // Priority 1: S3 key (use our S3 API route)
+  if (image.s3Key) {
+    return `/api/images/s3/${encodeURIComponent(image.s3Key)}`;
+  }
+  
+  // Priority 2: Network volume path (use network volume API route)
+  if (image.networkVolumePath) {
+    return `/api/images/${image.id}/network-volume`;
+  }
+  
+  // Priority 3: Database-stored image data (use database API route)
+  if (image.data) {
+    return `/api/images/${image.id}`;
+  }
+  
+  // Priority 4: Fallback to ComfyUI URL if we have path components
+  if (image.filename && image.subfolder && image.type) {
+    const baseUrl = COMFYUI_URL();
+    const params = new URLSearchParams({
+      filename: image.filename,
+      subfolder: image.subfolder,
+      type: image.type
+    });
+    return `${baseUrl}/view?${params.toString()}`;
+  }
+  
+  // No valid storage method found
+  return null;
 }
