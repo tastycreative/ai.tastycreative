@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     } = body;
 
     // Determine initial status based on targets
-    let status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' = 'PENDING';
+    const status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' = 'PENDING';
     if (!notes) {
       // Generate automatic notes if none provided
       const autoNotes = `Production scheduled: ${imagesTarget} images, ${videosTarget} videos for ${influencer}`;
