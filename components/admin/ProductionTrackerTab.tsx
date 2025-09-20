@@ -419,6 +419,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                       <div className="flex items-center space-x-1">
+                        {/* eslint-disable-next-line jsx-a11y/alt-text */}
                         <Image className="w-3 h-3" />
                         <span>Images</span>
                       </div>
