@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 // DELETE - Delete a production entry
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -26,7 +26,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
-    const entryId = params.id;
+    const { id: entryId } = await params;
 
     // Delete the entry
     await prisma.productionEntry.delete({
@@ -48,7 +48,7 @@ export async function DELETE(
 // PUT - Update a production entry
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -67,7 +67,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
-    const entryId = params.id;
+    const { id: entryId } = await params;
     const body = await request.json();
 
     // Update the entry
