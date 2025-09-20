@@ -15,6 +15,7 @@ model User {
   firstName      String?
   lastName       String?
   imageUrl       String?
+  role           UserRole         @default(USER)
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   images         GeneratedImage[]
@@ -23,6 +24,7 @@ model User {
   influencers    InfluencerLoRA[]
   trainingImages TrainingImage[]
   trainingJobs   TrainingJob[]
+  productionEntries ProductionEntry[]
 
   @@map("users")
 }
@@ -89,22 +91,24 @@ model GenerationJob {
 }
 
 model GeneratedImage {
-  id        String        @id @default(cuid())
-  clerkId   String
-  jobId     String
-  filename  String
-  subfolder String        @default("")
-  type      String        @default("output")
-  fileSize  Int?
-  width     Int?
-  height    Int?
-  format    String?
-  data      Bytes?
-  metadata  Json?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  user      User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job       GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id                    String        @id @default(cuid())
+  clerkId               String
+  jobId                 String
+  filename              String
+  subfolder             String        @default("")
+  type                  String        @default("output")
+  fileSize              Int?
+  width                 Int?
+  height                Int?
+  format                String?
+  data                  Bytes?
+  networkVolumePath     String?       // Path to image on network volume (/runpod-volume/outputs/{userId}/...)
+  s3Key                 String?       // S3 key for network volume storage (outputs/{userId}/...)
+  metadata              Json?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  user                  User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  job                   GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
@@ -112,6 +116,8 @@ model GeneratedImage {
   @@index([clerkId, createdAt])
   @@index([format])
   @@index([filename])
+  @@index([networkVolumePath])
+  @@index([s3Key])
   @@map("generated_images")
 }
 
@@ -207,6 +213,31 @@ model TrainingImage {
   @@map("training_images")
 }
 
+model ProductionEntry {
+  id              String           @id @default(cuid())
+  clerkId         String
+  deadline        DateTime
+  assignee        String
+  influencer      String
+  instagramSource String
+  loraModel       String
+  status          ProductionStatus @default(PENDING)
+  imagesTarget    Int              @default(0)
+  imagesGenerated Int              @default(0)
+  videosTarget    Int              @default(0)
+  videosGenerated Int              @default(0)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([status])
+  @@index([deadline])
+  @@index([assignee])
+  @@map("production_entries")
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -242,4 +273,17 @@ enum GenerationType {
   VIDEO_TO_VIDEO
   SKIN_ENHANCEMENT
   FACE_SWAP
+}
+
+enum UserRole {
+  USER
+  MANAGER
+  ADMIN
+}
+
+enum ProductionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
 }

@@ -51,8 +51,11 @@ export async function GET(
       progress: job.progress,
       imageCount: job._count.images,
       stage: job.stage,
-      message: job.message
+      message: job.message,
+      resultUrls: job.resultUrls
     });
+    
+    console.log(`📊 Full job object keys:`, Object.keys(job));
     
     return NextResponse.json({
       success: true,

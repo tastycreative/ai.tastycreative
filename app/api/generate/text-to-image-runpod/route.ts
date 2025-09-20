@@ -75,14 +75,14 @@ export async function POST(request: NextRequest) {
     await addJob(job);
     console.log('✅ Job created in database:', jobId);
 
-    // Generate webhook URL for progress updates
+    // Generate webhook URL for progress updates - use runpod webhook for network volume support
     // Use production domain first, fallback to other options for development
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
                     process.env.NEXT_PUBLIC_BASE_URL || 
                     process.env.BASE_URL ||
                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
     
-    const webhookUrl = baseUrl ? `${baseUrl}/api/webhooks/generation/${jobId}` : null;
+    const webhookUrl = baseUrl ? `${baseUrl}/api/webhooks/runpod` : null;
     
     // Debug webhook URL construction
     console.log('🔧 Webhook URL construction debug:');

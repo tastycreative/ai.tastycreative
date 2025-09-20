@@ -37,7 +37,9 @@ export async function GET(
         format: img.format,
         createdAt: img.createdAt,
         url: img.url,        // ComfyUI direct URL (if available)
-        dataUrl: img.dataUrl // Database-served URL
+        dataUrl: img.dataUrl, // Database-served URL
+        s3Key: img.s3Key,    // S3 key for network volume storage
+        networkVolumePath: img.networkVolumePath // Network volume path
       })),
       count: images.length
     });
