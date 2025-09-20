@@ -3,13 +3,14 @@ import { requireAdminAccess } from '@/lib/adminAuth';
 import { prisma } from '@/lib/database';
 import { clerkClient } from '@clerk/nextjs/server';
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // Check admin access
     await requireAdminAccess();
 
     const { role } = await request.json();
-    const userId = params.id;
+    const { id } = await params;
+    const userId = id;
 
     // Validate role
     if (!['USER', 'MANAGER', 'ADMIN'].includes(role)) {
