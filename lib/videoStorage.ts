@@ -18,6 +18,8 @@ export interface GeneratedVideo {
   format?: string;
   data?: Buffer;
   metadata?: any;
+  s3Key?: string; // S3 key for network volume storage
+  networkVolumePath?: string; // Network volume file path
   createdAt: Date | string;
   updatedAt: Date | string;
   // Dynamic properties
@@ -29,6 +31,9 @@ export interface VideoPathInfo {
   filename: string;
   subfolder: string;
   type: string;
+  s3Key?: string;  // Add S3 key support for network volume storage
+  networkVolumePath?: string;  // Add network volume path support
+  fileSize?: number;  // Add file size support
 }
 
 // Helper function to construct ComfyUI video URLs dynamically
@@ -96,6 +101,7 @@ export async function saveVideoToDatabase(
     saveData?: boolean; // Whether to store actual video bytes
     extractMetadata?: boolean; // Whether to extract video dimensions/duration
     providedData?: Buffer; // Video data provided directly (from webhook)
+    s3Key?: string; // S3 key for network volume storage
   } = {}
 ): Promise<GeneratedVideo | null> {
   console.log('💾 saveVideoToDatabase called with:');
@@ -225,14 +231,16 @@ export async function saveVideoToDatabase(
         filename: pathInfo.filename,
         subfolder: pathInfo.subfolder,
         type: pathInfo.type,
-        fileSize,
+        fileSize: pathInfo.fileSize || fileSize,
         width,
         height,
         duration,
         fps,
         format,
         data: videoData,
-        metadata
+        metadata,
+        s3Key: pathInfo.s3Key || options.s3Key,  // Include S3 key
+        networkVolumePath: pathInfo.networkVolumePath  // Include network volume path
       }
     });
     
@@ -395,7 +403,7 @@ export async function getJobVideos(
 export async function getVideoData(
   videoId: string,
   clerkId: string
-): Promise<{ data: Buffer; filename: string; format?: string } | null> {
+): Promise<{ data: Buffer; filename: string; format?: string; s3Key?: string; networkVolumePath?: string } | null> {
   console.log('📤 Serving video data:', videoId, 'for user:', clerkId);
   
   try {
@@ -407,16 +415,36 @@ export async function getVideoData(
       select: {
         data: true,
         filename: true,
-        format: true
+        format: true,
+        s3Key: true,
+        networkVolumePath: true
       }
     });
     
-    if (!video || !video.data) {
-      console.log('❌ Video not found or no data stored');
+    if (!video) {
+      console.log('❌ Video not found');
       return null;
     }
     
-    console.log('✅ Serving video data:', video.filename);
+    // For S3 videos, data field might be null
+    if (video.s3Key) {
+      console.log('✅ Serving S3 video data:', video.filename, 'S3 key:', video.s3Key);
+      return {
+        data: Buffer.alloc(0), // Empty buffer for S3 videos
+        filename: video.filename,
+        format: video.format || undefined,
+        s3Key: video.s3Key,
+        networkVolumePath: video.networkVolumePath || undefined
+      };
+    }
+    
+    // For legacy blob videos
+    if (!video.data) {
+      console.log('❌ No video data stored and no S3 key');
+      return null;
+    }
+    
+    console.log('✅ Serving legacy blob video data:', video.filename);
     
     return {
       data: Buffer.from(video.data),

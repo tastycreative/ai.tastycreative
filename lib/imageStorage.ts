@@ -420,8 +420,10 @@ export async function getJobImages(
       format: img.format || undefined,
       networkVolumePath: img.networkVolumePath || undefined,
       s3Key: img.s3Key || undefined,
-      // Prioritize network volume path over ComfyUI URL
-      url: img.networkVolumePath ? 
+      // Prioritize S3 URL, then network volume path, then ComfyUI URL
+      url: img.s3Key ? 
+           `/api/images/s3/${encodeURIComponent(img.s3Key)}` :
+           img.networkVolumePath ? 
            `/api/images/${img.id}/network-volume` : 
            buildComfyUIUrl({
              filename: img.filename,

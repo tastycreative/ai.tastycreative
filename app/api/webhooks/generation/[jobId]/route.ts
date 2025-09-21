@@ -29,6 +29,7 @@ export async function POST(
       message, 
       images, 
       videos, 
+      network_volume_paths,  // Add this for S3-optimized video storage
       error, 
       prompt_id,
       stage,
@@ -367,8 +368,70 @@ export async function POST(
       }
     }
 
-    // Handle completed generation with videos (for image-to-video)
-    if (status === 'COMPLETED' && videos && Array.isArray(videos)) {
+    // Handle S3-optimized videos from network_volume_paths (image-to-video with S3 storage)
+    // Only process as videos if the files are actually video files or the job type indicates video generation
+    if (status === 'COMPLETED' && network_volume_paths && Array.isArray(network_volume_paths)) {
+      // Check if these are actually video files by examining extensions and job type
+      const hasVideoFiles = network_volume_paths.some(item => {
+        const filename = item.filename || '';
+        return filename.toLowerCase().match(/\.(mp4|mov|avi|webm|mkv)$/);
+      });
+      
+      const isVideoGenerationJob = existingJob.type === 'IMAGE_TO_VIDEO' || existingJob.type === 'TEXT_TO_VIDEO' || existingJob.type === 'VIDEO_TO_VIDEO';
+      
+      if (hasVideoFiles || isVideoGenerationJob) {
+        console.log(`🎬 Processing ${network_volume_paths.length} S3-optimized videos for job ${jobId}`);
+        
+        // Store video metadata in database (no blob data)
+        const videoUrls: string[] = [];
+        
+        for (const videoInfo of network_volume_paths) {
+          try {
+            console.log('🎬 Processing S3 video:', videoInfo.filename, 'S3 key:', videoInfo.s3Key);
+            
+            // Save video metadata to database without blob data
+            const videoRecord = await saveVideoToDatabase(
+              existingJob.clerkId,
+              jobId,
+              {
+                filename: videoInfo.filename,
+                subfolder: videoInfo.subfolder || '',
+                type: videoInfo.type || 'output',
+                s3Key: videoInfo.s3Key,  // Include S3 key for retrieval
+                networkVolumePath: videoInfo.networkVolumePath,
+                fileSize: videoInfo.fileSize || 0
+              },
+              { 
+                saveData: false,  // Don't save blob data
+                extractMetadata: false,  // Metadata provided
+                s3Key: videoInfo.s3Key  // Pass S3 key for URL generation
+              }
+            );
+            
+            if (videoRecord) {
+              // Use S3 URL generation
+              const videoUrl = `/api/videos/${videoRecord.id}/data`;
+              videoUrls.push(videoUrl);
+              console.log('✅ S3 video stored:', videoRecord.filename, 'URL:', videoUrl);
+            } else {
+              console.error('❌ Failed to save S3 video metadata:', videoInfo.filename);
+            }
+          } catch (videoError) {
+            console.error('❌ Error processing S3 video:', videoInfo.filename, videoError);
+          }
+        }
+        
+        if (videoUrls.length > 0) {
+          updateData.resultUrls = videoUrls;
+          console.log(`✅ Stored ${videoUrls.length} S3 video URLs for job ${jobId}`);
+        }
+      } else {
+        console.log(`🖼️ Network volume paths contain image files, skipping video processing for job ${jobId}`);
+        // These will be handled by the existing image processing logic above
+      }
+    }
+    // Handle completed generation with videos (for image-to-video with blob data - backward compatibility)
+    else if (status === 'COMPLETED' && videos && Array.isArray(videos)) {
       console.log(`🎬 Processing ${videos.length} generated videos for job ${jobId}`);
       
       // Store videos in database and get URLs

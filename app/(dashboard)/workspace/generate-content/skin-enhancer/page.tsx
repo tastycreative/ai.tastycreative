@@ -336,9 +336,24 @@ export default function SkinEnhancerPage() {
         if (savedHistory) {
           const parsedHistory = JSON.parse(savedHistory);
           if (Array.isArray(parsedHistory)) {
-            // Ensure we only keep valid jobs and limit to 5
+            // Filter out any jobs with old /api/videos/ URLs to prevent confusion
             const validHistory = parsedHistory
-              .filter(job => job && job.id)
+              .filter(job => {
+                if (!job || !job.id) return false;
+                
+                // Filter out jobs with old video API URLs - these should be image URLs for skin enhancer
+                if (job.resultUrls && Array.isArray(job.resultUrls)) {
+                  const hasOldVideoUrls = job.resultUrls.some((url: string) => 
+                    typeof url === 'string' && url.includes('/api/videos/')
+                  );
+                  if (hasOldVideoUrls) {
+                    console.warn("🚨 Filtering out job with old video URLs:", job.id, job.resultUrls);
+                    return false;
+                  }
+                }
+                
+                return true;
+              })
               .slice(0, 5)
               .map(job => ({
                 ...job,
@@ -346,6 +361,13 @@ export default function SkinEnhancerPage() {
               }));
             setJobHistory(validHistory);
             console.log("📚 Loaded job history from localStorage:", validHistory.length, "jobs");
+            
+            // Debug log all URLs in history
+            validHistory.forEach(job => {
+              if (job.resultUrls) {
+                console.log(`📋 Job ${job.id} URLs:`, job.resultUrls);
+              }
+            });
           }
         }
       } catch (error) {
@@ -476,6 +498,20 @@ export default function SkinEnhancerPage() {
 
         if (savedIsGenerating === 'true' && savedCurrentJob) {
           const job = JSON.parse(savedCurrentJob);
+          
+          // Validate job URLs - filter out any old video URLs that shouldn't be in skin enhancer
+          if (job.resultUrls && Array.isArray(job.resultUrls)) {
+            const hasOldVideoUrls = job.resultUrls.some((url: string) => 
+              typeof url === 'string' && url.includes('/api/videos/')
+            );
+            
+            if (hasOldVideoUrls) {
+              console.warn("🚨 Current job has old video URLs, clearing:", job.id, job.resultUrls);
+              clearPersistentState();
+              return;
+            }
+          }
+          
           const progressData = savedProgressData ? JSON.parse(savedProgressData) : {};
           
           // Only restore if job is still pending or processing
@@ -2230,46 +2266,58 @@ export default function SkinEnhancerPage() {
                               key={`db-${dbImage.id}`}
                               className="relative group"
                             >
-                              <img
-                                src={(dbImage.dataUrl || dbImage.url) || ''}
-                                alt={`Enhanced image ${index + 1}`}
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                onError={(e) => {
-                                  console.error(
-                                    "Image load error for:",
-                                    dbImage.filename
-                                  );
-
-                                  // Smart fallback logic
-                                  const currentSrc = (
-                                    e.target as HTMLImageElement
-                                  ).src;
-
-                                  if (
-                                    currentSrc === dbImage.dataUrl &&
-                                    dbImage.url
-                                  ) {
-                                    console.log("Falling back to ComfyUI URL");
-                                    (e.target as HTMLImageElement).src =
-                                      dbImage.url;
-                                  } else if (
-                                    currentSrc === dbImage.url &&
-                                    dbImage.dataUrl
-                                  ) {
-                                    console.log("Falling back to database URL");
-                                    (e.target as HTMLImageElement).src =
-                                      dbImage.dataUrl;
-                                  } else {
+                              {/* Only render img if we have a valid URL */}
+                              {(dbImage.dataUrl || dbImage.url) ? (
+                                <img
+                                  src={(dbImage.dataUrl || dbImage.url) as string}
+                                  alt={`Enhanced image ${index + 1}`}
+                                  className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                                  onError={(e) => {
                                     console.error(
-                                      "All URLs failed for:",
+                                      "Image load error for:",
                                       dbImage.filename
                                     );
-                                    (
+
+                                    // Smart fallback logic
+                                    const currentSrc = (
                                       e.target as HTMLImageElement
-                                    ).style.display = "none";
-                                  }
-                                }}
-                              />
+                                    ).src;
+
+                                    if (
+                                      currentSrc === dbImage.dataUrl &&
+                                      dbImage.url
+                                    ) {
+                                      console.log("Falling back to URL");
+                                      (e.target as HTMLImageElement).src =
+                                        dbImage.url;
+                                    } else if (
+                                      currentSrc === dbImage.url &&
+                                      dbImage.dataUrl
+                                    ) {
+                                      console.log("Falling back to database URL");
+                                      (e.target as HTMLImageElement).src =
+                                        dbImage.dataUrl;
+                                    } else {
+                                      console.error(
+                                        "All URLs failed for:",
+                                        dbImage.filename
+                                      );
+                                      (
+                                        e.target as HTMLImageElement
+                                      ).style.display = "none";
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                // Fallback for images without valid URLs
+                                <div className="w-full h-64 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                                  <div className="text-center text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm">Image not available</p>
+                                    <p className="text-xs">{dbImage.filename}</p>
+                                    <p className="text-xs">Missing URL: dataUrl={dbImage.dataUrl || 'null'}, url={dbImage.url || 'null'}</p>
+                                  </div>
+                                </div>
+                              )}
                               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <div className="flex space-x-1">
                                   <button
