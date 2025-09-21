@@ -122,24 +122,26 @@ model GeneratedImage {
 }
 
 model GeneratedVideo {
-  id        String        @id @default(cuid())
-  clerkId   String
-  jobId     String
-  filename  String
-  subfolder String        @default("")
-  type      String        @default("output")
-  fileSize  Int?
-  width     Int?
-  height    Int?
-  duration  Float?
-  fps       Float?
-  format    String?
-  data      Bytes?
-  metadata  Json?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  user      User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job       GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id                String        @id @default(cuid())
+  clerkId           String
+  jobId             String
+  filename          String
+  subfolder         String        @default("")
+  type              String        @default("output")
+  fileSize          Int?
+  width             Int?
+  height            Int?
+  duration          Float?
+  fps               Float?
+  format            String?
+  data              Bytes?
+  metadata          Json?
+  s3Key             String?       // S3 key for network volume storage
+  networkVolumePath String?       // Network volume file path
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
@@ -149,6 +151,7 @@ model GeneratedVideo {
   @@index([filename])
   @@index([duration])
   @@index([fileSize])
+  @@index([s3Key])
   @@map("generated_videos")
 }
 

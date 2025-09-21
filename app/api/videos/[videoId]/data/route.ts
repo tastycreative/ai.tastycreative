@@ -30,7 +30,23 @@ export async function GET(
       );
     }
 
-    console.log('✅ Serving video:', {
+    // If video is stored on S3, redirect to S3 proxy route
+    if (videoData.s3Key) {
+      console.log('🔄 Redirecting to S3 proxy for video:', videoData.s3Key);
+      const s3ProxyUrl = `/api/videos/s3/${encodeURIComponent(videoData.s3Key)}`;
+      return NextResponse.redirect(new URL(s3ProxyUrl, request.url));
+    }
+
+    // Legacy: Handle blob data videos
+    if (!videoData.data || videoData.data.length === 0) {
+      console.error('❌ No video data found for:', videoId);
+      return NextResponse.json(
+        { error: 'Video data not found' },
+        { status: 404 }
+      );
+    }
+
+    console.log('✅ Serving legacy blob video:', {
       filename: videoData.filename,
       format: videoData.format,
       size: videoData.data.length
