@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
     // Get base URL for image and webhook URLs
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || process.env.BASE_URL || 'http://localhost:3000';
     
-    // Get webhook URL for status updates
-    const webhookUrl = `${baseUrl}/api/webhooks/generation-status`;
+    // Get webhook URL for status updates (use generation webhook with jobId for S3 support)
+    const webhookUrl = `${baseUrl}/api/webhooks/generation/${jobId}`;
     
     // Construct proper image URLs (files are in public/uploads/)
     const originalImageUrl = `${baseUrl}/uploads/${validatedData.originalFilename}`;
@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
         maskImageData: validatedData.maskImageData,
         webhookUrl: webhookUrl,
         jobId: jobId,
+        user_id: userId  // Add user_id to payload for S3 storage
       }
     };
 
