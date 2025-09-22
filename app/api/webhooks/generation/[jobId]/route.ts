@@ -125,46 +125,60 @@ export async function POST(
     }
 
     // Handle completed generation with S3 network volume paths (NEW: S3 API storage)
+    // Only process as images if they are NOT video files and NOT from video generation jobs
     if (status === 'COMPLETED' && body.network_volume_paths && Array.isArray(body.network_volume_paths)) {
-      console.log(`🖼️ Processing ${body.network_volume_paths.length} S3 network volume images for job ${jobId}`);
+      // Check if these are actually video files by examining extensions and job type
+      const hasVideoFiles = body.network_volume_paths.some((item: any) => {
+        const filename = item.filename || '';
+        return filename.toLowerCase().match(/\.(mp4|mov|avi|webm|mkv)$/);
+      });
       
-      try {
-        const savedImages = [];
+      const isVideoGenerationJob = existingJob.type === 'IMAGE_TO_VIDEO' || existingJob.type === 'TEXT_TO_VIDEO' || existingJob.type === 'VIDEO_TO_VIDEO';
+      
+      // Only process as images if they are NOT video files and NOT from video generation jobs
+      if (!hasVideoFiles && !isVideoGenerationJob) {
+        console.log(`🖼️ Processing ${body.network_volume_paths.length} S3 network volume images for job ${jobId}`);
         
-        for (const pathData of body.network_volume_paths) {
-          const { filename, subfolder, type, s3_key, file_size } = pathData;
+        try {
+          const savedImages = [];
           
-          console.log(`💾 Saving S3 network volume image: ${filename} with S3 key: ${s3_key}`);
-          
-          // Save to database with S3 key (no image data stored)
-          const savedImage = await saveImageToDatabase(
-            existingJob.clerkId,
-            jobId,
-            { filename, subfolder, type },
-            {
-              saveData: false, // Don't save image bytes to database
-              extractMetadata: false, // Don't extract metadata (we have it from handler)
-              s3Key: s3_key, // NEW: Store S3 key instead of network volume path
-              fileSize: file_size
+          for (const pathData of body.network_volume_paths) {
+            const { filename, subfolder, type, s3_key, file_size } = pathData;
+            
+            console.log(`💾 Saving S3 network volume image: ${filename} with S3 key: ${s3_key}`);
+            
+            // Save to database with S3 key (no image data stored)
+            const savedImage = await saveImageToDatabase(
+              existingJob.clerkId,
+              jobId,
+              { filename, subfolder, type },
+              {
+                saveData: false, // Don't save image bytes to database
+                extractMetadata: false, // Don't extract metadata (we have it from handler)
+                s3Key: s3_key, // NEW: Store S3 key instead of network volume path
+                fileSize: file_size
+              }
+            );
+            
+            if (savedImage) {
+              savedImages.push(savedImage);
+              console.log(`✅ S3 network volume image saved to database: ${savedImage.id}`);
+            } else {
+              console.error(`❌ Failed to save S3 network volume image: ${filename}`);
             }
-          );
-          
-          if (savedImage) {
-            savedImages.push(savedImage);
-            console.log(`✅ S3 network volume image saved to database: ${savedImage.id}`);
-          } else {
-            console.error(`❌ Failed to save S3 network volume image: ${filename}`);
           }
+          
+          updateData.completedAt = new Date();
+          updateData.resultImages = savedImages;
+          
+          console.log(`✅ Saved ${savedImages.length} S3 network volume images for job ${jobId}`);
+        } catch (imageError) {
+          console.error('❌ Error processing S3 network volume images:', imageError);
+          updateData.error = 'Failed to process S3 network volume images';
+          updateData.status = 'failed';
         }
-        
-        updateData.completedAt = new Date();
-        updateData.resultImages = savedImages;
-        
-        console.log(`✅ Saved ${savedImages.length} S3 network volume images for job ${jobId}`);
-      } catch (imageError) {
-        console.error('❌ Error processing S3 network volume images:', imageError);
-        updateData.error = 'Failed to process S3 network volume images';
-        updateData.status = 'failed';
+      } else {
+        console.log(`🎬 Detected video files or video generation job - skipping image processing for network_volume_paths`);
       }
     }
 
@@ -372,7 +386,7 @@ export async function POST(
     // Only process as videos if the files are actually video files or the job type indicates video generation
     if (status === 'COMPLETED' && network_volume_paths && Array.isArray(network_volume_paths)) {
       // Check if these are actually video files by examining extensions and job type
-      const hasVideoFiles = network_volume_paths.some(item => {
+      const hasVideoFiles = network_volume_paths.some((item: any) => {
         const filename = item.filename || '';
         return filename.toLowerCase().match(/\.(mp4|mov|avi|webm|mkv)$/);
       });
