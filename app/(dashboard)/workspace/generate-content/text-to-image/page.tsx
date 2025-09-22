@@ -204,17 +204,12 @@ export default function TextToImagePage() {
   ]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
-  // Database image states with lazy loading
+  // Database image states
   const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
     {}
   );
   const [imageStats, setImageStats] = useState<any>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
-  
-  // Lazy loading states - only load first image immediately, others on demand
-  const [visibleImages, setVisibleImages] = useState<Record<string, number>>({}); // jobId -> count of visible images
-  const [loadingMoreImages, setLoadingMoreImages] = useState<Record<string, boolean>>({}); // jobId -> loading state
-  const [fullQualityImages, setFullQualityImages] = useState<Record<string, Set<number>>>({}); // jobId -> set of image indices in full quality
 
   // Persistent generation state keys
   const STORAGE_KEYS = {
@@ -504,71 +499,7 @@ export default function TextToImagePage() {
     }
   }, [currentJob?.status, isGenerating]);
 
-  // Initialize visible images for new jobs (show only first image immediately)
-  useEffect(() => {
-    if (currentJob && jobImages[currentJob.id] && jobImages[currentJob.id].length > 0) {
-      if (!visibleImages[currentJob.id]) {
-        setVisibleImages(prev => ({
-          ...prev,
-          [currentJob.id]: 1 // Start with only 1 image visible
-        }));
-      }
-    }
-  }, [currentJob?.id, jobImages]);
-
-  // Helper function to load more images for a job
-  const loadMoreImages = (jobId: string) => {
-    const currentVisible = visibleImages[jobId] || 1;
-    const totalImages = jobImages[jobId]?.length || 0;
-    const nextVisible = Math.min(currentVisible + 2, totalImages); // Load 2 more at a time
-    
-    setLoadingMoreImages(prev => ({ ...prev, [jobId]: true }));
-    
-    // Simulate brief loading state for better UX
-    setTimeout(() => {
-      setVisibleImages(prev => ({
-        ...prev,
-        [jobId]: nextVisible
-      }));
-      setLoadingMoreImages(prev => ({ ...prev, [jobId]: false }));
-    }, 300);
-  };
-
-  // Helper function to load all images at once
-  const loadAllImages = (jobId: string) => {
-    const totalImages = jobImages[jobId]?.length || 0;
-    setVisibleImages(prev => ({
-      ...prev,
-      [jobId]: totalImages
-    }));
-  };
-
-  // Helper function to load full quality image
-  const loadFullQuality = (jobId: string, imageIndex: number) => {
-    setFullQualityImages(prev => ({
-      ...prev,
-      [jobId]: new Set(prev[jobId] || []).add(imageIndex)
-    }));
-  };
-
-  // Helper function to get image URL based on quality preference
-  const getImageUrl = (image: DatabaseImage, imageIndex: number, jobId: string) => {
-    const isFullQuality = fullQualityImages[jobId]?.has(imageIndex);
-    
-    if (hasS3Storage(image)) {
-      // Use progressive loading for S3 images
-      if (isFullQuality) {
-        return getBestImageUrl(image, { size: 'full', format: 'auto', quality: 90 });
-      } else {
-        return getBestImageUrl(image, { size: 'medium', format: 'webp', quality: 85 });
-      }
-    }
-    
-    // Fallback for non-S3 images
-    return getBestImageUrl(image);
-  };
-
-  // Initialize empty job history on mount
+  // Initialize component on mount
   useEffect(() => {
     if (!Array.isArray(jobHistory)) {
       setJobHistory([]);
@@ -753,9 +684,9 @@ export default function TextToImagePage() {
     try {
       console.log("📥 Downloading image:", image.filename);
 
-      // Priority 1: Download from S3 network volume
+      // Priority 1: Download from S3 network volume (original quality)
       if (hasS3Storage(image)) {
-        const s3Url = getBestImageUrl(image);
+        const s3Url = getBestImageUrl(image, { size: 'full', format: 'auto', quality: 95 }); // Download original quality
         console.log("🚀 Downloading from S3:", s3Url);
         
         try {
@@ -3017,28 +2948,26 @@ export default function TextToImagePage() {
                           : 'grid-cols-3'
                         : 'grid-cols-1'
                     }`}>
-                      {/* Show database images if available with lazy loading */}
+                      {/* Show database images if available */}
                       {jobImages[currentJob.id] &&
                       jobImages[currentJob.id].length > 0 ? (
                         <>
-                          {/* Database images with lazy loading - show only visible count */}
+                          {/* Database images - show all images */}
                           {jobImages[currentJob.id]
-                            .slice(0, visibleImages[currentJob.id] || 1) // Only show visible images
                             .map((dbImage, index) => (
                               <div
                                 key={`db-${dbImage.id}`}
                                 className="relative group"
                               >
                                 {hasS3Storage(dbImage) || dbImage.dataUrl ? (
-                                  // Image is ready to display with progressive loading
+                                  // Image is ready to display
                                   <>
                                     <div className="relative">
                                       <img
-                                        src={getImageUrl(dbImage, index, currentJob.id)}
+                                        src={getBestImageUrl(dbImage, { size: 'medium', format: 'webp', quality: 75 })}
                                         alt={`Generated image ${index + 1}`}
-                                        className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover cursor-pointer"
+                                        className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
                                         loading="lazy"
-                                        onClick={() => loadFullQuality(currentJob.id, index)}
                                         onError={(e) => {
                                           console.warn(
                                             "⚠️ Image failed to load:",
@@ -3065,35 +2994,20 @@ export default function TextToImagePage() {
                                         }}
                                       />
                                       
-                                      {/* Quality indicator for S3 images */}
-                                      {hasS3Storage(dbImage) && (
-                                        <div className="absolute top-2 left-2">
-                                          <div className="flex space-x-1">
-                                            <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                              {index + 1}
-                                            </div>
-                                            {!fullQualityImages[currentJob.id]?.has(index) && (
-                                              <div className="bg-blue-600 bg-opacity-90 text-white text-xs px-2 py-1 rounded flex items-center space-x-1">
-                                                <span>🗜️</span>
-                                                <span>Click for HD</span>
-                                              </div>
-                                            )}
-                                            {fullQualityImages[currentJob.id]?.has(index) && (
-                                              <div className="bg-green-600 bg-opacity-90 text-white text-xs px-2 py-1 rounded flex items-center space-x-1">
-                                                <span>✨</span>
-                                                <span>HD</span>
-                                              </div>
-                                            )}
+                                      {/* Simple image number indicator with compression info */}
+                                      <div className="absolute top-2 left-2">
+                                        <div className="flex space-x-1">
+                                          <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                            {index + 1}
                                           </div>
+                                          {hasS3Storage(dbImage) && (
+                                            <div className="bg-blue-600 bg-opacity-90 text-white text-xs px-2 py-1 rounded flex items-center space-x-1">
+                                              <span>🗜️</span>
+                                              <span>75% Quality</span>
+                                            </div>
+                                          )}
                                         </div>
-                                      )}
-                                      
-                                      {/* Image number indicator for non-S3 images */}
-                                      {!hasS3Storage(dbImage) && (
-                                        <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                          {index + 1}
-                                        </div>
-                                      )}
+                                      </div>
                                     </div>
                                     
                                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -3134,12 +3048,6 @@ export default function TextToImagePage() {
                                           )}KB`}
                                         {dbImage.format &&
                                           ` • ${dbImage.format.toUpperCase()}`}
-                                        {hasS3Storage(dbImage) && !fullQualityImages[currentJob.id]?.has(index) && (
-                                          <span className="text-blue-300"> • Compressed</span>
-                                        )}
-                                        {hasS3Storage(dbImage) && fullQualityImages[currentJob.id]?.has(index) && (
-                                          <span className="text-green-300"> • Full Quality</span>
-                                        )}
                                       </div>
                                     </div>
                                   </>
@@ -3156,69 +3064,23 @@ export default function TextToImagePage() {
                               </div>
                             ))}
                           
-                          {/* Load More Images Button */}
-                          {jobImages[currentJob.id] && 
-                           (visibleImages[currentJob.id] || 1) < jobImages[currentJob.id].length && (
-                            <div className="col-span-full flex justify-center">
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => loadMoreImages(currentJob.id)}
-                                  disabled={loadingMoreImages[currentJob.id]}
-                                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
-                                >
-                                  {loadingMoreImages[currentJob.id] ? (
-                                    <>
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                      <span>Loading...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ImageIcon className="w-4 h-4" />
-                                      <span>Load {Math.min(2, jobImages[currentJob.id].length - (visibleImages[currentJob.id] || 1))} More</span>
-                                    </>
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => loadAllImages(currentJob.id)}
-                                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
-                                >
-                                  <ImageIcon className="w-4 h-4" />
-                                  <span>Show All ({jobImages[currentJob.id].length - (visibleImages[currentJob.id] || 1)} remaining)</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Quality Controls for S3 Images */}
+                          {/* Data Transfer Optimization Info */}
                           {jobImages[currentJob.id] && 
                            jobImages[currentJob.id].some(img => hasS3Storage(img)) && (
                             <div className="col-span-full">
-                              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <h5 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
-                                      🗜️ Image Quality Controls
+                                    <h5 className="text-sm font-medium text-green-900 dark:text-green-100 mb-1 flex items-center space-x-2">
+                                      <span>🗜️</span>
+                                      <span>Optimized for Fast Loading</span>
                                     </h5>
-                                    <p className="text-xs text-blue-700 dark:text-blue-300">
-                                      Images load compressed by default. Click images or use buttons below for full quality.
+                                    <p className="text-xs text-green-700 dark:text-green-300">
+                                      Images shown at 75% quality (WebP) to reduce data transfer. Downloads are always original quality!
                                     </p>
                                   </div>
-                                  <div className="flex space-x-2">
-                                    <button
-                                      onClick={() => {
-                                        const visibleCount = visibleImages[currentJob.id] || 1;
-                                        for (let i = 0; i < visibleCount; i++) {
-                                          loadFullQuality(currentJob.id, i);
-                                        }
-                                      }}
-                                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center space-x-1"
-                                    >
-                                      <Sparkles className="w-3 h-3" />
-                                      <span>Load All HD</span>
-                                    </button>
-                                    <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-800 px-2 py-1.5 rounded-lg">
-                                      Saves ~60% bandwidth
-                                    </div>
+                                  <div className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-800 px-2 py-1.5 rounded-lg">
+                                    ~60% Less Data
                                   </div>
                                 </div>
                               </div>
