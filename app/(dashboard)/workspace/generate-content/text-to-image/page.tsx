@@ -203,12 +203,16 @@ export default function TextToImagePage() {
   ]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
-  // Database image states
+  // Database image states with lazy loading
   const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
     {}
   );
   const [imageStats, setImageStats] = useState<any>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
+  
+  // Lazy loading states - only load first image immediately, others on demand
+  const [visibleImages, setVisibleImages] = useState<Record<string, number>>({}); // jobId -> count of visible images
+  const [loadingMoreImages, setLoadingMoreImages] = useState<Record<string, boolean>>({}); // jobId -> loading state
 
   // Persistent generation state keys
   const STORAGE_KEYS = {
@@ -498,6 +502,45 @@ export default function TextToImagePage() {
     }
   }, [currentJob?.status, isGenerating]);
 
+  // Initialize visible images for new jobs (show only first image immediately)
+  useEffect(() => {
+    if (currentJob && jobImages[currentJob.id] && jobImages[currentJob.id].length > 0) {
+      if (!visibleImages[currentJob.id]) {
+        setVisibleImages(prev => ({
+          ...prev,
+          [currentJob.id]: 1 // Start with only 1 image visible
+        }));
+      }
+    }
+  }, [currentJob?.id, jobImages]);
+
+  // Helper function to load more images for a job
+  const loadMoreImages = (jobId: string) => {
+    const currentVisible = visibleImages[jobId] || 1;
+    const totalImages = jobImages[jobId]?.length || 0;
+    const nextVisible = Math.min(currentVisible + 2, totalImages); // Load 2 more at a time
+    
+    setLoadingMoreImages(prev => ({ ...prev, [jobId]: true }));
+    
+    // Simulate brief loading state for better UX
+    setTimeout(() => {
+      setVisibleImages(prev => ({
+        ...prev,
+        [jobId]: nextVisible
+      }));
+      setLoadingMoreImages(prev => ({ ...prev, [jobId]: false }));
+    }, 300);
+  };
+
+  // Helper function to load all images at once
+  const loadAllImages = (jobId: string) => {
+    const totalImages = jobImages[jobId]?.length || 0;
+    setVisibleImages(prev => ({
+      ...prev,
+      [jobId]: totalImages
+    }));
+  };
+
   // Initialize empty job history on mount
   useEffect(() => {
     if (!Array.isArray(jobHistory)) {
@@ -512,36 +555,40 @@ export default function TextToImagePage() {
     }
   }, [apiClient]);
 
-  // Auto-refresh for ALL jobs - check every 3 seconds for faster loading
+  // Optimized auto-refresh - reduced frequency to minimize data transfer
   useEffect(() => {
     if (!apiClient || !currentJob) {
       return;
     }
 
-    // More aggressive auto-refresh for ANY job that might have images
-    const autoRefreshInterval = setInterval(async () => {
-      console.log('🔄 Auto-refresh: Checking for job images...');
-      
-      // Always check for images if we don't have them yet
-      const hasImages = jobImages[currentJob.id] && jobImages[currentJob.id].length > 0;
-      
-      if (!hasImages) {
-        console.log('🔄 Auto-refresh: No images found, fetching...');
-        await fetchJobImages(currentJob.id);
+    // Smart auto-refresh: only for completed jobs without images, less frequent polling
+    const hasImages = jobImages[currentJob.id] && jobImages[currentJob.id].length > 0;
+    
+    // Only auto-refresh if job is completed but we don't have images yet
+    if (currentJob.status === 'completed' && !hasImages) {
+      const autoRefreshInterval = setInterval(async () => {
+        console.log('🔄 Auto-refresh: Checking for completed job images...');
         
-        // Also try auto-processing every few cycles
-        if (Math.random() < 0.3) { // 30% chance each cycle
-          try {
-            await apiClient.post("/api/jobs/auto-process-serverless");
-            console.log("🔄 Auto-processing triggered during auto-refresh");
-          } catch (error) {
-            // Silent fail for auto-processing
+        const stillNeedsImages = !(jobImages[currentJob.id] && jobImages[currentJob.id].length > 0);
+        
+        if (stillNeedsImages) {
+          console.log('🔄 Auto-refresh: Fetching missing images for completed job...');
+          await fetchJobImages(currentJob.id);
+          
+          // Reduced auto-processing frequency to avoid excessive calls
+          if (Math.random() < 0.1) { // 10% chance each cycle (reduced from 30%)
+            try {
+              await apiClient.post("/api/jobs/auto-process-serverless");
+              console.log("🔄 Auto-processing triggered during auto-refresh");
+            } catch (error) {
+              // Silent fail for auto-processing
+            }
           }
         }
-      }
-    }, 3000); // Check every 3 seconds
+      }, 10000); // Check every 10 seconds (reduced from 3 seconds)
 
-    return () => clearInterval(autoRefreshInterval);
+      return () => clearInterval(autoRefreshInterval);
+    }
   }, [apiClient, currentJob, jobImages]);
 
   // Watch for job status changes and immediately fetch images when completed
@@ -2943,106 +2990,143 @@ export default function TextToImagePage() {
                           : 'grid-cols-3'
                         : 'grid-cols-1'
                     }`}>
-                      {/* Show database images if available */}
+                      {/* Show database images if available with lazy loading */}
                       {jobImages[currentJob.id] &&
                       jobImages[currentJob.id].length > 0 ? (
-                        // Database images with dynamic URLs - show all images, including those being processed
-                        jobImages[currentJob.id]
-                          .map((dbImage, index) => (
-                            <div
-                              key={`db-${dbImage.id}`}
-                              className="relative group"
-                            >
-                              {hasS3Storage(dbImage) || dbImage.dataUrl ? (
-                                // Image is ready to display
-                                <>
-                                  <img
-                                    src={getBestImageUrl(dbImage)}
-                                    alt={`Generated image ${index + 1}`}
-                                    className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
-                                    onError={(e) => {
-                                      console.warn(
-                                        "⚠️ Image failed to load:",
-                                        dbImage.filename
-                                      );
+                        <>
+                          {/* Database images with lazy loading - show only visible count */}
+                          {jobImages[currentJob.id]
+                            .slice(0, visibleImages[currentJob.id] || 1) // Only show visible images
+                            .map((dbImage, index) => (
+                              <div
+                                key={`db-${dbImage.id}`}
+                                className="relative group"
+                              >
+                                {hasS3Storage(dbImage) || dbImage.dataUrl ? (
+                                  // Image is ready to display
+                                  <>
+                                    <img
+                                      src={getBestImageUrl(dbImage)}
+                                      alt={`Generated image ${index + 1}`}
+                                      className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
+                                      loading="lazy" // Native browser lazy loading
+                                      onError={(e) => {
+                                        console.warn(
+                                          "⚠️ Image failed to load:",
+                                          dbImage.filename
+                                        );
 
-                                      const currentSrc = (e.target as HTMLImageElement).src;
-                                      
-                                      // Try fallback URLs in order: S3 -> Database -> Placeholder
-                                      if (dbImage.s3Key && !currentSrc.includes(dbImage.s3Key)) {
-                                        console.log("Trying S3 URL for:", dbImage.filename);
-                                        (e.target as HTMLImageElement).src = buildS3ImageUrl(dbImage.s3Key);
-                                      } else if (dbImage.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
-                                        console.log("Trying S3 URL from network path for:", dbImage.filename);
-                                        const s3Key = dbImage.networkVolumePath.replace('/runpod-volume/', '');
-                                        (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
-                                      } else if (dbImage.dataUrl && !currentSrc.includes('/api/images/')) {
-                                        console.log("Falling back to database URL for:", dbImage.filename);
-                                        (e.target as HTMLImageElement).src = dbImage.dataUrl;
-                                      } else {
-                                        console.log("Switching to placeholder for:", dbImage.filename);
-                                        (e.target as HTMLImageElement).src = "/api/placeholder-image";
-                                      }
-                                    }}
-                                  />
-                                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <div className="flex space-x-1">
-                                      <button
-                                        onClick={() =>
-                                          downloadDatabaseImage(dbImage)
+                                        const currentSrc = (e.target as HTMLImageElement).src;
+                                        
+                                        // Try fallback URLs in order: S3 -> Database -> Placeholder
+                                        if (dbImage.s3Key && !currentSrc.includes(dbImage.s3Key)) {
+                                          console.log("Trying S3 URL for:", dbImage.filename);
+                                          (e.target as HTMLImageElement).src = buildS3ImageUrl(dbImage.s3Key);
+                                        } else if (dbImage.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
+                                          console.log("Trying S3 URL from network path for:", dbImage.filename);
+                                          const s3Key = dbImage.networkVolumePath.replace('/runpod-volume/', '');
+                                          (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                                        } else if (dbImage.dataUrl && !currentSrc.includes('/api/images/')) {
+                                          console.log("Falling back to database URL for:", dbImage.filename);
+                                          (e.target as HTMLImageElement).src = dbImage.dataUrl;
+                                        } else {
+                                          console.log("Switching to placeholder for:", dbImage.filename);
+                                          (e.target as HTMLImageElement).src = "/api/placeholder-image";
                                         }
-                                        className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                        title={`Download ${dbImage.filename} (${
-                                          dbImage.fileSize
-                                            ? `${Math.round(
-                                                dbImage.fileSize / 1024
-                                              )}KB`
-                                            : "Unknown size"
-                                        })`}
-                                      >
-                                        <Download className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => shareImage(dbImage)}
-                                        className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                                      >
-                                        <Share2 className="w-4 h-4" />
-                                      </button>
+                                      }}
+                                    />
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="flex space-x-1">
+                                        <button
+                                          onClick={() =>
+                                            downloadDatabaseImage(dbImage)
+                                          }
+                                          className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                          title={`Download ${dbImage.filename} (${
+                                            dbImage.fileSize
+                                              ? `${Math.round(
+                                                  dbImage.fileSize / 1024
+                                                )}KB`
+                                              : "Unknown size"
+                                          })`}
+                                        >
+                                          <Download className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => shareImage(dbImage)}
+                                          className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                        >
+                                          <Share2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
                                     </div>
-                                  </div>
 
-                                  {/* Image metadata */}
-                                  <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                      {dbImage.width && dbImage.height
-                                        ? `${dbImage.width}×${dbImage.height}`
-                                        : "Unknown size"}
-                                      {dbImage.fileSize &&
-                                        ` • ${Math.round(
-                                          dbImage.fileSize / 1024
-                                        )}KB`}
-                                      {dbImage.format &&
-                                        ` • ${dbImage.format.toUpperCase()}`}
+                                    {/* Image metadata */}
+                                    <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                        {dbImage.width && dbImage.height
+                                          ? `${dbImage.width}×${dbImage.height}`
+                                          : "Unknown size"}
+                                        {dbImage.fileSize &&
+                                          ` • ${Math.round(
+                                            dbImage.fileSize / 1024
+                                          )}KB`}
+                                        {dbImage.format &&
+                                          ` • ${dbImage.format.toUpperCase()}`}
+                                      </div>
                                     </div>
+                                    
+                                    {/* Image number indicator */}
+                                    <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                      {index + 1}
+                                    </div>
+                                  </>
+                                ) : (
+                                  // Image is still being processed
+                                  <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg flex flex-col items-center justify-center">
+                                    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center px-2">
+                                      Image {index + 1}<br />
+                                      Processing...
+                                    </p>
                                   </div>
-                                  
-                                  {/* Image number indicator */}
-                                  <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                    {index + 1}
-                                  </div>
-                                </>
-                              ) : (
-                                // Image is still being processed
-                                <div className="w-full aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg flex flex-col items-center justify-center">
-                                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center px-2">
-                                    Image {index + 1}<br />
-                                    Processing...
-                                  </p>
-                                </div>
-                              )}
+                                )}
+                              </div>
+                            ))}
+                          
+                          {/* Load More Images Button */}
+                          {jobImages[currentJob.id] && 
+                           (visibleImages[currentJob.id] || 1) < jobImages[currentJob.id].length && (
+                            <div className="col-span-full flex justify-center">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => loadMoreImages(currentJob.id)}
+                                  disabled={loadingMoreImages[currentJob.id]}
+                                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
+                                >
+                                  {loadingMoreImages[currentJob.id] ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      <span>Loading...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ImageIcon className="w-4 h-4" />
+                                      <span>Load {Math.min(2, jobImages[currentJob.id].length - (visibleImages[currentJob.id] || 1))} More</span>
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => loadAllImages(currentJob.id)}
+                                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
+                                >
+                                  <ImageIcon className="w-4 h-4" />
+                                  <span>Show All ({jobImages[currentJob.id].length - (visibleImages[currentJob.id] || 1)} remaining)</span>
+                                </button>
+                              </div>
                             </div>
-                          ))
+                          )}
+                        </>
                       ) : // Check if there are images without data (still processing)
                       jobImages[currentJob.id] &&
                         jobImages[currentJob.id].length > 0 &&
