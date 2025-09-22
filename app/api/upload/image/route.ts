@@ -56,15 +56,18 @@ export async function POST(request: NextRequest) {
       
       console.log('✅ Image saved to:', filePath);
       
-      // Only send essential metadata (no base64 data to reduce transfer)
+      // Convert to base64 for immediate use (since /tmp files are ephemeral)
+      const base64Data = buffer.toString('base64');
+      const dataUrl = `data:${imageFile.type};base64,${base64Data}`;
+      
       const response: any = {
         success: true,
         filename: filename,
         size: imageFile.size,
         type: imageFile.type,
         filePath: filePath, // Temp file path for server-side use
-        // Remove base64 and dataUrl to reduce bandwidth by ~33%
-        uploadId: `upload_${timestamp}` // Unique identifier for tracking
+        dataUrl: dataUrl,   // Data URL for immediate client use
+        base64: base64Data  // Base64 data for API calls
       };
       
       // Handle mask file if provided
@@ -79,11 +82,14 @@ export async function POST(request: NextRequest) {
         await writeFile(maskFilePath, maskBuffer);
         console.log('✅ Mask saved to:', maskFilePath);
         
-        // Only send essential mask metadata (no base64 data)
+        // Convert mask to base64 as well
+        const maskBase64Data = maskBuffer.toString('base64');
+        const maskDataUrl = `data:${maskFile.type};base64,${maskBase64Data}`;
+        
         response.maskFilename = maskFilename;
         response.maskFilePath = maskFilePath;
-        response.maskSize = maskFile.size;
-        response.maskType = maskFile.type;
+        response.maskDataUrl = maskDataUrl;
+        response.maskBase64 = maskBase64Data;
       }
       
       return NextResponse.json(response);

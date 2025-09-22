@@ -57,32 +57,8 @@ export async function GET(
       Key: s3Key
     });
 
-    // For bandwidth optimization, try signed URL redirect first
-    const USE_REDIRECT_OPTIMIZATION = true; // Re-enabled for bandwidth savings
-    
-    if (USE_REDIRECT_OPTIMIZATION) {
-      try {
-        // Generate signed URL and redirect instead of proxying through Vercel
-        const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-        console.log(`🔄 REDIRECT SUCCESS: Generated signed URL for ${s3Key}`);
-        console.log(`📍 Redirect target: ${signedUrl.substring(0, 100)}...`);
-        return NextResponse.redirect(signedUrl, { status: 302 });
-      } catch (signedUrlError) {
-        console.error('❌ REDIRECT FAILED - Error generating signed URL, falling back to proxy:', signedUrlError);
-        console.error('🔍 S3 Config Debug:', {
-          endpoint: 'https://s3api-us-ks-2.runpod.io',
-          bucket: process.env.RUNPOD_S3_BUCKET_NAME || '83cljmpqfd',
-          hasAccessKey: !!process.env.RUNPOD_S3_ACCESS_KEY,
-          hasSecretKey: !!process.env.RUNPOD_S3_SECRET_KEY,
-          s3Key: s3Key
-        });
-        // Continue to proxy mode below
-      }
-    }
-
     try {
-      console.log(`📥 PROXY MODE: Fetching image from S3: ${bucketName}/${s3Key}`);
-      console.log(`⚠️  WARNING: Using proxy mode - this will consume Vercel bandwidth!`);
+      console.log(`📥 Fetching image from S3: ${bucketName}/${s3Key}`);
       
       // Fetch the image data from S3
       const response = await s3Client.send(command);
