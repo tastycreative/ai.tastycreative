@@ -57,21 +57,6 @@ export async function GET(
       Key: s3Key
     });
 
-    // For bandwidth optimization, try signed URL redirect first
-    const USE_REDIRECT_OPTIMIZATION = true; // Re-enabled for bandwidth savings
-    
-    if (USE_REDIRECT_OPTIMIZATION) {
-      try {
-        // Generate signed URL and redirect instead of proxying through Vercel
-        const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-        console.log(`🔄 Redirecting to signed URL for video bandwidth optimization: ${s3Key}`);
-        return NextResponse.redirect(signedUrl, { status: 302 });
-      } catch (signedUrlError) {
-        console.error('❌ Error generating signed URL, falling back to proxy:', signedUrlError);
-        // Continue to proxy mode below
-      }
-    }
-
     try {
       console.log(`📥 Fetching video from S3: ${bucketName}/${s3Key}`);
       

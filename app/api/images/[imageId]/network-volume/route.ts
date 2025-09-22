@@ -93,23 +93,9 @@ export async function GET(
     } catch (fileError) {
       console.error('❌ Error reading file from network volume:', fileError);
       
-      // Check if image has S3 key and redirect to S3 proxy instead
-      const imageWithS3 = await prisma.generatedImage.findFirst({
-        where: { id: imageId, clerkId: userId },
-        select: { s3Key: true }
-      });
-      
-      if (imageWithS3?.s3Key) {
-        console.log('🔄 Falling back to S3 image serving...');
-        const baseUrl = request.nextUrl.origin;
-        const s3Key = encodeURIComponent(imageWithS3.s3Key);
-        return NextResponse.redirect(`${baseUrl}/api/images/s3/${s3Key}`);
-      }
-      
-      // Final fallback to database image serving
+      // If file doesn't exist on network volume, fall back to database image serving
       console.log('🔄 Falling back to database image serving...');
-      const baseUrl = request.nextUrl.origin;
-      return NextResponse.redirect(`${baseUrl}/api/images/${imageId}/data`);
+      return NextResponse.redirect(`/api/images/${imageId}/data`);
     }
 
   } catch (error) {
