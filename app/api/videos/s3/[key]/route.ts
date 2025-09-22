@@ -58,7 +58,7 @@ export async function GET(
     });
 
     // For bandwidth optimization, try signed URL redirect first
-    const USE_REDIRECT_OPTIMIZATION = true;
+    const USE_REDIRECT_OPTIMIZATION = false; // Temporarily disabled to test
     
     if (USE_REDIRECT_OPTIMIZATION) {
       try {
