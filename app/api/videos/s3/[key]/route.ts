@@ -115,13 +115,14 @@ export async function GET(
       // For now, we'll return the original video but with proper headers
       // In production, you'd use FFmpeg to compress based on compressionParams
       
-      let processedBuffer = videoBuffer;
+      const processedBuffer = videoBuffer;
       let compressionInfo = '';
       
       // Simulate compression info for now (in production, FFmpeg would provide actual compression)
       if (compressionParams.quality !== 'original') {
         compressionInfo = ` (${compressionParams.quality} quality)`;
         // TODO: Implement actual FFmpeg compression here
+        // When implementing FFmpeg, change processedBuffer back to 'let' and uncomment:
         // processedBuffer = await compressVideoWithFFmpeg(videoBuffer, compressionParams);
       }
       
