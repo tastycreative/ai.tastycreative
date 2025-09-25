@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Calendar, User, Image, Video, Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Bell, Calendar, User, Image as ImageIcon, Video, Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 
 interface ProductionTask {
@@ -213,7 +213,7 @@ function TaskModal({ isOpen, onClose, tasks, stats }: {
                           <span>LoRA: {task.loraModel}</span>
                         </div>
                         <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                          <Image className="w-4 h-4" />
+                          <ImageIcon className="w-4 h-4" />
                           <span>Images: {task.imagesGenerated}/{task.imagesTarget}</span>
                         </div>
                         <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">

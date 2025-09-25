@@ -116,7 +116,7 @@ export async function updateProductionProgressDirect(userId: string, contentType
       targetVideos: taskToUpdate.videosTarget 
     });
     
-    let updateData: any = {};
+    const updateData: any = {};
     let newStatus = taskToUpdate.status;
 
     if (contentType === 'image') {

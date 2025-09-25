@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     const taskToUpdate = activeTasks[0];
     console.log('Updating task:', taskToUpdate.id, 'for influencer:', taskToUpdate.influencer);
 
-    let updateData: any = {};
+    const updateData: any = {};
     let newStatus = taskToUpdate.status;
 
     if (contentType === 'image') {
