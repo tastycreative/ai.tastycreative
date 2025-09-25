@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, User, Image, Video, Clock, AlertCircle, CheckCircle, XCircle, Filter, Search, RefreshCw } from 'lucide-react';
+import { Calendar, User, Image as ImageIcon, Video, Clock, AlertCircle, CheckCircle, XCircle, Filter, Search, RefreshCw } from 'lucide-react';
 
 interface ProductionTask {
   id: string;
@@ -306,7 +306,7 @@ export default function ManagerDashboard() {
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
-                            <Image className="w-4 h-4 mr-1" />
+                            <ImageIcon className="w-4 h-4 mr-1" />
                             Images
                           </span>
                           <span className="text-sm font-medium text-gray-900 dark:text-white">
