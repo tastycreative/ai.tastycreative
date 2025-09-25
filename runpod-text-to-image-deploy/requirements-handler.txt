@@ -1,0 +1,7 @@
+# Requirements for RunPod Text-to-Image Handler
+runpod>=1.7.0
+requests>=2.28.0
+pillow>=10.0.0
+numpy>=1.24.0
+torch>=2.0.0
+torchvision>=0.15.0

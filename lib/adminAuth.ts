@@ -71,14 +71,25 @@ export async function isUserManagerOrAdmin(): Promise<boolean> {
  * Require admin access - throws error if user is not admin
  */
 export async function requireAdminAccess(): Promise<void> {
-  const user = await currentUser();
-  
-  if (!user) {
-    throw new Error('Unauthorized - Authentication required');
-  }
-  
-  const isAdmin = await isUserAdmin();
-  if (!isAdmin) {
-    throw new Error('Forbidden - Admin access required');
+  try {
+    const user = await currentUser();
+    
+    if (!user) {
+      console.log('requireAdminAccess: No authenticated user found');
+      throw new Error('Unauthorized - Authentication required');
+    }
+    
+    console.log('requireAdminAccess: Checking admin status for user:', user.id);
+    const isAdmin = await isUserAdmin();
+    
+    if (!isAdmin) {
+      console.log('requireAdminAccess: User is not admin:', user.id);
+      throw new Error('Forbidden - Admin access required');
+    }
+    
+    console.log('requireAdminAccess: Admin access granted for user:', user.id);
+  } catch (error) {
+    console.error('requireAdminAccess error:', error);
+    throw error;
   }
 }

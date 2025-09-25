@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PrismaClient } from '@/lib/generated/prisma';
+import { updateProductionProgressDirect } from '@/lib/productionProgressHelper';
 import { prisma } from '@/lib/database';
 
 export async function POST(req: NextRequest) {
@@ -103,6 +105,17 @@ export async function POST(req: NextRequest) {
           console.log('✅ Saved image to database:', imageInfo.filename);
         } catch (imageError) {
           console.error('❌ Error saving image to database:', imageError);
+        }
+      }
+      
+      // Update production progress for manager tasks
+      if (resultImages.length > 0) {
+        try {
+          console.log(`📊 Updating production progress for ${resultImages.length} generated image(s)`);
+          await updateProductionProgressDirect(existingJob.clerkId, 'image', resultImages.length);
+        } catch (progressError) {
+          console.error('❌ Error updating production progress:', progressError);
+          // Don't fail the webhook if progress update fails
         }
       }
     }
