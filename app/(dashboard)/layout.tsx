@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
+import { useIsManager } from "@/lib/hooks/useIsManager";
 import {
   ChevronLeft,
   ChevronRight,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
+import ManagerTaskNotification from "@/components/manager/ManagerTaskNotification";
 
 interface NavItem {
   name: string;
@@ -60,6 +62,7 @@ export default function DashboardLayout({
   const { signOut } = useClerk();
   const { user } = useUser();
   const { isAdmin } = useIsAdmin();
+  const { isManager } = useIsManager();
 
   // Dynamic navigation based on user permissions
   const navigation: (NavItem | NavSection)[] = [
@@ -157,6 +160,12 @@ export default function DashboardLayout({
         },
       ],
     },
+    // Conditionally add manager link
+    ...(isManager ? [{
+      name: "Manager Dashboard",
+      href: "/manager",
+      icon: BarChart3,
+    }] : []),
     // Conditionally add admin link
     ...(isAdmin ? [{
       name: "Admin",
@@ -461,6 +470,12 @@ export default function DashboardLayout({
 
               {/* Right Side - Credits and User */}
               <div className="flex items-center space-x-2 sm:space-x-4">
+                {/* Manager Task Notifications */}
+                <ManagerTaskNotification />
+                
+                {/* Theme Toggle */}
+                <ThemeToggle />
+                
                 {/* Available Credits */}
                 <div className="flex items-center space-x-1 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg shadow-sm">
                   <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />

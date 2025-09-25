@@ -1,5 +1,6 @@
 // lib/videoStorage.ts - Dynamic URL video management for NeonDB
 import { prisma } from './database';
+import { updateProductionProgressDirect } from './productionProgressHelper';
 
 const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://211.21.50.84:15833';
 
@@ -245,6 +246,15 @@ export async function saveVideoToDatabase(
     });
     
     console.log('✅ Video saved to database:', savedVideo.id);
+    
+    // Update production progress for manager tasks
+    try {
+      console.log('📊 Updating production progress for generated video');
+      await updateProductionProgressDirect(clerkId, 'video', 1);
+    } catch (progressError) {
+      console.error('❌ Error updating production progress for video:', progressError);
+      // Don't fail the video save if progress update fails
+    }
     
     return {
       id: savedVideo.id,

@@ -91,10 +91,18 @@ export default function UsersTab() {
 
     } catch (error) {
       console.error('Error updating user role:', error);
+      
+      // More detailed error handling
+      let errorMessage = 'Failed to update user role';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       // Revert the dropdown to the original value by refetching
       fetchUsers();
-      // You could show an error toast here
-      alert(error instanceof Error ? error.message : 'Failed to update user role');
+      
+      // Show more informative error message
+      alert(`Error updating user role: ${errorMessage}`);
     } finally {
       setUpdatingRoles(prev => {
         const newSet = new Set(prev);

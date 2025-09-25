@@ -1,0 +1,103 @@
+{
+  "input": {
+    "job_id": "test_deploy_123",
+    "workflow": {
+      "1": {
+        "inputs": {
+          "width": 1024,
+          "height": 1024,
+          "batch_size": 1
+        },
+        "class_type": "EmptyLatentImage"
+      },
+      "2": {
+        "inputs": {
+          "text": "a beautiful landscape",
+          "clip": ["5", 0]
+        },
+        "class_type": "CLIPTextEncode"
+      },
+      "3": {
+        "inputs": {
+          "samples": ["12", 0],
+          "vae": ["4", 0]
+        },
+        "class_type": "VAEDecode"
+      },
+      "4": {
+        "inputs": {
+          "vae_name": "ae.safetensors"
+        },
+        "class_type": "VAELoader"
+      },
+      "5": {
+        "inputs": {
+          "clip_name1": "t5xxl_fp16.safetensors",
+          "clip_name2": "clip_l.safetensors",
+          "type": "flux"
+        },
+        "class_type": "DualCLIPLoader"
+      },
+      "6": {
+        "inputs": {
+          "unet_name": "flux1-dev.safetensors",
+          "weight_dtype": "fp8_e4m3fn"
+        },
+        "class_type": "UNETLoader"
+      },
+      "7": {
+        "inputs": {
+          "conditioning": ["2", 0],
+          "guidance": 4
+        },
+        "class_type": "FluxGuidance"
+      },
+      "9": {
+        "inputs": {
+          "model": ["6", 0],
+          "max_shift": 1.15,
+          "base_shift": 0.3,
+          "width": 1024,
+          "height": 1024
+        },
+        "class_type": "ModelSamplingFlux"
+      },
+      "10": {
+        "inputs": {
+          "conditioning": ["2", 0]
+        },
+        "class_type": "ConditioningZeroOut"
+      },
+      "12": {
+        "inputs": {
+          "seed": 42,
+          "steps": 20,
+          "cfg": 1,
+          "sampler_name": "euler",
+          "scheduler": "beta",
+          "denoise": 1,
+          "model": ["9", 0],
+          "positive": ["7", 0],
+          "negative": ["10", 0],
+          "latent_image": ["1", 0]
+        },
+        "class_type": "KSampler"
+      },
+      "13": {
+        "inputs": {
+          "filename_prefix": "test_deploy",
+          "images": ["3", 0]
+        },
+        "class_type": "SaveImage"
+      }
+    },
+    "params": {
+      "prompt": "a beautiful landscape",
+      "width": 1024,
+      "height": 1024,
+      "steps": 20
+    },
+    "webhook_url": "https://your-app.vercel.app/api/webhooks/generation/test_deploy_123",
+    "user_id": "test_user"
+  }
+}

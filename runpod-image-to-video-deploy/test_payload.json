@@ -1,0 +1,140 @@
+{
+  "input": {
+    "action": "generate_video",
+    "job_id": "test_img2vid_12345",
+    "workflow": {
+      "6": {
+        "inputs": {
+          "text": "A woman walking through a park, gentle movement",
+          "clip": ["38", 0]
+        },
+        "class_type": "CLIPTextEncode"
+      },
+      "7": {
+        "inputs": {
+          "text": "static, blurry, low quality",
+          "clip": ["38", 0]
+        },
+        "class_type": "CLIPTextEncode"
+      },
+      "37": {
+        "inputs": {
+          "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+          "weight_dtype": "default"
+        },
+        "class_type": "UNETLoader"
+      },
+      "38": {
+        "inputs": {
+          "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+          "type": "wan",
+          "device": "default"
+        },
+        "class_type": "CLIPLoader"
+      },
+      "39": {
+        "inputs": {
+          "vae_name": "wan_2.1_vae.safetensors"
+        },
+        "class_type": "VAELoader"
+      },
+      "56": {
+        "inputs": {
+          "image": "test_image.jpg",
+          "upload": "image"
+        },
+        "class_type": "LoadImage"
+      },
+      "57": {
+        "inputs": {
+          "images": ["8", 0],
+          "fps": 16
+        },
+        "class_type": "CreateVideo"
+      },
+      "8": {
+        "inputs": {
+          "samples": ["91", 0],
+          "vae": ["39", 0]
+        },
+        "class_type": "VAEDecode"
+      },
+      "91": {
+        "inputs": {
+          "noise_seed": 123456,
+          "steps": 4,
+          "cfg": 1.0,
+          "sampler_name": "euler",
+          "scheduler": "simple",
+          "denoise": 1,
+          "model": ["94", 0],
+          "positive": ["93", 0],
+          "negative": ["93", 1],
+          "latent_image": ["92", 0]
+        },
+        "class_type": "KSamplerAdvanced"
+      },
+      "92": {
+        "inputs": {
+          "noise_seed": 123456,
+          "steps": 4,
+          "cfg": 1.0,
+          "sampler_name": "euler",
+          "scheduler": "simple",
+          "denoise": 1,
+          "model": ["48", 0],
+          "positive": ["93", 0],
+          "negative": ["93", 1],
+          "latent_image": ["93", 2]
+        },
+        "class_type": "KSamplerAdvanced"
+      },
+      "93": {
+        "inputs": {
+          "positive": ["6", 0],
+          "negative": ["7", 0],
+          "vae": ["39", 0],
+          "start_image": ["65", 0],
+          "width": 480,
+          "height": 720,
+          "length": 65,
+          "batch_size": 1
+        },
+        "class_type": "WanImageToVideo"
+      },
+      "94": {
+        "inputs": {
+          "model": ["90", 0],
+          "shift": 8
+        },
+        "class_type": "ModelSamplingSD3"
+      },
+      "131": {
+        "inputs": {
+          "video": ["57", 0],
+          "filename_prefix": "video/ComfyUI/wan2.2",
+          "format": "auto",
+          "codec": "auto"
+        },
+        "class_type": "SaveVideo"
+      }
+    },
+    "params": {
+      "prompt": "A woman walking through a park, gentle movement",
+      "negativePrompt": "static, blurry, low quality",
+      "width": 480,
+      "height": 720,
+      "length": 65,
+      "batchSize": 1,
+      "steps": 4,
+      "cfg": 1.0,
+      "samplerName": "euler",
+      "scheduler": "simple",
+      "seed": 123456,
+      "uploadedImage": "test_image.jpg"
+    },
+    "webhook_url": "https://your-website.com/api/webhooks/generation/test_img2vid_12345",
+    "user_id": "test_user",
+    "generation_type": "image_to_video"
+  }
+}
