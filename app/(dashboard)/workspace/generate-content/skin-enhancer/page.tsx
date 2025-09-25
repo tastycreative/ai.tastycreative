@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
-import { getBestImageUrl, hasS3Storage } from "@/lib/s3Utils";
 import {
   ImageIcon,
   Wand2,
@@ -75,8 +74,6 @@ interface DatabaseImage {
   format?: string;
   url?: string | null; // Dynamically constructed ComfyUI URL (can be null for serverless)
   dataUrl?: string; // Database-served image URL
-  s3Key?: string; // S3 key for network volume storage
-  networkVolumePath?: string; // Path on network volume
   createdAt: Date | string;
 }
 
@@ -757,31 +754,8 @@ export default function SkinEnhancerPage() {
     try {
       console.log("📥 Downloading image:", image.filename);
 
-      // Priority 1: Download from S3 network volume (original quality)
-      if (hasS3Storage(image)) {
-        const s3Url = getBestImageUrl(image, { size: 'full', format: 'auto', quality: 95 }); // Download original quality
-        console.log("🚀 Downloading from S3:", s3Url);
-        
-        try {
-          const response = await fetch(s3Url);
-          if (response.ok) {
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = image.filename;
-            link.click();
-            URL.revokeObjectURL(url);
-            console.log("✅ S3 image downloaded");
-            return;
-          }
-        } catch (s3Error) {
-          console.warn("⚠️ S3 download failed, trying fallback:", s3Error);
-        }
-      }
-
-      // Priority 2: Download from database
       if (image.dataUrl) {
+        // Priority 1: Download from database
         const response = await apiClient.get(image.dataUrl);
 
         if (response.ok) {
@@ -799,8 +773,8 @@ export default function SkinEnhancerPage() {
         }
       }
 
-      // Priority 3: Download from ComfyUI (dynamic URL)
       if (image.url) {
+        // Priority 2: Download from ComfyUI (dynamic URL)
         const link = document.createElement("a");
         link.href = image.url;
         link.download = image.filename;
@@ -823,14 +797,11 @@ export default function SkinEnhancerPage() {
   const shareImage = (image: DatabaseImage) => {
     let urlToShare = "";
 
-    // Priority 1: Share S3 URL (medium quality for sharing)
-    if (hasS3Storage(image)) {
-      urlToShare = getBestImageUrl(image, { size: 'medium', format: 'webp', quality: 85 });
-    } else if (image.dataUrl) {
-      // Priority 2: Share database URL (more reliable)
+    if (image.dataUrl) {
+      // Priority 1: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
     } else if (image.url) {
-      // Priority 3: Share ComfyUI URL (dynamic)
+      // Priority 2: Share ComfyUI URL (dynamic)
       urlToShare = image.url;
     } else {
       alert("No shareable URL available for this image");
@@ -2275,19 +2246,6 @@ export default function SkinEnhancerPage() {
                       )}
                     </div>
 
-                    {/* Optimization Info Panel */}
-                    {jobImages[currentJob.id] && jobImages[currentJob.id].some(img => hasS3Storage(img)) && (
-                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-3">
-                        <div className="flex items-center space-x-2 text-green-800 dark:text-green-200">
-                          <div className="text-sm font-medium">📊 Bandwidth Optimized</div>
-                        </div>
-                        <div className="text-xs text-green-600 dark:text-green-300 mt-1">
-                          Displaying 75% quality for faster loading. Downloads provide original quality (95%).
-                          <span className="font-medium ml-1">~60% Less Data</span>
-                        </div>
-                      </div>
-                    )}
-
                     {/* Show comparison if enabled */}
                     {showComparison &&
                       comparisonImages.initial &&
@@ -2308,19 +2266,10 @@ export default function SkinEnhancerPage() {
                               key={`db-${dbImage.id}`}
                               className="relative group"
                             >
-                              {/* Quality indicator */}
-                              {hasS3Storage(dbImage) && (
-                                <div className="absolute top-2 left-2 z-10">
-                                  <div className="bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                                    🗜️ 75% Quality
-                                  </div>
-                                </div>
-                              )}
-                              
                               {/* Only render img if we have a valid URL */}
                               {(dbImage.dataUrl || dbImage.url) ? (
                                 <img
-                                  src={getBestImageUrl(dbImage, { size: 'medium', format: 'webp', quality: 75 })}
+                                  src={(dbImage.dataUrl || dbImage.url) as string}
                                   alt={`Enhanced image ${index + 1}`}
                                   className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
                                   onError={(e) => {

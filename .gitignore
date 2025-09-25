@@ -46,32 +46,23 @@ next-env.d.ts
 
 /lib/generated/prisma
 
-# Python files and Docker deployment files
-*.py
+# Python compiled files (keep .py source files)
 *.pyc
 __pycache__/
 *.pyo
 *.pyd
 .Python
 
-# Docker files
-Dockerfile*
-docker-compose*.yml
-.dockerignore
-
-# Shell scripts
-*.sh
-
-# RunPod deployment directories
-runpod-*/
-
-# Ngrok and development tools
-setup-ngrok.sh
-
-# Generated uploads and test files
+# Sensitive or generated files (keep Dockerfiles and shell scripts for development)
+# Generated uploads and test outputs
 public/uploads/
-requirements-handler.txt
-test-*.js
-test-*.json
 *.backup
+
+# Model configuration that might contain sensitive paths
 extra_model_paths.yaml
+
+# Only ignore specific sensitive files if they contain secrets
+# Add specific files here if they contain API keys or sensitive data
+# Example:
+# config/secrets.py
+# deploy-production.sh

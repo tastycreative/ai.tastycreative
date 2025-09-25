@@ -5,7 +5,6 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
-import { getBestVideoUrl, hasS3VideoStorage, estimateVideoCompressionSavings } from "@/lib/videoUtils";
 import {
   Video,
   Upload,
@@ -71,10 +70,8 @@ interface DatabaseVideo {
   width?: number;
   height?: number;
   format?: string;
-  url?: string | null; // Dynamically constructed URL (network volume or ComfyUI URL)
-  dataUrl?: string; // Database-served video URL (fallback)
-  s3Key?: string; // S3 key for network volume storage
-  networkVolumePath?: string; // Path on network volume
+  url?: string;
+  dataUrl?: string;
   createdAt: Date | string;
 }
 
@@ -135,18 +132,12 @@ const VideoPlayer = ({
   const [isLoading, setIsLoading] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Enhanced fallback URL preparation with video compression optimization
+  // Enhanced fallback URL preparation with MP4 optimization
   const fallbackUrls = useMemo(() => {
     const urls = [
-      // Priority 1: S3 optimized URL with medium quality for streaming
-      hasS3VideoStorage(video) 
-        ? getBestVideoUrl(video, { quality: 'medium', format: 'mp4', resolution: '720p' })
-        : null,
-      // Priority 2: Database-served URL (fallback)
-      video.dataUrl,
-      // Priority 3: ComfyUI direct URL (fallback)
-      video.url,
-      // Priority 4: Direct ComfyUI URL constructed from filename
+      video.dataUrl, // Database-served URL (primary)
+      video.url, // ComfyUI direct URL (fallback)
+      // Add a direct ComfyUI URL constructed from the filename if available
       video.filename
         ? `/api/proxy/comfyui/view?filename=${encodeURIComponent(
             video.filename
@@ -287,15 +278,6 @@ const VideoPlayer = ({
           </button>
         </div>
       </div>
-
-      {/* Quality indicator */}
-      {hasS3VideoStorage(video) && (
-        <div className="absolute top-2 left-2 z-10">
-          <div className="bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-            🎬 720p Quality
-          </div>
-        </div>
-      )}
 
       {/* Video metadata */}
       <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1474,30 +1456,6 @@ export default function ImageToVideoPage() {
     try {
       console.log("📥 Downloading video:", video.filename);
 
-      // Priority 1: Download from S3 network volume (original quality)
-      if (hasS3VideoStorage(video)) {
-        const s3Url = getBestVideoUrl(video, { quality: 'original', format: 'auto', resolution: 'original' }); // Download original quality
-        console.log("🚀 Downloading from S3:", s3Url);
-        
-        try {
-          const response = await fetch(s3Url);
-          if (response.ok) {
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = video.filename;
-            link.click();
-            URL.revokeObjectURL(url);
-            console.log("✅ S3 video downloaded");
-            return;
-          }
-        } catch (s3Error) {
-          console.warn("⚠️ S3 download failed, trying fallback:", s3Error);
-        }
-      }
-
-      // Priority 2: Download from database
       if (video.dataUrl) {
         const response = await apiClient.get(video.dataUrl);
 
@@ -1516,7 +1474,6 @@ export default function ImageToVideoPage() {
         }
       }
 
-      // Priority 3: Download from ComfyUI (dynamic URL)
       if (video.url) {
         const link = document.createElement("a");
         link.href = video.url;
@@ -1540,14 +1497,9 @@ export default function ImageToVideoPage() {
   const shareVideo = (video: DatabaseVideo) => {
     let urlToShare = "";
 
-    // Priority 1: Share S3 URL (medium quality for sharing)
-    if (hasS3VideoStorage(video)) {
-      urlToShare = getBestVideoUrl(video, { quality: 'medium', format: 'mp4', resolution: '720p' });
-    } else if (video.dataUrl) {
-      // Priority 2: Share database URL (more reliable)
+    if (video.dataUrl) {
       urlToShare = `${window.location.origin}${video.dataUrl}`;
     } else if (video.url) {
-      // Priority 3: Share ComfyUI URL (dynamic, may not work for serverless)
       urlToShare = video.url;
     } else {
       alert("No shareable URL available for this video");
@@ -2431,41 +2383,6 @@ export default function ImageToVideoPage() {
                     <span className="drop-shadow-sm">Cancel Generation</span>
                   </button>
                 )}
-              </div>
-            </div>
-          )}
-
-          {/* Video Optimization Info Panel */}
-          {currentJob && currentJob.status === "completed" && 
-           ((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
-            (jobVideos[currentJob.id] && jobVideos[currentJob.id].length > 0 && 
-             jobVideos[currentJob.id].some(video => hasS3VideoStorage(video)))) && (
-            <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700 rounded-xl p-6">
-              <div className="flex items-start space-x-3">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                    <span className="text-white text-sm font-bold">⚡</span>
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-green-800 dark:text-green-200 mb-1">
-                    🎬 Video Optimization Active
-                  </h3>
-                  <p className="text-sm text-green-700 dark:text-green-300 mb-2">
-                    Your videos are automatically optimized for faster loading with smart compression that reduces bandwidth usage by up to <strong>50%</strong> while maintaining visual quality.
-                  </p>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full">
-                      🎯 720p Streaming Quality
-                    </span>
-                    <span className="bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full">
-                      📱 Mobile Optimized
-                    </span>
-                    <span className="bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full">
-                      💾 Original Quality Downloads
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
           )}

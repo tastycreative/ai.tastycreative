@@ -1,0 +1,46 @@
+# Minimal RunPod Text-to-Image Handler Container
+FROM runpod/pytorch:2.2.1-py3.10-cuda12.1.1-devel-ubuntu22.04
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python requirements
+COPY requirements-handler.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Install ComfyUI
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /app/comfyui && \
+    cd /app/comfyui && \
+    pip install -r requirements.txt
+
+# Install only essential custom nodes - no problematic ones
+WORKDIR /app/comfyui/custom_nodes
+# Just keep manager for now - skip was-node-suite which might be causing issues
+RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git || true
+
+# Install essential packages for FLUX
+RUN pip install --no-cache-dir transformers diffusers accelerate || true
+
+# Go back to app directory
+WORKDIR /app
+
+# Copy handler and config files
+COPY text_to_image_handler.py /app/handler.py
+COPY extra_model_paths.yaml /app/extra_model_paths.yaml
+
+# Create necessary directories
+RUN mkdir -p /workspace/models /workspace/output /workspace/logs /runpod-volume
+
+# Fix NumPy compatibility
+RUN pip install --force-reinstall "numpy>=1.24.0,<2.0.0"
+
+# Set the handler as the entry point
+CMD ["python", "-u", "handler.py"]

@@ -3,7 +3,6 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import sharp from 'sharp';
 
 // S3 client for RunPod Network Volume
 function getS3Client() {
@@ -38,13 +37,7 @@ export async function GET(
     const { key } = await params;
     const s3Key = decodeURIComponent(key);
     
-    // Parse query parameters for image optimization
-    const url = new URL(request.url);
-    const size = url.searchParams.get('size') || 'full'; // thumbnail, medium, full
-    const format = url.searchParams.get('format') || 'auto'; // auto, webp, jpeg, png
-    const quality = parseInt(url.searchParams.get('quality') || '85'); // 1-100
-    
-    console.log(`🔍 S3 proxy request for key: ${s3Key}, size: ${size}, format: ${format}, quality: ${quality}`);
+    console.log(`🔍 S3 proxy request for key: ${s3Key}`);
     
     // For network volume images, we can allow access without strict authentication
     // since the S3 keys are already scoped to user directories (outputs/userId/...)
@@ -83,120 +76,27 @@ export async function GET(
         chunks.push(chunk);
       }
       
-      const originalBuffer = Buffer.concat(chunks);
-      console.log(`✅ Original image size: ${originalBuffer.length} bytes`);
+      const imageBuffer = Buffer.concat(chunks);
       
-      // Process image with Sharp for optimization
-      let processedBuffer: Buffer;
-      let outputFormat: string;
-      let mimeType: string;
+      console.log(`✅ Successfully fetched image: ${s3Key}, size: ${imageBuffer.length} bytes`);
       
-      try {
-        const sharpInstance = sharp(originalBuffer);
-        const metadata = await sharpInstance.metadata();
-        
-        console.log(`📊 Image metadata: ${metadata.width}x${metadata.height}, format: ${metadata.format}`);
-        
-        // Determine output format
-        if (format === 'auto') {
-          // Use WebP for better compression, fallback to JPEG for compatibility
-          const acceptsWebP = request.headers.get('accept')?.includes('image/webp');
-          outputFormat = acceptsWebP ? 'webp' : 'jpeg';
-        } else {
-          outputFormat = format;
-        }
-        
-        // Determine dimensions based on size parameter
-        let width: number | undefined;
-        let height: number | undefined;
-        
-        switch (size) {
-          case 'thumbnail':
-            width = 400;
-            height = 400;
-            break;
-          case 'medium':
-            width = 800;
-            height = 800;
-            break;
-          case 'full':
-          default:
-            // Keep original dimensions
-            break;
-        }
-        
-        // Apply transformations
-        let pipeline = sharpInstance;
-        
-        if (width || height) {
-          pipeline = pipeline.resize(width, height, {
-            fit: 'inside',
-            withoutEnlargement: true
-          });
-        }
-        
-        // Apply format conversion and compression
-        switch (outputFormat) {
-          case 'webp':
-            pipeline = pipeline.webp({ 
-              quality: Math.max(60, quality), // Minimum 60 for WebP
-              effort: 4 // Balanced compression effort
-            });
-            mimeType = 'image/webp';
-            break;
-          case 'jpeg':
-            pipeline = pipeline.jpeg({ 
-              quality: quality,
-              progressive: true,
-              mozjpeg: true // Better compression
-            });
-            mimeType = 'image/jpeg';
-            break;
-          case 'png':
-            pipeline = pipeline.png({ 
-              quality: quality,
-              compressionLevel: 8,
-              progressive: true
-            });
-            mimeType = 'image/png';
-            break;
-          default:
-            // Fallback to JPEG
-            pipeline = pipeline.jpeg({ quality: quality });
-            mimeType = 'image/jpeg';
-            break;
-        }
-        
-        processedBuffer = await pipeline.toBuffer();
-        
-        const compressionRatio = ((originalBuffer.length - processedBuffer.length) / originalBuffer.length * 100).toFixed(1);
-        console.log(`🗜️ Image processed: ${originalBuffer.length} → ${processedBuffer.length} bytes (${compressionRatio}% reduction)`);
-        
-      } catch (sharpError) {
-        console.error('❌ Error processing image with Sharp:', sharpError);
-        // Fallback to original image
-        processedBuffer = originalBuffer;
-        mimeType = s3Key.toLowerCase().endsWith('.png') ? 'image/png' : 
-                  s3Key.toLowerCase().endsWith('.jpg') || s3Key.toLowerCase().endsWith('.jpeg') ? 'image/jpeg' :
-                  s3Key.toLowerCase().endsWith('.webp') ? 'image/webp' : 'image/png';
-      }
+      // Determine content type based on file extension
+      const contentType = s3Key.toLowerCase().endsWith('.png') ? 'image/png' : 
+                         s3Key.toLowerCase().endsWith('.jpg') || s3Key.toLowerCase().endsWith('.jpeg') ? 'image/jpeg' :
+                         s3Key.toLowerCase().endsWith('.webp') ? 'image/webp' : 'image/png';
       
-      // Return the processed image with optimized headers
-      return new NextResponse(processedBuffer as any, {
+      // Return the image data directly with enhanced headers
+      return new NextResponse(imageBuffer, {
         headers: {
-          'Content-Type': mimeType,
-          'Cache-Control': size === 'full' ? 'public, max-age=31536000' : 'public, max-age=604800', // 1 year for full, 1 week for thumbnails
-          'Content-Length': processedBuffer.length.toString(),
-          'Access-Control-Allow-Origin': '*',
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+          'Content-Length': imageBuffer.length.toString(),
+          'Access-Control-Allow-Origin': '*', // Allow cross-origin requests
           'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          'Cross-Origin-Resource-Policy': 'cross-origin',
+          'Cross-Origin-Resource-Policy': 'cross-origin', // Allow cross-origin embedding
           'X-Content-Type-Options': 'nosniff',
-          'Content-Disposition': 'inline',
-          'X-Original-Size': originalBuffer.length.toString(),
-          'X-Processed-Size': processedBuffer.length.toString(),
-          'X-Compression-Ratio': `${((originalBuffer.length - processedBuffer.length) / originalBuffer.length * 100).toFixed(1)}%`,
-          'Vary': 'Accept', // Vary based on Accept header for format selection
+          'Content-Disposition': 'inline', // Display inline instead of download
         },
       });
       
