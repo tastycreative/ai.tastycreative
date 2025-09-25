@@ -17,34 +17,6 @@ function getS3Client() {
   });
 }
 
-// Video compression helper using query parameters
-function getVideoCompressionParams(searchParams: URLSearchParams) {
-  const quality = searchParams.get('quality') || 'original'; // low, medium, high, original
-  const format = searchParams.get('format') || 'auto'; // auto, mp4, webm
-  const resolution = searchParams.get('resolution') || 'auto'; // auto, 480p, 720p, 1080p, original
-  const bitrate = searchParams.get('bitrate'); // target bitrate in kbps
-  
-  return { quality, format, resolution, bitrate };
-}
-
-// Get content type based on format and file extension
-function getVideoContentType(s3Key: string, requestedFormat: string): string {
-  // Respect requested format if specified
-  if (requestedFormat === 'mp4') return 'video/mp4';
-  if (requestedFormat === 'webm') return 'video/webm';
-  
-  // Auto-detect from file extension
-  const extension = s3Key.toLowerCase().split('.').pop() || '';
-  switch (extension) {
-    case 'mp4': return 'video/mp4';
-    case 'webm': return 'video/webm';
-    case 'mov': return 'video/quicktime';
-    case 'avi': return 'video/x-msvideo';
-    case 'gif': return 'image/gif';
-    default: return 'video/mp4';
-  }
-}
-
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
@@ -64,11 +36,8 @@ export async function GET(
   try {
     const { key } = await params;
     const s3Key = decodeURIComponent(key);
-    const searchParams = new URL(request.url).searchParams;
-    const compressionParams = getVideoCompressionParams(searchParams);
     
     console.log(`🎬 S3 video proxy request for key: ${s3Key}`);
-    console.log(`📊 Compression params:`, compressionParams);
     
     // For network volume videos, we can allow access without strict authentication
     // since the S3 keys are already scoped to user directories (outputs/userId/...)
@@ -111,39 +80,26 @@ export async function GET(
       
       console.log(`✅ Successfully fetched video: ${s3Key}, size: ${videoBuffer.length} bytes`);
       
-      // TODO: Add FFmpeg compression here if not 'original' quality
-      // For now, we'll return the original video but with proper headers
-      // In production, you'd use FFmpeg to compress based on compressionParams
+      // Determine content type based on file extension
+      const contentType = s3Key.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 
+                         s3Key.toLowerCase().endsWith('.webm') ? 'video/webm' :
+                         s3Key.toLowerCase().endsWith('.mov') ? 'video/quicktime' :
+                         s3Key.toLowerCase().endsWith('.avi') ? 'video/x-msvideo' :
+                         s3Key.toLowerCase().endsWith('.gif') ? 'image/gif' : 'video/mp4';
       
-      const processedBuffer = videoBuffer;
-      let compressionInfo = '';
-      
-      // Simulate compression info for now (in production, FFmpeg would provide actual compression)
-      if (compressionParams.quality !== 'original') {
-        compressionInfo = ` (${compressionParams.quality} quality)`;
-        // TODO: Implement actual FFmpeg compression here
-        // When implementing FFmpeg, change processedBuffer back to 'let' and uncomment:
-        // processedBuffer = await compressVideoWithFFmpeg(videoBuffer, compressionParams);
-      }
-      
-      // Determine content type based on requested format and file extension
-      const contentType = getVideoContentType(s3Key, compressionParams.format);
-      
-      // Return the video data with enhanced headers for optimized playback
-      return new NextResponse(processedBuffer, {
+      // Return the video data directly with enhanced headers for video playback
+      return new NextResponse(videoBuffer, {
         headers: {
           'Content-Type': contentType,
-          'Cache-Control': `public, max-age=${compressionParams.quality === 'original' ? '31536000' : '86400'}`, // Cache originals longer
-          'Content-Length': processedBuffer.length.toString(),
-          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+          'Content-Length': videoBuffer.length.toString(),
+          'Access-Control-Allow-Origin': '*', // Allow cross-origin requests
           'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-          'Cross-Origin-Resource-Policy': 'cross-origin',
+          'Cross-Origin-Resource-Policy': 'cross-origin', // Allow cross-origin embedding
           'X-Content-Type-Options': 'nosniff',
-          'Content-Disposition': 'inline',
-          'Accept-Ranges': 'bytes',
-          'X-Video-Compression': compressionParams.quality + compressionInfo, // Indicate compression level
-          'X-Original-Size': videoBuffer.length.toString(), // Track original size for bandwidth calculations
+          'Content-Disposition': 'inline', // Display inline instead of download
+          'Accept-Ranges': 'bytes', // Enable range requests for video seeking
         },
       });
       

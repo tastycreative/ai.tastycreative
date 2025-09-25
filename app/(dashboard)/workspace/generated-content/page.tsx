@@ -3,8 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
-import { getBestImageUrl, hasS3Storage, buildS3ImageUrl, getProgressiveImageUrls } from "@/lib/s3Utils";
-import { getOptimizedImageUrl } from "@/lib/imageOptimization";
+import { getBestImageUrl, hasS3Storage, buildS3ImageUrl } from "@/lib/s3Utils";
 import {
   ImageIcon,
   Download,
@@ -116,21 +115,6 @@ export default function GeneratedContentPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [imagesPerPage] = useState(20);
-
-  // Helper function to get optimized image URL for gallery display
-  const getGalleryImageUrl = (item: ContentItem, useFullQuality: boolean = false) => {
-    if (hasS3Storage(item)) {
-      // Use compressed images by default for faster gallery loading
-      if (useFullQuality) {
-        return getBestImageUrl(item, { size: 'full', format: 'auto', quality: 90 });
-      } else {
-        return getBestImageUrl(item, { size: 'medium', format: 'webp', quality: 85 });
-      }
-    }
-    
-    // Fallback for non-S3 images
-    return getBestImageUrl(item);
-  };
 
   // Fetch images and stats
   useEffect(() => {
@@ -485,9 +469,9 @@ export default function GeneratedContentPage() {
     try {
       console.log("📥 Downloading image:", image.filename);
 
-      // Priority 1: Download from S3 network volume (full quality)
+      // Priority 1: Download from S3 network volume
       if (hasS3Storage(image)) {
-        const s3Url = getBestImageUrl(image, { size: 'full', format: 'auto', quality: 95 }); // Full quality for downloads
+        const s3Url = getBestImageUrl(image);
         console.log("🚀 Downloading from S3:", s3Url);
         
         try {
@@ -548,9 +532,9 @@ export default function GeneratedContentPage() {
   const shareImage = (image: GeneratedImage) => {
     let urlToShare = "";
 
-    // Priority 1: Share S3 URL (medium quality for sharing)
+    // Priority 1: Share S3 URL (fastest and most reliable)
     if (hasS3Storage(image)) {
-      urlToShare = getBestImageUrl(image, { size: 'medium', format: 'webp', quality: 85 }); // Good quality for sharing
+      urlToShare = getBestImageUrl(image);
     } else if (image.dataUrl) {
       // Priority 2: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
@@ -1305,7 +1289,7 @@ export default function GeneratedContentPage() {
                       />
                     ) : (
                       <img
-                        src={getGalleryImageUrl(item)} // Using compressed images for faster gallery loading
+                        src={getBestImageUrl(item)}
                         alt={item.filename}
                         className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
                         onClick={() => setSelectedItem(item)}
@@ -1341,33 +1325,23 @@ export default function GeneratedContentPage() {
 
                     {/* Content Type Badge */}
                     <div className="absolute top-3 left-3">
-                      <div className="flex space-x-1">
-                        <div
-                          className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold shadow-lg backdrop-blur-sm border transition-all duration-300 ${
-                            item.itemType === "video"
-                              ? "bg-purple-500/90 text-white border-purple-400"
-                              : "bg-blue-500/90 text-white border-blue-400"
-                          }`}
-                        >
-                          {item.itemType === "video" ? (
-                            <>
-                              <Video className="w-3 h-3" />
-                              <span>VIDEO</span>
-                            </>
-                          ) : (
-                            <>
-                              <ImageIcon className="w-3 h-3" />
-                              <span>IMAGE</span>
-                            </>
-                          )}
-                        </div>
-                        
-                        {/* Compression Badge for S3 Images */}
-                        {item.itemType === "image" && hasS3Storage(item) && (
-                          <div className="bg-green-500/90 text-white border border-green-400 px-2 py-1 rounded-lg text-xs font-semibold shadow-lg backdrop-blur-sm flex items-center space-x-1">
-                            <span>🗜️</span>
-                            <span>60% FASTER</span>
-                          </div>
+                      <div
+                        className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold shadow-lg backdrop-blur-sm border transition-all duration-300 ${
+                          item.itemType === "video"
+                            ? "bg-purple-500/90 text-white border-purple-400"
+                            : "bg-blue-500/90 text-white border-blue-400"
+                        }`}
+                      >
+                        {item.itemType === "video" ? (
+                          <>
+                            <Video className="w-3 h-3" />
+                            <span>VIDEO</span>
+                          </>
+                        ) : (
+                          <>
+                            <ImageIcon className="w-3 h-3" />
+                            <span>IMAGE</span>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1554,7 +1528,7 @@ export default function GeneratedContentPage() {
                           </>
                         ) : (
                           <img
-                            src={getGalleryImageUrl(item)} // Using compressed images for list view
+                            src={getBestImageUrl(item)}
                             alt={item.filename}
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => setSelectedItem(item)}
@@ -1863,7 +1837,7 @@ export default function GeneratedContentPage() {
                 />
               ) : (
                 <img
-                  src={getGalleryImageUrl(selectedItem, true)} // Use full quality for modal view
+                  src={getBestImageUrl(selectedItem)}
                   alt={selectedItem.filename}
                   className="max-w-full max-h-[80vh] object-contain"
                   onError={(e) => {

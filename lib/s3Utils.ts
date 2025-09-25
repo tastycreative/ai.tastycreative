@@ -1,9 +1,7 @@
 /**
  * S3 URL utilities for RunPod network volume storage
- * Builds signed and public URLs for accessing stored images with optimization support
+ * Builds signed and public URLs for accessing stored images
  */
-
-import { getOptimizedImageUrl, ImageOptimizationOptions } from './imageOptimization';
 
 // S3 Configuration - These should match your handler configuration
 const S3_ENDPOINT = 'https://s3api-us-ks-2.runpod.io';
@@ -71,36 +69,31 @@ export function hasS3Storage(image: { s3Key?: string | null; networkVolumePath?:
 }
 
 /**
- * Get the best available image URL with optimization options
+ * Get the best available image URL
  * Priority: S3 proxy URL > Database blob URL > Fallback
  */
-export function getBestImageUrl(
-  image: {
-    s3Key?: string | null;
-    networkVolumePath?: string | null;
-    dataUrl?: string | null;
-    url?: string | null;
-    id: string;
-    filename: string;
-  },
-  options?: ImageOptimizationOptions
-): string {
+export function getBestImageUrl(image: {
+  s3Key?: string | null;
+  networkVolumePath?: string | null;
+  dataUrl?: string | null;
+  url?: string | null;
+  id: string;
+  filename: string;
+}): string {
   // Try S3 first - use API proxy for authenticated access
   if (image.s3Key) {
-    const baseUrl = `/api/images/s3/${encodeURIComponent(image.s3Key)}`;
-    return options ? getOptimizedImageUrl(baseUrl, options) : baseUrl;
+    return `/api/images/s3/${encodeURIComponent(image.s3Key)}`;
   }
   
   // Try network volume path
   if (image.networkVolumePath) {
     const s3Key = extractS3Key(image.networkVolumePath);
     if (s3Key) {
-      const baseUrl = `/api/images/s3/${encodeURIComponent(s3Key)}`;
-      return options ? getOptimizedImageUrl(baseUrl, options) : baseUrl;
+      return `/api/images/s3/${encodeURIComponent(s3Key)}`;
     }
   }
   
-  // Fall back to database URL (no optimization available for database blobs)
+  // Fall back to database URL
   if (image.dataUrl) {
     return image.dataUrl;
   }
@@ -112,35 +105,6 @@ export function getBestImageUrl(
   
   // Last resort: API endpoint for database blob
   return `/api/images/${image.id}`;
-}
-
-/**
- * Get multiple optimized image URLs for progressive loading
- */
-export function getProgressiveImageUrls(image: {
-  s3Key?: string | null;
-  networkVolumePath?: string | null;
-  dataUrl?: string | null;
-  url?: string | null;
-  id: string;
-  filename: string;
-}) {
-  // Only works with S3 images
-  if (image.s3Key || image.networkVolumePath) {
-    return {
-      thumbnail: getBestImageUrl(image, { size: 'thumbnail', format: 'webp', quality: 70 }),
-      medium: getBestImageUrl(image, { size: 'medium', format: 'webp', quality: 85 }),
-      full: getBestImageUrl(image, { size: 'full', format: 'auto', quality: 90 })
-    };
-  }
-  
-  // Fallback for non-S3 images
-  const fallbackUrl = getBestImageUrl(image);
-  return {
-    thumbnail: fallbackUrl,
-    medium: fallbackUrl,
-    full: fallbackUrl
-  };
 }
 
 /**
