@@ -1,6 +1,7 @@
 /**
  * S3 URL utilities for RunPod network volume storage
- * Builds signed and public URLs for accessing stored images
+ * Optimized to reduce Vercel fast data transfer usage
+ * NOTE: RunPod S3 API does NOT support signed URLs (GeneratePresignedURL operation)
  */
 
 // S3 Configuration - These should match your handler configuration
@@ -9,10 +10,10 @@ const S3_BUCKET = '83cljmpqfd';
 const S3_REGION = 'us-ks-2';
 
 /**
- * Build a direct S3 URL for accessing images
- * Note: This assumes the bucket allows public read access or you have proper CORS setup
+ * Build a direct S3 URL for accessing files
+ * NOTE: This requires the bucket to have public read access or proper CORS setup
  */
-export function buildS3ImageUrl(s3Key: string): string {
+export function buildDirectS3Url(s3Key: string): string {
   if (!s3Key) {
     return '';
   }
@@ -25,13 +26,25 @@ export function buildS3ImageUrl(s3Key: string): string {
 }
 
 /**
- * Build a signed S3 URL (if you need authenticated access)
- * This would require AWS SDK and proper credentials
+ * Build an optimized proxy URL through the new unified media endpoint
+ * This reduces the number of different proxy routes and optimizes streaming
+ */
+export function buildOptimizedProxyUrl(s3Key: string): string {
+  if (!s3Key) {
+    return '';
+  }
+
+  const cleanKey = s3Key.startsWith('/') ? s3Key.slice(1) : s3Key;
+  return `/api/media/s3/${encodeURIComponent(cleanKey)}`;
+}
+
+/**
+ * Build a signed S3 URL (DEPRECATED - RunPod doesn't support this)
+ * Kept for backward compatibility but will return direct URL
  */
 export async function buildSignedS3Url(s3Key: string, expiresIn: number = 3600): Promise<string> {
-  // For now, return the direct URL
-  // In the future, you could implement signed URLs here if needed
-  return buildS3ImageUrl(s3Key);
+  console.warn('⚠️ Signed URLs are not supported by RunPod S3 API. Returning direct URL instead.');
+  return buildDirectS3Url(s3Key);
 }
 
 /**
@@ -69,8 +82,10 @@ export function hasS3Storage(image: { s3Key?: string | null; networkVolumePath?:
 }
 
 /**
- * Get the best available image URL
- * Priority: S3 proxy URL > Database blob URL > Fallback
+ * Get the best available URL with optimization strategies
+ * Strategy 1: Try direct S3 URL (fastest, no Vercel bandwidth)
+ * Strategy 2: Use optimized proxy (streaming, better caching)
+ * Strategy 3: Fall back to database URLs
  */
 export function getBestImageUrl(image: {
   s3Key?: string | null;
@@ -79,17 +94,26 @@ export function getBestImageUrl(image: {
   url?: string | null;
   id: string;
   filename: string;
-}): string {
-  // Try S3 first - use API proxy for authenticated access
-  if (image.s3Key) {
-    return `/api/images/s3/${encodeURIComponent(image.s3Key)}`;
-  }
+}, strategy: 'direct' | 'proxy' | 'auto' = 'auto'): string {
   
-  // Try network volume path
-  if (image.networkVolumePath) {
-    const s3Key = extractS3Key(image.networkVolumePath);
-    if (s3Key) {
-      return `/api/images/s3/${encodeURIComponent(s3Key)}`;
+  const s3Key = image.s3Key || extractS3Key(image.networkVolumePath);
+  
+  if (s3Key) {
+    switch (strategy) {
+      case 'direct':
+        // Direct S3 URL - fastest but requires public bucket or CORS
+        return buildDirectS3Url(s3Key);
+        
+      case 'proxy':
+        // Optimized proxy - supports private buckets, streaming, better caching
+        return buildOptimizedProxyUrl(s3Key);
+        
+      case 'auto':
+      default:
+        // Auto-detect: try direct first, fallback to proxy
+        // You could add logic here to test direct access and fallback
+        // For now, use proxy as it's more reliable for private buckets
+        return buildOptimizedProxyUrl(s3Key);
     }
   }
   
@@ -103,8 +127,51 @@ export function getBestImageUrl(image: {
     return image.url;
   }
   
-  // Last resort: API endpoint for database blob
+  // Last resort: legacy API endpoint for database blob
   return `/api/images/${image.id}`;
+}
+
+/**
+ * Get video URL with streaming optimization
+ */
+export function getBestVideoUrl(video: {
+  s3Key?: string | null;
+  networkVolumePath?: string | null;
+  dataUrl?: string | null;
+  url?: string | null;
+  id: string;
+  filename: string;
+}, strategy: 'direct' | 'proxy' | 'auto' = 'auto'): string {
+  
+  const s3Key = video.s3Key || extractS3Key(video.networkVolumePath);
+  
+  if (s3Key) {
+    switch (strategy) {
+      case 'direct':
+        return buildDirectS3Url(s3Key);
+        
+      case 'proxy':
+        // Use optimized proxy with range request support for video streaming
+        return buildOptimizedProxyUrl(s3Key);
+        
+      case 'auto':
+      default:
+        // For videos, prefer proxy to ensure range request support
+        return buildOptimizedProxyUrl(s3Key);
+    }
+  }
+  
+  // Fall back to database URL
+  if (video.dataUrl) {
+    return video.dataUrl;
+  }
+  
+  if (video.url) {
+    return video.url;
+  }
+  
+  // Last resort: legacy API endpoint
+  return `/api/videos/${video.id}`;
 }
 
 /**

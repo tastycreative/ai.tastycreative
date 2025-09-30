@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
-import { getBestImageUrl, hasS3Storage, buildS3ImageUrl } from "@/lib/s3Utils";
+import { getBestImageUrl, hasS3Storage, buildDirectS3Url } from "@/lib/s3Utils";
 import Link from "next/link";
 import {
   ImageIcon,
@@ -769,6 +769,11 @@ export default function TextToImagePage() {
     link.href = url;
     link.download = filename;
     link.click();
+  };
+
+  // Helper function to check S3 storage availability
+  const hasS3Storage = (image: DatabaseImage): boolean => {
+    return !!(image.s3Key || image.networkVolumePath);
   };
 
   // Fetch available LoRA models on component mount
@@ -2971,11 +2976,11 @@ export default function TextToImagePage() {
                                       // Try fallback URLs in order: S3 -> Database -> Placeholder
                                       if (dbImage.s3Key && !currentSrc.includes(dbImage.s3Key)) {
                                         console.log("Trying S3 URL for:", dbImage.filename);
-                                        (e.target as HTMLImageElement).src = buildS3ImageUrl(dbImage.s3Key);
+                                        (e.target as HTMLImageElement).src = buildDirectS3Url(dbImage.s3Key);
                                       } else if (dbImage.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
                                         console.log("Trying S3 URL from network path for:", dbImage.filename);
                                         const s3Key = dbImage.networkVolumePath.replace('/runpod-volume/', '');
-                                        (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                                        (e.target as HTMLImageElement).src = buildDirectS3Url(s3Key);
                                       } else if (dbImage.dataUrl && !currentSrc.includes('/api/images/')) {
                                         console.log("Falling back to database URL for:", dbImage.filename);
                                         (e.target as HTMLImageElement).src = dbImage.dataUrl;

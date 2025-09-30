@@ -57,12 +57,12 @@ RUN mkdir -p /workspace/models /workspace/output /workspace/logs /runpod-volume
 
 # Add version label for tracking
 LABEL version="1.1-s3-optimized"
-LABEL description="Style transfer handler with FLUX Redux support, S3 integration, webhook support, and serverless optimizations"
+LABEL description="Style transfer handler with FLUX Redux support, AWS S3 integration, webhook support, and serverless optimizations"
 LABEL build_date="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
-# Environment variables for S3 integration (can be overridden at runtime)
-ENV AWS_DEFAULT_REGION=us-ks-2
-ENV RUNPOD_S3_BUCKET_NAME=83cljmpqfd
+# Environment variables for AWS S3 integration (can be overridden at runtime)
+ENV AWS_DEFAULT_REGION=us-east-1
+ENV AWS_S3_BUCKET=tastycreative
 
 # Fix NumPy compatibility issues by ensuring we use NumPy < 2.0
 RUN pip install --force-reinstall "numpy>=1.24.0,<2.0.0"

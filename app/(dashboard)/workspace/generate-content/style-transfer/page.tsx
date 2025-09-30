@@ -6,7 +6,7 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import MaskEditor from "@/components/MaskEditor";
-import { getBestImageUrl, hasS3Storage, buildS3ImageUrl } from "@/lib/s3Utils";
+import { getOptimizedImageUrl } from "@/lib/awsS3Utils";
 import {
   ImageIcon,
   Wand2,
@@ -88,8 +88,10 @@ interface DatabaseImage {
   format?: string;
   url?: string | null; // Dynamically constructed URL (network volume or ComfyUI URL)
   dataUrl?: string; // Database-served image URL (fallback)
-  s3Key?: string; // S3 key for network volume storage
-  networkVolumePath?: string; // Path on network volume
+  s3Key?: string; // S3 key for network volume storage (RunPod - deprecated)
+  networkVolumePath?: string; // Path on network volume (RunPod - deprecated)
+  awsS3Key?: string; // AWS S3 key for primary storage
+  awsS3Url?: string; // AWS S3 public URL for direct access
   createdAt: Date | string;
 }
 
@@ -843,9 +845,9 @@ export default function StyleTransferPage() {
     try {
       console.log("📥 Downloading image:", image.filename);
 
-      // Priority 1: Download from S3 network volume
-      if (hasS3Storage(image)) {
-        const s3Url = getBestImageUrl(image);
+      // Priority 1: Download from AWS S3
+      if (image.awsS3Key || image.awsS3Url) {
+        const s3Url = getOptimizedImageUrl(image);
         console.log("🚀 Downloading from S3:", s3Url);
         
         try {
@@ -906,9 +908,9 @@ export default function StyleTransferPage() {
   const shareImage = (image: DatabaseImage) => {
     let urlToShare = "";
 
-    // Priority 1: Share S3 URL (fastest and most reliable)
-    if (hasS3Storage(image)) {
-      urlToShare = getBestImageUrl(image);
+    // Priority 1: Share AWS S3 URL (fastest and most reliable)
+    if (image.awsS3Key || image.awsS3Url) {
+      urlToShare = getOptimizedImageUrl(image);
     } else if (image.dataUrl) {
       // Priority 2: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
@@ -2673,11 +2675,11 @@ export default function StyleTransferPage() {
                                 key={`db-${dbImage.id}`}
                                 className="relative group"
                               >
-                                {hasS3Storage(dbImage) || dbImage.dataUrl ? (
+                                {(dbImage.awsS3Key || dbImage.awsS3Url) || dbImage.dataUrl ? (
                                   // Image is ready to display
                                   <>
                                     <img
-                                      src={getBestImageUrl(dbImage)}
+                                      src={getOptimizedImageUrl(dbImage)}
                                       alt={`Style transfer result ${index + 1}`}
                                       className="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow object-cover"
                                       onError={(e) => {
@@ -2688,14 +2690,13 @@ export default function StyleTransferPage() {
 
                                         const currentSrc = (e.target as HTMLImageElement).src;
                                         
-                                        // Try fallback URLs in order: S3 -> Database -> Placeholder
-                                        if (dbImage.s3Key && !currentSrc.includes(dbImage.s3Key)) {
-                                          console.log("Trying S3 URL for:", dbImage.filename);
-                                          (e.target as HTMLImageElement).src = buildS3ImageUrl(dbImage.s3Key);
-                                        } else if (dbImage.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
-                                          console.log("Trying S3 URL from network path for:", dbImage.filename);
-                                          const s3Key = dbImage.networkVolumePath.replace('/runpod-volume/', '');
-                                          (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                                        // Try fallback URLs in order: AWS S3 -> Database -> Placeholder
+                                        if (dbImage.awsS3Key && !currentSrc.includes(dbImage.awsS3Key)) {
+                                          console.log("Trying AWS S3 URL for:", dbImage.filename);
+                                          (e.target as HTMLImageElement).src = `https://tastycreative.s3.amazonaws.com/${dbImage.awsS3Key}`;
+                                        } else if (dbImage.awsS3Url && currentSrc !== dbImage.awsS3Url) {
+                                          console.log("Trying direct AWS S3 URL for:", dbImage.filename);
+                                          (e.target as HTMLImageElement).src = dbImage.awsS3Url;
                                         } else if (dbImage.dataUrl && !currentSrc.includes('/api/images/')) {
                                           console.log("Falling back to database URL for:", dbImage.filename);
                                           (e.target as HTMLImageElement).src = dbImage.dataUrl;

@@ -16,12 +16,14 @@ export interface GeneratedImage {
   format?: string;
   data?: Buffer;
   networkVolumePath?: string; // Path to image on network volume
-  s3Key?: string; // S3 key for network volume storage
+  s3Key?: string; // S3 key for network volume storage (deprecated)
+  awsS3Key?: string; // AWS S3 key for primary storage
+  awsS3Url?: string; // AWS S3 public URL for direct access
   metadata?: any;
   createdAt: Date | string;
   updatedAt: Date | string;
   // Dynamic properties
-  url?: string | null; // Constructed dynamically (S3, network volume or ComfyUI URL)
+  url?: string | null; // Constructed dynamically (AWS S3 direct URL preferred)
   dataUrl?: string; // For database-served images
 }
 
@@ -83,6 +85,8 @@ export async function saveImageToDatabase(
     providedData?: Buffer; // Pre-downloaded image data to use instead of downloading
     networkVolumePath?: string; // Path to image on network volume
     s3Key?: string; // S3 key for network volume storage
+    awsS3Key?: string; // AWS S3 key for primary storage
+    awsS3Url?: string; // AWS S3 public URL for direct access
     fileSize?: number; // File size if known
   } = {}
 ): Promise<GeneratedImage | null> {
@@ -214,6 +218,8 @@ export async function saveImageToDatabase(
         data: imageData,
         networkVolumePath: options.networkVolumePath,
         s3Key: options.s3Key,
+        awsS3Key: options.awsS3Key,
+        awsS3Url: options.awsS3Url,
         metadata
       },
       create: {
@@ -229,6 +235,8 @@ export async function saveImageToDatabase(
         data: imageData,
         networkVolumePath: options.networkVolumePath,
         s3Key: options.s3Key,
+        awsS3Key: options.awsS3Key,
+        awsS3Url: options.awsS3Url,
         metadata
       }
     });
@@ -248,17 +256,22 @@ export async function saveImageToDatabase(
       format: savedImage.format || undefined,
       data: savedImage.data ? Buffer.from(savedImage.data) : undefined,
       networkVolumePath: savedImage.networkVolumePath || undefined,
+      s3Key: savedImage.s3Key || undefined,
+      awsS3Key: savedImage.awsS3Key || undefined,
+      awsS3Url: savedImage.awsS3Url || undefined,
       metadata: savedImage.metadata,
       createdAt: savedImage.createdAt,
       updatedAt: savedImage.updatedAt,
-      // Prioritize network volume path over ComfyUI URL
-      url: savedImage.networkVolumePath ? 
+      // Priority 1: Direct AWS S3 URL (no Vercel bandwidth usage)
+      // Priority 2: Network volume path over ComfyUI URL
+      url: savedImage.awsS3Url ||
+           (savedImage.networkVolumePath ? 
            `/api/images/${savedImage.id}/network-volume` : 
            buildComfyUIUrl({
              filename: savedImage.filename,
              subfolder: savedImage.subfolder,
              type: savedImage.type
-           }),
+           })),
       dataUrl: savedImage.data ? `/api/images/${savedImage.id}/data` : undefined
     };
     
@@ -300,6 +313,8 @@ export async function getUserImages(
         data: options.includeData || false,
         networkVolumePath: true,
         s3Key: true,
+        awsS3Key: true,
+        awsS3Url: true,
         metadata: true,
         createdAt: true,
         updatedAt: true
@@ -340,14 +355,18 @@ export async function getUserImages(
       format: img.format || undefined,
       networkVolumePath: img.networkVolumePath || undefined,
       s3Key: img.s3Key || undefined,
-      // Prioritize network volume path over ComfyUI URL
-      url: img.networkVolumePath ? 
+      awsS3Key: img.awsS3Key || undefined,
+      awsS3Url: img.awsS3Url || undefined,
+      // Priority 1: Direct AWS S3 URL (no Vercel bandwidth usage)
+      // Priority 2: Network volume path over ComfyUI URL
+      url: img.awsS3Url ||
+           (img.networkVolumePath ? 
            `/api/images/${img.id}/network-volume` : 
            buildComfyUIUrl({
              filename: img.filename,
              subfolder: img.subfolder,
              type: img.type
-           }),
+           })),
       // Set dataUrl if image has data stored (either from included data or separate check)
       dataUrl: (img.data || imageDataStatus[img.id]) ? `/api/images/${img.id}/data` : undefined
     }));
@@ -382,6 +401,8 @@ export async function getJobImages(
         data: options.includeData || false,
         networkVolumePath: true,
         s3Key: true,
+        awsS3Key: true,
+        awsS3Url: true,
         metadata: true,
         createdAt: true,
         updatedAt: true
@@ -420,8 +441,14 @@ export async function getJobImages(
       format: img.format || undefined,
       networkVolumePath: img.networkVolumePath || undefined,
       s3Key: img.s3Key || undefined,
-      // Prioritize S3 URL, then network volume path, then ComfyUI URL
-      url: img.s3Key ? 
+      awsS3Key: img.awsS3Key || undefined,
+      awsS3Url: img.awsS3Url || undefined,
+      // Priority 1: Direct AWS S3 URL (no Vercel bandwidth usage)
+      // Priority 2: S3 proxy (for backward compatibility with RunPod S3)
+      // Priority 3: Network volume path
+      // Priority 4: ComfyUI URL
+      url: img.awsS3Url ||
+           (img.s3Key ? 
            `/api/images/s3/${encodeURIComponent(img.s3Key)}` :
            img.networkVolumePath ? 
            `/api/images/${img.id}/network-volume` : 
@@ -429,7 +456,7 @@ export async function getJobImages(
              filename: img.filename,
              subfolder: img.subfolder,
              type: img.type
-           }),
+           })),
       // Set dataUrl if image has data stored (either from included data or separate check)
       dataUrl: (img.data || imageDataStatus[img.id]) ? `/api/images/${img.id}/data` : undefined
     }));
@@ -602,24 +629,30 @@ export async function migrateUrlsToPathComponents(): Promise<void> {
 
 /**
  * Get the appropriate URL for an image based on its storage type
+ * Prioritizes direct AWS S3 URLs to eliminate Vercel bandwidth usage
  */
 export function getImageUrl(image: GeneratedImage): string | null {
-  // Priority 1: S3 key (use our S3 API route)
+  // Priority 1: AWS S3 direct URL (no Vercel bandwidth usage)
+  if (image.awsS3Url) {
+    return image.awsS3Url;
+  }
+  
+  // Priority 2: S3 key (use our S3 API route for RunPod S3 backward compatibility)
   if (image.s3Key) {
     return `/api/images/s3/${encodeURIComponent(image.s3Key)}`;
   }
   
-  // Priority 2: Network volume path (use network volume API route)
+  // Priority 3: Network volume path (use network volume API route)
   if (image.networkVolumePath) {
     return `/api/images/${image.id}/network-volume`;
   }
   
-  // Priority 3: Database-stored image data (use database API route)
+  // Priority 4: Database-stored image data (use database API route)
   if (image.data) {
     return `/api/images/${image.id}`;
   }
   
-  // Priority 4: Fallback to ComfyUI URL if we have path components
+  // Priority 5: Fallback to ComfyUI URL if we have path components
   if (image.filename && image.subfolder && image.type) {
     const baseUrl = COMFYUI_URL();
     const params = new URLSearchParams({

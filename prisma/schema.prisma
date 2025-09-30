@@ -9,22 +9,22 @@ datasource db {
 }
 
 model User {
-  id             String           @id @default(cuid())
-  clerkId        String           @unique
-  email          String?
-  firstName      String?
-  lastName       String?
-  imageUrl       String?
-  role           UserRole         @default(USER)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  images         GeneratedImage[]
-  videos         GeneratedVideo[]
-  jobs           GenerationJob[]
-  influencers    InfluencerLoRA[]
-  trainingImages TrainingImage[]
-  trainingJobs   TrainingJob[]
+  id                String            @id @default(cuid())
+  clerkId           String            @unique
+  email             String?
+  firstName         String?
+  lastName          String?
+  imageUrl          String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  role              UserRole          @default(USER)
+  images            GeneratedImage[]
+  videos            GeneratedVideo[]
+  jobs              GenerationJob[]
+  influencers       InfluencerLoRA[]
   productionEntries ProductionEntry[]
+  trainingImages    TrainingImage[]
+  trainingJobs      TrainingJob[]
 
   @@map("users")
 }
@@ -91,24 +91,26 @@ model GenerationJob {
 }
 
 model GeneratedImage {
-  id                    String        @id @default(cuid())
-  clerkId               String
-  jobId                 String
-  filename              String
-  subfolder             String        @default("")
-  type                  String        @default("output")
-  fileSize              Int?
-  width                 Int?
-  height                Int?
-  format                String?
-  data                  Bytes?
-  networkVolumePath     String?       // Path to image on network volume (/runpod-volume/outputs/{userId}/...)
-  s3Key                 String?       // S3 key for network volume storage (outputs/{userId}/...)
-  metadata              Json?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
-  user                  User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job                   GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id                String        @id @default(cuid())
+  clerkId           String
+  jobId             String
+  filename          String
+  subfolder         String        @default("")
+  type              String        @default("output")
+  fileSize          Int?
+  width             Int?
+  height            Int?
+  format            String?
+  data              Bytes?
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  networkVolumePath String?
+  s3Key             String?
+  awsS3Key          String?
+  awsS3Url          String?
+  user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
@@ -118,6 +120,7 @@ model GeneratedImage {
   @@index([filename])
   @@index([networkVolumePath])
   @@index([s3Key])
+  @@index([awsS3Key])
   @@map("generated_images")
 }
 
@@ -136,10 +139,10 @@ model GeneratedVideo {
   format            String?
   data              Bytes?
   metadata          Json?
-  s3Key             String?       // S3 key for network volume storage
-  networkVolumePath String?       // Network volume file path
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+  networkVolumePath String?
+  s3Key             String?
   user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 

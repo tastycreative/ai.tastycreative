@@ -17,10 +17,10 @@ set -e
 
 # Configuration
 DOCKER_IMAGE="rfldln01/style-transfer-handler"
-VERSION="v1.2-s3-optimized-$(date +%Y%m%d-%H%M%S)"
+VERSION="v2.0-aws-s3-$(date +%Y%m%d-%H%M%S)"
 LATEST_TAG="latest"
 
-echo "🐋 Building Docker image for RunPod Style Transfer Handler with S3 Integration"
+echo "🐋 Building Docker image for RunPod Style Transfer Handler with AWS S3 Integration"
 echo "📦 Image: $DOCKER_IMAGE"
 echo "🏷️  Version: $VERSION"
 echo "🏗️  Platforms: linux/amd64,linux/arm64"
@@ -55,7 +55,8 @@ echo "   Or Latest: $DOCKER_IMAGE:$LATEST_TAG"
 echo ""
 echo "✨ This version includes:"
 echo "   • 🎨 Style Transfer (FLUX Redux)"
-echo "   • � Enhanced webhook system with retry logic"
+echo "   • ☁️ AWS S3 Storage Integration with automatic upload"
+echo "   • 🚀 Direct S3 URLs (eliminates Vercel bandwidth usage)"
 echo "   • 📊 Comprehensive progress tracking"
 echo "   • 🛡️  Robust error handling and recovery"
 echo "   • ⚡ Optimized for serverless RunPod deployments"

@@ -32,94 +32,113 @@ from botocore.exceptions import ClientError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# S3 Configuration for RunPod Network Volume
-S3_ENDPOINT = 'https://s3api-us-ks-2.runpod.io'
-S3_REGION = 'us-ks-2'
-S3_BUCKET = '83cljmpqfd'
+# AWS S3 Configuration for direct storage (bandwidth optimization)
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+AWS_S3_BUCKET = os.environ.get('AWS_S3_BUCKET', 'tastycreative')
 
-def get_s3_client():
-    """Initialize S3 client for RunPod network volume"""
-    s3_access_key = os.getenv('RUNPOD_S3_ACCESS_KEY')
-    s3_secret_key = os.getenv('RUNPOD_S3_SECRET_KEY')
+def get_aws_s3_client():
+    """Initialize AWS S3 client for direct storage"""
+    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
     
-    if not s3_access_key or not s3_secret_key:
-        logger.error("❌ S3 credentials not found in environment variables")
+    if not aws_access_key or not aws_secret_key:
+        logger.error("❌ AWS S3 credentials not found in environment variables")
         return None
     
     try:
         s3_client = boto3.client(
             's3',
-            endpoint_url=S3_ENDPOINT,
-            aws_access_key_id=s3_access_key,
-            aws_secret_access_key=s3_secret_key,
-            region_name=S3_REGION
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=AWS_REGION
         )
-        logger.info("✅ S3 client initialized successfully")
+        logger.info("✅ AWS S3 client initialized successfully")
         return s3_client
     except Exception as e:
-        logger.error(f"❌ Failed to initialize S3 client: {e}")
+        logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def save_image_to_s3(filename: str, image_data: bytes, user_id: str, subfolder: str = '') -> str:
-    """Save image to S3 network volume and return the S3 key"""
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str) -> Dict[str, str]:
+    """Upload image to AWS S3 and return S3 key and public URL"""
     try:
-        s3_client = get_s3_client()
+        s3_client = get_aws_s3_client()
         if not s3_client:
-            logger.error("❌ S3 client not available")
-            return ""
+            logger.error("❌ AWS S3 client not available")
+            return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        # Create S3 key: outputs/{user_id}/{filename}
+        s3_key = f"outputs/{user_id}/{filename}"
         
-        logger.info(f"📤 Uploading image to S3: {s3_key}")
+        logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
-        # Upload to S3
+        # Upload to AWS S3 (no ACL to avoid compatibility issues)
         s3_client.put_object(
-            Bucket=S3_BUCKET,
+            Bucket=AWS_S3_BUCKET,
             Key=s3_key,
             Body=image_data,
-            ContentType='image/png'
+            ContentType='image/png',
+            CacheControl='public, max-age=31536000'  # 1 year cache
         )
         
-        logger.info(f"✅ Image uploaded to S3: {s3_key}")
-        return s3_key
+        # Generate public URL
+        public_url = f"https://{AWS_S3_BUCKET}.s3.amazonaws.com/{s3_key}"
+        
+        logger.info(f"✅ Successfully uploaded image to AWS S3: {public_url}")
+        return {
+            "success": True,
+            "awsS3Key": s3_key,
+            "awsS3Url": public_url,
+            "fileSize": len(image_data)
+        }
             
     except ClientError as e:
-        logger.error(f"❌ S3 upload failed: {e}")
-        return ""
+        logger.error(f"❌ AWS S3 upload failed: {e}")
+        return {"success": False, "error": str(e)}
     except Exception as e:
-        logger.error(f"❌ S3 upload error: {e}")
-        return ""
+        logger.error(f"❌ AWS S3 upload error: {e}")
+        return {"success": False, "error": str(e)}
 
-def save_image_to_network_volume(filename: str, image_data: bytes, user_id: str, subfolder: str = '', type_dir: str = 'output') -> str:
-    """Save image to network volume storage and return the file path"""
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str) -> Dict[str, str]:
+    """Upload image to AWS S3 and return S3 key and public URL"""
     try:
-        # Create directory path: /runpod-volume/outputs/{user_id}/{subfolder}/
-        volume_dir_parts = ['/runpod-volume/outputs', user_id]
-        if subfolder:
-            volume_dir_parts.append(subfolder)
-        volume_dir = '/'.join(volume_dir_parts)
+        s3_client = get_aws_s3_client()
+        if not s3_client:
+            logger.error("❌ AWS S3 client not available")
+            return {"success": False, "error": "S3 client not available"}
         
-        # Create directory if it doesn't exist
-        os.makedirs(volume_dir, exist_ok=True)
+        # Create S3 key: outputs/{user_id}/{filename}
+        s3_key = f"outputs/{user_id}/{filename}"
         
-        # Full file path
-        file_path = os.path.join(volume_dir, filename)
+        logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
-        # Save image data
-        with open(file_path, 'wb') as f:
-            f.write(image_data)
+        # Upload to AWS S3 (no ACL to avoid compatibility issues)
+        s3_client.put_object(
+            Bucket=AWS_S3_BUCKET,
+            Key=s3_key,
+            Body=image_data,
+            ContentType='image/png',
+            CacheControl='public, max-age=31536000'  # 1 year cache
+        )
         
-        logger.info(f"✅ Image saved to network volume: {file_path}")
-        return file_path
+        # Generate public URL
+        public_url = f"https://{AWS_S3_BUCKET}.s3.amazonaws.com/{s3_key}"
+        
+        logger.info(f"✅ Successfully uploaded image to AWS S3: {public_url}")
+        return {
+            "success": True,
+            "awsS3Key": s3_key,
+            "awsS3Url": public_url,
+            "fileSize": len(image_data)
+        }
             
+    except ClientError as e:
+        logger.error(f"❌ AWS S3 upload failed: {e}")
+        return {"success": False, "error": str(e)}
     except Exception as e:
-        logger.error(f"❌ Failed to save image to network volume: {e}")
-        return ""
+        logger.error(f"❌ AWS S3 upload error: {e}")
+        return {"success": False, "error": str(e)}
+
+
 
 def get_image_bytes_from_comfyui(filename: str, subfolder: str = '', type_dir: str = 'output') -> bytes:
     """Download image from ComfyUI and return raw bytes"""
@@ -933,9 +952,9 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                     'stage': 'processing_images'
                                 })
                             
-                            # Process all generated images with S3 storage
+                            # Process all generated images with AWS S3 storage
                             result_images = []
-                            network_volume_paths = []
+                            aws_s3_paths = []
                             
                             # Get user_id from function parameter (passed from run_skin_enhancement_generation)
                             # user_id already available as function parameter
@@ -958,32 +977,33 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                             extension = os.path.splitext(filename)[1]
                                             unique_filename = f"{base_name}_{timestamp}_{job_id.split('_')[-1]}{extension}"
                                             
-                                            # Save to S3 network volume if user_id is provided
-                                            s3_key = ""
+                                            # Upload to AWS S3 if user_id is provided
+                                            aws_s3_result = {}
                                             if user_id and user_id != 'unknown':
-                                                s3_key = save_image_to_s3(
-                                                    unique_filename,  # Use unique filename
+                                                aws_s3_result = upload_image_to_aws_s3(
                                                     image_data_bytes, 
                                                     user_id, 
-                                                    subfolder
+                                                    unique_filename
                                                 )
-                                                if s3_key:
-                                                    network_volume_paths.append({
-                                                        'filename': unique_filename,  # Store unique filename
+                                                if aws_s3_result.get('success'):
+                                                    aws_s3_paths.append({
+                                                        'filename': unique_filename,
                                                         'subfolder': subfolder,
                                                         'type': img_info.get('type', 'output'),
-                                                        's3_key': s3_key,
-                                                        'network_volume_path': f"/runpod-volume/{s3_key}",  # For compatibility
-                                                        'file_size': len(image_data_bytes)
+                                                        'awsS3Key': aws_s3_result.get('awsS3Key'),
+                                                        'awsS3Url': aws_s3_result.get('awsS3Url'),
+                                                        'file_size': aws_s3_result.get('fileSize', len(image_data_bytes))
                                                     })
-                                                    logger.info(f"✅ Enhanced image saved to S3: {s3_key}")
+                                                    logger.info(f"✅ Enhanced image saved to AWS S3: {aws_s3_result.get('awsS3Url')}")
                                             
-                                            # Only send S3 path info, no base64 data to reduce database consumption
+                                            # Store AWS S3 data for the database
                                             image_data = {
-                                                'filename': unique_filename,  # Use unique filename
+                                                'filename': unique_filename,
                                                 'subfolder': subfolder,
                                                 'type': img_info.get('type', 'output'),
-                                                's3_key': s3_key if user_id != 'unknown' else None
+                                                'awsS3Key': aws_s3_result.get('awsS3Key') if user_id != 'unknown' else None,
+                                                'awsS3Url': aws_s3_result.get('awsS3Url') if user_id != 'unknown' else None,
+                                                'fileSize': aws_s3_result.get('fileSize', len(image_data_bytes))
                                             }
                                             result_images.append(image_data)
                                             logger.info(f"✅ Enhanced image processed: {unique_filename}")
@@ -1024,22 +1044,19 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                         except Exception as e:
                                             logger.error(f"❌ Failed to send chunked enhanced skin image {image_count}: {e}")
                                     
-                                    # Send final completion webhook with S3 paths
-                                    logger.info(f"📤 Sending completion webhook with {len(network_volume_paths)} network volume paths")
+                                    # Send final completion webhook with AWS S3 paths
+                                    logger.info(f"📤 Sending completion webhook with {len(aws_s3_paths)} AWS S3 paths")
                                     
-                                    # Generate resultUrls for frontend display
+                                    # Generate resultUrls from AWS S3 URLs (direct URLs)
                                     resultUrls = []
-                                    for path_data in network_volume_paths:
-                                        if path_data.get('s3_key'):
-                                            # Create S3 proxy URL for frontend (using /api/images/s3/ for images)
-                                            s3_key_encoded = requests.utils.quote(path_data['s3_key'], safe='')
-                                            proxy_url = f"/api/images/s3/{s3_key_encoded}"
-                                            resultUrls.append(proxy_url)
-                                            logger.info(f"✅ Generated S3 proxy URL: {proxy_url}")
+                                    for aws_data in aws_s3_paths:
+                                        if aws_data.get('awsS3Url'):
+                                            resultUrls.append(aws_data['awsS3Url'])
+                                            logger.info(f"✅ Added AWS S3 URL: {aws_data['awsS3Url']}")
                                     
-                                    # Collect image URLs for database update
-                                    for path_data in network_volume_paths:
-                                        logger.info(f"📍 S3 path: {path_data['s3_key']}")
+                                    # Log AWS S3 paths for debugging
+                                    for aws_data in aws_s3_paths:
+                                        logger.info(f"📍 AWS S3 key: {aws_data.get('awsS3Key')}")
                                     
                                     completion_data = {
                                         "job_id": job_id,
@@ -1050,24 +1067,23 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                         "elapsedTime": elapsed_time,
                                         "imageCount": total_images,
                                         "totalImages": total_images,
-                                        "network_volume_paths": network_volume_paths,  # S3 paths for database storage
-                                        "resultUrls": resultUrls,  # S3 proxy URLs for frontend display  
-                                        "images": result_images if total_images <= 1 else [],  # Only metadata for single image
-                                        "allImages": result_images if total_images <= 1 else []  # Only metadata for single image
+                                        "aws_s3_paths": aws_s3_paths,  # AWS S3 paths for database storage (bandwidth optimized)
+                                        "resultUrls": resultUrls,  # Direct AWS S3 URLs for frontend display  
+                                        # NO 'images' array - pure AWS S3 optimization
                                     }
                                     send_webhook(webhook_url, completion_data)
-                                    logger.info(f"📤 Sent completion webhook with {len(network_volume_paths)} network volume paths and {len(resultUrls)} result URLs")
+                                    logger.info(f"📤 Sent completion webhook with {len(aws_s3_paths)} AWS S3 paths and {len(resultUrls)} result URLs")
                                 else:
-                                    # Return S3 paths even without webhook
+                                    # Return AWS S3 paths even without webhook
                                     completion_data = {
-                                        "network_volume_paths": network_volume_paths,
+                                        "aws_s3_paths": aws_s3_paths,
                                     }
                                 
                                 return {
                                     'success': True,
                                     'status': 'completed',
                                     'images': result_images,
-                                    'network_volume_paths': network_volume_paths,
+                                    'aws_s3_paths': aws_s3_paths,
                                     'message': f'Successfully enhanced skin in {len(result_images)} images'
                                 }
                             else:
@@ -1360,8 +1376,13 @@ def handler(job):
     action = job_input.get('action', 'enhance_skin')
     
     try:
-        # Generate unique job ID
-        job_id = f"skin_enhancer_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
+        # Use provided job ID or generate one if not provided
+        job_id = job_input.get('job_id')
+        if not job_id:
+            job_id = f"skin_enhancer_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
+            logger.warning(f"⚠️ No job_id provided, generated: {job_id}")
+        else:
+            logger.info(f"✅ Using provided job_id: {job_id}")
         
         # Extract webhook URL
         webhook_url = job_input.get('webhook_url')
@@ -1379,7 +1400,7 @@ def handler(job):
                 'success': result['success'],
                 'status': result['status'],
                 'images': result.get('images', []),
-                'network_volume_paths': result.get('network_volume_paths', []),
+                'aws_s3_paths': result.get('aws_s3_paths', []),
                 'message': result.get('message', result.get('error', 'Unknown')),
                 'error': result.get('error') if not result['success'] else None
             }

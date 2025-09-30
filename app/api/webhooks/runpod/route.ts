@@ -95,8 +95,67 @@ export async function POST(request: NextRequest) {
       console.log(`📊 Adding ${resultUrls.length} result URLs to job ${jobId}`);
     }
 
-    // Handle completed generation with S3 network volume paths
-    if (status === 'COMPLETED' && body.network_volume_paths && Array.isArray(body.network_volume_paths)) {
+    // Handle completed generation with AWS S3 paths (new format)
+    if (status === 'COMPLETED' && body.aws_s3_paths && Array.isArray(body.aws_s3_paths)) {
+      console.log(`🖼️ Processing ${body.aws_s3_paths.length} AWS S3 images for job ${jobId}`);
+      
+      try {
+        const savedImages = [];
+        const resultUrls = [];
+        
+        for (const pathData of body.aws_s3_paths) {
+          const { filename, subfolder, type, awsS3Key, awsS3Url, file_size } = pathData;
+          
+          console.log(`💾 Saving AWS S3 image: ${filename} at ${awsS3Key}`);
+          console.log(`☁️ AWS S3 URL: ${awsS3Url}`);
+          
+          // Save to database with AWS S3 data
+          const savedImage = await saveImageToDatabase(
+            existingJob.clerkId,
+            jobId,
+            { filename, subfolder, type },
+            {
+              saveData: false, // Don't save image bytes to database
+              extractMetadata: false, // Don't extract metadata (we have it from handler)
+              awsS3Key: awsS3Key,
+              awsS3Url: awsS3Url,
+              fileSize: file_size
+            }
+          );
+          
+          if (savedImage) {
+            savedImages.push(savedImage);
+            
+            // Use AWS S3 URL directly as result URL
+            if (awsS3Url) {
+              resultUrls.push(awsS3Url);
+              console.log(`✅ Added AWS S3 URL: ${awsS3Url}`);
+            }
+            
+            console.log(`✅ AWS S3 image saved to database: ${savedImage.id}`);
+          } else {
+            console.error(`❌ Failed to save AWS S3 image: ${filename}`);
+          }
+        }
+        
+        updateData.completedAt = new Date();
+        updateData.resultImages = savedImages;
+        
+        // Add AWS S3 URLs to job resultUrls
+        if (resultUrls.length > 0) {
+          updateData.resultUrls = resultUrls;
+          console.log(`✅ Added ${resultUrls.length} AWS S3 URLs to job resultUrls`);
+        }
+        
+        console.log(`✅ Saved ${savedImages.length} AWS S3 images for job ${jobId}`);
+      } catch (imageError) {
+        console.error('❌ Error processing AWS S3 images:', imageError);
+        updateData.error = 'Failed to process AWS S3 images';
+        updateData.status = 'failed';
+      }
+    }
+    // Handle completed generation with S3 network volume paths (legacy format)
+    else if (status === 'COMPLETED' && body.network_volume_paths && Array.isArray(body.network_volume_paths)) {
       console.log(`🖼️ Processing ${body.network_volume_paths.length} S3 network volume images for job ${jobId}`);
       
       try {
@@ -104,11 +163,14 @@ export async function POST(request: NextRequest) {
         const resultUrls = [];
         
         for (const pathData of body.network_volume_paths) {
-          const { filename, subfolder, type, s3_key, network_volume_path, file_size } = pathData;
+          const { filename, subfolder, type, s3_key, network_volume_path, file_size, aws_s3_key, aws_s3_url } = pathData;
           
           console.log(`💾 Saving S3 network volume image: ${filename} at ${s3_key || network_volume_path}`);
+          if (aws_s3_key) {
+            console.log(`☁️ AWS S3 URL: ${aws_s3_url}`);
+          }
           
-          // Save to database with S3 key and network volume path
+          // Save to database with both RunPod S3 and AWS S3 data
           const savedImage = await saveImageToDatabase(
             existingJob.clerkId,
             jobId,
@@ -118,6 +180,8 @@ export async function POST(request: NextRequest) {
               extractMetadata: false, // Don't extract metadata (we have it from handler)
               s3Key: s3_key,
               networkVolumePath: network_volume_path,
+              awsS3Key: aws_s3_key,
+              awsS3Url: aws_s3_url,
               fileSize: file_size
             }
           );

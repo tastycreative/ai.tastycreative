@@ -29,15 +29,76 @@ import shutil
 import boto3
 from botocore.exceptions import ClientError
 
-def get_s3_client():
-    s3_access_key = os.getenv('RUNPOD_S3_ACCESS_KEY')
-    s3_secret_key = os.getenv('RUNPOD_S3_SECRET_KEY')
+# AWS S3 Configuration for primary storage
+AWS_S3_ENDPOINT = None  # Use default AWS endpoint
+AWS_S3_REGION = os.getenv('AWS_REGION', 'us-east-1')
+AWS_S3_BUCKET = os.getenv('AWS_S3_BUCKET', '')
+
+def get_aws_s3_client():
+    """Initialize AWS S3 client for primary storage"""
+    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
     
-    if not s3_access_key or not s3_secret_key:
-        print("❌ S3 credentials not found in environment variables")
-        print(f"Looking for: RUNPOD_S3_ACCESS_KEY")
-        print(f"Looking for: RUNPOD_S3_SECRET_KEY")
+    if not aws_access_key or not aws_secret_key:
+        logger.error("❌ AWS S3 credentials not found in environment variables")
         return None
+    
+    try:
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=AWS_S3_REGION
+        )
+        logger.info("✅ AWS S3 client initialized successfully")
+        return s3_client
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
+        return None
+
+def upload_to_aws_s3(filename: str, image_data: bytes, user_id: str, subfolder: str = '') -> dict:
+    """Upload image to AWS S3 and return details"""
+    try:
+        s3_client = get_aws_s3_client()
+        if not s3_client:
+            return {"success": False, "error": "AWS S3 client not available"}
+        
+        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
+        s3_key_parts = ['outputs', user_id]
+        if subfolder:
+            s3_key_parts.append(subfolder)
+        s3_key_parts.append(filename)
+        s3_key = '/'.join(s3_key_parts)
+        
+        logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
+        
+        # Upload to AWS S3
+        s3_client.put_object(
+            Bucket=AWS_S3_BUCKET,
+            Key=s3_key,
+            Body=image_data,
+            ContentType='image/png',
+            CacheControl='public, max-age=31536000'  # 1 year cache
+        )
+        
+        # Generate public URL
+        public_url = f"https://{AWS_S3_BUCKET}.s3.amazonaws.com/{s3_key}"
+        
+        logger.info(f"✅ Image uploaded to AWS S3: {public_url}")
+        
+        return {
+            "success": True,
+            "s3_key": s3_key,
+            "public_url": public_url,
+            "file_size": len(image_data)
+        }
+            
+    except ClientError as e:
+        logger.error(f"❌ AWS S3 upload error for {filename}: {e}")
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        logger.error(f"❌ Error uploading image to AWS S3 {filename}: {str(e)}")
+        return {"success": False, "error": str(e)}
 
 import os
 import sys
@@ -590,31 +651,50 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                 if response.status_code == 200:
                                                     image_data_bytes = response.content
                                                     
-                                                    # Save to S3 network volume if user_id is provided
-                                                    if user_id:
-                                                        s3_key = save_image_to_s3(
+                                                    # Save to AWS S3 (primary and only storage)
+                                                    aws_s3_result = None
+                                                    if user_id and AWS_S3_BUCKET:
+                                                        aws_s3_result = upload_to_aws_s3(
                                                             filename, 
                                                             image_data_bytes, 
                                                             user_id, 
                                                             subfolder
                                                         )
-                                                        if s3_key:
-                                                            network_volume_paths.append({
-                                                                'filename': filename,
-                                                                'subfolder': subfolder,
-                                                                'type': img_info.get('type', 'output'),
-                                                                's3_key': s3_key,
-                                                                'network_volume_path': f"/runpod-volume/{s3_key}",  # For compatibility
-                                                                'file_size': len(image_data_bytes)
-                                                            })
-                                                            logger.info(f"✅ Image saved to S3: {s3_key}")
+                                                        if aws_s3_result.get('success'):
+                                                            logger.info(f"✅ Image uploaded to AWS S3: {aws_s3_result['public_url']}")
+                                                        else:
+                                                            logger.error(f"❌ AWS S3 upload failed: {aws_s3_result.get('error')}")
+                                                    else:
+                                                        logger.error("❌ AWS S3 configuration missing - user_id or bucket not provided")
                                                     
-                                                    # Only send S3 path info, no base64 data to reduce database consumption
+                                                    # Prepare path info with AWS S3 only
+                                                    path_info = {
+                                                        'filename': filename,
+                                                        'subfolder': subfolder,
+                                                        'type': img_info.get('type', 'output'),
+                                                        'file_size': len(image_data_bytes)
+                                                    }
+                                                    
+                                                    # Add AWS S3 info if successful
+                                                    if aws_s3_result and aws_s3_result.get('success'):
+                                                        path_info.update({
+                                                            'aws_s3_key': aws_s3_result['s3_key'],
+                                                            'aws_s3_url': aws_s3_result['public_url']
+                                                        })
+                                                    else:
+                                                        logger.error(f"❌ Failed to upload {filename} to AWS S3 - skipping image")
+                                                        continue  # Skip this image if AWS S3 upload failed
+                                                    
+                                                    network_volume_paths.append(path_info)
+                                                    
+                                                    # Only send essential data to webhook with direct AWS S3 URL
                                                     image_data = {
                                                         'filename': filename,
                                                         'subfolder': subfolder,
                                                         'type': img_info.get('type', 'output'),
-                                                        's3_key': s3_key if user_id else None
+                                                        'aws_s3_key': path_info.get('aws_s3_key'),
+                                                        'aws_s3_url': path_info.get('aws_s3_url'),
+                                                        'direct_url': path_info.get('aws_s3_url')  # Direct S3 URL for immediate use
                                                     }
                                                     image_results.append(image_data)
                                                     
@@ -638,15 +718,16 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                 
                                 # Send final completion webhook
                                 if webhook_url:
-                                    # Generate resultUrls for frontend display
+                                    # Generate direct AWS S3 URLs for frontend display (no Vercel bandwidth usage)
                                     resultUrls = []
                                     for path_data in network_volume_paths:
-                                        if path_data.get('s3_key'):
-                                            # Create S3 proxy URL for frontend
-                                            s3_key_encoded = requests.utils.quote(path_data['s3_key'], safe='')
-                                            proxy_url = f"/api/images/s3/{s3_key_encoded}"
-                                            resultUrls.append(proxy_url)
-                                            logger.info(f"✅ Generated S3 proxy URL: {proxy_url}")
+                                        if path_data.get('aws_s3_url'):
+                                            # Use direct AWS S3 URL (bypasses Vercel entirely)
+                                            direct_url = path_data['aws_s3_url']
+                                            resultUrls.append(direct_url)
+                                            logger.info(f"✅ Generated direct AWS S3 URL: {direct_url}")
+                                        else:
+                                            logger.warning(f"⚠️ No AWS S3 URL available for {path_data.get('filename')}")
                                     
                                     completion_data = {
                                         "job_id": job_id,
@@ -657,8 +738,9 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                         "elapsedTime": elapsed_time,
                                         "imageCount": total_images,
                                         "totalImages": total_images,
-                                        "network_volume_paths": network_volume_paths,  # S3 paths for database storage
-                                        "resultUrls": resultUrls  # S3 proxy URLs for frontend display
+                                        "network_volume_paths": network_volume_paths,  # AWS S3 paths for database storage
+                                        "resultUrls": resultUrls,  # Direct AWS S3 URLs (no Vercel bandwidth usage)
+                                        "aws_s3_direct": True  # Flag indicating direct S3 URLs are being used
                                     }
                                     send_webhook(webhook_url, completion_data)
                                     logger.info(f"📤 Sent completion webhook with {len(network_volume_paths)} network volume paths and {len(resultUrls)} result URLs")

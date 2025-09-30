@@ -24,30 +24,26 @@ from botocore.exceptions import ClientError, NoCredentialsError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def upload_image_to_s3(image_data: str, filename: str, user_id: str) -> Optional[str]:
-    """Upload base64 image data to S3 and return the S3 key"""
+def upload_image_to_aws_s3(image_data: str, filename: str, user_id: str) -> Optional[tuple]:
+    """Upload base64 image data to AWS S3 and return the S3 key and public URL"""
     try:
-        # Get S3 credentials from environment (matching text-to-image handler)
-        aws_access_key = os.environ.get('RUNPOD_S3_ACCESS_KEY')
-        aws_secret_key = os.environ.get('RUNPOD_S3_SECRET_KEY')
-        s3_bucket = os.environ.get('RUNPOD_S3_BUCKET_NAME', '83cljmpqfd')
-        
-        # Use RunPod S3 endpoint and region (matching text-to-image handler)
-        s3_endpoint = 'https://s3api-us-ks-2.runpod.io'
-        s3_region = 'us-ks-2'
+        # Get AWS S3 credentials from environment
+        aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+        aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+        aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+        s3_bucket = os.environ.get('AWS_S3_BUCKET', 'tastycreative')
         
         if not all([aws_access_key, aws_secret_key, s3_bucket]):
-            logger.warning("⚠️ RunPod S3 credentials not configured, skipping S3 upload")
-            logger.warning(f"Missing: RUNPOD_S3_ACCESS_KEY={bool(aws_access_key)}, RUNPOD_S3_SECRET_KEY={bool(aws_secret_key)}, RUNPOD_S3_BUCKET_NAME={bool(s3_bucket)}")
+            logger.warning("⚠️ AWS S3 credentials not configured, skipping S3 upload")
+            logger.warning(f"Missing: AWS_ACCESS_KEY_ID={bool(aws_access_key)}, AWS_SECRET_ACCESS_KEY={bool(aws_secret_key)}, AWS_S3_BUCKET={bool(s3_bucket)}")
             return None
         
-        # Initialize S3 client with RunPod endpoint
+        # Initialize AWS S3 client
         s3_client = boto3.client(
             's3',
-            endpoint_url=s3_endpoint,
             aws_access_key_id=aws_access_key,
             aws_secret_access_key=aws_secret_key,
-            region_name=s3_region
+            region_name=aws_region
         )
         
         # Decode base64 image data
@@ -61,28 +57,33 @@ def upload_image_to_s3(image_data: str, filename: str, user_id: str) -> Optional
         file_extension = filename.split('.')[-1] if '.' in filename else 'png'
         s3_key = f"outputs/{user_id}/{filename}"  # Match text-to-image pattern using user_id
         
-        # Upload to S3 with proper content type
+        # Upload to S3 with proper content type and public access
         content_type = f"image/{file_extension.lower()}"
         if file_extension.lower() == 'jpg':
             content_type = "image/jpeg"
         
-        logger.info(f"📤 Uploading image to S3: {s3_key}")
+        logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
         s3_client.put_object(
             Bucket=s3_bucket,
             Key=s3_key,
             Body=image_bytes,
-            ContentType=content_type
+            ContentType=content_type,
+            CacheControl='public, max-age=31536000'  # 1 year cache
+            # Removed ACL='public-read' - bucket uses public access policy instead
         )
         
-        logger.info(f"✅ Successfully uploaded image to S3: s3://{s3_bucket}/{s3_key}")
-        return s3_key
+        # Generate public URL
+        public_url = f"https://{s3_bucket}.s3.amazonaws.com/{s3_key}"
+        
+        logger.info(f"✅ Successfully uploaded image to AWS S3: {public_url}")
+        return s3_key, public_url
         
     except (ClientError, NoCredentialsError) as e:
-        logger.error(f"❌ S3 upload failed: {e}")
+        logger.error(f"❌ AWS S3 upload failed: {e}")
         return None
     except Exception as e:
-        logger.error(f"❌ Unexpected error during S3 upload: {e}")
+        logger.error(f"❌ Unexpected error during AWS S3 upload: {e}")
         return None
 
 def send_webhook(webhook_url: str, data: Dict) -> bool:
@@ -647,25 +648,31 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                     # Download image and convert to base64
                                                     image_base64 = get_image_from_comfyui(original_filename, subfolder)
                                                     if image_base64:
-                                                        # Upload to S3 with unique filename and get S3 key (matching text-to-image pattern)
-                                                        s3_key = upload_image_to_s3(image_base64, unique_filename, user_id)
+                                                        # Upload to AWS S3 with unique filename and get S3 key + public URL
+                                                        aws_result = upload_image_to_aws_s3(image_base64, unique_filename, user_id)
+                                                        s3_key = None
+                                                        public_url = None
+                                                        
+                                                        if aws_result:
+                                                            s3_key, public_url = aws_result
                                                         
                                                         # Database storage monitoring and optimization logging
                                                         image_size_bytes = len(base64.b64decode(image_base64.split(',')[1] if ',' in image_base64 else image_base64))
                                                         image_size_mb = image_size_bytes / (1024 * 1024)
                                                         
                                                         if s3_key:
-                                                            logger.info(f"✅ Image saved to S3: {s3_key}")
+                                                            logger.info(f"✅ Image saved to AWS S3: {public_url}")
                                                         else:
-                                                            logger.warning(f"⚠️ S3 upload failed for {unique_filename}")
+                                                            logger.warning(f"⚠️ AWS S3 upload failed for {unique_filename}")
                                                         
-                                                        # Create S3-only image data structure (NO blob data - matching text-to-image pattern)
+                                                        # Create AWS S3-only image data structure (NO blob data - bandwidth optimized)
                                                         image_data = {
                                                             'filename': unique_filename,  # Use unique filename
                                                             'originalFilename': original_filename,  # Keep original for reference
                                                             'subfolder': subfolder,
                                                             'type': img_info.get('type', 'output'),
-                                                            's3Key': s3_key,
+                                                            'awsS3Key': s3_key,  # AWS S3 key
+                                                            'awsS3Url': public_url,  # AWS S3 public URL
                                                             'fileSize': len(base64.b64decode(image_base64.split(',')[1] if ',' in image_base64 else image_base64)),
                                                             'format': file_extension.upper(),
                                                             'createdAt': time.time(),
@@ -675,19 +682,22 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                         images.append(image_data)
                                                         logger.info(f"✅ Processed style transfer image: {unique_filename}")
                                                         if s3_key:
-                                                            logger.info(f"📤 Uploaded to S3: {s3_key}")                                                        # Send individual image via webhook (chunked upload) - UPDATED for S3 optimization
+                                                            logger.info(f"📤 Uploaded to AWS S3: {public_url}")
+                                                        
+                                                        # Send individual image via webhook (chunked upload) - UPDATED for AWS S3 optimization
                                                         if webhook_url and total_images > 1:
                                                             chunk_progress = 95 + (image_count / total_images) * 5  # 95-100% for image processing
                                                             logger.info(f"📤 Sending chunked style transfer image {image_count}/{total_images} via webhook")
                                                             
-                                                            # S3-only image data (NO blob data) - matching text-to-image pattern
+                                                            # AWS S3-only image data (NO blob data) - bandwidth optimized
                                                             enhanced_image_data = {
                                                                 'filename': image_data['filename'],
                                                                 'subfolder': image_data.get('subfolder', ''),
                                                                 'type': image_data.get('type', 'output'),
-                                                                's3_key': image_data.get('s3Key'),  # S3 key for storage
+                                                                'awsS3Key': image_data.get('awsS3Key'),  # AWS S3 key for storage
+                                                                'awsS3Url': image_data.get('awsS3Url'),  # AWS S3 public URL
                                                                 'file_size': image_data.get('fileSize'),
-                                                                # NO 'data' field - pure S3 optimization like text-to-image
+                                                                # NO 'data' field - pure AWS S3 optimization
                                                             }
                                                             
                                                             send_webhook(webhook_url, {
@@ -705,11 +715,11 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                         if images:
                                             logger.info(f"✅ Style transfer completed with {total_images} image{'' if total_images == 1 else 's'}")
                                             
-                                            # Calculate and log database optimization summary (matching text-to-image pattern)
-                                            total_s3_images = sum(1 for img in images if img.get('s3Key'))
+                                            # Calculate and log database optimization summary (AWS S3 pattern)
+                                            total_s3_images = sum(1 for img in images if img.get('awsS3Key'))
                                             total_database_images = total_images - total_s3_images
                                             total_size_mb = sum(img.get('fileSize', 0) for img in images) / (1024 * 1024)
-                                            s3_size_mb = sum(img.get('fileSize', 0) for img in images if img.get('s3Key')) / (1024 * 1024)
+                                            s3_size_mb = sum(img.get('fileSize', 0) for img in images if img.get('awsS3Key')) / (1024 * 1024)
                                             database_size_mb = total_size_mb - s3_size_mb
                                             
                                             logger.info(f"📊 DATABASE OPTIMIZATION SUMMARY:")
@@ -729,31 +739,33 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                 
                                                 for result in images:
                                                     if result.get('filename'):
-                                                        # Create the ComfyUI URL for the image
-                                                        comfyui_url = os.environ.get('COMFYUI_URL', 'http://localhost:8188')
-                                                        result_url = f"{comfyui_url}/view?filename={result['filename']}&type={result.get('type', 'output')}"
-                                                        if result.get('subfolder'):
-                                                            result_url += f"&subfolder={result['subfolder']}"
-                                                        result_urls.append(result_url)
+                                                        # Use AWS S3 URL instead of legacy ComfyUI URL
+                                                        if result.get('awsS3Url'):
+                                                            result_urls.append(result['awsS3Url'])
+                                                        elif result.get('awsS3Key'):
+                                                            # Generate AWS S3 URL from key
+                                                            bucket_name = os.environ.get('AWS_S3_BUCKET', 'tastycreative')
+                                                            result_url = f"https://{bucket_name}.s3.amazonaws.com/{result['awsS3Key']}"
+                                                            result_urls.append(result_url)
                                                         
-                                                        # Collect S3 and network volume data
-                                                        if result.get('s3Key'):
-                                                            s3_keys.append(result['s3Key'])
-                                                        if result.get('networkVolumePath'):
-                                                            network_volume_paths.append(result['networkVolumePath'])
+                                                        # Collect AWS S3 data
+                                                        if result.get('awsS3Key'):
+                                                            s3_keys.append(result['awsS3Key'])
+                                                        # Note: No longer using RunPod networkVolumePath or legacy ComfyUI URLs
                                                 
-                                                # Build network_volume_paths array for S3 optimization (matching text-to-image format)
-                                                webhook_network_volume_paths = []
+                                                # Build AWS S3 paths array for bandwidth optimization
+                                                webhook_aws_s3_paths = []
                                                 for i, s3_key in enumerate(s3_keys):
                                                     if s3_key:
                                                         # Get image info from corresponding index
                                                         img_data = images[i] if i < len(images) else {}
                                                         
-                                                        webhook_network_volume_paths.append({
+                                                        webhook_aws_s3_paths.append({
                                                             'filename': img_data.get('filename', f'style_transfer_{i+1}.png'),
                                                             'subfolder': img_data.get('subfolder', ''),
                                                             'type': img_data.get('type', 'output'),
-                                                            's3_key': s3_key,
+                                                            'awsS3Key': s3_key,  # AWS S3 key
+                                                            'awsS3Url': img_data.get('awsS3Url'),  # AWS S3 public URL
                                                             'file_size': img_data.get('fileSize', 0)
                                                         })
                                                 
@@ -766,12 +778,12 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                     "elapsedTime": elapsed_time,
                                                     "imageCount": total_images,
                                                     "totalImages": total_images,
-                                                    "network_volume_paths": webhook_network_volume_paths,  # Primary: S3 paths for database storage (matching text-to-image)
+                                                    "aws_s3_paths": webhook_aws_s3_paths,  # Primary: AWS S3 paths for database storage (bandwidth optimized)
                                                     "resultUrls": result_urls,  # Fallback: ComfyUI URLs for legacy compatibility
-                                                    # NO 'images' array - pure S3 optimization like text-to-image
+                                                    # NO 'images' array - pure AWS S3 optimization
                                                 }
                                                 send_webhook(webhook_url, completion_data)
-                                                logger.info(f"📤 Sent style transfer completion webhook with {len(webhook_network_volume_paths)} network volume paths and {len(result_urls)} result URLs")
+                                                logger.info(f"📤 Sent style transfer completion webhook with {len(webhook_aws_s3_paths)} AWS S3 paths and {len(result_urls)} result URLs")
                                             
                                             return {'success': True, 'images': images}
                                         else:

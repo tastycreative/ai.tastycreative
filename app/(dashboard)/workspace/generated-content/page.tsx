@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
-import { getBestImageUrl, hasS3Storage, buildS3ImageUrl } from "@/lib/s3Utils";
+import { getOptimizedImageUrl } from "@/lib/awsS3Utils";
 import {
   ImageIcon,
   Download,
@@ -42,8 +42,10 @@ interface GeneratedImage {
   format?: string;
   url?: string; // Dynamically constructed ComfyUI URL
   dataUrl?: string; // Database-served image URL
-  s3Key?: string; // S3 key for network volume storage
-  networkVolumePath?: string; // Path on network volume
+  s3Key?: string; // S3 key for network volume storage (RunPod)
+  networkVolumePath?: string; // Path on network volume (RunPod)
+  awsS3Key?: string; // AWS S3 key for primary storage
+  awsS3Url?: string; // AWS S3 public URL for direct access
   createdAt: Date | string;
   jobId: string;
 }
@@ -61,8 +63,10 @@ interface GeneratedVideo {
   format?: string;
   url?: string; // Dynamically constructed ComfyUI URL
   dataUrl?: string; // Database-served video URL
-  s3Key?: string; // S3 key for network volume storage
-  networkVolumePath?: string; // Path on network volume
+  s3Key?: string; // S3 key for network volume storage (RunPod)
+  networkVolumePath?: string; // Path on network volume (RunPod)
+  awsS3Key?: string; // AWS S3 key for primary storage
+  awsS3Url?: string; // AWS S3 public URL for direct access
   createdAt: Date | string;
   jobId: string;
 }
@@ -469,9 +473,9 @@ export default function GeneratedContentPage() {
     try {
       console.log("📥 Downloading image:", image.filename);
 
-      // Priority 1: Download from S3 network volume
-      if (hasS3Storage(image)) {
-        const s3Url = getBestImageUrl(image);
+      // Priority 1: Download from AWS S3
+      if (image.awsS3Key || image.awsS3Url) {
+        const s3Url = getOptimizedImageUrl(image);
         console.log("🚀 Downloading from S3:", s3Url);
         
         try {
@@ -532,9 +536,9 @@ export default function GeneratedContentPage() {
   const shareImage = (image: GeneratedImage) => {
     let urlToShare = "";
 
-    // Priority 1: Share S3 URL (fastest and most reliable)
-    if (hasS3Storage(image)) {
-      urlToShare = getBestImageUrl(image);
+    // Priority 1: Share AWS S3 URL (fastest and most reliable)
+    if (image.awsS3Key || image.awsS3Url) {
+      urlToShare = getOptimizedImageUrl(image);
     } else if (image.dataUrl) {
       // Priority 2: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
@@ -601,7 +605,7 @@ export default function GeneratedContentPage() {
             </div>
           </div>
           <div className="space-y-3">
-            <h3 className="text-3xl font-bold text-gray-900 dark:text-white bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h3 className="text-3xl font-bold dark:text-white bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Loading Your Gallery
             </h3>
             <p className="text-gray-600 dark:text-gray-400 max-w-md text-lg">
@@ -1289,7 +1293,7 @@ export default function GeneratedContentPage() {
                       />
                     ) : (
                       <img
-                        src={getBestImageUrl(item)}
+                        src={getOptimizedImageUrl(item)}
                         alt={item.filename}
                         className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
                         onClick={() => setSelectedItem(item)}
@@ -1301,14 +1305,13 @@ export default function GeneratedContentPage() {
 
                           const currentSrc = (e.target as HTMLImageElement).src;
                           
-                          // Try fallback URLs in order: S3 -> Database -> ComfyUI -> Placeholder
-                          if (item.s3Key && !currentSrc.includes(item.s3Key)) {
-                            console.log("Trying S3 URL for:", item.filename);
-                            (e.target as HTMLImageElement).src = buildS3ImageUrl(item.s3Key);
-                          } else if (item.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
-                            console.log("Trying S3 URL from network path for:", item.filename);
-                            const s3Key = item.networkVolumePath.replace('/runpod-volume/', '');
-                            (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                          // Try fallback URLs in order: AWS S3 -> Database -> ComfyUI -> Placeholder
+                          if (item.awsS3Key && !currentSrc.includes(item.awsS3Key)) {
+                            console.log("Trying AWS S3 URL for:", item.filename);
+                            (e.target as HTMLImageElement).src = `https://tastycreative.s3.amazonaws.com/${item.awsS3Key}`;
+                          } else if (item.awsS3Url && currentSrc !== item.awsS3Url) {
+                            console.log("Trying direct AWS S3 URL for:", item.filename);
+                            (e.target as HTMLImageElement).src = item.awsS3Url;
                           } else if (item.dataUrl && !currentSrc.includes('/api/images/')) {
                             console.log("Falling back to database URL for:", item.filename);
                             (e.target as HTMLImageElement).src = item.dataUrl;
@@ -1528,7 +1531,7 @@ export default function GeneratedContentPage() {
                           </>
                         ) : (
                           <img
-                            src={getBestImageUrl(item)}
+                            src={getOptimizedImageUrl(item)}
                             alt={item.filename}
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => setSelectedItem(item)}
@@ -1540,14 +1543,13 @@ export default function GeneratedContentPage() {
 
                               const currentSrc = (e.target as HTMLImageElement).src;
                               
-                              // Try fallback URLs in order: S3 -> Database -> ComfyUI -> Placeholder
-                              if (item.s3Key && !currentSrc.includes(item.s3Key)) {
-                                console.log("Trying S3 URL for:", item.filename);
-                                (e.target as HTMLImageElement).src = buildS3ImageUrl(item.s3Key);
-                              } else if (item.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
-                                console.log("Trying S3 URL from network path for:", item.filename);
-                                const s3Key = item.networkVolumePath.replace('/runpod-volume/', '');
-                                (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                              // Try fallback URLs in order: AWS S3 -> Database -> ComfyUI -> Placeholder
+                              if (item.awsS3Key && !currentSrc.includes(item.awsS3Key)) {
+                                console.log("List view trying AWS S3 URL for:", item.filename);
+                                (e.target as HTMLImageElement).src = `https://tastycreative.s3.amazonaws.com/${item.awsS3Key}`;
+                              } else if (item.awsS3Url && currentSrc !== item.awsS3Url) {
+                                console.log("List view trying direct AWS S3 URL for:", item.filename);
+                                (e.target as HTMLImageElement).src = item.awsS3Url;
                               } else if (item.dataUrl && !currentSrc.includes('/api/images/')) {
                                 console.log("Falling back to database URL for:", item.filename);
                                 (e.target as HTMLImageElement).src = item.dataUrl;
@@ -1837,7 +1839,7 @@ export default function GeneratedContentPage() {
                 />
               ) : (
                 <img
-                  src={getBestImageUrl(selectedItem)}
+                  src={getOptimizedImageUrl(selectedItem)}
                   alt={selectedItem.filename}
                   className="max-w-full max-h-[80vh] object-contain"
                   onError={(e) => {
@@ -1847,14 +1849,13 @@ export default function GeneratedContentPage() {
                     );
                     const currentSrc = (e.target as HTMLImageElement).src;
 
-                    // Try fallback URLs in order: S3 -> Database -> ComfyUI -> Placeholder
-                    if (selectedItem.s3Key && !currentSrc.includes(selectedItem.s3Key)) {
-                      console.log("Modal trying S3 URL for:", selectedItem.filename);
-                      (e.target as HTMLImageElement).src = buildS3ImageUrl(selectedItem.s3Key);
-                    } else if (selectedItem.networkVolumePath && !currentSrc.includes('s3api-us-ks-2')) {
-                      console.log("Modal trying S3 URL from network path for:", selectedItem.filename);
-                      const s3Key = selectedItem.networkVolumePath.replace('/runpod-volume/', '');
-                      (e.target as HTMLImageElement).src = buildS3ImageUrl(s3Key);
+                    // Try fallback URLs in order: AWS S3 -> Database -> ComfyUI -> Placeholder
+                    if (selectedItem.awsS3Key && !currentSrc.includes(selectedItem.awsS3Key)) {
+                      console.log("Modal trying AWS S3 URL for:", selectedItem.filename);
+                      (e.target as HTMLImageElement).src = `https://tastycreative.s3.amazonaws.com/${selectedItem.awsS3Key}`;
+                    } else if (selectedItem.awsS3Url && currentSrc !== selectedItem.awsS3Url) {
+                      console.log("Modal trying direct AWS S3 URL for:", selectedItem.filename);
+                      (e.target as HTMLImageElement).src = selectedItem.awsS3Url;
                     } else if (selectedItem.dataUrl && !currentSrc.includes('/api/images/')) {
                       console.log("Modal falling back to database URL");
                       (e.target as HTMLImageElement).src = selectedItem.dataUrl;

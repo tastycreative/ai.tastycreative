@@ -30,6 +30,7 @@ export async function POST(
       images, 
       videos, 
       network_volume_paths,  // Add this for S3-optimized video storage
+      aws_s3_paths, // AWS S3 paths from skin enhancer and other handlers
       error, 
       prompt_id,
       stage,
@@ -122,6 +123,55 @@ export async function POST(
 
     if (estimatedTimeRemaining !== undefined) {
       updateData.estimatedTimeRemaining = estimatedTimeRemaining;
+    }
+
+    // Handle AWS S3 paths from skin enhancer and other handlers (NEW: Direct AWS S3 integration)
+    if (status === 'COMPLETED' && body.aws_s3_paths && Array.isArray(body.aws_s3_paths)) {
+      console.log(`🚀 Processing ${body.aws_s3_paths.length} AWS S3 images for job ${jobId}`);
+      
+      try {
+        const savedImages = [];
+        
+        for (const pathData of body.aws_s3_paths) {
+          const { filename, awsS3Key, awsS3Url, fileSize } = pathData;
+          
+          console.log(`💾 Saving AWS S3 image: ${filename} with S3 key: ${awsS3Key}`);
+          
+          // Save to database with AWS S3 key and URL (no image data stored)
+          const savedImage = await saveImageToDatabase(
+            existingJob.clerkId,
+            jobId,
+            { 
+              filename, 
+              subfolder: '', 
+              type: 'output' 
+            },
+            {
+              saveData: false, // Don't save image bytes to database
+              extractMetadata: false, // Don't extract metadata (we have it from handler)
+              awsS3Key: awsS3Key, // Store AWS S3 key
+              awsS3Url: awsS3Url, // Store AWS S3 public URL
+              fileSize: fileSize
+            }
+          );
+          
+          if (savedImage) {
+            savedImages.push(savedImage);
+            console.log(`✅ AWS S3 image saved to database: ${savedImage.id}`);
+          } else {
+            console.error(`❌ Failed to save AWS S3 image: ${filename}`);
+          }
+        }
+        
+        updateData.completedAt = new Date();
+        updateData.resultImages = savedImages;
+        
+        console.log(`✅ Saved ${savedImages.length} AWS S3 images for job ${jobId}`);
+      } catch (imageError) {
+        console.error('❌ Error processing AWS S3 images:', imageError);
+        updateData.error = 'Failed to process AWS S3 images';
+        updateData.status = 'failed';
+      }
     }
 
     // Handle completed generation with S3 network volume paths (NEW: S3 API storage)

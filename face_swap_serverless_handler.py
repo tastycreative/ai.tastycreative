@@ -23,87 +23,71 @@ import runpod
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# S3 Configuration for RunPod Network Volume
-S3_ENDPOINT = 'https://s3api-us-ks-2.runpod.io'
-S3_REGION = 'us-ks-2'
-S3_BUCKET = '83cljmpqfd'
+# AWS S3 Configuration for direct storage (bandwidth optimization)
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+AWS_S3_BUCKET = os.environ.get('AWS_S3_BUCKET', 'tastycreative')
 
-def get_s3_client():
-    """Initialize S3 client for RunPod network volume"""
-    s3_access_key = os.getenv('RUNPOD_S3_ACCESS_KEY')
-    s3_secret_key = os.getenv('RUNPOD_S3_SECRET_KEY')
+def get_aws_s3_client():
+    """Initialize AWS S3 client for direct storage"""
+    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
     
-    if not s3_access_key or not s3_secret_key:
-        logger.error("❌ S3 credentials not found in environment variables")
+    if not aws_access_key or not aws_secret_key:
+        logger.error("❌ AWS S3 credentials not found in environment variables")
         return None
     
     try:
         s3_client = boto3.client(
             's3',
-            endpoint_url=S3_ENDPOINT,
-            aws_access_key_id=s3_access_key,
-            aws_secret_access_key=s3_secret_key,
-            region_name=S3_REGION
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=AWS_REGION
         )
-        logger.info("✅ S3 client initialized successfully")
+        logger.info("✅ AWS S3 client initialized successfully")
         return s3_client
     except Exception as e:
-        logger.error(f"❌ Failed to initialize S3 client: {e}")
+        logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def save_image_to_s3(filename: str, image_data: bytes, user_id: str, subfolder: str = '') -> str:
-    """Save image to S3 network volume and return the S3 key"""
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str) -> Dict[str, str]:
+    """Upload image to AWS S3 and return S3 key and public URL"""
     try:
-        s3_client = get_s3_client()
+        s3_client = get_aws_s3_client()
         if not s3_client:
-            raise Exception("Failed to initialize S3 client")
+            logger.error("❌ AWS S3 client not available")
+            return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        # Create S3 key: outputs/{user_id}/{filename}
+        s3_key = f"outputs/{user_id}/{filename}"
         
-        # Upload to S3
+        logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
+        
+        # Upload to AWS S3 (no ACL to avoid compatibility issues)
         s3_client.put_object(
-            Bucket=S3_BUCKET,
+            Bucket=AWS_S3_BUCKET,
             Key=s3_key,
             Body=image_data,
-            ContentType='image/png'
+            ContentType='image/png',
+            CacheControl='public, max-age=31536000'  # 1 year cache
         )
         
-        logger.info(f"✅ Image saved to S3: {s3_key}")
-        return s3_key
+        # Generate public URL
+        public_url = f"https://{AWS_S3_BUCKET}.s3.amazonaws.com/{s3_key}"
+        
+        logger.info(f"✅ Successfully uploaded image to AWS S3: {public_url}")
+        return {
+            "success": True,
+            "awsS3Key": s3_key,
+            "awsS3Url": public_url,
+            "fileSize": len(image_data)
+        }
             
     except ClientError as e:
-        logger.error(f"❌ S3 upload failed: {e}")
-        raise
+        logger.error(f"❌ AWS S3 upload failed: {e}")
+        return {"success": False, "error": str(e)}
     except Exception as e:
-        logger.error(f"❌ Image save to S3 failed: {e}")
-        raise
-
-def save_image_to_network_volume(filename: str, image_data: bytes, user_id: str, subfolder: str = '', type_dir: str = 'output') -> str:
-    """Save image to network volume storage and return the file path"""
-    try:
-        # Build network volume path
-        base_path = "/runpod-volume/outputs" if os.path.exists("/runpod-volume") else "/workspace/outputs"
-        user_path = os.path.join(base_path, user_id)
-        if subfolder:
-            user_path = os.path.join(user_path, subfolder)
-        
-        os.makedirs(user_path, exist_ok=True)
-        file_path = os.path.join(user_path, filename)
-        
-        with open(file_path, 'wb') as f:
-            f.write(image_data)
-        
-        logger.info(f"✅ Image saved to network volume: {file_path}")
-        return file_path
-            
-    except Exception as e:
-        logger.error(f"❌ Network volume save failed: {e}")
-        raise
+        logger.error(f"❌ AWS S3 upload error: {e}")
+        return {"success": False, "error": str(e)}
 
 def setup_professional_models():
     """Download and setup required models for professional face swapping"""
@@ -1348,25 +1332,34 @@ def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, us
                                                 image_data = get_image_from_comfyui(original_filename, subfolder, type_dir)
                                                 if image_data:
                                                     try:
-                                                        # Save to S3 with unique filename
-                                                        s3_key = save_image_to_s3(unique_filename, image_data, user_id, subfolder)
+                                                        # Upload to AWS S3 with unique filename
+                                                        s3_result = upload_image_to_aws_s3(image_data, user_id, unique_filename)
                                                         
-                                                        # Save to network volume as backup with unique filename
-                                                        network_path = save_image_to_network_volume(unique_filename, image_data, user_id, subfolder, type_dir)
-                                                        
-                                                        # Track image info for webhook (S3 optimized structure matching text-to-image handler)
-                                                        network_volume_paths.append({
-                                                            'filename': unique_filename,
-                                                            'subfolder': subfolder,
-                                                            'type': type_dir,
-                                                            's3_key': s3_key,
-                                                            'network_volume_path': network_path,  # For compatibility
-                                                            'file_size': len(image_data)
-                                                        })
-                                                        
-                                                        logger.info(f"✅ Image saved to S3: {s3_key}")
-                                                        logger.info(f"💾 Image also saved to network volume: {network_path}")
-                                                        logger.info(f"📸 Processing image {len(network_volume_paths)} of {len(outputs)}: {unique_filename}")
+                                                        if s3_result.get("success"):
+                                                            # Track image info for webhook (AWS S3 optimized structure)
+                                                            aws_s3_paths = {
+                                                                'filename': unique_filename,
+                                                                'subfolder': subfolder,
+                                                                'type': type_dir,
+                                                                'awsS3Key': s3_result['awsS3Key'],
+                                                                'awsS3Url': s3_result['awsS3Url'],
+                                                                'fileSize': s3_result['fileSize']
+                                                            }
+                                                            
+                                                            # For backward compatibility, still populate network_volume_paths but with AWS S3 data
+                                                            network_volume_paths.append(aws_s3_paths)
+                                                            
+                                                            logger.info(f"✅ Image uploaded to AWS S3: {s3_result['awsS3Url']}")
+                                                            logger.info(f"� Processing image {len(network_volume_paths)}: {unique_filename}")
+                                                        else:
+                                                            logger.error(f"❌ Failed to upload image to AWS S3: {s3_result.get('error')}")
+                                                            # Fallback to base64 in result_images
+                                                            result_images.append({
+                                                                'filename': unique_filename,
+                                                                'subfolder': subfolder,
+                                                                'type': type_dir,
+                                                                'data': base64.b64encode(image_data).decode('utf-8')
+                                                            })
                                                         
                                                     except Exception as save_error:
                                                         logger.error(f"❌ Failed to save image {unique_filename}: {save_error}")
@@ -1378,36 +1371,34 @@ def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, us
                                                             'data': base64.b64encode(image_data).decode('utf-8')
                                                         })
                                     
-                                    # Generate resultUrls for frontend display
+                                    # Generate resultUrls for frontend display (AWS S3 optimized URLs)
                                     resultUrls = []
                                     for path_data in network_volume_paths:
-                                        if path_data.get('s3_key'):
-                                            # Create S3 proxy URL for frontend
-                                            s3_key_encoded = requests.utils.quote(path_data['s3_key'], safe='')
-                                            proxy_url = f"/api/images/s3/{s3_key_encoded}"
-                                            resultUrls.append(proxy_url)
-                                            logger.info(f"✅ Generated S3 proxy URL: {proxy_url}")
+                                        if path_data.get('awsS3Url'):
+                                            # Use direct AWS S3 URL for optimized bandwidth
+                                            resultUrls.append(path_data['awsS3Url'])
+                                            logger.info(f"✅ Generated AWS S3 URL: {path_data['awsS3Url']}")
                                     
-                                    # Send final completion webhook with S3 data
+                                    # Send final completion webhook with AWS S3 data
                                     if webhook_url:
                                         webhook_data = {
                                             'jobId': job_id,
                                             'status': 'COMPLETED',
                                             'progress': 100,
                                             'message': '🎭 Face swap generation completed successfully!',
-                                            'network_volume_paths': network_volume_paths,  # S3 optimized data for database
-                                            'resultUrls': resultUrls,  # S3 proxy URLs for frontend display
-                                            'resultImages': result_images,  # Legacy fallback (should be empty if S3 works)
+                                            'aws_s3_paths': network_volume_paths,  # AWS S3 optimized data for database
+                                            'resultUrls': resultUrls,  # Direct AWS S3 URLs for frontend display
+                                            'resultImages': result_images,  # Legacy fallback (should be empty if AWS S3 works)
                                             'totalTime': int(elapsed_time)
                                         }
                                         send_webhook(webhook_url, webhook_data)
                                     
-                                    logger.info(f"📤 Sent completion webhook with {len(network_volume_paths)} network volume paths and {len(resultUrls)} result URLs")
+                                    logger.info(f"📤 Sent completion webhook with {len(network_volume_paths)} AWS S3 paths and {len(resultUrls)} result URLs")
                                     
                                     return {
                                         'status': 'completed',
-                                        'network_volume_paths': network_volume_paths,
-                                        'resultUrls': resultUrls,  # Include resultUrls in return value
+                                        'aws_s3_paths': network_volume_paths,  # AWS S3 optimized data
+                                        'resultUrls': resultUrls,  # Direct AWS S3 URLs
                                         'images': result_images,  # Legacy fallback
                                         'message': 'Face swap generation completed successfully'
                                     }

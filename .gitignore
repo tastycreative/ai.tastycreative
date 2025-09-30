@@ -53,10 +53,21 @@ __pycache__/
 *.pyd
 .Python
 
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
 # Sensitive or generated files (keep Dockerfiles and shell scripts for development)
 # Generated uploads and test outputs
 public/uploads/
 *.backup
+
+# AWS configuration files with credentials
+configure-aws-s3-bucket.py
+configure-s3-cors.py
 
 # Model configuration that might contain sensitive paths
 extra_model_paths.yaml
