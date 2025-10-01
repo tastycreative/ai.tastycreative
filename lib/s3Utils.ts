@@ -75,19 +75,27 @@ export function extractS3Key(path: string | null | undefined): string | null {
 }
 
 /**
- * Check if an image has S3 storage available
+ * Check if an image has S3 storage available (AWS S3 or legacy RunPod S3)
  */
-export function hasS3Storage(image: { s3Key?: string | null; networkVolumePath?: string | null }): boolean {
-  return !!(image.s3Key || image.networkVolumePath);
+export function hasS3Storage(image: { 
+  awsS3Key?: string | null; 
+  awsS3Url?: string | null;
+  s3Key?: string | null; 
+  networkVolumePath?: string | null 
+}): boolean {
+  return !!(image.awsS3Key || image.awsS3Url || image.s3Key || image.networkVolumePath);
 }
 
 /**
  * Get the best available URL with optimization strategies
- * Strategy 1: Try direct S3 URL (fastest, no Vercel bandwidth)
- * Strategy 2: Use optimized proxy (streaming, better caching)
- * Strategy 3: Fall back to database URLs
+ * Strategy 1: Try AWS S3 URL (fastest, direct access)
+ * Strategy 2: Try direct RunPod S3 URL (legacy)
+ * Strategy 3: Use optimized proxy (streaming, better caching)
+ * Strategy 4: Fall back to database URLs
  */
 export function getBestImageUrl(image: {
+  awsS3Key?: string | null;
+  awsS3Url?: string | null;
   s3Key?: string | null;
   networkVolumePath?: string | null;
   dataUrl?: string | null;
@@ -96,6 +104,20 @@ export function getBestImageUrl(image: {
   filename: string;
 }, strategy: 'direct' | 'proxy' | 'auto' = 'auto'): string {
   
+  // Priority 1: AWS S3 direct URL
+  if (image.awsS3Url) {
+    console.log(`🚀 Using AWS S3 URL for ${image.filename}:`, image.awsS3Url);
+    return image.awsS3Url;
+  }
+  
+  // Priority 2: AWS S3 key (construct URL)
+  if (image.awsS3Key) {
+    const awsS3Url = `https://tastycreative.s3.amazonaws.com/${image.awsS3Key}`;
+    console.log(`🚀 Using AWS S3 key for ${image.filename}:`, awsS3Url);
+    return awsS3Url;
+  }
+  
+  // Priority 3: Legacy RunPod S3 system
   const s3Key = image.s3Key || extractS3Key(image.networkVolumePath);
   
   if (s3Key) {

@@ -38,8 +38,11 @@ export async function GET(
         createdAt: img.createdAt,
         url: img.url,        // ComfyUI direct URL (if available)
         dataUrl: img.dataUrl, // Database-served URL
-        s3Key: img.s3Key,    // S3 key for network volume storage
-        networkVolumePath: img.networkVolumePath // Network volume path
+        s3Key: img.s3Key,    // Legacy S3 key for network volume storage
+        networkVolumePath: img.networkVolumePath, // Network volume path
+        // AWS S3 fields for direct access
+        awsS3Key: img.awsS3Key,
+        awsS3Url: img.awsS3Url
       })),
       count: images.length
     });

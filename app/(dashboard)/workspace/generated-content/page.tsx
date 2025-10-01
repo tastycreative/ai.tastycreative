@@ -3,7 +3,8 @@
 
 import { useState, useEffect } from "react";
 import { useApiClient } from "@/lib/apiClient";
-import { getOptimizedImageUrl } from "@/lib/awsS3Utils";
+import { getBestMediaUrl, getBandwidthStats, getDownloadUrl } from "@/lib/directUrlUtils";
+import BandwidthStats from "@/components/BandwidthStats";
 import {
   ImageIcon,
   Download,
@@ -475,7 +476,17 @@ export default function GeneratedContentPage() {
 
       // Priority 1: Download from AWS S3
       if (image.awsS3Key || image.awsS3Url) {
-        const s3Url = getOptimizedImageUrl(image);
+        const s3Url = getBestMediaUrl({
+          awsS3Key: image.awsS3Key,
+          awsS3Url: image.awsS3Url,
+          s3Key: image.s3Key,
+          networkVolumePath: image.networkVolumePath,
+          dataUrl: image.dataUrl,
+          url: image.url,
+          id: image.id,
+          filename: image.filename,
+          type: 'image'
+        });
         console.log("🚀 Downloading from S3:", s3Url);
         
         try {
@@ -538,7 +549,17 @@ export default function GeneratedContentPage() {
 
     // Priority 1: Share AWS S3 URL (fastest and most reliable)
     if (image.awsS3Key || image.awsS3Url) {
-      urlToShare = getOptimizedImageUrl(image);
+      urlToShare = getBestMediaUrl({
+        awsS3Key: image.awsS3Key,
+        awsS3Url: image.awsS3Url,
+        s3Key: image.s3Key,
+        networkVolumePath: image.networkVolumePath,
+        dataUrl: image.dataUrl,
+        url: image.url,
+        id: image.id,
+        filename: image.filename,
+        type: 'image'
+      });
     } else if (image.dataUrl) {
       // Priority 2: Share database URL (more reliable)
       urlToShare = `${window.location.origin}${image.dataUrl}`;
@@ -718,13 +739,32 @@ export default function GeneratedContentPage() {
   // Unified action functions
   const downloadItem = async (item: ContentItem) => {
     try {
-      const url = item.dataUrl || item.url;
+      // Use the same URL logic as the display elements
+      const url = getBestMediaUrl({
+        awsS3Key: item.awsS3Key,
+        awsS3Url: item.awsS3Url,
+        s3Key: item.s3Key,
+        networkVolumePath: item.networkVolumePath,
+        dataUrl: item.dataUrl,
+        url: item.url,
+        id: item.id,
+        filename: item.filename,
+        type: item.itemType === "video" ? 'video' : 'image'
+      });
+
       if (!url) {
         console.error("No URL available for download");
+        alert("No download URL available for this item");
         return;
       }
 
+      console.log(`📥 Downloading ${item.itemType} from:`, url);
+
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+      }
+
       const blob = await response.blob();
 
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -737,12 +777,13 @@ export default function GeneratedContentPage() {
       window.URL.revokeObjectURL(downloadUrl);
 
       console.log(
-        `${
+        `✅ ${
           item.itemType === "video" ? "Video" : "Image"
         } downloaded successfully`
       );
     } catch (error) {
       console.error("Download error:", error);
+      alert(`Failed to download ${item.itemType}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -984,6 +1025,11 @@ export default function GeneratedContentPage() {
             </>
           )}
         </div>
+      )}
+
+      {/* Bandwidth Optimization Stats */}
+      {allContent.length > 0 && (
+        <BandwidthStats mediaList={allContent} className="mb-6" />
       )}
 
       {/* Enhanced Controls */}
@@ -1237,63 +1283,117 @@ export default function GeneratedContentPage() {
               {paginatedContent().map((item, index) => (
                 <div
                   key={item.id}
-                  className="group bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 hover:scale-[1.02] transform"
+                  className="group bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 hover:scale-[1.02] transform cursor-pointer"
                   style={{
                     animationDelay: `${index * 0.05}s`,
+                  }}
+                  onClick={(e) => {
+                    // Only handle clicks on the card itself, not on buttons
+                    if ((e.target as HTMLElement).closest('button')) {
+                      return; // Let button handle its own click
+                    }
+                    console.log(`🎬 Card clicked for: ${item.filename} (${item.itemType})`);
+                    setSelectedItem(item);
                   }}
                 >
                   <div className="relative aspect-square overflow-hidden">
                     {item.itemType === "video" ? (
                       <video
-                        src={item.dataUrl || item.url}
+                        src={(() => {
+                          const videoUrl = getBestMediaUrl({
+                            awsS3Key: item.awsS3Key,
+                            awsS3Url: item.awsS3Url,
+                            s3Key: item.s3Key,
+                            networkVolumePath: item.networkVolumePath,
+                            dataUrl: item.dataUrl,
+                            url: item.url,
+                            id: item.id,
+                            filename: item.filename,
+                            type: 'video'
+                          });
+                          console.log(`🎬 Grid video URL for ${item.filename}:`, videoUrl);
+                          return videoUrl;
+                        })()}
                         className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
-                        onClick={() => setSelectedItem(item)}
+                        onClick={(e) => {
+                          console.log(`🎬 Video clicked: ${item.filename}`);
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSelectedItem(item);
+                        }}
                         preload="metadata"
                         muted
+                        onLoadStart={() => {
+                          console.log(`🎬 Grid video load started: ${item.filename}`);
+                        }}
+                        onCanPlay={() => {
+                          console.log(`✅ Grid video can play: ${item.filename}`);
+                        }}
                         onError={(e) => {
-                          console.error("Video load error for:", item.filename);
+                          console.error("❌ Grid video load error for:", item.filename);
                           console.log(
                             "Current src:",
                             (e.target as HTMLVideoElement).src
                           );
-                          console.log("dataUrl:", item.dataUrl);
-                          console.log("url:", item.url);
+                          console.log("Video data:", {
+                            awsS3Url: item.awsS3Url,
+                            awsS3Key: item.awsS3Key,
+                            dataUrl: item.dataUrl,
+                            url: item.url
+                          });
 
-                          const currentSrc = (e.target as HTMLVideoElement).src;
-                          const currentPath =
-                            new URL(currentSrc).pathname +
-                            new URL(currentSrc).search;
-
-                          // Check if current URL matches the dataUrl path
-                          if (
-                            item.dataUrl &&
-                            currentPath === item.dataUrl &&
+                          // Try fallback URLs in priority order
+                          const fallbackUrls = [
+                            item.awsS3Url,
+                            item.awsS3Key ? `https://tastycreative.s3.amazonaws.com/${item.awsS3Key}` : null,
+                            item.dataUrl,
                             item.url
-                          ) {
-                            console.log("Falling back to ComfyUI URL");
-                            (e.target as HTMLVideoElement).src = item.url;
-                          }
-                          // Check if current URL matches the ComfyUI URL
-                          else if (
-                            item.url &&
-                            currentSrc === item.url &&
-                            item.dataUrl
-                          ) {
-                            console.log("Falling back to database URL");
-                            (e.target as HTMLVideoElement).src = item.dataUrl;
+                          ].filter(Boolean);
+
+                          const currentIndex = fallbackUrls.indexOf((e.target as HTMLVideoElement).src);
+                          const nextIndex = currentIndex + 1;
+                          
+                          if (nextIndex < fallbackUrls.length) {
+                            console.log("🔄 Grid trying next fallback URL:", fallbackUrls[nextIndex]);
+                            (e.target as HTMLVideoElement).src = fallbackUrls[nextIndex]!;
                           } else {
-                            console.error(
-                              "All URLs failed for:",
-                              item.filename
-                            );
-                            (e.target as HTMLVideoElement).style.display =
-                              "none";
+                            console.error("💥 All grid URLs failed for:", item.filename);
+                            // Hide the video element and show a placeholder
+                            const videoElement = e.target as HTMLVideoElement;
+                            videoElement.style.display = "none";
+                            
+                            // Create a clickable placeholder
+                            const placeholder = document.createElement("div");
+                            placeholder.className = "w-full h-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center cursor-pointer transition-transform duration-300 group-hover:scale-110";
+                            placeholder.innerHTML = `
+                              <div class="text-center">
+                                <svg class="w-12 h-12 mx-auto mb-2 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
+                                </svg>
+                                <p class="text-xs text-gray-500">Video Preview</p>
+                              </div>
+                            `;
+                            placeholder.onclick = () => {
+                              console.log(`🎬 Placeholder clicked: ${item.filename}`);
+                              setSelectedItem(item);
+                            };
+                            videoElement.parentNode?.appendChild(placeholder);
                           }
                         }}
                       />
                     ) : (
                       <img
-                        src={getOptimizedImageUrl(item)}
+                        src={getBestMediaUrl({
+                          awsS3Key: item.awsS3Key,
+                          awsS3Url: item.awsS3Url,
+                          s3Key: item.s3Key,
+                          networkVolumePath: item.networkVolumePath,
+                          dataUrl: item.dataUrl,
+                          url: item.url,
+                          id: item.id,
+                          filename: item.filename,
+                          type: 'image'
+                        })}
                         alt={item.filename}
                         className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
                         onClick={() => setSelectedItem(item)}
@@ -1488,7 +1588,17 @@ export default function GeneratedContentPage() {
                         {item.itemType === "video" ? (
                           <>
                             <video
-                              src={item.dataUrl || item.url}
+                              src={getBestMediaUrl({
+                                awsS3Key: item.awsS3Key,
+                                awsS3Url: item.awsS3Url,
+                                s3Key: item.s3Key,
+                                networkVolumePath: item.networkVolumePath,
+                                dataUrl: item.dataUrl,
+                                url: item.url,
+                                id: item.id,
+                                filename: item.filename,
+                                type: 'video'
+                              })}
                               className="w-full h-full object-cover cursor-pointer"
                               onClick={() => setSelectedItem(item)}
                               preload="metadata"
@@ -1499,27 +1609,25 @@ export default function GeneratedContentPage() {
                                   item.filename
                                 );
 
-                                const currentSrc = (
-                                  e.target as HTMLVideoElement
-                                ).src;
+                                // Try fallback URLs in priority order
+                                const fallbackUrls = [
+                                  item.awsS3Url,
+                                  item.awsS3Key ? `https://tastycreative.s3.amazonaws.com/${item.awsS3Key}` : null,
+                                  item.dataUrl,
+                                  item.url
+                                ].filter(Boolean);
 
-                                if (currentSrc === item.dataUrl && item.url) {
-                                  console.log("Falling back to ComfyUI URL");
-                                  (e.target as HTMLVideoElement).src = item.url;
-                                } else if (
-                                  currentSrc === item.url &&
-                                  item.dataUrl
-                                ) {
-                                  console.log("Falling back to database URL");
-                                  (e.target as HTMLVideoElement).src =
-                                    item.dataUrl;
+                                const currentIndex = fallbackUrls.indexOf((e.target as HTMLVideoElement).src);
+                                const nextIndex = currentIndex + 1;
+                                
+                                if (nextIndex < fallbackUrls.length) {
+                                  (e.target as HTMLVideoElement).src = fallbackUrls[nextIndex]!;
                                 } else {
                                   console.error(
                                     "All URLs failed for:",
                                     item.filename
                                   );
-                                  (e.target as HTMLVideoElement).style.display =
-                                    "none";
+                                  (e.target as HTMLVideoElement).style.display = "none";
                                 }
                               }}
                             />
@@ -1531,7 +1639,7 @@ export default function GeneratedContentPage() {
                           </>
                         ) : (
                           <img
-                            src={getOptimizedImageUrl(item)}
+                            src={getBestMediaUrl(item)}
                             alt={item.filename}
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => setSelectedItem(item)}
@@ -1807,39 +1915,83 @@ export default function GeneratedContentPage() {
             <div className="flex items-center justify-center bg-gray-100 dark:bg-gray-800">
               {selectedItem.itemType === "video" ? (
                 <video
-                  src={selectedItem.dataUrl || selectedItem.url}
+                  src={(() => {
+                    const videoUrl = getBestMediaUrl({
+                      awsS3Key: selectedItem.awsS3Key,
+                      awsS3Url: selectedItem.awsS3Url,
+                      s3Key: selectedItem.s3Key,
+                      networkVolumePath: selectedItem.networkVolumePath,
+                      dataUrl: selectedItem.dataUrl,
+                      url: selectedItem.url,
+                      id: selectedItem.id,
+                      filename: selectedItem.filename,
+                      type: 'video'
+                    });
+                    console.log(`🎬 Modal video URL for ${selectedItem.filename}:`, videoUrl);
+                    console.log(`🎬 Video data:`, {
+                      awsS3Key: selectedItem.awsS3Key,
+                      awsS3Url: selectedItem.awsS3Url,
+                      s3Key: selectedItem.s3Key,
+                      networkVolumePath: selectedItem.networkVolumePath,
+                      dataUrl: selectedItem.dataUrl,
+                      url: selectedItem.url
+                    });
+                    return videoUrl;
+                  })()}
                   className="max-w-full max-h-[80vh] object-contain"
                   controls
-                  autoPlay
+                  preload="metadata"
+                  playsInline
+                  onLoadStart={() => {
+                    console.log(`🎬 Video load started for: ${selectedItem.filename}`);
+                  }}
+                  onCanPlay={() => {
+                    console.log(`✅ Video can play: ${selectedItem.filename}`);
+                  }}
                   onError={(e) => {
                     console.error(
-                      "Modal video load error for:",
+                      "❌ Modal video load error for:",
                       selectedItem.filename
                     );
-                    const currentSrc = (e.target as HTMLVideoElement).src;
-                    if (
-                      currentSrc === selectedItem.dataUrl &&
+                    console.error("❌ Current src:", (e.target as HTMLVideoElement).src);
+                    console.error("❌ Error details:", e);
+                    
+                    // Try fallback URLs in priority order
+                    const fallbackUrls = [
+                      selectedItem.awsS3Url,
+                      selectedItem.awsS3Key ? `https://tastycreative.s3.amazonaws.com/${selectedItem.awsS3Key}` : null,
+                      selectedItem.dataUrl,
                       selectedItem.url
-                    ) {
-                      console.log("Modal falling back to ComfyUI URL");
-                      (e.target as HTMLVideoElement).src = selectedItem.url;
-                    } else if (
-                      currentSrc === selectedItem.url &&
-                      selectedItem.dataUrl
-                    ) {
-                      console.log("Modal falling back to database URL");
-                      (e.target as HTMLVideoElement).src = selectedItem.dataUrl;
+                    ].filter(Boolean);
+
+                    console.log("🔄 Available fallback URLs:", fallbackUrls);
+
+                    const currentSrc = (e.target as HTMLVideoElement).src;
+                    const currentIndex = fallbackUrls.indexOf(currentSrc);
+                    const nextIndex = currentIndex + 1;
+                    
+                    if (nextIndex < fallbackUrls.length) {
+                      console.log("🔄 Modal trying next fallback URL:", fallbackUrls[nextIndex]);
+                      (e.target as HTMLVideoElement).src = fallbackUrls[nextIndex]!;
                     } else {
-                      console.error(
-                        "All modal URLs failed for:",
-                        selectedItem.filename
-                      );
+                      console.error("💥 All modal URLs failed for:", selectedItem.filename);
+                      alert(`Video failed to load: ${selectedItem.filename}\n\nTried URLs:\n${fallbackUrls.join('\n')}`);
                     }
                   }}
                 />
               ) : (
                 <img
-                  src={getOptimizedImageUrl(selectedItem)}
+                  src={getBestMediaUrl({
+                    awsS3Key: selectedItem.awsS3Key,
+                    awsS3Url: selectedItem.awsS3Url,
+                    s3Key: selectedItem.s3Key,
+                    networkVolumePath: selectedItem.networkVolumePath,
+                    dataUrl: selectedItem.dataUrl,
+                    url: selectedItem.url,
+                    id: selectedItem.id,
+                    filename: selectedItem.filename,
+                    type: 'image'
+                  })}
                   alt={selectedItem.filename}
                   className="max-w-full max-h-[80vh] object-contain"
                   onError={(e) => {
@@ -1871,86 +2023,116 @@ export default function GeneratedContentPage() {
               )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-6">
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                {/* Details */}
-                <div className="text-white space-y-2 flex-1">
-                  <div className="flex flex-wrap gap-4 text-sm">
+            {/* Modal Footer - Enhanced Layout */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent p-8">
+              <div className="flex flex-col gap-6">
+                {/* Details Section */}
+                <div className="text-white space-y-3">
+                  <h4 className="text-lg font-semibold text-white mb-3 truncate">
+                    {selectedItem.filename}
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
                     <div className="flex items-center space-x-2">
-                      <Calendar className="w-4 h-4 text-gray-300" />
-                      <span className="text-gray-300">Created:</span>
-                      <span className="font-medium">
-                        {formatDate(selectedItem.createdAt)}
-                      </span>
+                      <Calendar className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-gray-300 block text-xs">Created</span>
+                        <span className="font-medium text-white block truncate">
+                          {formatDate(selectedItem.createdAt).split(' ')[0]}
+                        </span>
+                      </div>
                     </div>
 
                     {selectedItem.width && selectedItem.height && (
                       <div className="flex items-center space-x-2">
-                        <span className="text-gray-300">📐</span>
-                        <span className="text-gray-300">Size:</span>
-                        <span className="font-medium">
-                          {selectedItem.width} × {selectedItem.height}
-                        </span>
+                        <span className="text-gray-300 text-lg flex-shrink-0">📐</span>
+                        <div className="min-w-0">
+                          <span className="text-gray-300 block text-xs">Dimensions</span>
+                          <span className="font-medium text-white block truncate">
+                            {selectedItem.width} × {selectedItem.height}
+                          </span>
+                        </div>
                       </div>
                     )}
 
-                    {selectedItem.itemType === "video" &&
-                      selectedItem.duration && (
-                        <div className="flex items-center space-x-2">
-                          <Video className="w-4 h-4 text-gray-300" />
-                          <span className="text-gray-300">Duration:</span>
-                          <span className="font-medium">
+                    {selectedItem.itemType === "video" && selectedItem.duration && (
+                      <div className="flex items-center space-x-2">
+                        <Video className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-gray-300 block text-xs">Duration</span>
+                          <span className="font-medium text-white block">
                             {selectedItem.duration.toFixed(1)}s
                           </span>
                         </div>
-                      )}
+                      </div>
+                    )}
 
                     <div className="flex items-center space-x-2">
-                      <HardDrive className="w-4 h-4 text-gray-300" />
-                      <span className="text-gray-300">File size:</span>
-                      <span className="font-medium">
-                        {formatFileSize(selectedItem.fileSize)}
-                      </span>
+                      <HardDrive className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <span className="text-gray-300 block text-xs">File size</span>
+                        <span className="font-medium text-white block">
+                          {formatFileSize(selectedItem.fileSize)}
+                        </span>
+                      </div>
                     </div>
 
                     {selectedItem.format && (
                       <div className="flex items-center space-x-2">
-                        <span className="text-gray-300">Format:</span>
-                        <span className="font-medium uppercase bg-gray-700/50 px-2 py-1 rounded text-xs">
-                          {selectedItem.format}
-                        </span>
+                        <span className="text-gray-300 text-lg flex-shrink-0">📄</span>
+                        <div className="min-w-0">
+                          <span className="text-gray-300 block text-xs">Format</span>
+                          <span className="font-medium uppercase bg-gray-700/70 px-2 py-1 rounded text-xs text-white block">
+                            {selectedItem.format}
+                          </span>
+                        </div>
                       </div>
                     )}
+
+                    <div className="flex items-center space-x-2">
+                      <span className="text-gray-300 text-lg flex-shrink-0">
+                        {selectedItem.itemType === "video" ? "🎥" : "🖼️"}
+                      </span>
+                      <div className="min-w-0">
+                        <span className="text-gray-300 block text-xs">Type</span>
+                        <span className="font-medium text-white block capitalize">
+                          {selectedItem.itemType}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex space-x-3">
+                {/* Action Buttons - Enhanced Layout */}
+                <div className="flex flex-col sm:flex-row gap-3 sm:justify-center">
                   <button
                     onClick={() => downloadItem(selectedItem)}
-                    className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                    className="flex items-center justify-center space-x-3 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 min-w-[140px]"
+                    title="Download this item"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-5 h-5" />
                     <span>Download</span>
                   </button>
 
                   <button
                     onClick={() => shareItem(selectedItem)}
-                    className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                    className="flex items-center justify-center space-x-3 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 min-w-[140px]"
+                    title="Share this item"
                   >
-                    <Share2 className="w-4 h-4" />
+                    <Share2 className="w-5 h-5" />
                     <span>Share</span>
                   </button>
 
                   <button
                     onClick={() => {
-                      deleteItem(selectedItem);
-                      setSelectedItem(null);
+                      if (confirm(`Are you sure you want to delete "${selectedItem.filename}"? This action cannot be undone.`)) {
+                        deleteItem(selectedItem);
+                        setSelectedItem(null);
+                      }
                     }}
-                    className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                    className="flex items-center justify-center space-x-3 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 min-w-[140px] border-2 border-red-400/20"
+                    title="Delete this item permanently"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-5 h-5" />
                     <span>Delete</span>
                   </button>
                 </div>

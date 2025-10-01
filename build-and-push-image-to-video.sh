@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 DOCKER_IMAGE="rfldln01/image-to-video-handler"
-VERSION="v1.0-image-to-video-$(date +%Y%m%d-%H%M%S)"
+VERSION="v1.1-aws-s3-$(date +%Y%m%d-%H%M%S)"
 LATEST_TAG="latest"
 
 echo "🐋 Building Docker image for RunPod Image-to-Video Handler"
@@ -51,6 +51,9 @@ echo "   • 📊 Comprehensive progress tracking for video generation"
 echo "   • 🛡️  Robust error handling and recovery"
 echo "   • ⚡ Optimized for serverless RunPod deployments"
 echo "   • 🌐 Multi-platform support (linux/amd64, linux/arm64)"
+echo "   • 🚀 NEW: AWS S3 direct storage for videos (eliminates bandwidth costs)"
+echo "   • 📤 NEW: Direct AWS S3 URLs for video delivery"
+echo "   • 💾 NEW: No more RunPod S3 dependency for videos"
 echo ""
 echo "🎯 Handler Action:"
 echo "   • Dedicated image-to-video generation handler"

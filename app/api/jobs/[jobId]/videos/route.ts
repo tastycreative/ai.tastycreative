@@ -39,7 +39,12 @@ export async function GET(
         format: video.format,
         createdAt: video.createdAt,
         url: video.url,        // ComfyUI direct URL (if available)
-        dataUrl: video.dataUrl // Database-served URL
+        dataUrl: video.dataUrl, // Database-served URL
+        // AWS S3 fields for direct access
+        awsS3Key: video.awsS3Key,
+        awsS3Url: video.awsS3Url,
+        s3Key: video.s3Key,
+        networkVolumePath: video.networkVolumePath
       })),
       count: videos.length
     });

@@ -21,6 +21,8 @@ export interface GeneratedVideo {
   metadata?: any;
   s3Key?: string; // S3 key for network volume storage
   networkVolumePath?: string; // Network volume file path
+  awsS3Key?: string; // NEW: AWS S3 key for direct storage
+  awsS3Url?: string; // NEW: AWS S3 public URL for direct access
   createdAt: Date | string;
   updatedAt: Date | string;
   // Dynamic properties
@@ -35,6 +37,8 @@ export interface VideoPathInfo {
   s3Key?: string;  // Add S3 key support for network volume storage
   networkVolumePath?: string;  // Add network volume path support
   fileSize?: number;  // Add file size support
+  awsS3Key?: string;  // NEW: AWS S3 key for direct storage
+  awsS3Url?: string;  // NEW: AWS S3 public URL for direct access
 }
 
 // Helper function to construct ComfyUI video URLs dynamically
@@ -241,7 +245,9 @@ export async function saveVideoToDatabase(
         data: videoData,
         metadata,
         s3Key: pathInfo.s3Key || options.s3Key,  // Include S3 key
-        networkVolumePath: pathInfo.networkVolumePath  // Include network volume path
+        networkVolumePath: pathInfo.networkVolumePath,  // Include network volume path
+        awsS3Key: (pathInfo as any).awsS3Key,   // NEW: AWS S3 key
+        awsS3Url: (pathInfo as any).awsS3Url,   // NEW: AWS S3 public URL
       }
     });
     
@@ -278,7 +284,11 @@ export async function saveVideoToDatabase(
         subfolder: savedVideo.subfolder,
         type: savedVideo.type
       }),
-      dataUrl: savedVideo.data ? `/api/videos/${savedVideo.id}/data` : undefined
+      dataUrl: savedVideo.data ? `/api/videos/${savedVideo.id}/data` : undefined,
+      s3Key: savedVideo.s3Key || undefined,           // Legacy RunPod S3
+      networkVolumePath: savedVideo.networkVolumePath || undefined,
+      awsS3Key: savedVideo.awsS3Key || undefined,     // NEW: AWS S3 key
+      awsS3Url: savedVideo.awsS3Url || undefined,     // NEW: AWS S3 public URL
     };
     
   } catch (error) {
@@ -321,7 +331,11 @@ export async function getUserVideos(
         data: options.includeData || false,
         metadata: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        s3Key: true,
+        networkVolumePath: true,
+        awsS3Key: true,
+        awsS3Url: true,
       },
       orderBy: { createdAt: 'desc' },
       take: options.limit,
@@ -339,6 +353,10 @@ export async function getUserVideos(
       duration: video.duration || undefined,
       fps: video.fps || undefined,
       format: video.format || undefined,
+      s3Key: video.s3Key || undefined,
+      networkVolumePath: video.networkVolumePath || undefined,
+      awsS3Key: video.awsS3Key || undefined,
+      awsS3Url: video.awsS3Url || undefined,
       url: buildComfyUIVideoUrl({
         filename: video.filename,
         subfolder: video.subfolder,
@@ -379,7 +397,11 @@ export async function getJobVideos(
         data: options.includeData || false,
         metadata: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        s3Key: true,
+        networkVolumePath: true,
+        awsS3Key: true,
+        awsS3Url: true,
       },
       orderBy: { createdAt: 'asc' }
     });
@@ -395,6 +417,10 @@ export async function getJobVideos(
       duration: video.duration || undefined,
       fps: video.fps || undefined,
       format: video.format || undefined,
+      s3Key: video.s3Key || undefined,
+      networkVolumePath: video.networkVolumePath || undefined,
+      awsS3Key: video.awsS3Key || undefined,
+      awsS3Url: video.awsS3Url || undefined,
       url: buildComfyUIVideoUrl({
         filename: video.filename,
         subfolder: video.subfolder,
@@ -604,6 +630,10 @@ export async function getVideoById(
       metadata: video.metadata,
       createdAt: video.createdAt,
       updatedAt: video.updatedAt,
+      s3Key: video.s3Key || undefined,
+      networkVolumePath: video.networkVolumePath || undefined,
+      awsS3Key: video.awsS3Key || undefined,
+      awsS3Url: video.awsS3Url || undefined,
       url: buildComfyUIVideoUrl({
         filename: video.filename,
         subfolder: video.subfolder,
@@ -813,7 +843,11 @@ export async function getVideosByFormat(
         data: options.includeData || false,
         metadata: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        s3Key: true,
+        networkVolumePath: true,
+        awsS3Key: true,
+        awsS3Url: true,
       },
       orderBy: { createdAt: 'desc' },
       take: options.limit
@@ -830,6 +864,10 @@ export async function getVideosByFormat(
       duration: video.duration || undefined,
       fps: video.fps || undefined,
       format: video.format || undefined,
+      s3Key: video.s3Key || undefined,
+      networkVolumePath: video.networkVolumePath || undefined,
+      awsS3Key: video.awsS3Key || undefined,
+      awsS3Url: video.awsS3Url || undefined,
       url: buildComfyUIVideoUrl({
         filename: video.filename,
         subfolder: video.subfolder,

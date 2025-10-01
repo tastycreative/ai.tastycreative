@@ -30,11 +30,41 @@ export async function GET(
       );
     }
 
-    // If video is stored on S3, redirect to S3 proxy route
+    // If video is stored on S3, redirect to direct S3 URL (no proxy)
     if (videoData.s3Key) {
-      console.log('🔄 Redirecting to S3 proxy for video:', videoData.s3Key);
-      const s3ProxyUrl = `/api/videos/s3/${encodeURIComponent(videoData.s3Key)}`;
-      return NextResponse.redirect(new URL(s3ProxyUrl, request.url));
+      console.log('🔄 Redirecting to direct S3 URL for video:', videoData.s3Key);
+      
+      // Import S3 client for direct URL generation
+      const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+      
+      const s3Client = new S3Client({
+        region: 'us-ks-2',
+        endpoint: 'https://s3api-us-ks-2.runpod.io',
+        credentials: {
+          accessKeyId: process.env.RUNPOD_S3_ACCESS_KEY || '',
+          secretAccessKey: process.env.RUNPOD_S3_SECRET_KEY || ''
+        },
+        forcePathStyle: true
+      });
+      
+      const bucketName = process.env.RUNPOD_S3_BUCKET_NAME || '83cljmpqfd';
+      const command = new GetObjectCommand({
+        Bucket: bucketName,
+        Key: videoData.s3Key
+      });
+      
+      try {
+        // Generate direct signed URL (eliminates bandwidth usage)
+        const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+        console.log('✅ Generated direct S3 signed URL');
+        return NextResponse.redirect(signedUrl);
+      } catch (s3Error) {
+        console.error('❌ Error generating direct S3 URL:', s3Error);
+        // Fallback to proxy if direct URL fails
+        const s3ProxyUrl = `/api/videos/s3/${encodeURIComponent(videoData.s3Key)}`;
+        return NextResponse.redirect(new URL(s3ProxyUrl, request.url));
+      }
     }
 
     // Legacy: Handle blob data videos

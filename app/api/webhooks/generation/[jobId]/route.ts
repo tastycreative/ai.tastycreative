@@ -125,51 +125,92 @@ export async function POST(
       updateData.estimatedTimeRemaining = estimatedTimeRemaining;
     }
 
-    // Handle AWS S3 paths from skin enhancer and other handlers (NEW: Direct AWS S3 integration)
+    // Handle AWS S3 paths from all handlers (NEW: Direct AWS S3 integration for images and videos)
     if (status === 'COMPLETED' && body.aws_s3_paths && Array.isArray(body.aws_s3_paths)) {
-      console.log(`🚀 Processing ${body.aws_s3_paths.length} AWS S3 images for job ${jobId}`);
+      console.log(`🚀 Processing ${body.aws_s3_paths.length} AWS S3 items for job ${jobId}`);
       
       try {
-        const savedImages = [];
+        const savedItems = [];
         
         for (const pathData of body.aws_s3_paths) {
           const { filename, awsS3Key, awsS3Url, fileSize } = pathData;
           
-          console.log(`💾 Saving AWS S3 image: ${filename} with S3 key: ${awsS3Key}`);
+          // Determine if this is a video or image based on filename
+          const isVideo = filename.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/);
           
-          // Save to database with AWS S3 key and URL (no image data stored)
-          const savedImage = await saveImageToDatabase(
-            existingJob.clerkId,
-            jobId,
-            { 
-              filename, 
-              subfolder: '', 
-              type: 'output' 
-            },
-            {
-              saveData: false, // Don't save image bytes to database
-              extractMetadata: false, // Don't extract metadata (we have it from handler)
-              awsS3Key: awsS3Key, // Store AWS S3 key
-              awsS3Url: awsS3Url, // Store AWS S3 public URL
-              fileSize: fileSize
+          if (isVideo) {
+            console.log(`🎬 Saving AWS S3 video: ${filename} with S3 key: ${awsS3Key}`);
+            
+            // Save video to database with AWS S3 key and URL (no video data stored)
+            const savedVideo = await saveVideoToDatabase(
+              existingJob.clerkId,
+              jobId,
+              { 
+                filename, 
+                subfolder: pathData.subfolder || '', 
+                type: pathData.type || 'output',
+                s3Key: awsS3Key,
+                fileSize: fileSize || 0,
+                awsS3Key: awsS3Key,    // NEW: AWS S3 key
+                awsS3Url: awsS3Url,    // NEW: AWS S3 public URL
+              } as any,
+              {
+                saveData: false, // Don't save video bytes to database
+                extractMetadata: false, // Don't extract metadata (we have it from handler)
+                s3Key: awsS3Key, // Store AWS S3 key for compatibility
+              }
+            );
+            
+            if (savedVideo) {
+              savedItems.push(savedVideo);
+              console.log(`✅ AWS S3 video saved to database: ${savedVideo.id}`);
+            } else {
+              console.error(`❌ Failed to save AWS S3 video: ${filename}`);
             }
-          );
-          
-          if (savedImage) {
-            savedImages.push(savedImage);
-            console.log(`✅ AWS S3 image saved to database: ${savedImage.id}`);
           } else {
-            console.error(`❌ Failed to save AWS S3 image: ${filename}`);
+            console.log(`�️ Saving AWS S3 image: ${filename} with S3 key: ${awsS3Key}`);
+            
+            // Save image to database with AWS S3 key and URL (no image data stored)
+            const savedImage = await saveImageToDatabase(
+              existingJob.clerkId,
+              jobId,
+              { 
+                filename, 
+                subfolder: pathData.subfolder || '', 
+                type: pathData.type || 'output' 
+              },
+              {
+                saveData: false, // Don't save image bytes to database
+                extractMetadata: false, // Don't extract metadata (we have it from handler)
+                awsS3Key: awsS3Key, // Store AWS S3 key
+                awsS3Url: awsS3Url, // Store AWS S3 public URL
+                fileSize: fileSize
+              }
+            );
+            
+            if (savedImage) {
+              savedItems.push(savedImage);
+              console.log(`✅ AWS S3 image saved to database: ${savedImage.id}`);
+            } else {
+              console.error(`❌ Failed to save AWS S3 image: ${filename}`);
+            }
           }
         }
         
         updateData.completedAt = new Date();
-        updateData.resultImages = savedImages;
+        updateData.resultImages = savedItems.filter(item => !item.filename.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/));
         
-        console.log(`✅ Saved ${savedImages.length} AWS S3 images for job ${jobId}`);
-      } catch (imageError) {
-        console.error('❌ Error processing AWS S3 images:', imageError);
-        updateData.error = 'Failed to process AWS S3 images';
+        // For videos, set resultUrls to video API endpoints
+        const videoItems = savedItems.filter(item => item.filename.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/));
+        if (videoItems.length > 0) {
+          updateData.resultUrls = videoItems.map(video => `/api/videos/${video.id}/data`);
+          console.log(`✅ Saved ${videoItems.length} AWS S3 videos for job ${jobId}`);
+        }
+        
+        console.log(`✅ Saved ${savedItems.length} AWS S3 items for job ${jobId}`);
+      } catch (s3Error) {
+        console.error('❌ Error processing AWS S3 items:', s3Error);
+        updateData.error = 'Failed to process AWS S3 items';
         updateData.status = 'failed';
       }
     }

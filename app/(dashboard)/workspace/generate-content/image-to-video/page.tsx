@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { getBestMediaUrl } from "@/lib/directUrlUtils";
 import {
   Video,
   Upload,
@@ -72,6 +73,10 @@ interface DatabaseVideo {
   format?: string;
   url?: string;
   dataUrl?: string;
+  s3Key?: string;
+  networkVolumePath?: string;
+  awsS3Key?: string;
+  awsS3Url?: string;
   createdAt: Date | string;
 }
 
@@ -117,7 +122,6 @@ const formatJobTime = (createdAt: Date | string | undefined): string => {
   }
 };
 
-// Enhanced Video Player Component with fallback URLs and MP4 optimization
 const VideoPlayer = ({
   video,
   onDownload,
@@ -127,81 +131,112 @@ const VideoPlayer = ({
   onDownload: () => void;
   onShare: () => void;
 }) => {
-  const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Enhanced fallback URL preparation with MP4 optimization
-  const fallbackUrls = useMemo(() => {
-    const urls = [
-      video.dataUrl, // Database-served URL (primary)
-      video.url, // ComfyUI direct URL (fallback)
-      // Add a direct ComfyUI URL constructed from the filename if available
-      video.filename
-        ? `/api/proxy/comfyui/view?filename=${encodeURIComponent(
-            video.filename
-          )}&subfolder=${encodeURIComponent(
-            video.subfolder || ""
-          )}&type=${encodeURIComponent(video.type || "output")}`
-        : null,
-      // Add direct download URL as last resort
-      video.filename ? `/api/videos/${video.id}/data` : null,
-    ].filter(Boolean) as string[];
-
-    return urls;
-  }, [
-    video.dataUrl,
-    video.url,
-    video.filename,
-    video.subfolder,
-    video.type,
-    video.id,
-  ]);
-
-  const handleVideoError = () => {
-    // Try next URL if available
-    if (currentUrlIndex < fallbackUrls.length - 1) {
-      const nextIndex = currentUrlIndex + 1;
-      setCurrentUrlIndex(nextIndex);
-      setIsLoading(true);
-
-      // Force reload the video element
-      if (videoRef.current) {
-        videoRef.current.load();
-      }
-    } else {
-      setHasError(true);
-      setIsLoading(false);
+  // ONLY use AWS S3 URLs - no fallbacks
+  const awsS3Url = useMemo(() => {
+    // Priority 1: Direct AWS S3 URL
+    if (video.awsS3Url) {
+      console.log(`🚀 Using direct AWS S3 URL for ${video.filename}:`, video.awsS3Url);
+      return video.awsS3Url;
     }
+    
+    // Priority 2: Generate AWS S3 URL from key
+    if (video.awsS3Key) {
+      const generatedUrl = `https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`;
+      console.log(`🚀 Generated AWS S3 URL for ${video.filename}:`, generatedUrl);
+      return generatedUrl;
+    }
+
+    console.error(`❌ No AWS S3 URL available for ${video.filename}`);
+    console.log(`❌ Video data:`, {
+      awsS3Key: video.awsS3Key,
+      awsS3Url: video.awsS3Url,
+      filename: video.filename
+    });
+    return null;
+  }, [video.awsS3Key, video.awsS3Url, video.filename]);
+
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.error(`❌ AWS S3 video error for ${video.filename}:`, e);
+    console.error(`❌ Failed AWS S3 URL:`, awsS3Url);
+    setHasError(true);
+    setIsLoading(false);
   };
 
   const handleVideoLoad = () => {
+    console.log(`✅ AWS S3 video loaded successfully: ${video.filename}`);
     setIsLoading(false);
     setHasError(false);
   };
 
   const handleCanPlay = () => {
+    console.log(`✅ AWS S3 video can play: ${video.filename}`);
     setIsLoading(false);
   };
 
   // Reset when video changes
   useEffect(() => {
-    setCurrentUrlIndex(0);
     setHasError(false);
     setIsLoading(true);
   }, [video.id]);
 
-  if (hasError || fallbackUrls.length === 0) {
+  // Show error if no AWS S3 URL available
+  if (!awsS3Url) {
     return (
       <div className="relative group">
         <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
           <div className="text-center">
             <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Video could not be loaded
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+              AWS S3 URL not available
             </p>
             <p className="text-xs text-gray-500 mt-1">{video.filename}</p>
+            <p className="text-xs text-red-500 mt-2">
+              awsS3Key: {video.awsS3Key || 'missing'}<br/>
+              awsS3Url: {video.awsS3Url || 'missing'}
+            </p>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex space-x-1">
+            <button
+              onClick={onDownload}
+              className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+              title={`Download ${video.filename}`}
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onShare}
+              className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if AWS S3 video failed to load
+  if (hasError) {
+    return (
+      <div className="relative group">
+        <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+              AWS S3 video failed to load
+            </p>
+            <p className="text-xs text-gray-500 mt-1">{video.filename}</p>
+            <p className="text-xs text-blue-500 mt-2 break-all">
+              {awsS3Url}
+            </p>
           </div>
         </div>
 
@@ -234,10 +269,10 @@ const VideoPlayer = ({
           <div className="text-center">
             <Loader2 className="w-6 h-6 animate-spin text-purple-500 mx-auto mb-2" />
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Loading video...
+              Loading from AWS S3...
             </p>
-            <p className="text-xs text-gray-500 mt-1">
-              URL {currentUrlIndex + 1}/{fallbackUrls.length}
+            <p className="text-xs text-gray-500 mt-1 break-all max-w-xs">
+              {awsS3Url}
             </p>
           </div>
         </div>
@@ -251,12 +286,16 @@ const VideoPlayer = ({
         onError={handleVideoError}
         onLoadedData={handleVideoLoad}
         onCanPlay={handleCanPlay}
-        onLoadStart={() => setIsLoading(true)}
+        onLoadStart={() => {
+          console.log(`🎬 AWS S3 video loading started: ${video.filename}`);
+          setIsLoading(true);
+        }}
         preload="metadata"
         playsInline
         muted={false}
+        crossOrigin="anonymous"
       >
-        <source src={fallbackUrls[currentUrlIndex]} type="video/mp4" />
+        <source src={awsS3Url} type="video/mp4" />
         Your browser does not support the video tag.
       </video>
 
@@ -287,6 +326,7 @@ const VideoPlayer = ({
             : "Unknown size"}
           {video.fileSize &&
             ` • ${Math.round((video.fileSize / 1024 / 1024) * 100) / 100}MB`}
+          <div className="text-green-400">📡 AWS S3</div>
         </div>
       </div>
     </div>
@@ -1450,15 +1490,29 @@ export default function ImageToVideoPage() {
   };
 
   // Download video
+  // Download video using ONLY AWS S3 URLs
   const downloadVideo = async (video: DatabaseVideo) => {
-    if (!apiClient) return;
-
     try {
       console.log("📥 Downloading video:", video.filename);
 
-      if (video.dataUrl) {
-        const response = await apiClient.get(video.dataUrl);
+      // Get AWS S3 URL
+      let awsS3Url: string | null = null;
+      
+      if (video.awsS3Url) {
+        awsS3Url = video.awsS3Url;
+        console.log("📥 Using direct AWS S3 URL:", awsS3Url);
+      } else if (video.awsS3Key) {
+        awsS3Url = `https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`;
+        console.log("📥 Generated AWS S3 URL:", awsS3Url);
+      } else {
+        console.error("❌ No AWS S3 URL available for download");
+        alert("❌ This video is not available for download (no AWS S3 URL)");
+        return;
+      }
 
+      // Try to download from AWS S3
+      try {
+        const response = await fetch(awsS3Url);
         if (response.ok) {
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
@@ -1469,45 +1523,49 @@ export default function ImageToVideoPage() {
           link.click();
 
           URL.revokeObjectURL(url);
-          console.log("✅ Database video downloaded");
+          console.log("✅ AWS S3 video downloaded successfully");
           return;
+        } else {
+          throw new Error(`AWS S3 download failed: ${response.status}`);
         }
-      }
-
-      if (video.url) {
+      } catch (fetchError) {
+        console.warn("⚠️ AWS S3 fetch failed, trying direct link:", fetchError);
+        
+        // Try direct link download as last resort for AWS S3
         const link = document.createElement("a");
-        link.href = video.url;
+        link.href = awsS3Url;
         link.download = video.filename;
         link.click();
-        console.log("✅ ComfyUI video downloaded");
-        return;
+        console.log("✅ AWS S3 direct link download attempted");
       }
-
-      throw new Error("No download URL available");
     } catch (error) {
-      console.error("Error downloading video:", error);
+      console.error("❌ AWS S3 download error:", error);
       alert(
-        "Failed to download video: " +
+        "Failed to download video from AWS S3: " +
           (error instanceof Error ? error.message : "Unknown error")
       );
     }
   };
 
-  // Share video
+  // Share video using ONLY AWS S3 URLs
   const shareVideo = (video: DatabaseVideo) => {
-    let urlToShare = "";
-
-    if (video.dataUrl) {
-      urlToShare = `${window.location.origin}${video.dataUrl}`;
-    } else if (video.url) {
-      urlToShare = video.url;
+    // Get AWS S3 URL
+    let awsS3Url: string | null = null;
+    
+    if (video.awsS3Url) {
+      awsS3Url = video.awsS3Url;
+      console.log("📤 Sharing direct AWS S3 URL:", awsS3Url);
+    } else if (video.awsS3Key) {
+      awsS3Url = `https://tastycreative.s3.amazonaws.com/${video.awsS3Key}`;
+      console.log("📤 Sharing generated AWS S3 URL:", awsS3Url);
     } else {
-      alert("No shareable URL available for this video");
+      console.error("❌ No AWS S3 URL available for sharing");
+      alert("❌ This video cannot be shared (no AWS S3 URL)");
       return;
     }
 
-    navigator.clipboard.writeText(urlToShare);
-    alert("Video URL copied to clipboard!");
+    navigator.clipboard.writeText(awsS3Url);
+    alert("✅ AWS S3 video URL copied to clipboard!");
   };
 
   // Show loading state while API client initializes

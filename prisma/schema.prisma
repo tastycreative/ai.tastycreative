@@ -143,6 +143,8 @@ model GeneratedVideo {
   updatedAt         DateTime      @updatedAt
   networkVolumePath String?
   s3Key             String?
+  awsS3Key          String?       // AWS S3 key for direct storage
+  awsS3Url          String?       // AWS S3 public URL for direct access
   user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 

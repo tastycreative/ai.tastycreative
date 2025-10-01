@@ -90,8 +90,10 @@ interface DatabaseImage {
   format?: string;
   url?: string | null; // Dynamically constructed URL (network volume or ComfyUI URL)
   dataUrl?: string; // Database-served image URL (fallback)
-  s3Key?: string; // S3 key for network volume storage
+  s3Key?: string; // Legacy S3 key for network volume storage
   networkVolumePath?: string; // Path on network volume
+  awsS3Key?: string; // AWS S3 key for direct storage
+  awsS3Url?: string; // AWS S3 public URL for direct access
   createdAt: Date | string;
 }
 

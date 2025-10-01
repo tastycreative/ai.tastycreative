@@ -27,6 +27,74 @@ S3_ENDPOINT = 'https://s3api-us-ks-2.runpod.io'
 S3_REGION = 'us-ks-2'
 S3_BUCKET = '83cljmpqfd'
 
+# AWS S3 Configuration for primary storage
+AWS_S3_ENDPOINT = None  # Use default AWS endpoint
+AWS_S3_REGION = os.getenv('AWS_REGION', 'us-east-1')
+AWS_S3_BUCKET = os.getenv('AWS_S3_BUCKET', '')
+
+def get_aws_s3_client():
+    """Initialize AWS S3 client for primary storage"""
+    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+    
+    if not aws_access_key or not aws_secret_key:
+        logger.error("❌ AWS S3 credentials not found in environment variables")
+        return None
+    
+    try:
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=aws_access_key,
+            aws_secret_access_key=aws_secret_key,
+            region_name=AWS_S3_REGION
+        )
+        logger.info("✅ AWS S3 client initialized successfully")
+        return s3_client
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
+        return None
+
+def upload_video_to_aws_s3(video_data: bytes, user_id: str, filename: str) -> Dict[str, str]:
+    """Upload video to AWS S3 and return S3 key and public URL"""
+    try:
+        s3_client = get_aws_s3_client()
+        if not s3_client:
+            logger.error("❌ AWS S3 client not available")
+            return {"success": False, "error": "S3 client not available"}
+        
+        # Create S3 key: outputs/{user_id}/{filename}
+        s3_key = f"outputs/{user_id}/{filename}"
+        
+        logger.info(f"📤 Uploading video to AWS S3: {s3_key}")
+        
+        # Upload to AWS S3
+        s3_client.put_object(
+            Bucket=AWS_S3_BUCKET,
+            Key=s3_key,
+            Body=video_data,
+            ContentType='video/mp4',
+            CacheControl='public, max-age=31536000'  # 1 year cache
+        )
+        
+        # Generate public URL
+        public_url = f"https://{AWS_S3_BUCKET}.s3.amazonaws.com/{s3_key}"
+        
+        logger.info(f"✅ Video uploaded to AWS S3: {public_url}")
+        
+        return {
+            "success": True,
+            "s3_key": s3_key,
+            "public_url": public_url,
+            "filename": filename
+        }
+        
+    except ClientError as e:
+        logger.error(f"❌ AWS S3 upload failed: {e}")
+        return {"success": False, "error": str(e)}
+    except Exception as e:
+        logger.error(f"❌ Error uploading video to AWS S3: {e}")
+        return {"success": False, "error": str(e)}
+
 def get_s3_client():
     """Initialize S3 client for RunPod network volume"""
     s3_access_key = os.getenv('RUNPOD_S3_ACCESS_KEY')
@@ -597,35 +665,25 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                             )
                                                             
                                                             if video_bytes:
-                                                                # Save to S3
-                                                                s3_key = save_video_to_s3(
-                                                                    vid_info['filename'],
+                                                                # Save to AWS S3 (primary storage)
+                                                                aws_s3_result = upload_video_to_aws_s3(
                                                                     video_bytes,
                                                                     user_id,
-                                                                    vid_info.get('subfolder', '')
+                                                                    vid_info['filename']
                                                                 )
                                                                 
-                                                                # Save to network volume
-                                                                network_path = save_video_to_network_volume(
-                                                                    vid_info['filename'],
-                                                                    video_bytes,
-                                                                    user_id,
-                                                                    vid_info.get('subfolder', ''),
-                                                                    vid_info.get('type', 'output')
-                                                                )
-                                                                
-                                                                if s3_key:
+                                                                if aws_s3_result["success"]:
                                                                     webhook_videos.append({
                                                                         'filename': vid_info['filename'],
                                                                         'subfolder': vid_info.get('subfolder', ''),
                                                                         'type': vid_info.get('type', 'output'),
-                                                                        's3Key': s3_key,
-                                                                        'networkVolumePath': network_path,
+                                                                        'awsS3Key': aws_s3_result["s3_key"],
+                                                                        'awsS3Url': aws_s3_result["public_url"],
                                                                         'fileSize': len(video_bytes)
                                                                     })
-                                                                    logger.info(f"✅ Successfully processed video with S3: {vid_info['filename']}")
+                                                                    logger.info(f"✅ Successfully processed video with AWS S3: {vid_info['filename']}")
                                                                 else:
-                                                                    logger.error(f"❌ Failed to save video to S3: {vid_info['filename']}")
+                                                                    logger.error(f"❌ Failed to save video to AWS S3: {vid_info['filename']} - {aws_s3_result['error']}")
                                                             else:
                                                                 logger.error(f"❌ Failed to get video data for: {vid_info['filename']}")
                                                 
@@ -649,35 +707,25 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                                 )
                                                                 
                                                                 if video_bytes:
-                                                                    # Save to S3
-                                                                    s3_key = save_video_to_s3(
-                                                                        filename,
+                                                                    # Save to AWS S3 (primary storage)
+                                                                    aws_s3_result = upload_video_to_aws_s3(
                                                                         video_bytes,
                                                                         user_id,
-                                                                        img_info.get('subfolder', '')
+                                                                        filename
                                                                     )
                                                                     
-                                                                    # Save to network volume
-                                                                    network_path = save_video_to_network_volume(
-                                                                        filename,
-                                                                        video_bytes,
-                                                                        user_id,
-                                                                        img_info.get('subfolder', ''),
-                                                                        img_info.get('type', 'output')
-                                                                    )
-                                                                    
-                                                                    if s3_key:
+                                                                    if aws_s3_result["success"]:
                                                                         webhook_videos.append({
                                                                             'filename': filename,
                                                                             'subfolder': img_info.get('subfolder', ''),
                                                                             'type': img_info.get('type', 'output'),
-                                                                            's3Key': s3_key,
-                                                                            'networkVolumePath': network_path,
+                                                                            'awsS3Key': aws_s3_result["s3_key"],
+                                                                            'awsS3Url': aws_s3_result["public_url"],
                                                                             'fileSize': len(video_bytes)
                                                                         })
-                                                                        logger.info(f"✅ Successfully processed video from images with S3: {filename}")
+                                                                        logger.info(f"✅ Successfully processed video with AWS S3: {filename}")
                                                                     else:
-                                                                        logger.error(f"❌ Failed to save video to S3: {filename}")
+                                                                        logger.error(f"❌ Failed to save video to AWS S3: {filename} - {aws_s3_result['error']}")
                                                                 else:
                                                                     logger.error(f"❌ Failed to get video data for: {filename}")
                                                 
@@ -701,44 +749,36 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                         )
                                                         
                                                         if video_bytes:
-                                                            # Save to S3
-                                                            s3_key = save_video_to_s3(
-                                                                filename,
+                                                            # Save to AWS S3 (primary storage)
+                                                            aws_s3_result = upload_video_to_aws_s3(
                                                                 video_bytes,
                                                                 user_id,
-                                                                output.get('subfolder', '')
+                                                                filename
                                                             )
                                                             
-                                                            # Save to network volume
-                                                            network_path = save_video_to_network_volume(
-                                                                filename,
-                                                                video_bytes,
-                                                                user_id,
-                                                                output.get('subfolder', ''),
-                                                                output.get('type', 'output')
-                                                            )
-                                                            
-                                                            if s3_key:
+                                                            if aws_s3_result["success"]:
                                                                 webhook_videos.append({
                                                                     'filename': filename,
                                                                     'subfolder': output.get('subfolder', ''),
                                                                     'type': output.get('type', 'output'),
-                                                                    's3Key': s3_key,
-                                                                    'networkVolumePath': network_path,
+                                                                    'awsS3Key': aws_s3_result["s3_key"],
+                                                                    'awsS3Url': aws_s3_result["public_url"],
                                                                     'fileSize': len(video_bytes)
                                                                 })
-                                                                logger.info(f"✅ Successfully processed direct video with S3: {filename}")
+                                                                logger.info(f"✅ Successfully processed video with AWS S3: {filename}")
                                                             else:
-                                                                logger.error(f"❌ Failed to save direct video to S3: {filename}")
+                                                                logger.error(f"❌ Failed to save video to AWS S3: {filename} - {aws_s3_result['error']}")
+                                                        else:
+                                                            logger.error(f"❌ Failed to get video data for: {filename}")
                                             
-                                            # Send completion webhook using network_volume_paths format (no blob data)
+                                            # Send completion webhook using AWS S3 paths (no blob data)
                                             if webhook_url:
                                                 send_webhook(webhook_url, {
                                                     "job_id": job_id,
                                                     "status": "COMPLETED",
                                                     "progress": 100,
                                                     "message": "Video generation completed successfully! 🎉",
-                                                    "network_volume_paths": webhook_videos,  # Use this instead of 'videos'
+                                                    "aws_s3_paths": webhook_videos,  # Use AWS S3 instead of network volume
                                                     "totalTime": int(elapsed_time)
                                                 })
                                             
