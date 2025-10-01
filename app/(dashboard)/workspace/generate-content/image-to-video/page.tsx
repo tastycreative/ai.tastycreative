@@ -1417,7 +1417,7 @@ export default function ImageToVideoPage() {
 
         // For serverless, we rely more on webhooks, so poll less frequently
         if (attempts < maxAttempts) {
-          setTimeout(poll, 500); // Faster polling for better progress updates
+          setTimeout(poll, 2000); // Reduced polling for bandwidth optimization
         } else {
           console.warn(
             "I2V Serverless Polling timeout reached - job may still be running"

@@ -205,12 +205,13 @@ export default function TextToImagePage() {
   ]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
 
-  // Database image states
+  // Database image states with caching
   const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
     {}
   );
   const [imageStats, setImageStats] = useState<any>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
+  const [lastImageFetch, setLastImageFetch] = useState<Record<string, number>>({});
 
   // Persistent generation state keys
   const STORAGE_KEYS = {
@@ -514,37 +515,44 @@ export default function TextToImagePage() {
     }
   }, [apiClient]);
 
-  // Auto-refresh for ALL jobs - check every 3 seconds for faster loading
+  // Auto-refresh for jobs - OPTIMIZED for AWS S3 direct URLs
   useEffect(() => {
     if (!apiClient || !currentJob) {
       return;
     }
 
-    // More aggressive auto-refresh for ANY job that might have images
+    // Only auto-refresh for jobs that are actively processing or recently completed
+    const needsRefresh = currentJob.status === 'processing' || 
+                         (currentJob.status === 'completed' && 
+                          (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0));
+
+    if (!needsRefresh) {
+      console.log('🛑 Auto-refresh: Job stable, no refresh needed');
+      return;
+    }
+
     const autoRefreshInterval = setInterval(async () => {
       console.log('🔄 Auto-refresh: Checking for job images...');
       
-      // Always check for images if we don't have them yet
+      // Check if we still need images for completed jobs
       const hasImages = jobImages[currentJob.id] && jobImages[currentJob.id].length > 0;
       
-      if (!hasImages) {
-        console.log('🔄 Auto-refresh: No images found, fetching...');
+      if (!hasImages && currentJob.status === 'completed') {
+        console.log('🔄 Auto-refresh: Completed job missing images, fetching once...');
         await fetchJobImages(currentJob.id);
         
-        // Also try auto-processing every few cycles
-        if (Math.random() < 0.3) { // 30% chance each cycle
-          try {
-            await apiClient.post("/api/jobs/auto-process-serverless");
-            console.log("🔄 Auto-processing triggered during auto-refresh");
-          } catch (error) {
-            // Silent fail for auto-processing
-          }
-        }
+        // For AWS S3, we only need to fetch once since URLs are direct
+        // Stop auto-refresh after fetching for completed jobs
+        clearInterval(autoRefreshInterval);
+      } else if (currentJob.status === 'processing') {
+        console.log('🔄 Auto-refresh: Job still processing, checking status...');
+        // For processing jobs, only check job status, not images
+        // Images will be fetched when job completes
       }
-    }, 3000); // Check every 3 seconds
+    }, 10000); // Reduced to every 10 seconds instead of 3
 
     return () => clearInterval(autoRefreshInterval);
-  }, [apiClient, currentJob, jobImages]);
+  }, [apiClient, currentJob?.id, currentJob?.status, jobImages]);
 
   // Watch for job status changes and immediately fetch images when completed
   useEffect(() => {
@@ -572,15 +580,25 @@ export default function TextToImagePage() {
     }
   }, [currentJob?.status, currentJob?.id, isGenerating, jobImages]);
 
-  // Function to fetch images for a completed job
-  const fetchJobImages = async (jobId: string): Promise<boolean> => {
+  // Function to fetch images for a completed job with caching
+  const fetchJobImages = async (jobId: string, forceRefresh: boolean = false): Promise<boolean> => {
     try {
       if (!apiClient) {
         console.error("API client is not available");
         return false;
       }
 
-      console.log("🖼️ Fetching database images for job:", jobId);
+      // Check cache - don't fetch if we already fetched recently (within 10 seconds)
+      const now = Date.now();
+      const lastFetch = lastImageFetch[jobId] || 0;
+      const cacheTimeout = 10000; // 10 seconds cache
+
+      if (!forceRefresh && now - lastFetch < cacheTimeout && jobImages[jobId] && jobImages[jobId].length > 0) {
+        console.log(`📦 Using cached images for job ${jobId} (${jobImages[jobId].length} images)`);
+        return true;
+      }
+
+      console.log("🖼️ Fetching database images for job:", jobId, forceRefresh ? "(forced)" : "");
 
       const response = await apiClient.get(`/api/jobs/${jobId}/images`);
       console.log("📡 Image fetch response status:", response.status);
@@ -599,6 +617,12 @@ export default function TextToImagePage() {
       console.log("📊 Job images data:", data);
 
       if (data.success && data.images && Array.isArray(data.images)) {
+        // Update cache timestamp
+        setLastImageFetch(prev => ({
+          ...prev,
+          [jobId]: now
+        }));
+
         // Update job images state
         setJobImages((prev) => ({
           ...prev,
@@ -1105,7 +1129,7 @@ export default function TextToImagePage() {
               console.error("Job not found - this might be a storage issue");
               if (attempts < 10) {
                 // Retry a few times for new jobs
-                setTimeout(poll, 500); // Faster polling for better progress updates
+                setTimeout(poll, 2000); // Reduced polling for better bandwidth usage
                 return;
               }
             }
@@ -1160,7 +1184,7 @@ export default function TextToImagePage() {
           }
 
           // Continue polling for more images or completion
-          setTimeout(poll, 500);
+          setTimeout(poll, 2000);
           return;
         }
 
@@ -1207,7 +1231,7 @@ export default function TextToImagePage() {
             estimatedTimeRemaining: 0,
           });
 
-          // Fetch database images for completed job with aggressive retry logic
+          // Fetch database images for completed job with AWS S3 optimized retry
           console.log("🔄 Attempting to fetch job images immediately...");
           
           // First, trigger auto-processing to ensure serverless jobs are processed
@@ -1217,7 +1241,7 @@ export default function TextToImagePage() {
             if (autoProcessResponse.ok) {
               console.log("✅ Pre-processing triggered successfully");
               // Wait briefly for processing
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              await new Promise(resolve => setTimeout(resolve, 2000));
             }
           } catch (error) {
             console.error("❌ Pre-processing failed:", error);
@@ -1225,12 +1249,12 @@ export default function TextToImagePage() {
           
           const fetchSuccess = await fetchJobImages(jobId);
 
-          // If fetch failed or no images found, retry with multiple attempts
+          // For AWS S3, we only need minimal retries since URLs are direct
           if (!fetchSuccess) {
-            console.log("🔄 First fetch failed, starting aggressive retry sequence...");
+            console.log("🔄 First fetch failed, trying limited retries for AWS S3...");
             
-            // Retry with shorter intervals: 0.5s, 1s, 2s, 3s, 5s
-            const retryDelays = [500, 1000, 2000, 3000, 5000];
+            // Reduced retry attempts with longer intervals for AWS S3
+            const retryDelays = [2000, 5000]; // Only 2 retries: 2s, 5s
             
             for (let i = 0; i < retryDelays.length; i++) {
               await new Promise(resolve => setTimeout(resolve, retryDelays[i]));
@@ -1243,7 +1267,7 @@ export default function TextToImagePage() {
               }
               
               if (i === retryDelays.length - 1) {
-                console.warn("⚠️ All retry attempts failed, triggering auto-processing...");
+                console.warn("⚠️ Limited retries failed - AWS S3 data may still be syncing...");
                 
                 // Force auto-processing as last resort
                 try {
@@ -1322,7 +1346,7 @@ export default function TextToImagePage() {
 
         // Continue polling
         if (attempts < maxAttempts) {
-          setTimeout(poll, 1000);
+          setTimeout(poll, 3000);
         } else {
           console.warn("Polling timeout reached - job may still be running");
           setIsGenerating(false);
@@ -1349,7 +1373,7 @@ export default function TextToImagePage() {
         console.error("Polling error:", error);
 
         if (attempts < maxAttempts) {
-          setTimeout(poll, 500); // Faster retry with shorter delay
+          setTimeout(poll, 2000); // Reduced retry interval
         } else {
           console.warn("Polling timeout reached after errors");
           setIsGenerating(false);
@@ -1371,7 +1395,7 @@ export default function TextToImagePage() {
     };
 
     // Start polling after a short delay
-    setTimeout(poll, 1000);
+    setTimeout(poll, 3000);
   };
 
   // Create workflow JSON
@@ -2614,7 +2638,7 @@ export default function TextToImagePage() {
                   {/* Image refresh button for completed jobs */}
                   {currentJob.status === "completed" && (
                     <button
-                      onClick={() => fetchJobImages(currentJob.id)}
+                      onClick={() => fetchJobImages(currentJob.id, true)}
                       className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                       title="Refresh generated images"
                     >
@@ -3206,7 +3230,7 @@ export default function TextToImagePage() {
                       {job.resultUrls && job.resultUrls.length > 0 && (
                         <div className="flex space-x-1">
                           <button
-                            onClick={() => fetchJobImages(job.id)}
+                            onClick={() => fetchJobImages(job.id, true)}
                             className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                             title="Refresh images"
                           >
