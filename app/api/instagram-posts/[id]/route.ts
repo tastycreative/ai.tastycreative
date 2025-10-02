@@ -21,7 +21,7 @@ function getDriveClient(accessToken: string) {
 // GET - Fetch a single post
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -32,9 +32,11 @@ export async function GET(
       );
     }
 
+    const { id } = await params;
+
     const post = await prisma.instagramPost.findFirst({
       where: {
-        id: params.id,
+        id,
         clerkId: userId,
       },
     });
@@ -64,7 +66,7 @@ export async function GET(
 // PATCH - Update a post
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -75,13 +77,14 @@ export async function PATCH(
       );
     }
 
+    const { id } = await params;
     const body = await request.json();
     const { caption, scheduledDate, status, postType } = body;
 
     // Verify the post belongs to the user
     const existingPost = await prisma.instagramPost.findFirst({
       where: {
-        id: params.id,
+        id,
         clerkId: userId,
       },
     });
@@ -95,7 +98,7 @@ export async function PATCH(
 
     // Update the post
     const updatedPost = await prisma.instagramPost.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(caption !== undefined && { caption }),
         ...(scheduledDate !== undefined && { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }),
@@ -104,7 +107,7 @@ export async function PATCH(
       },
     });
 
-    console.log(`✅ Updated Instagram post: ${params.id}`);
+    console.log(`✅ Updated Instagram post: ${id}`);
 
     return NextResponse.json({
       success: true,
@@ -124,7 +127,7 @@ export async function PATCH(
 // DELETE - Delete a post (from database and optionally from Google Drive)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -135,6 +138,7 @@ export async function DELETE(
       );
     }
 
+    const { id } = await params;
     const { searchParams } = new URL(request.url);
     const deleteFromDrive = searchParams.get('deleteFromDrive') === 'true';
     const accessToken = searchParams.get('accessToken');
@@ -142,7 +146,7 @@ export async function DELETE(
     // Fetch the post
     const post = await prisma.instagramPost.findFirst({
       where: {
-        id: params.id,
+        id,
         clerkId: userId,
       },
     });
@@ -170,10 +174,10 @@ export async function DELETE(
 
     // Delete from database
     await prisma.instagramPost.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
-    console.log(`✅ Deleted Instagram post: ${params.id}`);
+    console.log(`✅ Deleted Instagram post: ${id}`);
 
     return NextResponse.json({
       success: true,
