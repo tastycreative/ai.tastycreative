@@ -29,6 +29,16 @@ import {
   Pause,
   HardDrive,
   BarChart3,
+  Upload,
+  FolderOpen,
+  CheckCircle,
+  Share,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  Info,
 } from "lucide-react";
 
 // Types
@@ -97,6 +107,17 @@ interface VideoStats {
 type ViewMode = "grid" | "list";
 type SortBy = "newest" | "oldest" | "largest" | "smallest" | "name";
 type FilterBy = "all" | "images" | "videos";
+type DriveFolder = "All Generations" | "IG Posts" | "IG Reels" | "Misc";
+
+interface UploadState {
+  [itemId: string]: {
+    uploading: boolean;
+    progress: number;
+    folder?: DriveFolder;
+    success?: boolean;
+    error?: string;
+  };
+}
 
 export default function GeneratedContentPage() {
   const apiClient = useApiClient();
@@ -116,6 +137,12 @@ export default function GeneratedContentPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Google Drive Upload State
+  const [uploadStates, setUploadStates] = useState<UploadState>({});
+  const [showUploadModal, setShowUploadModal] = useState<ContentItem | null>(null);
+  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -133,17 +160,37 @@ export default function GeneratedContentPage() {
     }
   }, [apiClient]);
 
-  // Auto-refresh content every 30 seconds to catch new generations
+  // Check for OAuth callback tokens in URL
   useEffect(() => {
-    if (!apiClient) return;
+    // First check URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const accessToken = urlParams.get('access_token');
+    
+    if (accessToken) {
+      setGoogleAccessToken(accessToken);
+      // Store in localStorage for persistence across tabs/pages
+      localStorage.setItem('google_drive_access_token', accessToken);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      console.log('✅ Google Drive access token received and stored');
+    } else {
+      // Check localStorage for existing token
+      const storedToken = localStorage.getItem('google_drive_access_token');
+      if (storedToken) {
+        setGoogleAccessToken(storedToken);
+        console.log('✅ Google Drive access token loaded from storage');
+      }
+    }
 
-    const interval = setInterval(() => {
-      console.log("🔄 Auto-refreshing generated content...");
-      fetchContent();
-    }, 30000); // 30 seconds
-
-    return () => clearInterval(interval);
-  }, [apiClient]);
+    // Handle OAuth errors
+    const error = urlParams.get('error');
+    if (error) {
+      console.error('❌ OAuth error:', error);
+      alert(`Google Drive authentication failed: ${error}`);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   const fetchContent = async () => {
     if (!apiClient) {
@@ -573,6 +620,242 @@ export default function GeneratedContentPage() {
 
     navigator.clipboard.writeText(urlToShare);
     alert("Image URL copied to clipboard!");
+  };
+
+  // Google Drive Authentication
+  const authenticateGoogleDrive = async () => {
+    try {
+      setIsAuthenticating(true);
+      // Pass current page as redirect parameter
+      const currentPage = '/workspace/generated-content';
+      const response = await fetch(`/api/auth/google?redirect=${encodeURIComponent(currentPage)}`);
+      const data = await response.json();
+      
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error('Failed to get authorization URL');
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      alert('Failed to start Google Drive authentication');
+      setIsAuthenticating(false);
+    }
+  };
+
+  // Upload to Google Drive
+  const uploadToGoogleDrive = async (item: ContentItem, folder: DriveFolder) => {
+    if (!apiClient) {
+      alert("API client not available");
+      return;
+    }
+
+    if (!googleAccessToken) {
+      alert("Please authenticate with Google Drive first");
+      return;
+    }
+
+    try {
+      console.log(`📤 Uploading ${item.filename} to Google Drive folder: ${folder}`);
+      
+      // Set uploading state
+      setUploadStates(prev => ({
+        ...prev,
+        [item.id]: {
+          uploading: true,
+          progress: 0,
+          folder,
+        }
+      }));
+
+      // Get the best URL for the item
+      const mediaUrl = getBestMediaUrl({
+        awsS3Key: item.awsS3Key,
+        awsS3Url: item.awsS3Url,
+        s3Key: item.s3Key,
+        networkVolumePath: item.networkVolumePath,
+        dataUrl: item.dataUrl,
+        url: item.url,
+        id: item.id,
+        filename: item.filename,
+        type: item.itemType === "video" ? 'video' : 'image'
+      });
+
+      if (!mediaUrl) {
+        throw new Error("No media URL available for upload");
+      }
+
+      console.log(`📥 Fetching media from: ${mediaUrl}`);
+
+      // Update progress
+      setUploadStates(prev => ({
+        ...prev,
+        [item.id]: {
+          ...prev[item.id],
+          progress: 25,
+        }
+      }));
+
+      // Create form data for upload
+      const formData = new FormData();
+      
+      // Fetch the media file with proper headers and error handling
+      let mediaBlob: Blob;
+      try {
+        // Try direct fetch first
+        const mediaResponse = await fetch(mediaUrl, {
+          method: 'GET',
+          mode: 'cors', // Enable CORS
+          headers: {
+            'Accept': item.itemType === 'video' ? 'video/*' : 'image/*',
+          },
+        });
+        
+        if (!mediaResponse.ok) {
+          throw new Error(`Direct fetch failed: ${mediaResponse.status} ${mediaResponse.statusText}`);
+        }
+        
+        mediaBlob = await mediaResponse.blob();
+        console.log(`✅ Direct media fetch successful, size: ${mediaBlob.size} bytes, type: ${mediaBlob.type}`);
+      } catch (fetchError) {
+        console.error('❌ Direct fetch failed, trying proxy approach:', fetchError);
+        
+        try {
+          // Use our proxy endpoint to fetch the media
+          console.log('🔄 Trying proxy route...');
+          const proxyUrl = `/api/proxy/media?url=${encodeURIComponent(mediaUrl)}`;
+          const proxyResponse = await fetch(proxyUrl);
+          
+          if (!proxyResponse.ok) {
+            throw new Error(`Proxy fetch failed: ${proxyResponse.status} ${proxyResponse.statusText}`);
+          }
+          
+          mediaBlob = await proxyResponse.blob();
+          console.log(`✅ Proxy media fetch successful, size: ${mediaBlob.size} bytes, type: ${mediaBlob.type}`);
+        } catch (proxyError) {
+          console.error('❌ Proxy fetch also failed:', proxyError);
+          
+          // Final fallback: try the dataUrl if available
+          if (item.dataUrl && item.dataUrl.startsWith('/api/')) {
+            console.log('🔄 Final attempt: trying dataUrl API route...');
+            const dataResponse = await fetch(item.dataUrl);
+            if (!dataResponse.ok) {
+              throw new Error(`DataUrl fetch failed: ${dataResponse.status} ${dataResponse.statusText}`);
+            }
+            mediaBlob = await dataResponse.blob();
+            console.log(`✅ DataUrl fetch successful, size: ${mediaBlob.size} bytes`);
+          } else {
+            throw new Error('Unable to fetch media file from any source. Please try again or contact support.');
+          }
+        }
+      }
+      
+      formData.append('file', mediaBlob, item.filename);
+      formData.append('folder', folder);
+      formData.append('filename', item.filename);
+      formData.append('itemType', item.itemType);
+      formData.append('accessToken', googleAccessToken);
+
+      // Update progress
+      setUploadStates(prev => ({
+        ...prev,
+        [item.id]: {
+          ...prev[item.id],
+          progress: 50,
+        }
+      }));
+
+      console.log(`📤 Uploading to Google Drive API...`);
+
+      // Upload to Google Drive via API with enhanced error handling
+      const uploadResponse = await fetch('/api/google-drive/upload', {
+        method: 'POST',
+        body: formData,
+        // Add timeout and headers for better reliability
+        signal: AbortSignal.timeout(120000), // 2 minute timeout
+        headers: {
+          // Don't set Content-Type for FormData - browser will set it with boundary
+        },
+      }).catch(fetchError => {
+        console.error('❌ Fetch error details:', fetchError);
+        
+        // Handle specific network errors
+        if (fetchError.name === 'TimeoutError') {
+          throw new Error('Upload timeout - file may be too large or connection is slow');
+        }
+        if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
+          throw new Error('Network error - please check your internet connection and try again');
+        }
+        
+        throw fetchError;
+      });
+
+      console.log(`📡 Upload response status: ${uploadResponse.status}`);
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('❌ Upload response error:', errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText };
+        }
+        
+        throw new Error(errorData.error || `Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+      }
+
+      const result = await uploadResponse.json();
+      console.log('✅ Upload response:', result);
+      
+      // Set success state
+      setUploadStates(prev => ({
+        ...prev,
+        [item.id]: {
+          uploading: false,
+          progress: 100,
+          folder,
+          success: true,
+        }
+      }));
+
+      console.log(`✅ Successfully uploaded ${item.filename} to ${folder}`);
+      
+      // Clear success state after 3 seconds
+      setTimeout(() => {
+        setUploadStates(prev => {
+          const newState = { ...prev };
+          delete newState[item.id];
+          return newState;
+        });
+      }, 3000);
+
+    } catch (error) {
+      console.error('💥 Google Drive upload error:', error);
+      
+      setUploadStates(prev => ({
+        ...prev,
+        [item.id]: {
+          uploading: false,
+          progress: 0,
+          folder,
+          error: error instanceof Error ? error.message : 'Upload failed'
+        }
+      }));
+
+      // Show user-friendly error message
+      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      // Clear error state after 5 seconds
+      setTimeout(() => {
+        setUploadStates(prev => {
+          const newState = { ...prev };
+          delete newState[item.id];
+          return newState;
+        });
+      }, 5000);
+    }
   };
 
   // Delete image
@@ -1449,6 +1732,28 @@ export default function GeneratedContentPage() {
                       </div>
                     </div>
 
+                    {/* Upload Status Badge */}
+                    {uploadStates[item.id] && (
+                      <div className="absolute top-16 left-3">
+                        {uploadStates[item.id].uploading ? (
+                          <div className="bg-blue-500/90 text-white px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm border border-blue-400/50 flex items-center space-x-1">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Uploading {uploadStates[item.id].progress}%</span>
+                          </div>
+                        ) : uploadStates[item.id].success ? (
+                          <div className="bg-green-500/90 text-white px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm border border-green-400/50 flex items-center space-x-1">
+                            <CheckCircle className="w-3 h-3" />
+                            <span>Uploaded to {uploadStates[item.id].folder}</span>
+                          </div>
+                        ) : uploadStates[item.id].error ? (
+                          <div className="bg-red-500/90 text-white px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm border border-red-400/50 flex items-center space-x-1">
+                            <X className="w-3 h-3" />
+                            <span>Upload failed</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+
                     {/* Duration Badge for Videos */}
                     {item.itemType === "video" && item.duration && (
                       <div className="absolute top-3 right-3">
@@ -1483,6 +1788,16 @@ export default function GeneratedContentPage() {
                             >
                               <Download className="w-4 h-4" />
                             </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowUploadModal(item);
+                              }}
+                              className="p-2.5 bg-blue-500/80 hover:bg-blue-600/90 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-blue-400/20"
+                              title="Upload to Google Drive"
+                            >
+                              <Upload className="w-4 h-4" />
+                            </button>
                           </div>
 
                           <div className="flex space-x-2">
@@ -1513,8 +1828,8 @@ export default function GeneratedContentPage() {
 
                     {/* Play Button for Videos */}
                     {item.itemType === "video" && (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <div className="p-4 bg-white/20 rounded-full backdrop-blur-sm border border-white/30">
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                        <div className="p-4 bg-white/20 rounded-full backdrop-blur-sm border border-white/30 pointer-events-auto">
                           <Play className="w-8 h-8 text-white drop-shadow-lg" />
                         </div>
                       </div>
@@ -2137,6 +2452,132 @@ export default function GeneratedContentPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Drive Upload Modal */}
+      {showUploadModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowUploadModal(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-200 dark:border-gray-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+                <FolderOpen className="w-5 h-5 text-blue-500" />
+                <span>Upload to Google Drive</span>
+              </h3>
+              <button
+                onClick={() => setShowUploadModal(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                {showUploadModal.itemType === "video" ? (
+                  <Video className="w-8 h-8 text-purple-500" />
+                ) : (
+                  <ImageIcon className="w-8 h-8 text-blue-500" />
+                )}
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white truncate">
+                    {showUploadModal.filename}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {formatFileSize(showUploadModal.fileSize)} • {showUploadModal.itemType}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Google Drive Authentication Status */}
+            {!googleAccessToken ? (
+              <div className="mb-6">
+                <div className="flex items-center space-x-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <AlertCircle className="w-5 h-5 text-yellow-600" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                      Google Drive Authentication Required
+                    </p>
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                      Please authenticate with Google Drive to upload files.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={authenticateGoogleDrive}
+                  disabled={isAuthenticating}
+                  className="w-full mt-4 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+                >
+                  {isAuthenticating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Authenticating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="w-4 h-4" />
+                      <span>Authenticate with Google Drive</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <div className="flex items-center space-x-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                      Google Drive Connected
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Select Google Drive folder:
+                  </label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {(["All Generations", "IG Posts", "IG Reels", "Misc"] as DriveFolder[]).map((folder) => (
+                      <button
+                        key={folder}
+                        onClick={() => {
+                          uploadToGoogleDrive(showUploadModal, folder);
+                          setShowUploadModal(null);
+                        }}
+                        className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 group"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <FolderOpen className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                          <span className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                            {folder}
+                          </span>
+                        </div>
+                        <div className="text-gray-400 group-hover:text-blue-500">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowUploadModal(null)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

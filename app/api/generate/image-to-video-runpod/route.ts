@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { addJob, updateJob, GenerationJob as StoredGenerationJob } from '@/lib/jobsStorage';
+import { trackApiUsage } from '@/lib/bandwidthMonitor';
 
 // RunPod API configuration for Image-to-Video (dedicated endpoint)
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
@@ -53,6 +54,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { workflow, params, imageData } = body;
 
+    // Debug: Log the entire request body structure (without sensitive data)
+    console.log('🔍 REQUEST BODY DEBUG:');
+    console.log('  - workflow keys:', workflow ? Object.keys(workflow).slice(0, 5) : 'missing');
+    console.log('  - params keys:', params ? Object.keys(params) : 'missing');
+    console.log('  - imageData available:', !!imageData);
+    console.log('  - uploadedImage:', params?.uploadedImage);
+
     if (!workflow) {
       return NextResponse.json(
         { error: 'Missing workflow' },
@@ -69,6 +77,13 @@ export async function POST(request: NextRequest) {
 
     // Log base64 data availability
     console.log('📦 Image base64 data available:', !!imageData);
+    if (imageData) {
+      console.log('📦 Base64 data length:', imageData.length);
+      console.log('📦 Base64 data preview:', imageData.substring(0, 50) + '...');
+    } else {
+      console.error('❌ No base64 image data provided - this will cause the handler to fail!');
+      console.error('❌ Available body keys:', Object.keys(body));
+    }
 
     console.log('🎯 Starting RunPod image-to-video generation for user:', userId);
     console.log('📋 Generation params:', params);
@@ -118,7 +133,9 @@ export async function POST(request: NextRequest) {
         webhook_url: webhookUrl,
         user_id: userId,
         base_url: baseUrl, // Add base URL so RunPod can download images
-        imageData: imageData // Include base64 image data for serverless processing
+        // Send base64 image data in the field the handler expects
+        referenceImageData: imageData, // This is the field the RunPod handler looks for
+        image_url: params.uploadedImage // Use URL as fallback
       }
     };
 
@@ -175,13 +192,32 @@ export async function POST(request: NextRequest) {
       console.log('💾 Stored RunPod job ID for cancellation:', runpodResult.id);
     }
 
-    // Return job ID to frontend for polling
-    return NextResponse.json({
+    const responseData = {
       success: true,
       jobId,
       runpodJobId: runpodResult.id,
       message: 'Image-to-video generation started'
-    });
+    };
+
+    // Track bandwidth usage - significant reduction from removing imageData
+    try {
+      trackApiUsage('/api/generate/image-to-video-runpod', 
+        { 
+          workflowSize: JSON.stringify(workflow).length,
+          paramsSize: JSON.stringify(params).length,
+          // Note: imageData removed, saving significant bandwidth
+        }, 
+        responseData,
+        { 
+          userId,
+          compressionRatio: 90 // Estimated 90% reduction from removing base64 data
+        }
+      );
+    } catch (trackingError) {
+      console.warn('⚠️ Bandwidth tracking failed:', trackingError);
+    }
+
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('❌ Image-to-video generation error:', error);

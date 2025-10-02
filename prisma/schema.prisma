@@ -246,6 +246,30 @@ model ProductionEntry {
   @@map("production_entries")
 }
 
+model InstagramPost {
+  id              String              @id @default(cuid())
+  clerkId         String
+  driveFileId     String              // Google Drive file ID
+  driveFileUrl    String              // URL to the file
+  fileName        String
+  caption         String              @default("")
+  scheduledDate   DateTime?
+  status          InstagramPostStatus @default(DRAFT)
+  postType        PostType            @default(POST)
+  folder          String              // Which folder it came from (All Generations, IG Posts, etc)
+  order           Int                 @default(0) // For maintaining drag-drop order
+  mimeType        String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([clerkId])
+  @@index([clerkId, order])
+  @@index([status])
+  @@index([scheduledDate])
+  @@index([driveFileId])
+  @@map("instagram_posts")
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -285,6 +309,7 @@ enum GenerationType {
 
 enum UserRole {
   USER
+  CONTENT_CREATOR
   MANAGER
   ADMIN
 }
@@ -294,4 +319,18 @@ enum ProductionStatus {
   IN_PROGRESS
   COMPLETED
   FAILED
+}
+
+enum InstagramPostStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+}
+
+enum PostType {
+  POST
+  REEL
+  STORY
 }

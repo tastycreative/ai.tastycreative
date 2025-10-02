@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   serverExternalPackages: ['prisma'],
   
+  // Enable compression for better performance
+  compress: true,
+  
   // Configure server actions with larger body size limit for file uploads
   experimental: {
     serverActions: {

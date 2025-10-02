@@ -40,6 +40,8 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/proxy(.*)', // ✅ Add proxy routes as public (needed for image loading)
   '/api/instagram(.*)', // ✅ Add Instagram API routes as public
   '/api/images/s3(.*)', // ✅ Add S3 image proxy as public for browser image loading
+  '/api/google-drive(.*)', // ✅ Add Google Drive API routes as public
+  '/api/auth/google(.*)', // ✅ Add Google OAuth routes as public (needed for authentication flow)
 ]);
 
 // ✅ Special handling for API routes that need custom auth

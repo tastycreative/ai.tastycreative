@@ -1134,6 +1134,16 @@ export default function ImageToVideoPage() {
         !!imageBase64Data
       );
 
+      if (!imageBase64Data) {
+        console.error("❌ No base64 image data found! User needs to re-upload the image.");
+        alert("Please re-upload your image. The image data was not found.");
+        setIsGenerating(false);
+        return;
+      }
+
+      console.log("📦 Base64 data length:", imageBase64Data.length);
+      console.log("📦 Base64 data preview:", imageBase64Data.substring(0, 50) + "...");
+
       // Use the serverless RunPod endpoint
       const response = await apiClient.post(
         "/api/generate/image-to-video-runpod",

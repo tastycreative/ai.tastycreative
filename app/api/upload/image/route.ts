@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile } from 'fs/promises';
 import path from 'path';
+import { trackApiUsage } from '@/lib/bandwidthMonitor';
+import { optimizeImageBuffer, formatBytes } from '@/lib/imageOptimization';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +36,29 @@ export async function POST(request: NextRequest) {
     
     // Convert File to Buffer
     const bytes = await imageFile.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    let buffer = Buffer.from(bytes);
+    
+    // Optimize image to reduce bandwidth and storage
+    const originalSize = buffer.length;
+    if (originalSize > 100 * 1024) { // Optimize images > 100KB
+      console.log('🗜️ Optimizing uploaded image. Original size:', formatBytes(originalSize));
+      
+      try {
+        const optimizedBuffer = await optimizeImageBuffer(buffer, {
+          quality: 85,
+          maxWidth: 2048,
+          maxHeight: 2048,
+          format: 'jpeg'
+        });
+        buffer = Buffer.from(optimizedBuffer);
+        
+        const optimizedSize = buffer.length;
+        const reductionPercent = Math.round(((originalSize - optimizedSize) / originalSize) * 100);
+        console.log('✅ Image optimized:', formatBytes(originalSize), '→', formatBytes(optimizedSize), `(${reductionPercent}% reduction)`);
+      } catch (optimizationError) {
+        console.warn('⚠️ Image optimization failed, using original:', optimizationError);
+      }
+    }
     
     // Create a unique filename
     const timestamp = Date.now();
@@ -66,8 +90,9 @@ export async function POST(request: NextRequest) {
         size: imageFile.size,
         type: imageFile.type,
         filePath: filePath, // Temp file path for server-side use
-        dataUrl: dataUrl,   // Data URL for immediate client use
-        base64: base64Data  // Base64 data for API calls
+        // Include base64 data for image-to-video generation
+        base64: base64Data, // Required for RunPod image-to-video handler
+        dataUrl: dataUrl    // Required for frontend preview
       };
       
       // Handle mask file if provided
@@ -82,14 +107,29 @@ export async function POST(request: NextRequest) {
         await writeFile(maskFilePath, maskBuffer);
         console.log('✅ Mask saved to:', maskFilePath);
         
-        // Convert mask to base64 as well
+        // Convert mask to base64 for server-side use only
         const maskBase64Data = maskBuffer.toString('base64');
         const maskDataUrl = `data:${maskFile.type};base64,${maskBase64Data}`;
         
         response.maskFilename = maskFilename;
         response.maskFilePath = maskFilePath;
-        response.maskDataUrl = maskDataUrl;
+        // Include mask base64 data for image-to-video generation
         response.maskBase64 = maskBase64Data;
+        response.maskDataUrl = maskDataUrl;
+      }
+      
+      // Track bandwidth usage for monitoring
+      try {
+        trackApiUsage('/api/upload/image', 
+          { 
+            imageSize: imageFile.size, 
+            maskSize: maskFile?.size || 0 
+          }, 
+          response,
+          { compressionRatio: 0 } // No compression applied, returning full base64 data needed for image-to-video
+        );
+      } catch (trackingError) {
+        console.warn('⚠️ Bandwidth tracking failed:', trackingError);
       }
       
       return NextResponse.json(response);

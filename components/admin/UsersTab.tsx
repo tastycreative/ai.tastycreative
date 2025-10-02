@@ -10,7 +10,7 @@ interface UserData {
   firstName: string | null;
   lastName: string | null;
   imageUrl: string | null;
-  role: 'USER' | 'MANAGER' | 'ADMIN';
+  role: 'USER' | 'CONTENT_CREATOR' | 'MANAGER' | 'ADMIN';
   createdAt: string;
   lastSignInAt: string | null;
   inDatabase?: boolean;
@@ -50,7 +50,7 @@ export default function UsersTab() {
     }
   };
 
-  const handleRoleChange = async (userId: string, newRole: 'USER' | 'MANAGER' | 'ADMIN') => {
+  const handleRoleChange = async (userId: string, newRole: 'USER' | 'CONTENT_CREATOR' | 'MANAGER' | 'ADMIN') => {
     // Prevent multiple simultaneous updates for the same user
     if (updatingRoles.has(userId)) return;
 
@@ -125,8 +125,9 @@ export default function UsersTab() {
         switch (role) {
           case 'ADMIN': return 0;
           case 'MANAGER': return 1;
-          case 'USER': return 2;
-          default: return 3;
+          case 'CONTENT_CREATOR': return 2;
+          case 'USER': return 3;
+          default: return 4;
         }
       };
 
@@ -316,7 +317,7 @@ export default function UsersTab() {
                   <td className="px-6 py-4">
                     <select
                       value={user.role}
-                      onChange={(e) => handleRoleChange(user.clerkId, e.target.value as 'USER' | 'MANAGER' | 'ADMIN')}
+                      onChange={(e) => handleRoleChange(user.clerkId, e.target.value as 'USER' | 'CONTENT_CREATOR' | 'MANAGER' | 'ADMIN')}
                       disabled={updatingRoles.has(user.clerkId)}
                       className={`px-3 py-1 rounded-full text-xs font-medium border-0 cursor-pointer transition-colors ${
                         updatingRoles.has(user.clerkId)
@@ -325,10 +326,13 @@ export default function UsersTab() {
                           ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
                           : user.role === 'MANAGER'
                           ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                          : user.role === 'CONTENT_CREATOR'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800/50'
                       } focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                     >
                       <option value="USER">User</option>
+                      <option value="CONTENT_CREATOR">Content Creator</option>
                       <option value="MANAGER">Manager</option>
                       <option value="ADMIN">Admin</option>
                     </select>

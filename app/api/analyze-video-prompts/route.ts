@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { optimizeBase64Image, formatBytes } from '@/lib/imageOptimization';
+import { trackApiUsage } from '@/lib/bandwidthMonitor';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -16,7 +18,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const response = await openai.chat.completions.create({
+    // Compress image for OpenAI to reduce bandwidth
+    let compressedImage = image;
+    try {
+      // Convert base64 to buffer to check size
+      const imageBuffer = Buffer.from(image, 'base64');
+      const originalSize = imageBuffer.length;
+      
+      // If image is large, compress it
+      if (originalSize > 512 * 1024) { // > 512KB
+        console.log('🗜️ Compressing image for OpenAI analysis. Original size:', formatBytes(originalSize));
+        
+        compressedImage = await optimizeBase64Image(image, {
+          quality: 60,
+          maxWidth: 1024,
+          maxHeight: 1024,
+          format: 'jpeg'
+        });
+        
+        const compressedSize = Buffer.from(compressedImage, 'base64').length;
+        const reductionPercent = Math.round(((originalSize - compressedSize) / originalSize) * 100);
+        
+        console.log('✅ Image compressed:', formatBytes(originalSize), '→', formatBytes(compressedSize), `(${reductionPercent}% reduction)`);
+      }
+    } catch (compressionError) {
+      console.warn('⚠️ Image compression failed, using original:', compressionError);
+      // Continue with original image if compression fails
+    }
+
+    const openaiResponse = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
@@ -54,8 +84,8 @@ Focus on:
             {
               type: "image_url",
               image_url: {
-                url: `data:image/jpeg;base64,${image}`,
-                detail: "high"
+                url: `data:image/jpeg;base64,${compressedImage}`,
+                detail: "low" // Use low detail to reduce processing and bandwidth
               }
             }
           ]
@@ -65,7 +95,7 @@ Focus on:
       temperature: 0.3,
     });
 
-    const content = response.choices[0].message.content;
+    const content = openaiResponse.choices[0].message.content;
     
     // Try to parse JSON response
     let analysisData;
@@ -88,6 +118,21 @@ Focus on:
         transitions: extractField(content, 'transitions') || 'smooth natural flow between movements'
       };
       analysisData = fallbackData;
+    }
+
+    // Track bandwidth usage
+    try {
+      const originalImageSize = Buffer.from(image, 'base64').length;
+      const compressedImageSize = Buffer.from(compressedImage, 'base64').length;
+      const compressionRatio = Math.round(((originalImageSize - compressedImageSize) / originalImageSize) * 100);
+      
+      trackApiUsage('/api/analyze-video-prompts', 
+        { imageSize: compressedImageSize }, 
+        analysisData,
+        { compressionRatio }
+      );
+    } catch (trackingError) {
+      console.warn('⚠️ Bandwidth tracking failed:', trackingError);
     }
 
     return NextResponse.json(analysisData);
