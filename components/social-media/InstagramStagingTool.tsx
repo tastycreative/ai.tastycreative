@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Grid3x3, Upload, Edit3, Trash2, Check, Clock, MessageSquare, RefreshCw, FolderOpen, Image as ImageIcon, Video, Send, X, CheckCircle, AlertCircle } from 'lucide-react';
-import { fetchInstagramPosts, createInstagramPost, updateInstagramPost, deleteInstagramPost, updatePostsOrder, type InstagramPost } from '@/lib/instagram-posts';
+import { Calendar, Grid3x3, Upload, Edit3, Trash2, Check, Clock, MessageSquare, RefreshCw, FolderOpen, Image as ImageIcon, Video, Send, X, CheckCircle, AlertCircle, Users } from 'lucide-react';
+import { fetchInstagramPosts, fetchInstagramPostUsers, createInstagramPost, updateInstagramPost, deleteInstagramPost, updatePostsOrder, type InstagramPost } from '@/lib/instagram-posts';
 import QueueTimelineView from './QueueTimelineView';
 import WorkflowGuide from './WorkflowGuide';
 import { useUser } from '@clerk/nextjs';
@@ -74,6 +74,7 @@ interface GoogleDriveFolder {
 const InstagramStagingTool = () => {
   const { user, isLoaded } = useUser();
   const userRole = isLoaded && user ? getUserRole(user) : 'USER';
+  const currentUserId = user?.id || '';
   
   const [view, setView] = useState<'grid' | 'queue'>('grid');
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -84,6 +85,19 @@ const InstagramStagingTool = () => {
   const [fileBlobUrls, setFileBlobUrls] = useState<Record<string, string>>({});
   const [draggedPost, setDraggedPost] = useState<Post | null>(null);
   const [dragOverPost, setDragOverPost] = useState<string | null>(null);
+  
+  // User selection for Admin/Manager
+  const [availableUsers, setAvailableUsers] = useState<Array<{
+    clerkId: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    imageUrl: string;
+    role: string;
+    postCount: number;
+  }>>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   
   // Google Drive folders with their IDs from env
   const [driveFolders, setDriveFolders] = useState<GoogleDriveFolder[]>([
@@ -129,7 +143,12 @@ const InstagramStagingTool = () => {
   useEffect(() => {
     const loadPosts = async () => {
       try {
-        const dbPosts = await fetchInstagramPosts();
+        // Admin/Manager can view specific user's posts, otherwise view own posts
+        const userIdToFetch = (userRole === 'ADMIN' || userRole === 'MANAGER') && selectedUserId 
+          ? selectedUserId 
+          : undefined;
+          
+        const dbPosts = await fetchInstagramPosts(userIdToFetch);
         // Convert database posts to component format
         const convertedPosts: Post[] = dbPosts.map(dbPost => ({
           id: dbPost.id,
@@ -152,7 +171,28 @@ const InstagramStagingTool = () => {
     };
 
     loadPosts();
-  }, []);
+  }, [selectedUserId, userRole]); // Reload when selected user changes
+
+  // Load available users for Admin/Manager
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (userRole !== 'ADMIN' && userRole !== 'MANAGER') return;
+      
+      try {
+        setLoadingUsers(true);
+        const users = await fetchInstagramPostUsers();
+        setAvailableUsers(users);
+      } catch (error) {
+        console.error('❌ Error loading users:', error);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+
+    if (isLoaded) {
+      loadUsers();
+    }
+  }, [userRole, isLoaded]);
 
   // Load blob URLs for posts from Google Drive
   useEffect(() => {
@@ -550,6 +590,52 @@ const InstagramStagingTool = () => {
             </button>
           </div>
         </div>
+        
+        {/* User Selector for Admin/Manager */}
+        {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+          <div className="mt-4 flex items-center gap-3">
+            <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <div className="flex-1 max-w-md">
+              <select
+                value={selectedUserId || ''}
+                onChange={(e) => setSelectedUserId(e.target.value || null)}
+                disabled={loadingUsers}
+                className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              >
+                <option value="">📋 All My Posts (Personal View)</option>
+                <optgroup label="👥 Content Creators">
+                  {availableUsers
+                    .filter(u => u.role === 'CONTENT_CREATOR')
+                    .map(u => (
+                      <option key={u.clerkId} value={u.clerkId}>
+                        {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email} 
+                        {' '}({u.postCount} {u.postCount === 1 ? 'post' : 'posts'})
+                      </option>
+                    ))}
+                </optgroup>
+                <optgroup label="👔 Managers & Admins">
+                  {availableUsers
+                    .filter(u => u.role === 'ADMIN' || u.role === 'MANAGER')
+                    .map(u => (
+                      <option key={u.clerkId} value={u.clerkId}>
+                        {u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email}
+                        {' '}[{u.role}] ({u.postCount} {u.postCount === 1 ? 'post' : 'posts'})
+                      </option>
+                    ))}
+                </optgroup>
+              </select>
+            </div>
+            {selectedUserId && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm">
+                <span className="font-medium">Viewing:</span>
+                <span>
+                  {availableUsers.find(u => u.clerkId === selectedUserId)?.firstName ||
+                   availableUsers.find(u => u.clerkId === selectedUserId)?.email}'s posts
+                </span>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* View Toggle */}
         <div className="flex items-center gap-4 mt-4">

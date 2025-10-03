@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-// GET - Fetch all Instagram posts for the current user
+// GET - Fetch Instagram posts (for current user OR specified user if Admin/Manager)
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -13,8 +13,32 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Check if requesting posts for a different user (Admin/Manager feature)
+    const { searchParams } = new URL(request.url);
+    const targetUserId = searchParams.get('userId');
+
+    let postsClerkId = userId; // Default to current user
+
+    // If requesting another user's posts, verify permissions
+    if (targetUserId && targetUserId !== userId) {
+      const currentUser = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { role: true }
+      });
+
+      // Only ADMIN and MANAGER can view other users' posts
+      if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'MANAGER')) {
+        return NextResponse.json(
+          { error: 'Unauthorized - insufficient permissions to view other users posts' },
+          { status: 403 }
+        );
+      }
+
+      postsClerkId = targetUserId;
+    }
+
     const posts = await prisma.instagramPost.findMany({
-      where: { clerkId: userId },
+      where: { clerkId: postsClerkId },
       orderBy: { order: 'asc' },
     });
 
@@ -22,6 +46,7 @@ export async function GET(request: NextRequest) {
       success: true,
       posts,
       total: posts.length,
+      viewingUserId: postsClerkId,
     });
   } catch (error) {
     console.error('❌ Error fetching Instagram posts:', error);

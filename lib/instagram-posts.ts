@@ -36,9 +36,13 @@ export interface UpdatePostData {
   postType?: 'POST' | 'REEL' | 'STORY';
 }
 
-// Fetch all posts
-export async function fetchInstagramPosts(): Promise<InstagramPost[]> {
-  const response = await fetch('/api/instagram-posts');
+// Fetch all posts (optionally for a specific user if Admin/Manager)
+export async function fetchInstagramPosts(userId?: string): Promise<InstagramPost[]> {
+  const url = userId 
+    ? `/api/instagram-posts?userId=${encodeURIComponent(userId)}`
+    : '/api/instagram-posts';
+    
+  const response = await fetch(url);
   const data = await response.json();
   
   if (!response.ok) {
@@ -46,6 +50,26 @@ export async function fetchInstagramPosts(): Promise<InstagramPost[]> {
   }
   
   return data.posts;
+}
+
+// Fetch all users who have Instagram posts (Admin/Manager only)
+export async function fetchInstagramPostUsers(): Promise<{
+  clerkId: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl: string;
+  role: string;
+  postCount: number;
+}[]> {
+  const response = await fetch('/api/instagram-posts/users');
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to fetch users');
+  }
+  
+  return data.users;
 }
 
 // Create a new post
