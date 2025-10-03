@@ -1,22 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-
-// Track last change timestamp per user
-const lastChanges = new Map<string, { timestamp: number; postIds: string[] }>();
-
-// Function to record a change (called from other API routes)
-export function recordPostChange(postId: string) {
-  const now = Date.now();
-  
-  // Update all users' change records
-  lastChanges.forEach((value, userId) => {
-    if (!value.postIds.includes(postId)) {
-      value.postIds.push(postId);
-    }
-    value.timestamp = now;
-  });
-}
+import { getUserChanges, clearUserPostIds } from '@/lib/post-change-tracker';
 
 // GET - Check for changes since last poll
 export async function GET(request: NextRequest) {
@@ -41,12 +26,8 @@ export async function GET(request: NextRequest) {
     const lastCheck = parseInt(searchParams.get('lastCheck') || '0');
     const viewingUserId = searchParams.get('userId');
 
-    // Initialize user's change record if needed
-    if (!lastChanges.has(userId)) {
-      lastChanges.set(userId, { timestamp: Date.now(), postIds: [] });
-    }
-
-    const userChanges = lastChanges.get(userId);
+    // Get user's change record
+    const userChanges = getUserChanges(userId);
     
     // Check if there have been changes since lastCheck
     const hasChanges = userChanges && userChanges.timestamp > lastCheck;
@@ -75,9 +56,7 @@ export async function GET(request: NextRequest) {
       });
 
       // Clear the postIds for this user
-      if (userChanges) {
-        userChanges.postIds = [];
-      }
+      clearUserPostIds(userId);
 
       return NextResponse.json({
         hasChanges: true,

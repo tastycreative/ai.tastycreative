@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { google } from 'googleapis';
-import { recordPostChange } from '../changes/route';
+import { recordPostChange } from '@/lib/post-change-tracker';
 import { notifyPostChange } from '../stream/route';
 
 // Helper to initialize Google Drive client
