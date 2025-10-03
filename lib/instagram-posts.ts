@@ -13,6 +13,9 @@ export interface InstagramPost {
   folder: string;
   order: number;
   mimeType: string | null;
+  rejectedAt: string | null;
+  rejectionReason: string | null;
+  rejectedBy: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -259,6 +259,9 @@ model InstagramPost {
   folder          String              // Which folder it came from (All Generations, IG Posts, etc)
   order           Int                 @default(0) // For maintaining drag-drop order
   mimeType        String?
+  rejectedAt      DateTime?           // When the post was rejected
+  rejectionReason String?             // Why the post was rejected
+  rejectedBy      String?             // Clerk ID of who rejected it
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 

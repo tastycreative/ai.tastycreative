@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { google } from 'googleapis';
+import { recordPostChange } from '../changes/route';
+import { notifyPostChange } from '../stream/route';
 
 // Helper to initialize Google Drive client
 function getDriveClient(accessToken: string) {
@@ -79,20 +81,37 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { caption, scheduledDate, status, postType } = body;
+    const { caption, scheduledDate, status, postType, rejectionReason } = body;
 
-    // Verify the post belongs to the user
-    const existingPost = await prisma.instagramPost.findFirst({
-      where: {
-        id,
-        clerkId: userId,
-      },
+    // Get current user's role from database
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true }
+    });
+
+    // Check if post exists
+    const existingPost = await prisma.instagramPost.findUnique({
+      where: { id },
     });
 
     if (!existingPost) {
       return NextResponse.json(
         { error: 'Post not found' },
         { status: 404 }
+      );
+    }
+
+    // Allow if:
+    // 1. User owns the post, OR
+    // 2. User is ADMIN or MANAGER (can edit any post)
+    const canEdit = 
+      existingPost.clerkId === userId || 
+      (currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER'));
+
+    if (!canEdit) {
+      return NextResponse.json(
+        { error: 'Unauthorized - insufficient permissions to edit this post' },
+        { status: 403 }
       );
     }
 
@@ -104,10 +123,32 @@ export async function PATCH(
         ...(scheduledDate !== undefined && { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }),
         ...(status !== undefined && { status }),
         ...(postType !== undefined && { postType }),
+        // Handle rejection
+        ...(status === 'DRAFT' && rejectionReason && {
+          rejectedAt: new Date(),
+          rejectionReason,
+          rejectedBy: userId,
+        }),
+        // Clear rejection info when post is resubmitted or approved
+        ...((status === 'REVIEW' || status === 'APPROVED') && {
+          rejectedAt: null,
+          rejectionReason: null,
+          rejectedBy: null,
+        }),
       },
     });
 
-    console.log(`✅ Updated Instagram post: ${id}`);
+    console.log(`✅ Updated Instagram post: ${id} by user ${userId} (role: ${currentUser?.role || 'USER'})`);
+
+    // Notify SSE clients (for local dev)
+    try {
+      notifyPostChange(id, 'update', updatedPost);
+    } catch (error) {
+      // SSE not available (production), ignore
+    }
+
+    // Record change for polling clients (for production)
+    recordPostChange(id);
 
     return NextResponse.json({
       success: true,
@@ -143,18 +184,35 @@ export async function DELETE(
     const deleteFromDrive = searchParams.get('deleteFromDrive') === 'true';
     const accessToken = searchParams.get('accessToken');
 
+    // Get current user's role from database
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { role: true }
+    });
+
     // Fetch the post
-    const post = await prisma.instagramPost.findFirst({
-      where: {
-        id,
-        clerkId: userId,
-      },
+    const post = await prisma.instagramPost.findUnique({
+      where: { id },
     });
 
     if (!post) {
       return NextResponse.json(
         { error: 'Post not found' },
         { status: 404 }
+      );
+    }
+
+    // Allow if:
+    // 1. User owns the post, OR
+    // 2. User is ADMIN or MANAGER (can delete any post)
+    const canDelete = 
+      post.clerkId === userId || 
+      (currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER'));
+
+    if (!canDelete) {
+      return NextResponse.json(
+        { error: 'Unauthorized - insufficient permissions to delete this post' },
+        { status: 403 }
       );
     }
 
@@ -177,7 +235,17 @@ export async function DELETE(
       where: { id },
     });
 
-    console.log(`✅ Deleted Instagram post: ${id}`);
+    // Notify SSE clients (for local dev)
+    try {
+      notifyPostChange(id, 'delete');
+    } catch (error) {
+      // SSE not available (production), ignore
+    }
+
+    // Record change for polling clients (for production)
+    recordPostChange(id);
+
+    console.log(`✅ Deleted Instagram post: ${id} by user ${userId} (role: ${currentUser?.role || 'USER'})`);
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { recordPostChange } from './changes/route';
+import { notifyPostChange } from './stream/route';
 
 // GET - Fetch Instagram posts (for current user OR specified user if Admin/Manager)
 export async function GET(request: NextRequest) {
@@ -116,6 +118,16 @@ export async function POST(request: NextRequest) {
     });
 
     console.log(`✅ Created Instagram post: ${post.id}`);
+
+    // Notify SSE clients (for local dev)
+    try {
+      notifyPostChange(post.id, 'create', post);
+    } catch (error) {
+      // SSE not available (production), ignore
+    }
+
+    // Record change for polling clients (for production)
+    recordPostChange(post.id);
 
     return NextResponse.json({
       success: true,

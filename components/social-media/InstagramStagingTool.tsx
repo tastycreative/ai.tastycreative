@@ -18,15 +18,6 @@ const canDeleteAny = (role: UserRole) => role === 'ADMIN' || role === 'MANAGER';
 const canSubmitForReview = (role: UserRole) => role === 'ADMIN' || role === 'MANAGER' || role === 'CONTENT_CREATOR';
 const canAccessTool = (role: UserRole) => role === 'ADMIN' || role === 'MANAGER' || role === 'CONTENT_CREATOR';
 
-// Get user role from Clerk metadata
-const getUserRole = (user: any): UserRole => {
-  const role = user?.publicMetadata?.role as string;
-  if (role === 'ADMIN' || role === 'MANAGER' || role === 'CONTENT_CREATOR') {
-    return role as UserRole;
-  }
-  return 'USER';
-};
-
 // Workflow status progression
 const getNextStatus = (currentStatus: InstagramPost['status']): InstagramPost['status'] | null => {
   switch (currentStatus) {
@@ -50,6 +41,9 @@ interface Post {
   order: number;
   fileName: string;
   mimeType?: string;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  rejectedBy?: string | null;
 }
 
 interface GoogleDriveFile {
@@ -73,8 +67,11 @@ interface GoogleDriveFolder {
 
 const InstagramStagingTool = () => {
   const { user, isLoaded } = useUser();
-  const userRole = isLoaded && user ? getUserRole(user) : 'USER';
   const currentUserId = user?.id || '';
+  
+  // Fetch user role from database instead of Clerk metadata
+  const [userRole, setUserRole] = useState<UserRole>('USER');
+  const [roleLoading, setRoleLoading] = useState(true);
   
   const [view, setView] = useState<'grid' | 'queue'>('grid');
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
@@ -98,6 +95,36 @@ const InstagramStagingTool = () => {
   }>>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  
+  // Rejection dialog state
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectingPost, setRejectingPost] = useState<Post | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  // Fetch user role from database on mount
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!isLoaded || !user) {
+        setRoleLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/user/role');
+        const data = await response.json();
+        
+        if (data.success) {
+          setUserRole(data.role as UserRole);
+        }
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+      } finally {
+        setRoleLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, [isLoaded, user]);
   
   // Google Drive folders with their IDs from env
   const [driveFolders, setDriveFolders] = useState<GoogleDriveFolder[]>([
@@ -193,6 +220,121 @@ const InstagramStagingTool = () => {
       loadUsers();
     }
   }, [userRole, isLoaded]);
+
+  // Real-time updates: SSE for local dev, polling for Vercel production
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+
+    // Detect if we're in production (Vercel) or local development
+    const isProduction = typeof window !== 'undefined' && 
+                        (window.location.hostname.includes('vercel.app') || 
+                         window.location.hostname !== 'localhost');
+
+    // Try SSE first (instant updates for local dev)
+    if (!isProduction) {
+      console.log('🔴 Using SSE (Server-Sent Events) for real-time updates');
+      const eventSource = new EventSource('/api/instagram-posts/stream');
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'connected') {
+            console.log('✅ Connected to real-time SSE stream');
+            return;
+          }
+
+          if (data.action === 'update' || data.action === 'create' || data.action === 'delete') {
+            // Refresh all posts to get latest state
+            const refreshPosts = async () => {
+              try {
+                const params = new URLSearchParams();
+                if (selectedUserId) {
+                  params.append('userId', selectedUserId);
+                }
+                
+                const response = await fetch(`/api/instagram-posts?${params}`);
+                const result = await response.json();
+                
+                if (result.success && result.posts) {
+                  setPosts(prev => {
+                    const blobUrls = new Map(prev.map(p => [p.id, p.image]));
+                    return result.posts.map((post: any) => ({
+                      ...post,
+                      image: blobUrls.get(post.id) || post.driveFileUrl,
+                      date: post.scheduledDate || post.createdAt,
+                    }));
+                  });
+                  console.log(`🔄 SSE: Real-time update (${data.action}) for post ${data.postId}`);
+                }
+              } catch (error) {
+                console.error('Error refreshing posts:', error);
+              }
+            };
+            
+            refreshPosts();
+          }
+        } catch (error) {
+          console.error('Error parsing SSE message:', error);
+        }
+      };
+
+      eventSource.onerror = () => {
+        console.error('❌ SSE connection error');
+        eventSource.close();
+      };
+
+      return () => {
+        console.log('🔴 Closing SSE connection');
+        eventSource.close();
+      };
+    } else {
+      // Fallback to polling for production (Vercel)
+      console.log('📊 Using polling for real-time updates (Production mode)');
+      let lastCheck = Date.now();
+      let isActive = true;
+
+      const checkForChanges = async () => {
+        if (!isActive) return;
+
+        try {
+          const params = new URLSearchParams({
+            lastCheck: lastCheck.toString(),
+          });
+
+          if (selectedUserId) {
+            params.append('userId', selectedUserId);
+          }
+
+          const response = await fetch(`/api/instagram-posts/changes?${params}`);
+          const data = await response.json();
+
+          if (data.hasChanges && data.posts) {
+            setPosts(prev => {
+              const blobUrls = new Map(prev.map(p => [p.id, p.image]));
+              return data.posts.map((post: any) => ({
+                ...post,
+                image: blobUrls.get(post.id) || post.driveFileUrl,
+                date: post.scheduledDate || post.createdAt,
+              }));
+            });
+            console.log(`🔄 Polling: Received ${data.posts.length} updated posts`);
+          }
+
+          lastCheck = data.timestamp;
+        } catch (error) {
+          console.error('Error checking for changes:', error);
+        }
+      };
+
+      const interval = setInterval(checkForChanges, 3000);
+
+      return () => {
+        isActive = false;
+        clearInterval(interval);
+      };
+    }
+  }, [isLoaded, user, selectedUserId]);
 
   // Load blob URLs for posts from Google Drive
   useEffect(() => {
@@ -416,7 +558,43 @@ const InstagramStagingTool = () => {
       alert('You don\'t have permission to reject posts.');
       return;
     }
-    await handleStatusChange(post, 'DRAFT');
+    // Show rejection dialog
+    setRejectingPost(post);
+    setRejectionReason('');
+    setShowRejectDialog(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectingPost || !rejectionReason.trim()) {
+      alert('Please provide a reason for rejection.');
+      return;
+    }
+
+    try {
+      await updateInstagramPost(rejectingPost.id, {
+        status: 'DRAFT',
+        rejectionReason: rejectionReason.trim(),
+      } as any);
+      
+      // Update local state
+      setPosts(posts.map(p => 
+        p.id === rejectingPost.id 
+          ? { ...p, status: 'DRAFT' as const, rejectionReason: rejectionReason.trim(), rejectedAt: new Date().toISOString() }
+          : p
+      ));
+      
+      if (selectedPost?.id === rejectingPost.id) {
+        setSelectedPost({ ...rejectingPost, status: 'DRAFT' as const, rejectionReason: rejectionReason.trim(), rejectedAt: new Date().toISOString() });
+      }
+
+      // Close dialog
+      setShowRejectDialog(false);
+      setRejectingPost(null);
+      setRejectionReason('');
+    } catch (error) {
+      console.error('❌ Error rejecting post:', error);
+      alert('Failed to reject post. Please try again.');
+    }
   };
 
   const handleSchedule = async (post: Post) => {
@@ -545,8 +723,20 @@ const InstagramStagingTool = () => {
     }
   };
 
+  // Show loading state while checking role
+  if (!isLoaded || roleLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading Instagram Staging Tool...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Check access permissions - render access denied if user doesn't have permission
-  if (isLoaded && !canAccessTool(userRole)) {
+  if (!canAccessTool(userRole)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex items-center justify-center p-4">
         <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 max-w-md text-center border border-white/20">
@@ -557,6 +747,9 @@ const InstagramStagingTool = () => {
           </p>
           <p className="text-sm text-gray-400">
             Only ADMIN, MANAGER, and CONTENT_CREATOR roles can access this tool.
+          </p>
+          <p className="text-xs text-gray-500 mt-4">
+            Current role: <span className="font-semibold">{userRole}</span>
           </p>
         </div>
       </div>
@@ -808,6 +1001,9 @@ const InstagramStagingTool = () => {
                     folder: p.originalFolder,
                     order: p.order,
                     mimeType: p.mimeType || null,
+                    rejectedAt: p.rejectedAt || null,
+                    rejectionReason: p.rejectionReason || null,
+                    rejectedBy: p.rejectedBy || null,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                     image: p.image,
@@ -871,6 +1067,27 @@ const InstagramStagingTool = () => {
                   alt="" 
                   className="w-full aspect-square object-cover rounded-lg mb-4"
                 />
+              )}
+              
+              {/* Rejection Notice */}
+              {selectedPost.rejectedAt && selectedPost.rejectionReason && (
+                <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-r-lg">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-red-900 dark:text-red-200 mb-1">
+                        Post Rejected
+                      </h4>
+                      <p className="text-sm text-red-800 dark:text-red-300 mb-2">
+                        {selectedPost.rejectionReason}
+                      </p>
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        Rejected {new Date(selectedPost.rejectedAt).toLocaleDateString()} at{' '}
+                        {new Date(selectedPost.rejectedAt).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
               
               <div className="space-y-4">
@@ -1314,6 +1531,61 @@ const InstagramStagingTool = () => {
           )}
         </div>
       </div>
+      
+      {/* Rejection Dialog */}
+      {showRejectDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <X className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Reject Post</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Provide a reason for rejection</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Rejection Reason <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="E.g., Image quality is too low, Caption needs improvement, Wrong format..."
+                    rows={4}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowRejectDialog(false);
+                      setRejectingPost(null);
+                      setRejectionReason('');
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmReject}
+                    disabled={!rejectionReason.trim()}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Reject Post
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
