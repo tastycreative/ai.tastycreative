@@ -56,16 +56,18 @@ export async function GET(request: NextRequest) {
       const isAdminOrManager = user.role === 'ADMIN' || user.role === 'MANAGER';
       
       // Build query based on role and selected user
-      let whereClause: any = {};
+      let whereClause: any;
       
       if (isAdminOrManager && viewingUserId) {
         // Admin/Manager viewing specific user's posts
-        whereClause.clerkId = viewingUserId;
+        whereClause = { clerkId: viewingUserId };
       } else if (!isAdminOrManager) {
         // Content Creator can only see their own posts
-        whereClause.clerkId = userId;
+        whereClause = { clerkId: userId };
+      } else {
+        // Admin/Manager with no viewingUserId, show all posts
+        whereClause = {};
       }
-      // If Admin/Manager with no viewingUserId, show all posts (empty where clause)
 
       const posts = await prisma.instagramPost.findMany({
         where: whereClause,
