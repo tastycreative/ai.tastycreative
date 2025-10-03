@@ -1,6 +1,9 @@
 // Track last change timestamp per user for polling system
 const lastChanges = new Map<string, { timestamp: number; postIds: string[] }>();
 
+// Store active SSE connections
+const sseClients = new Map<string, ReadableStreamDefaultController>();
+
 // Function to record a change (called from API routes)
 export function recordPostChange(postId: string) {
   const now = Date.now();
@@ -12,6 +15,29 @@ export function recordPostChange(postId: string) {
     }
     value.timestamp = now;
   });
+}
+
+// Notify all connected SSE clients about a change
+export function notifyPostChange(postId: string, action: 'update' | 'create' | 'delete', data?: any) {
+  const message = JSON.stringify({ postId, action, data, timestamp: Date.now() });
+  
+  sseClients.forEach((controller, clientId) => {
+    try {
+      controller.enqueue(`data: ${message}\n\n`);
+    } catch (error) {
+      // Client disconnected, remove it
+      sseClients.delete(clientId);
+    }
+  });
+}
+
+// SSE client management
+export function addSSEClient(clientId: string, controller: ReadableStreamDefaultController) {
+  sseClients.set(clientId, controller);
+}
+
+export function removeSSEClient(clientId: string) {
+  sseClients.delete(clientId);
 }
 
 // Get change info for a user

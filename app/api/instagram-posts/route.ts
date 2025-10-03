@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-import { recordPostChange } from '@/lib/post-change-tracker';
-import { notifyPostChange } from './stream/route';
+import { recordPostChange, notifyPostChange } from '@/lib/post-change-tracker';
 
 // GET - Fetch Instagram posts (for current user OR specified user if Admin/Manager)
 export async function GET(request: NextRequest) {

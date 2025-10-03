@@ -1,23 +1,7 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
-
-// Store active connections
-const clients = new Map<string, ReadableStreamDefaultController>();
-
-// Notify all connected clients about a change
-export function notifyPostChange(postId: string, action: 'update' | 'create' | 'delete', data?: any) {
-  const message = JSON.stringify({ postId, action, data, timestamp: Date.now() });
-  
-  clients.forEach((controller, clientId) => {
-    try {
-      controller.enqueue(`data: ${message}\n\n`);
-    } catch (error) {
-      // Client disconnected, remove it
-      clients.delete(clientId);
-    }
-  });
-}
+import { addSSEClient, removeSSEClient } from '@/lib/post-change-tracker';
 
 // GET - Server-Sent Events stream
 export async function GET(request: NextRequest) {
@@ -40,7 +24,7 @@ export async function GET(request: NextRequest) {
       start(controller) {
         // Store this client
         const clientId = `${userId}-${Date.now()}`;
-        clients.set(clientId, controller);
+        addSSEClient(clientId, controller);
 
         // Send initial connection message
         controller.enqueue(`data: ${JSON.stringify({ type: 'connected', role: user?.role })}\n\n`);
@@ -51,14 +35,14 @@ export async function GET(request: NextRequest) {
             controller.enqueue(`: heartbeat\n\n`);
           } catch {
             clearInterval(heartbeat);
-            clients.delete(clientId);
+            removeSSEClient(clientId);
           }
         }, 30000); // Every 30 seconds
 
         // Cleanup on disconnect
         request.signal.addEventListener('abort', () => {
           clearInterval(heartbeat);
-          clients.delete(clientId);
+          removeSSEClient(clientId);
           try {
             controller.close();
           } catch {}
