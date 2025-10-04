@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/instagram/cron",
+      "schedule": "* * * * *"
+    }
+  ],
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 60
