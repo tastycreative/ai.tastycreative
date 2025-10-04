@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/database';
+import { prisma, withRetry } from '@/lib/database';
 import { google } from 'googleapis';
 import { recordPostChange, notifyPostChange } from '@/lib/post-change-tracker';
 
@@ -83,15 +83,19 @@ export async function PATCH(
     const { caption, scheduledDate, status, postType, rejectionReason } = body;
 
     // Get current user's role from database
-    const currentUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { role: true }
-    });
+    const currentUser = await withRetry(() => 
+      prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { role: true }
+      })
+    );
 
     // Check if post exists
-    const existingPost = await prisma.instagramPost.findUnique({
-      where: { id },
-    });
+    const existingPost = await withRetry(() =>
+      prisma.instagramPost.findUnique({
+        where: { id },
+      })
+    );
 
     if (!existingPost) {
       return NextResponse.json(
@@ -115,27 +119,29 @@ export async function PATCH(
     }
 
     // Update the post
-    const updatedPost = await prisma.instagramPost.update({
-      where: { id },
-      data: {
-        ...(caption !== undefined && { caption }),
-        ...(scheduledDate !== undefined && { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }),
-        ...(status !== undefined && { status }),
-        ...(postType !== undefined && { postType }),
-        // Handle rejection
-        ...(status === 'DRAFT' && rejectionReason && {
-          rejectedAt: new Date(),
-          rejectionReason,
-          rejectedBy: userId,
-        }),
-        // Clear rejection info when post is resubmitted or approved
-        ...((status === 'REVIEW' || status === 'APPROVED') && {
-          rejectedAt: null,
-          rejectionReason: null,
-          rejectedBy: null,
-        }),
-      },
-    });
+    const updatedPost = await withRetry(() =>
+      prisma.instagramPost.update({
+        where: { id },
+        data: {
+          ...(caption !== undefined && { caption }),
+          ...(scheduledDate !== undefined && { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }),
+          ...(status !== undefined && { status }),
+          ...(postType !== undefined && { postType }),
+          // Handle rejection
+          ...(status === 'DRAFT' && rejectionReason && {
+            rejectedAt: new Date(),
+            rejectionReason,
+            rejectedBy: userId,
+          }),
+          // Clear rejection info when post is resubmitted or approved
+          ...((status === 'REVIEW' || status === 'APPROVED') && {
+            rejectedAt: null,
+            rejectionReason: null,
+            rejectedBy: null,
+          }),
+        },
+      })
+    );
 
     console.log(`✅ Updated Instagram post: ${id} by user ${userId} (role: ${currentUser?.role || 'USER'})`);
 

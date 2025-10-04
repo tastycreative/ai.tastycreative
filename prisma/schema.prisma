@@ -143,8 +143,8 @@ model GeneratedVideo {
   updatedAt         DateTime      @updatedAt
   networkVolumePath String?
   s3Key             String?
-  awsS3Key          String?       // AWS S3 key for direct storage
-  awsS3Url          String?       // AWS S3 public URL for direct access
+  awsS3Key          String?
+  awsS3Url          String?
   user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
@@ -249,21 +249,21 @@ model ProductionEntry {
 model InstagramPost {
   id              String              @id @default(cuid())
   clerkId         String
-  driveFileId     String              // Google Drive file ID
-  driveFileUrl    String              // URL to the file
+  driveFileId     String
+  driveFileUrl    String
   fileName        String
   caption         String              @default("")
   scheduledDate   DateTime?
   status          InstagramPostStatus @default(DRAFT)
   postType        PostType            @default(POST)
-  folder          String              // Which folder it came from (All Generations, IG Posts, etc)
-  order           Int                 @default(0) // For maintaining drag-drop order
+  folder          String
+  order           Int                 @default(0)
   mimeType        String?
-  rejectedAt      DateTime?           // When the post was rejected
-  rejectionReason String?             // Why the post was rejected
-  rejectedBy      String?             // Clerk ID of who rejected it
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
+  rejectedAt      DateTime?
+  rejectedBy      String?
+  rejectionReason String?
 
   @@index([clerkId])
   @@index([clerkId, order])
@@ -312,9 +312,9 @@ enum GenerationType {
 
 enum UserRole {
   USER
-  CONTENT_CREATOR
   MANAGER
   ADMIN
+  CONTENT_CREATOR
 }
 
 enum ProductionStatus {

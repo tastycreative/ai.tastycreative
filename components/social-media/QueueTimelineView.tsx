@@ -1,9 +1,18 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Calendar, Clock, Edit2, Trash2, Check, Video, Image as ImageIcon } from 'lucide-react';
-import { InstagramPost } from '@/lib/instagram-posts';
-import { format, isToday, isTomorrow, isThisWeek } from 'date-fns';
+import React from "react";
+import {
+  Calendar,
+  Clock,
+  Edit2,
+  Trash2,
+  Check,
+  Video,
+  Image as ImageIcon,
+  X,
+} from "lucide-react";
+import { InstagramPost } from "@/lib/instagram-posts";
+import { format, isToday, isTomorrow, isThisWeek } from "date-fns";
 
 // Extended type to include the image blob URL (added at runtime)
 interface InstagramPostWithImage extends InstagramPost {
@@ -14,7 +23,7 @@ interface QueueTimelineViewProps {
   posts: InstagramPostWithImage[];
   onEditPost: (post: InstagramPostWithImage) => void;
   onDeletePost: (postId: string) => void;
-  onStatusChange: (postId: string, newStatus: InstagramPost['status']) => void;
+  onStatusChange: (postId: string, newStatus: InstagramPost["status"]) => void;
 }
 
 export default function QueueTimelineView({
@@ -25,14 +34,17 @@ export default function QueueTimelineView({
 }: QueueTimelineViewProps) {
   // Group posts by scheduled date
   const groupedPosts = posts
-    .filter(post => post.scheduledDate)
+    .filter((post) => post.scheduledDate)
     .sort((a, b) => {
       if (!a.scheduledDate || !b.scheduledDate) return 0;
-      return new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime();
+      return (
+        new Date(a.scheduledDate).getTime() -
+        new Date(b.scheduledDate).getTime()
+      );
     })
     .reduce((groups, post) => {
       if (!post.scheduledDate) return groups;
-      const dateKey = format(new Date(post.scheduledDate), 'yyyy-MM-dd');
+      const dateKey = format(new Date(post.scheduledDate), "yyyy-MM-dd");
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
@@ -40,35 +52,48 @@ export default function QueueTimelineView({
       return groups;
     }, {} as Record<string, InstagramPostWithImage[]>);
 
-  const unscheduledPosts = posts.filter(post => !post.scheduledDate);
+  const unscheduledPosts = posts.filter((post) => !post.scheduledDate);
 
-  const getStatusColor = (status: InstagramPost['status']) => {
+  const getStatusColor = (
+    status: InstagramPost["status"],
+    isRejected?: boolean
+  ) => {
+    if (isRejected && status === "DRAFT") {
+      return "bg-red-500/90";
+    }
+
     switch (status) {
-      case 'DRAFT':
-        return 'bg-gray-500/90';
-      case 'REVIEW':
-        return 'bg-yellow-500/90';
-      case 'APPROVED':
-        return 'bg-green-500/90';
-      case 'SCHEDULED':
-        return 'bg-blue-500/90';
-      case 'PUBLISHED':
-        return 'bg-purple-500/90';
+      case "DRAFT":
+        return "bg-gray-500/90";
+      case "REVIEW":
+        return "bg-yellow-500/90";
+      case "APPROVED":
+        return "bg-green-500/90";
+      case "SCHEDULED":
+        return "bg-blue-500/90";
+      case "PUBLISHED":
+        return "bg-purple-500/90";
       default:
-        return 'bg-gray-500/90';
+        return "bg-gray-500/90";
     }
   };
 
-  const getStatusLabel = (status: InstagramPost['status']) => {
+  const getStatusLabel = (
+    status: InstagramPost["status"],
+    isRejected?: boolean
+  ) => {
+    if (isRejected && status === "DRAFT") {
+      return "Rejected";
+    }
     return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
   };
 
   const getDateLabel = (dateString: string) => {
     const date = new Date(dateString);
-    if (isToday(date)) return 'Today';
-    if (isTomorrow(date)) return 'Tomorrow';
-    if (isThisWeek(date)) return format(date, 'EEEE'); // Day name
-    return format(date, 'EEEE, MMMM d, yyyy');
+    if (isToday(date)) return "Today";
+    if (isTomorrow(date)) return "Tomorrow";
+    if (isThisWeek(date)) return format(date, "EEEE"); // Day name
+    return format(date, "EEEE, MMMM d, yyyy");
   };
 
   return (
@@ -85,7 +110,7 @@ export default function QueueTimelineView({
               </h3>
             </div>
             <span className="text-xs text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded-full">
-              {datePosts.length} {datePosts.length === 1 ? 'post' : 'posts'}
+              {datePosts.length} {datePosts.length === 1 ? "post" : "posts"}
             </span>
           </div>
 
@@ -101,7 +126,7 @@ export default function QueueTimelineView({
                   <div className="flex-shrink-0 relative">
                     {post.image ? (
                       <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-900/50">
-                        {post.postType === 'REEL' ? (
+                        {post.postType === "REEL" ? (
                           <>
                             <video
                               src={post.image}
@@ -121,11 +146,11 @@ export default function QueueTimelineView({
                         )}
                         {/* Post Type Badge */}
                         <div className="absolute top-1 right-1">
-                          {post.postType === 'REEL' ? (
+                          {post.postType === "REEL" ? (
                             <div className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">
                               REEL
                             </div>
-                          ) : post.postType === 'STORY' ? (
+                          ) : post.postType === "STORY" ? (
                             <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">
                               STORY
                             </div>
@@ -135,6 +160,15 @@ export default function QueueTimelineView({
                             </div>
                           )}
                         </div>
+
+                        {/* Rejection Badge */}
+                        {post.rejectedAt && (
+                          <div className="absolute top-1 left-1">
+                            <div className="bg-red-500 text-white p-0.5 rounded-full shadow-lg">
+                              <X className="w-3 h-3" />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="w-24 h-24 bg-gray-800 rounded-lg animate-pulse flex items-center justify-center">
@@ -150,21 +184,32 @@ export default function QueueTimelineView({
                       <div className="flex items-center gap-2 text-xs text-gray-400">
                         <Clock className="w-3.5 h-3.5" />
                         <span className="font-medium">
-                          {post.scheduledDate && format(new Date(post.scheduledDate), 'h:mm a')}
+                          {post.scheduledDate &&
+                            format(new Date(post.scheduledDate), "h:mm a")}
                         </span>
                       </div>
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold text-white shadow-sm ${getStatusColor(
-                          post.status
+                          post.status,
+                          !!post.rejectedAt
                         )}`}
+                        title={
+                          post.rejectedAt
+                            ? `Rejected: ${
+                                post.rejectionReason || "No reason provided"
+                              }`
+                            : undefined
+                        }
                       >
-                        {getStatusLabel(post.status)}
+                        {getStatusLabel(post.status, !!post.rejectedAt)}
                       </span>
                     </div>
 
                     {/* Caption Preview */}
                     <p className="text-sm text-gray-300 line-clamp-2 mb-2 flex-1">
-                      {post.caption || <span className="text-gray-600 italic">No caption</span>}
+                      {post.caption || (
+                        <span className="text-gray-600 italic">No caption</span>
+                      )}
                     </p>
 
                     {/* Bottom Row: Filename & Actions */}
@@ -172,7 +217,7 @@ export default function QueueTimelineView({
                       <p className="text-[10px] text-gray-600 truncate flex-1">
                         {post.fileName}
                       </p>
-                      
+
                       {/* Actions */}
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
@@ -184,9 +229,9 @@ export default function QueueTimelineView({
                           Edit
                         </button>
 
-                        {post.status === 'REVIEW' && (
+                        {post.status === "REVIEW" && (
                           <button
-                            onClick={() => onStatusChange(post.id, 'APPROVED')}
+                            onClick={() => onStatusChange(post.id, "APPROVED")}
                             className="flex items-center gap-1 px-2 py-1 bg-green-600/80 hover:bg-green-600 text-white text-[10px] font-medium rounded transition-colors"
                             title="Approve post"
                           >
@@ -227,7 +272,8 @@ export default function QueueTimelineView({
               </h3>
             </div>
             <span className="text-xs text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded-full">
-              {unscheduledPosts.length} {unscheduledPosts.length === 1 ? 'post' : 'posts'}
+              {unscheduledPosts.length}{" "}
+              {unscheduledPosts.length === 1 ? "post" : "posts"}
             </span>
           </div>
 
@@ -241,7 +287,7 @@ export default function QueueTimelineView({
                   <div className="flex-shrink-0 relative">
                     {post.image ? (
                       <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-900/50">
-                        {post.postType === 'REEL' ? (
+                        {post.postType === "REEL" ? (
                           <>
                             <video
                               src={post.image}
@@ -260,11 +306,11 @@ export default function QueueTimelineView({
                           />
                         )}
                         <div className="absolute top-1 right-1">
-                          {post.postType === 'REEL' ? (
+                          {post.postType === "REEL" ? (
                             <div className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">
                               REEL
                             </div>
-                          ) : post.postType === 'STORY' ? (
+                          ) : post.postType === "STORY" ? (
                             <div className="bg-gradient-to-br from-orange-500 to-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-lg">
                               STORY
                             </div>
@@ -274,6 +320,15 @@ export default function QueueTimelineView({
                             </div>
                           )}
                         </div>
+
+                        {/* Rejection Badge */}
+                        {post.rejectedAt && (
+                          <div className="absolute top-1 left-1">
+                            <div className="bg-red-500 text-white p-0.5 rounded-full shadow-lg">
+                              <X className="w-3 h-3" />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="w-24 h-24 bg-gray-800 rounded-lg animate-pulse flex items-center justify-center">
@@ -286,26 +341,42 @@ export default function QueueTimelineView({
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 text-xs text-gray-500">
                         <Clock className="w-3.5 h-3.5" />
-                        <span className="font-medium italic">Not scheduled</span>
+                        <span className="font-medium italic">
+                          Not scheduled
+                        </span>
                       </div>
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold text-white shadow-sm ${getStatusColor(
-                          post.status
+                          post.status,
+                          !!(post as any).rejectedAt
                         )}`}
+                        title={
+                          (post as any).rejectedAt
+                            ? `Rejected: ${
+                                (post as any).rejectionReason ||
+                                "No reason provided"
+                              }`
+                            : undefined
+                        }
                       >
-                        {getStatusLabel(post.status)}
+                        {getStatusLabel(
+                          post.status,
+                          !!(post as any).rejectedAt
+                        )}
                       </span>
                     </div>
 
                     <p className="text-sm text-gray-300 line-clamp-2 mb-2 flex-1">
-                      {post.caption || <span className="text-gray-600 italic">No caption</span>}
+                      {post.caption || (
+                        <span className="text-gray-600 italic">No caption</span>
+                      )}
                     </p>
 
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-[10px] text-gray-600 truncate flex-1">
                         {post.fileName}
                       </p>
-                      
+
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => onEditPost(post)}
@@ -338,17 +409,21 @@ export default function QueueTimelineView({
       )}
 
       {/* Empty State */}
-      {Object.keys(groupedPosts).length === 0 && unscheduledPosts.length === 0 && (
-        <div className="text-center py-16">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 mb-4">
-            <Calendar className="w-10 h-10 text-purple-400" />
+      {Object.keys(groupedPosts).length === 0 &&
+        unscheduledPosts.length === 0 && (
+          <div className="text-center py-16">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 mb-4">
+              <Calendar className="w-10 h-10 text-purple-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              No posts in queue
+            </h3>
+            <p className="text-sm text-gray-500 max-w-sm mx-auto">
+              Add images to your feed and schedule them to see your content
+              calendar
+            </p>
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">No posts in queue</h3>
-          <p className="text-sm text-gray-500 max-w-sm mx-auto">
-            Add images to your feed and schedule them to see your content calendar
-          </p>
-        </div>
-      )}
+        )}
     </div>
   );
 }
