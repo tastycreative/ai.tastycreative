@@ -6,7 +6,15 @@
 import { Resend } from 'resend';
 import { prisma } from './database';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialization to avoid build-time errors
+let resend: Resend | null = null;
+
+function getResendClient() {
+  if (!resend && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+}
 
 interface PostReminderData {
   postId: string;
@@ -28,9 +36,15 @@ export async function sendEmailReminder(data: PostReminderData) {
   }
 
   try {
+    const resendClient = getResendClient();
+    if (!resendClient) {
+      console.warn('⚠️ Resend client could not be initialized');
+      return { success: false, error: 'Email service not initialized' };
+    }
+
     const emailHtml = generateReminderEmail(data);
     
-    const result = await resend.emails.send({
+    const result = await resendClient.emails.send({
       from: 'TastyCreative <onboarding@resend.dev>',
       to: data.userEmail,
       subject: `📸 Time to post on Instagram!`,
