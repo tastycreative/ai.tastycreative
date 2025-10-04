@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma, withRetry } from '@/lib/database';
 import { google } from 'googleapis';
 import { recordPostChange, notifyPostChange } from '@/lib/post-change-tracker';
+import { createInAppNotification } from '@/lib/notification-service';
 
 // Helper to initialize Google Drive client
 function getDriveClient(accessToken: string) {
@@ -80,7 +81,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { caption, scheduledDate, status, postType, rejectionReason } = body;
+    const { caption, scheduledDate, status, postType, rejectionReason, instagramUrl, publishedAt } = body;
 
     // Get current user's role from database
     const currentUser = await withRetry(() => 
@@ -127,6 +128,9 @@ export async function PATCH(
           ...(scheduledDate !== undefined && { scheduledDate: scheduledDate ? new Date(scheduledDate) : null }),
           ...(status !== undefined && { status }),
           ...(postType !== undefined && { postType }),
+          // Handle Instagram URL and published date
+          ...(instagramUrl !== undefined && { instagramUrl }),
+          ...(publishedAt !== undefined && { publishedAt: publishedAt ? new Date(publishedAt) : null }),
           // Handle rejection
           ...(status === 'DRAFT' && rejectionReason && {
             rejectedAt: new Date(),
@@ -144,6 +148,62 @@ export async function PATCH(
     );
 
     console.log(`✅ Updated Instagram post: ${id} by user ${userId} (role: ${currentUser?.role || 'USER'})`);
+
+    // Send notifications for status changes by admin/manager
+    const isAdminOrManager = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER');
+    const statusChanged = existingPost.status !== status;
+    
+    if (isAdminOrManager && statusChanged && status) {
+      try {
+        const postOwner = await prisma.user.findUnique({
+          where: { clerkId: existingPost.clerkId },
+          select: { id: true, role: true }
+        });
+
+        if (postOwner) {
+          let notificationType: 'POST_REMINDER' | 'POST_APPROVED' | 'POST_REJECTED' | null = null;
+          let notificationTitle = '';
+          let notificationMessage = '';
+
+          if (status === 'SCHEDULED') {
+            notificationType = 'POST_REMINDER';
+            notificationTitle = '📅 Post Scheduled!';
+            notificationMessage = `Your post "${updatedPost.fileName}" has been scheduled ${updatedPost.scheduledDate ? 'for ' + new Date(updatedPost.scheduledDate).toLocaleString() : ''}`;
+          } else if (status === 'APPROVED') {
+            notificationType = 'POST_APPROVED';
+            notificationTitle = '✅ Post Approved!';
+            notificationMessage = `Your post "${updatedPost.fileName}" has been approved and is ready to be scheduled`;
+          } else if (status === 'DRAFT' && rejectionReason) {
+            notificationType = 'POST_REJECTED';
+            notificationTitle = '❌ Post Needs Revision';
+            notificationMessage = `Your post "${updatedPost.fileName}" needs changes: ${rejectionReason}`;
+          }
+
+          if (notificationType) {
+            await prisma.notification.create({
+              data: {
+                userId: postOwner.id,
+                type: notificationType,
+                title: notificationTitle,
+                message: notificationMessage,
+                link: `/dashboard/social-media?post=${updatedPost.id}`,
+                metadata: { 
+                  postId: updatedPost.id,
+                  fileName: updatedPost.fileName,
+                  imageUrl: updatedPost.driveFileUrl,
+                  status: status,
+                },
+                read: false,
+              }
+            });
+            console.log(`📬 ${notificationType} notification sent to user for post ${id}`);
+          }
+        }
+      } catch (notifError) {
+        console.error('Failed to send notification:', notifError);
+        // Don't fail the request if notification fails
+      }
+    }
 
     // Notify SSE clients (for local dev)
     try {

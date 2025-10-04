@@ -34,6 +34,7 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
 import ManagerTaskNotification from "@/components/manager/ManagerTaskNotification";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface NavItem {
   name: string;
@@ -472,6 +473,9 @@ export default function DashboardLayout({
               <div className="flex items-center space-x-2 sm:space-x-4">
                 {/* Manager Task Notifications */}
                 <ManagerTaskNotification />
+                
+                {/* Notification Bell */}
+                <NotificationBell />
                 
                 {/* Theme Toggle */}
                 <ThemeToggle />

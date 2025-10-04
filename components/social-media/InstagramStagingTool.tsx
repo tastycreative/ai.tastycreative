@@ -32,6 +32,7 @@ import {
 } from "@/lib/instagram-posts";
 import QueueTimelineView from "./QueueTimelineView";
 import WorkflowGuide from "./WorkflowGuide";
+import { ExportButton } from "./ExportButton";
 import { useUser } from "@clerk/nextjs";
 
 // Role types
@@ -40,7 +41,7 @@ type UserRole = "ADMIN" | "MANAGER" | "CONTENT_CREATOR" | "USER";
 // Permission helper functions
 const canApprove = (role: UserRole) => role === "ADMIN" || role === "MANAGER";
 const canSchedule = (role: UserRole) => role === "ADMIN" || role === "MANAGER";
-const canPublish = (role: UserRole) => role === "ADMIN" || role === "MANAGER";
+const canPublish = (role: UserRole) => role === "ADMIN" || role === "MANAGER" || role === "CONTENT_CREATOR";
 const canDeleteAny = (role: UserRole) => role === "ADMIN" || role === "MANAGER";
 const canSubmitForReview = (role: UserRole) =>
   role === "ADMIN" || role === "MANAGER" || role === "CONTENT_CREATOR";
@@ -59,7 +60,9 @@ const getNextStatus = (
     case "APPROVED":
       return "SCHEDULED";
     case "SCHEDULED":
-      return "PUBLISHED";
+      return "PENDING"; // Reminder sent
+    case "PENDING":
+      return "PUBLISHED"; // User manually posted
     default:
       return null;
   }
@@ -69,7 +72,7 @@ interface Post {
   id: string;
   image: string;
   caption: string;
-  status: "DRAFT" | "REVIEW" | "APPROVED" | "SCHEDULED" | "PUBLISHED";
+  status: "DRAFT" | "REVIEW" | "APPROVED" | "SCHEDULED" | "PENDING" | "PUBLISHED";
   type: "POST" | "REEL" | "STORY";
   date: string;
   driveFileId: string;
@@ -80,6 +83,8 @@ interface Post {
   rejectedAt?: string | null;
   rejectionReason?: string | null;
   rejectedBy?: string | null;
+  instagramUrl?: string | null;
+  publishedAt?: string | null;
 }
 
 interface GoogleDriveFile {
@@ -101,6 +106,17 @@ interface GoogleDriveFolder {
   error?: string;
 }
 
+// Helper function to convert date to local timezone format (YYYY-MM-DDTHH:mm)
+const toLocalDateTimeString = (date: Date | string): string => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const InstagramStagingTool = () => {
   const { user, isLoaded } = useUser();
   const currentUserId = user?.id || "";
@@ -111,6 +127,7 @@ const InstagramStagingTool = () => {
 
   const [view, setView] = useState<"grid" | "queue">("grid");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(
     null
@@ -141,6 +158,11 @@ const InstagramStagingTool = () => {
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectingPost, setRejectingPost] = useState<Post | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+
+  // Publish dialog state
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [publishingPost, setPublishingPost] = useState<Post | null>(null);
+  const [instagramUrl, setInstagramUrl] = useState("");
 
   // Fetch user role from database on mount
   useEffect(() => {
@@ -246,8 +268,8 @@ const InstagramStagingTool = () => {
           status: dbPost.status,
           type: dbPost.postType,
           date: dbPost.scheduledDate
-            ? new Date(dbPost.scheduledDate).toISOString().split("T")[0]
-            : new Date().toISOString().split("T")[0],
+            ? toLocalDateTimeString(dbPost.scheduledDate)
+            : "", // Keep empty if no scheduled date (don't default to now)
           driveFileId: dbPost.driveFileId,
           originalFolder: dbPost.folder,
           order: dbPost.order,
@@ -256,6 +278,8 @@ const InstagramStagingTool = () => {
           rejectedAt: dbPost.rejectedAt,
           rejectionReason: dbPost.rejectionReason,
           rejectedBy: dbPost.rejectedBy,
+          instagramUrl: dbPost.instagramUrl || undefined,
+          publishedAt: dbPost.publishedAt || undefined,
         }));
         setPosts(convertedPosts);
         console.log(`✅ Loaded ${convertedPosts.length} posts from database`);
@@ -332,9 +356,22 @@ const InstagramStagingTool = () => {
                   setPosts((prev) => {
                     const blobUrls = new Map(prev.map((p) => [p.id, p.image]));
                     return result.posts.map((post: any) => ({
-                      ...post,
+                      id: post.id,
                       image: blobUrls.get(post.id) || post.driveFileUrl,
+                      caption: post.caption,
+                      status: post.status,
+                      type: post.postType,
                       date: post.scheduledDate || post.createdAt,
+                      driveFileId: post.driveFileId,
+                      originalFolder: post.folder,
+                      order: post.order,
+                      fileName: post.fileName,
+                      mimeType: post.mimeType,
+                      rejectedAt: post.rejectedAt,
+                      rejectionReason: post.rejectionReason,
+                      rejectedBy: post.rejectedBy,
+                      instagramUrl: post.instagramUrl,
+                      publishedAt: post.publishedAt,
                     }));
                   });
                   console.log(
@@ -389,9 +426,22 @@ const InstagramStagingTool = () => {
             setPosts((prev) => {
               const blobUrls = new Map(prev.map((p) => [p.id, p.image]));
               return data.posts.map((post: any) => ({
-                ...post,
+                id: post.id,
                 image: blobUrls.get(post.id) || post.driveFileUrl,
+                caption: post.caption,
+                status: post.status,
+                type: post.postType,
                 date: post.scheduledDate || post.createdAt,
+                driveFileId: post.driveFileId,
+                originalFolder: post.folder,
+                order: post.order,
+                fileName: post.fileName,
+                mimeType: post.mimeType,
+                rejectedAt: post.rejectedAt,
+                rejectionReason: post.rejectionReason,
+                rejectedBy: post.rejectedBy,
+                instagramUrl: post.instagramUrl,
+                publishedAt: post.publishedAt,
               }));
             });
             console.log(
@@ -648,9 +698,19 @@ const InstagramStagingTool = () => {
 
     // Save to database
     try {
+      // Convert local datetime to ISO string with timezone
+      // The datetime-local input gives us "2025-10-04T16:38" which is local time
+      // We need to convert this to a Date object that represents that exact local time
+      let scheduledDateISO = updatedPost.date;
+      if (updatedPost.date) {
+        const localDate = new Date(updatedPost.date);
+        // Convert to ISO string which will be in UTC
+        scheduledDateISO = localDate.toISOString();
+      }
+
       await updateInstagramPost(updatedPost.id, {
         caption: updatedPost.caption,
-        scheduledDate: updatedPost.date,
+        scheduledDate: scheduledDateISO,
         status: updatedPost.status,
         postType: updatedPost.type,
       });
@@ -743,6 +803,72 @@ const InstagramStagingTool = () => {
     }
   };
 
+  const confirmPublish = async () => {
+    if (!publishingPost) return;
+
+    try {
+      const now = new Date().toISOString();
+      const hasUrl = instagramUrl.trim().length > 0;
+      
+      await updateInstagramPost(publishingPost.id, {
+        status: "PUBLISHED",
+        instagramUrl: instagramUrl.trim() || null,
+        publishedAt: now,
+      } as any);
+
+      // Notify admins/managers when content creator publishes
+      if (userRole === "CONTENT_CREATOR") {
+        try {
+          await fetch('/api/notifications/notify-admins', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'POST_PUBLISHED',
+              postId: publishingPost.id,
+              fileName: publishingPost.fileName,
+              instagramUrl: hasUrl ? instagramUrl.trim() : null,
+              publishedAt: now,
+            }),
+          });
+        } catch (notifError) {
+          console.error('Failed to notify admins:', notifError);
+          // Don't fail the publish operation if notification fails
+        }
+      }
+
+      // Update local state
+      setPosts(
+        posts.map((p) =>
+          p.id === publishingPost.id
+            ? {
+                ...p,
+                status: "PUBLISHED" as const,
+                instagramUrl: instagramUrl.trim() || null,
+                publishedAt: now,
+              }
+            : p
+        )
+      );
+
+      if (selectedPost?.id === publishingPost.id) {
+        setSelectedPost({
+          ...publishingPost,
+          status: "PUBLISHED" as const,
+          instagramUrl: instagramUrl.trim() || null,
+          publishedAt: now,
+        });
+      }
+
+      // Close dialog
+      setShowPublishDialog(false);
+      setPublishingPost(null);
+      setInstagramUrl("");
+    } catch (error) {
+      console.error("❌ Error marking post as published:", error);
+      alert("Failed to mark post as published. Please try again.");
+    }
+  };
+
   const handleSchedule = async (post: Post) => {
     if (!canSchedule(userRole)) {
       alert("You don't have permission to schedule posts.");
@@ -760,13 +886,10 @@ const InstagramStagingTool = () => {
       alert("You don't have permission to mark posts as published.");
       return;
     }
-    if (
-      confirm(
-        `Mark "${post.fileName}" as published?\n\nThis indicates you've already posted it to Instagram.`
-      )
-    ) {
-      await handleStatusChange(post, "PUBLISHED");
-    }
+    // Show dialog to enter Instagram URL
+    setPublishingPost(post);
+    setInstagramUrl(post.instagramUrl || "");
+    setShowPublishDialog(true);
   };
 
   const handleUnpublish = async (post: Post) => {
@@ -972,10 +1095,37 @@ const InstagramStagingTool = () => {
               <Upload size={18} />
               Import from Drive
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
-              <Calendar size={18} />
-              Export Schedule
-            </button>
+            
+            {/* Export Button with Selection */}
+            <div className="flex items-center gap-3">
+              {posts.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (selectedPostIds.length === posts.length) {
+                      setSelectedPostIds([]);
+                    } else {
+                      setSelectedPostIds(posts.map(p => p.id));
+                    }
+                  }}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                >
+                  {selectedPostIds.length === posts.length ? '☐ Deselect All' : '☑ Select All'}
+                </button>
+              )}
+              
+              {selectedPostIds.length > 0 && (
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {selectedPostIds.length} selected
+                </span>
+              )}
+              
+              <ExportButton 
+                selectedPostIds={selectedPostIds}
+                onExportComplete={() => {
+                  setSelectedPostIds([]);
+                }}
+              />
+            </div>
           </div>
         </div>
 
@@ -1103,8 +1253,31 @@ const InstagramStagingTool = () => {
                           dragOverPost === post.id
                             ? "ring-4 ring-blue-500 ring-opacity-50 scale-105"
                             : ""
+                        } ${
+                          selectedPostIds.includes(post.id)
+                            ? "ring-2 ring-green-500"
+                            : ""
                         }`}
                       >
+                        {/* Selection Checkbox */}
+                        <div 
+                          className="absolute top-2 left-2 z-10"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPostIds.includes(post.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPostIds([...selectedPostIds, post.id]);
+                              } else {
+                                setSelectedPostIds(selectedPostIds.filter(id => id !== post.id));
+                              }
+                            }}
+                            className="w-5 h-5 rounded cursor-pointer accent-green-600 shadow-lg"
+                          />
+                        </div>
+
                         {!post.image ? (
                           <div className="w-full h-full flex items-center justify-center">
                             <RefreshCw className="w-8 h-8 text-gray-400 animate-spin" />
@@ -1131,11 +1304,21 @@ const InstagramStagingTool = () => {
                             className="w-full h-full object-cover transition-transform group-hover:scale-105"
                           />
                         )}
+                        {/* REEL Indicator - Top Right Corner */}
                         {post.type === "REEL" && (
-                          <div className="absolute top-2 right-2 bg-black/70 rounded-full p-1">
+                          <div className="absolute top-2 right-2 bg-black/70 rounded-full p-1 z-10">
                             <div className="w-4 h-4 border-2 border-white border-l-transparent rounded-full" />
                           </div>
                         )}
+                        {/* Status Badge - Top Right, below REEL indicator if present */}
+                        <div
+                          className={`absolute ${post.type === "REEL" ? "top-10" : "top-2"} right-2 ${getStatusColor(
+                            post.status,
+                            !!post.rejectedAt
+                          )} text-white text-xs px-2 py-1 rounded-full z-10`}
+                        >
+                          {getStatusText(post.status, !!post.rejectedAt)}
+                        </div>
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
                             <button
@@ -1199,11 +1382,12 @@ const InstagramStagingTool = () => {
                             </button>
                           </div>
                         </div>
+                        {/* Status Badge - Top Right */}
                         <div
-                          className={`absolute top-2 left-2 ${getStatusColor(
+                          className={`absolute top-2 right-2 ${getStatusColor(
                             post.status,
                             !!post.rejectedAt
-                          )} text-white text-xs px-2 py-1 rounded-full`}
+                          )} text-white text-xs px-2 py-1 rounded-full z-10`}
                         >
                           {getStatusText(post.status, !!post.rejectedAt)}
                         </div>
@@ -1236,6 +1420,8 @@ const InstagramStagingTool = () => {
                     rejectedAt: p.rejectedAt || null,
                     rejectionReason: p.rejectionReason || null,
                     rejectedBy: p.rejectedBy || null,
+                    instagramUrl: p.instagramUrl || null,
+                    publishedAt: p.publishedAt || null,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                     image: p.image,
@@ -1334,7 +1520,7 @@ const InstagramStagingTool = () => {
                   <textarea
                     className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows={6}
-                    placeholder="Write your caption here..."
+                    placeholder="Write your caption here... Use #hashtags and @mentions"
                     value={selectedPost.caption}
                     onChange={(e) => {
                       const updatedPost = {
@@ -1344,28 +1530,219 @@ const InstagramStagingTool = () => {
                       updatePost(updatedPost);
                     }}
                   />
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {selectedPost.caption.length} characters
+                  <div className="flex items-center justify-between text-xs mt-1">
+                    <div className="text-gray-500 dark:text-gray-400">
+                      💡 Tip: Use <span className="text-blue-500">#hashtags</span> and <span className="text-purple-500">@mentions</span>
+                    </div>
+                    <div className={`font-medium ${
+                      selectedPost.caption.length > 2200 ? 'text-red-500' :
+                      selectedPost.caption.length > 2000 ? 'text-yellow-500' :
+                      'text-gray-500 dark:text-gray-400'
+                    }`}>
+                      {selectedPost.caption.length} / 2,200 characters
+                      {selectedPost.caption.length > 2200 && ' ⚠️ Too long!'}
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Scheduled Date
+                {/* Scheduled Date & Time with Better UX */}
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Schedule Post
                   </label>
-                  <input
-                    type="date"
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    value={selectedPost.date}
-                    onChange={(e) => {
-                      const updatedPost = {
-                        ...selectedPost,
-                        date: e.target.value,
-                      };
-                      updatePost(updatedPost);
-                    }}
-                  />
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Date Picker */}
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        Date
+                      </label>
+                      <input
+                        type="date"
+                        className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        value={selectedPost.date.split('T')[0]}
+                        onChange={(e) => {
+                          const currentTime = selectedPost.date.split('T')[1] || '12:00';
+                          const updatedPost = {
+                            ...selectedPost,
+                            date: `${e.target.value}T${currentTime}`,
+                          };
+                          updatePost(updatedPost);
+                        }}
+                      />
+                    </div>
+
+                    {/* Time Picker */}
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        Time
+                      </label>
+                      <input
+                        type="time"
+                        className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        value={selectedPost.date.split('T')[1] || '12:00'}
+                        onChange={(e) => {
+                          const currentDate = selectedPost.date.split('T')[0];
+                          const updatedPost = {
+                            ...selectedPost,
+                            date: `${currentDate}T${e.target.value}`,
+                          };
+                          updatePost(updatedPost);
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Time Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        const now = new Date();
+                        now.setHours(now.getHours() + 1);
+                        const updatedPost = {
+                          ...selectedPost,
+                          date: toLocalDateTimeString(now),
+                        };
+                        updatePost(updatedPost);
+                      }}
+                      className="px-3 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                    >
+                      +1 Hour
+                    </button>
+                    <button
+                      onClick={() => {
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        tomorrow.setHours(12, 0, 0, 0);
+                        const updatedPost = {
+                          ...selectedPost,
+                          date: toLocalDateTimeString(tomorrow),
+                        };
+                        updatePost(updatedPost);
+                      }}
+                      className="px-3 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                    >
+                      Tomorrow 12pm
+                    </button>
+                    <button
+                      onClick={() => {
+                        const nextWeek = new Date();
+                        nextWeek.setDate(nextWeek.getDate() + 7);
+                        nextWeek.setHours(12, 0, 0, 0);
+                        const updatedPost = {
+                          ...selectedPost,
+                          date: toLocalDateTimeString(nextWeek),
+                        };
+                        updatePost(updatedPost);
+                      }}
+                      className="px-3 py-1 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                    >
+                      Next Week
+                    </button>
+                  </div>
+
+                  {/* Formatted Display */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {selectedPost.status === 'SCHEDULED' ? 'Will publish on' : 'Schedule for'}:
+                      </span>
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">
+                        {new Date(selectedPost.date).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                        {' at '}
+                        {new Date(selectedPost.date).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </span>
+                    </div>
+                    {selectedPost.status === 'SCHEDULED' && new Date(selectedPost.date) > new Date() && (
+                      <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                        {(() => {
+                          const diff = new Date(selectedPost.date).getTime() - new Date().getTime();
+                          const hours = Math.floor(diff / (1000 * 60 * 60));
+                          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                          
+                          if (hours < 24) {
+                            return `⏱️ Publishing in ${hours}h ${minutes}m`;
+                          } else {
+                            const days = Math.floor(hours / 24);
+                            return `⏱️ Publishing in ${days} day${days > 1 ? 's' : ''}`;
+                          }
+                        })()}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Instagram Post Link (for Published posts) */}
+                {selectedPost.status === "PUBLISHED" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Instagram Post
+                    </label>
+                    {selectedPost.instagramUrl ? (
+                      <a
+                        href={selectedPost.instagramUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-800 hover:shadow-md transition-all group"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            View on Instagram
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {selectedPost.instagramUrl}
+                          </div>
+                        </div>
+                        <svg className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    ) : (
+                      <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          📎 No Instagram URL added yet
+                        </p>
+                        <button
+                          onClick={() => {
+                            setPublishingPost(selectedPost);
+                            setInstagramUrl("");
+                            setShowPublishDialog(true);
+                          }}
+                          className="mt-2 text-xs text-purple-600 dark:text-purple-400 hover:underline"
+                        >
+                          + Add Instagram URL
+                        </button>
+                      </div>
+                    )}
+                    {selectedPost.publishedAt && (
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        📅 Published on {new Date(selectedPost.publishedAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1987,6 +2364,67 @@ const InstagramStagingTool = () => {
                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Reject Post
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Publish Dialog */}
+      {showPublishDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-pink-600 dark:text-pink-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Mark as Published
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {publishingPost?.fileName}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Instagram Post URL <span className="text-gray-400 text-xs">(Optional)</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={instagramUrl}
+                    onChange={(e) => setInstagramUrl(e.target.value)}
+                    placeholder="https://www.instagram.com/p/..."
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                    autoFocus
+                  />
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    💡 Paste the link to your published Instagram post to track it later
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowPublishDialog(false);
+                      setPublishingPost(null);
+                      setInstagramUrl("");
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmPublish}
+                    className="flex-1 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors font-medium"
+                  >
+                    Mark as Published ✓
                   </button>
                 </div>
               </div>

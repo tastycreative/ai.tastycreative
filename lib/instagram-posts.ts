@@ -8,7 +8,7 @@ export interface InstagramPost {
   fileName: string;
   caption: string;
   scheduledDate: string | null;
-  status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SCHEDULED' | 'PUBLISHED';
+  status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SCHEDULED' | 'PENDING' | 'PUBLISHED';
   postType: 'POST' | 'REEL' | 'STORY';
   folder: string;
   order: number;
@@ -16,6 +16,8 @@ export interface InstagramPost {
   rejectedAt: string | null;
   rejectionReason: string | null;
   rejectedBy: string | null;
+  instagramUrl: string | null;
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,8 +37,10 @@ export interface CreatePostData {
 export interface UpdatePostData {
   caption?: string;
   scheduledDate?: string | null;
-  status?: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SCHEDULED' | 'PUBLISHED';
+  status?: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SCHEDULED' | 'PENDING' | 'PUBLISHED';
   postType?: 'POST' | 'REEL' | 'STORY';
+  instagramUrl?: string | null;
+  publishedAt?: string | null;
 }
 
 // Fetch all posts (optionally for a specific user if Admin/Manager)

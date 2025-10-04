@@ -9,22 +9,27 @@ datasource db {
 }
 
 model User {
-  id                String            @id @default(cuid())
-  clerkId           String            @unique
-  email             String?
-  firstName         String?
-  lastName          String?
-  imageUrl          String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  role              UserRole          @default(USER)
-  images            GeneratedImage[]
-  videos            GeneratedVideo[]
-  jobs              GenerationJob[]
-  influencers       InfluencerLoRA[]
-  productionEntries ProductionEntry[]
-  trainingImages    TrainingImage[]
-  trainingJobs      TrainingJob[]
+  id                     String            @id @default(cuid())
+  clerkId                String            @unique
+  email                  String?
+  firstName              String?
+  lastName               String?
+  imageUrl               String?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  role                   UserRole          @default(USER)
+  instagramAccessToken   String?
+  instagramAccountId     String?
+  instagramTokenExpiry   DateTime?
+  images                 GeneratedImage[]
+  videos                 GeneratedVideo[]
+  jobs                   GenerationJob[]
+  influencers            InfluencerLoRA[]
+  productionEntries      ProductionEntry[]
+  trainingImages         TrainingImage[]
+  trainingJobs           TrainingJob[]
+  instagramPosts         InstagramPost[]
+  notifications          Notification[]
 
   @@map("users")
 }
@@ -264,6 +269,13 @@ model InstagramPost {
   rejectedAt      DateTime?
   rejectedBy      String?
   rejectionReason String?
+  // Published post tracking
+  instagramUrl    String?             // URL to the published Instagram post
+  publishedAt     DateTime?           // When the post was actually published
+  likesCount      Int?                // Manual entry of likes count
+  commentsCount   Int?                // Manual entry of comments count
+  lastMetricsUpdate DateTime?         // Last time metrics were updated
+  user            User                @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
   @@index([clerkId, order])
@@ -329,7 +341,34 @@ enum InstagramPostStatus {
   REVIEW
   APPROVED
   SCHEDULED
+  PENDING      // Reminder sent, waiting for user to post manually
   PUBLISHED
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  title       String
+  message     String
+  link        String?            // Optional link to related content
+  metadata    Json?              // Additional data (postId, etc.)
+  read        Boolean            @default(false)
+  readAt      DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([userId, read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  POST_REMINDER      // Instagram post is ready to be published
+  POST_APPROVED      // Post has been approved
+  POST_REJECTED      // Post has been rejected
+  SYSTEM             // System notifications
 }
 
 enum PostType {
