@@ -186,7 +186,7 @@ export async function PATCH(
                 type: notificationType,
                 title: notificationTitle,
                 message: notificationMessage,
-                link: `/dashboard/social-media?post=${updatedPost.id}`,
+                link: `/dashboard/workspace/social-media`,
                 metadata: { 
                   postId: updatedPost.id,
                   fileName: updatedPost.fileName,

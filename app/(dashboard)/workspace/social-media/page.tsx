@@ -1,29 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Instagram, Calendar, BarChart3, Settings } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import InstagramStagingTool from '@/components/social-media/InstagramStagingTool';
+import CalendarView from '@/components/social-media/CalendarView';
 
 const tabs = [
   { id: 'instagram-staging', label: 'Instagram Staging', icon: Instagram },
-  { id: 'scheduler', label: 'Post Scheduler', icon: Calendar },
+  { id: 'calendar', label: 'Calendar View', icon: Calendar },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-export default function SocialMediaPage() {
+function SocialMediaContent() {
+  const searchParams = useSearchParams();
+  const postIdFromUrl = searchParams.get('post');
   const [activeTab, setActiveTab] = useState('instagram-staging');
+
+  // Auto-switch to instagram-staging tab when post ID is in URL
+  useEffect(() => {
+    if (postIdFromUrl) {
+      setActiveTab('instagram-staging');
+    }
+  }, [postIdFromUrl]);
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'instagram-staging':
-        return <InstagramStagingTool />;
-      case 'scheduler':
-        return (
-          <div className="bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-900/30 dark:to-blue-900/20 shadow-lg rounded-lg p-8 border border-gray-200/50 dark:border-gray-700/30 backdrop-blur-sm">
-            <p className="text-gray-600 dark:text-gray-300">Post scheduling functionality coming soon...</p>
-          </div>
-        );
+        return <InstagramStagingTool highlightPostId={postIdFromUrl} />;
+      case 'calendar':
+        return <CalendarView />;
       case 'analytics':
         return (
           <div className="bg-gradient-to-br from-white to-green-50/50 dark:from-gray-900/30 dark:to-green-900/20 shadow-lg rounded-lg p-8 border border-gray-200/50 dark:border-gray-700/30 backdrop-blur-sm">
@@ -80,5 +87,17 @@ export default function SocialMediaPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SocialMediaPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <SocialMediaContent />
+    </Suspense>
   );
 }

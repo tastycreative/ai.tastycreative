@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
-import { useIsManager } from "@/lib/hooks/useIsManager";
+import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
 import {
   ChevronLeft,
   ChevronRight,
@@ -33,7 +33,6 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
-import ManagerTaskNotification from "@/components/manager/ManagerTaskNotification";
 import { NotificationBell } from "@/components/NotificationBell";
 
 interface NavItem {
@@ -63,7 +62,7 @@ export default function DashboardLayout({
   const { signOut } = useClerk();
   const { user } = useUser();
   const { isAdmin } = useIsAdmin();
-  const { isManager } = useIsManager();
+  const { isContentCreator } = useIsContentCreator();
 
   // Dynamic navigation based on user permissions
   const navigation: (NavItem | NavSection)[] = [
@@ -161,10 +160,10 @@ export default function DashboardLayout({
         },
       ],
     },
-    // Conditionally add manager link
-    ...(isManager ? [{
-      name: "Manager Dashboard",
-      href: "/manager",
+    // Conditionally add content creator link
+    ...(isContentCreator ? [{
+      name: "Content Creator",
+      href: "/content-creator",
       icon: BarChart3,
     }] : []),
     // Conditionally add admin link
@@ -471,10 +470,7 @@ export default function DashboardLayout({
 
               {/* Right Side - Credits and User */}
               <div className="flex items-center space-x-2 sm:space-x-4">
-                {/* Manager Task Notifications */}
-                <ManagerTaskNotification />
-                
-                {/* Notification Bell */}
+                {/* Unified Notification Bell (includes both post notifications and production tasks) */}
                 <NotificationBell />
                 
                 {/* Theme Toggle */}

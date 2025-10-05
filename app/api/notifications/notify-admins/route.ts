@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
           message: hasUrl
             ? `${publisherName} published "${fileName}" and added the Instagram link`
             : `${publisherName} published "${fileName}" (no Instagram link yet)`,
-          link: `/dashboard/social-media?post=${postId}`,
+          link: `/dashboard/workspace/social-media`,
           metadata: {
             postId,
             fileName,

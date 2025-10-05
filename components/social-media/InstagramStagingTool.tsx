@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Calendar,
   Grid3x3,
@@ -20,6 +21,8 @@ import {
   AlertCircle,
   Users,
   ArrowLeft,
+  Search,
+  Filter,
 } from "lucide-react";
 import {
   fetchInstagramPosts,
@@ -117,7 +120,11 @@ const toLocalDateTimeString = (date: Date | string): string => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
-const InstagramStagingTool = () => {
+interface InstagramStagingToolProps {
+  highlightPostId?: string | null;
+}
+
+const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {}) => {
   const { user, isLoaded } = useUser();
   const currentUserId = user?.id || "";
 
@@ -164,6 +171,17 @@ const InstagramStagingTool = () => {
   const [publishingPost, setPublishingPost] = useState<Post | null>(null);
   const [instagramUrl, setInstagramUrl] = useState("");
 
+  // Bulk schedule dialog state
+  const [showBulkScheduleDialog, setShowBulkScheduleDialog] = useState(false);
+  const [bulkScheduleDate, setBulkScheduleDate] = useState("");
+  const [bulkScheduleTime, setBulkScheduleTime] = useState("");
+
+  // Filter and search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [postTypeFilter, setPostTypeFilter] = useState<string>("ALL");
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>("ALL");
+
   // Fetch user role from database on mount
   useEffect(() => {
     const fetchUserRole = async () => {
@@ -188,6 +206,28 @@ const InstagramStagingTool = () => {
 
     fetchUserRole();
   }, [isLoaded, user]);
+
+  // Auto-select and scroll to highlighted post from URL
+  useEffect(() => {
+    if (highlightPostId && posts.length > 0) {
+      const postToHighlight = posts.find(p => p.id === highlightPostId);
+      if (postToHighlight) {
+        setSelectedPost(postToHighlight);
+        // Scroll to the post card
+        setTimeout(() => {
+          const element = document.getElementById(`post-${highlightPostId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Add a temporary highlight effect
+            element.classList.add('ring-4', 'ring-blue-500', 'ring-opacity-50');
+            setTimeout(() => {
+              element.classList.remove('ring-4', 'ring-blue-500', 'ring-opacity-50');
+            }, 3000);
+          }
+        }, 500);
+      }
+    }
+  }, [highlightPostId, posts]);
 
   // Google Drive folders with their IDs from env
   const [driveFolders, setDriveFolders] = useState<GoogleDriveFolder[]>([
@@ -243,7 +283,7 @@ const InstagramStagingTool = () => {
     const error = urlParams.get("error");
     if (error) {
       console.error("❌ OAuth error:", error);
-      alert(`Google Drive authentication failed: ${error}`);
+      toast.error(`Google Drive authentication failed: ${error}`);
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -555,7 +595,7 @@ const InstagramStagingTool = () => {
       }
     } catch (error) {
       console.error("Authentication error:", error);
-      alert("Failed to start Google Drive authentication");
+      toast.error("Failed to start Google Drive authentication");
       setIsAuthenticating(false);
     }
   };
@@ -717,7 +757,7 @@ const InstagramStagingTool = () => {
       console.log(`✅ Updated post ${updatedPost.id} in database`);
     } catch (error) {
       console.error("❌ Error updating post in database:", error);
-      alert("Failed to save changes. Please try again.");
+      toast.error("Failed to save changes. Please try again.");
     }
   };
 
@@ -733,7 +773,7 @@ const InstagramStagingTool = () => {
   // Workflow action buttons
   const handleSubmitForReview = async (post: Post) => {
     if (!canSubmitForReview(userRole)) {
-      alert("You don't have permission to submit posts for review.");
+      toast.warning("You don't have permission to submit posts for review.");
       return;
     }
     await handleStatusChange(post, "REVIEW");
@@ -741,7 +781,7 @@ const InstagramStagingTool = () => {
 
   const handleApprove = async (post: Post) => {
     if (!canApprove(userRole)) {
-      alert("You don't have permission to approve posts.");
+      toast.warning("You don't have permission to approve posts.");
       return;
     }
     await handleStatusChange(post, "APPROVED");
@@ -749,7 +789,7 @@ const InstagramStagingTool = () => {
 
   const handleReject = async (post: Post) => {
     if (!canApprove(userRole)) {
-      alert("You don't have permission to reject posts.");
+      toast.warning("You don't have permission to reject posts.");
       return;
     }
     // Show rejection dialog
@@ -760,7 +800,7 @@ const InstagramStagingTool = () => {
 
   const confirmReject = async () => {
     if (!rejectingPost || !rejectionReason.trim()) {
-      alert("Please provide a reason for rejection.");
+      toast.warning("Please provide a reason for rejection.");
       return;
     }
 
@@ -799,7 +839,7 @@ const InstagramStagingTool = () => {
       setRejectionReason("");
     } catch (error) {
       console.error("❌ Error rejecting post:", error);
-      alert("Failed to reject post. Please try again.");
+      toast.error("Failed to reject post. Please try again.");
     }
   };
 
@@ -865,17 +905,126 @@ const InstagramStagingTool = () => {
       setInstagramUrl("");
     } catch (error) {
       console.error("❌ Error marking post as published:", error);
-      alert("Failed to mark post as published. Please try again.");
+      toast.error("Failed to mark post as published. Please try again.");
     }
+  };
+
+  const confirmBulkSchedule = async () => {
+    if (!bulkScheduleDate || !bulkScheduleTime) {
+      toast.warning("Please select both date and time.");
+      return;
+    }
+
+    const approvedSelected = posts.filter(p => 
+      selectedPostIds.includes(p.id) && p.status === 'APPROVED'
+    );
+
+    if (approvedSelected.length === 0) {
+      toast.warning('No approved posts selected.');
+      return;
+    }
+
+    try {
+      // Combine date and time into a Date object
+      const scheduleDate = new Date(`${bulkScheduleDate}T${bulkScheduleTime}`);
+      
+      if (isNaN(scheduleDate.getTime())) {
+        toast.error('Invalid date/time selection.');
+        return;
+      }
+
+      // Update all selected approved posts
+      for (const post of approvedSelected) {
+        await updateInstagramPost(post.id, {
+          status: 'SCHEDULED',
+          scheduledDate: scheduleDate.toISOString(),
+        } as any);
+      }
+
+      // Update local state
+      setPosts(posts.map(p => {
+        if (selectedPostIds.includes(p.id) && p.status === 'APPROVED') {
+          return { ...p, status: 'SCHEDULED' as const, date: scheduleDate.toISOString() };
+        }
+        return p;
+      }));
+
+      // Clear selection and close dialog
+      setSelectedPostIds([]);
+      setShowBulkScheduleDialog(false);
+      setBulkScheduleDate("");
+      setBulkScheduleTime("");
+      
+      toast.success(`${approvedSelected.length} post(s) scheduled successfully!`);
+    } catch (error) {
+      console.error("❌ Error bulk scheduling posts:", error);
+      toast.error('Failed to schedule some posts. Please try again.');
+    }
+  };
+
+  // Filter posts based on search query and filters
+  const getFilteredPosts = () => {
+    let filtered = [...posts];
+
+    // Search filter (filename or caption)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(post =>
+        post.fileName?.toLowerCase().includes(query) ||
+        post.caption?.toLowerCase().includes(query)
+      );
+    }
+
+    // Status filter
+    if (statusFilter !== "ALL") {
+      filtered = filtered.filter(post => post.status === statusFilter);
+    }
+
+    // Post type filter
+    if (postTypeFilter !== "ALL") {
+      filtered = filtered.filter(post => post.type === postTypeFilter);
+    }
+
+    // Date range filter
+    if (dateRangeFilter !== "ALL") {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      filtered = filtered.filter(post => {
+        if (!post.date) return false;
+        const postDate = new Date(post.date);
+        
+        switch (dateRangeFilter) {
+          case "TODAY":
+            return postDate >= today && postDate < new Date(today.getTime() + 24 * 60 * 60 * 1000);
+          case "THIS_WEEK":
+            const weekStart = new Date(today);
+            weekStart.setDate(today.getDate() - today.getDay());
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 7);
+            return postDate >= weekStart && postDate < weekEnd;
+          case "THIS_MONTH":
+            return postDate.getMonth() === now.getMonth() && postDate.getFullYear() === now.getFullYear();
+          case "PAST":
+            return postDate < today;
+          case "FUTURE":
+            return postDate >= today;
+          default:
+            return true;
+        }
+      });
+    }
+
+    return filtered;
   };
 
   const handleSchedule = async (post: Post) => {
     if (!canSchedule(userRole)) {
-      alert("You don't have permission to schedule posts.");
+      toast.warning("You don't have permission to schedule posts.");
       return;
     }
     if (!post.date) {
-      alert("Please set a scheduled date before marking as scheduled.");
+      toast.warning("Please set a scheduled date before marking as scheduled.");
       return;
     }
     await handleStatusChange(post, "SCHEDULED");
@@ -883,7 +1032,7 @@ const InstagramStagingTool = () => {
 
   const handleMarkAsPublished = async (post: Post) => {
     if (!canPublish(userRole)) {
-      alert("You don't have permission to mark posts as published.");
+      toast.warning("You don't have permission to mark posts as published.");
       return;
     }
     // Show dialog to enter Instagram URL
@@ -894,7 +1043,7 @@ const InstagramStagingTool = () => {
 
   const handleUnpublish = async (post: Post) => {
     if (!canPublish(userRole)) {
-      alert("You don't have permission to unpublish posts.");
+      toast.warning("You don't have permission to unpublish posts.");
       return;
     }
     if (confirm(`Revert "${post.fileName}" to scheduled status?`)) {
@@ -905,7 +1054,7 @@ const InstagramStagingTool = () => {
   // Backward workflow actions
   const handleRevertToApproved = async (post: Post) => {
     if (!canSchedule(userRole)) {
-      alert("You don't have permission to revert scheduled posts.");
+      toast.warning("You don't have permission to revert scheduled posts.");
       return;
     }
     if (confirm(`Revert "${post.fileName}" back to approved status?`)) {
@@ -915,7 +1064,7 @@ const InstagramStagingTool = () => {
 
   const handleRevertToReview = async (post: Post) => {
     if (!canApprove(userRole)) {
-      alert("You don't have permission to send posts back to review.");
+      toast.warning("You don't have permission to send posts back to review.");
       return;
     }
     if (confirm(`Send "${post.fileName}" back to review?`)) {
@@ -925,7 +1074,7 @@ const InstagramStagingTool = () => {
 
   const handleRevertToDraft = async (post: Post) => {
     if (!canSubmitForReview(userRole)) {
-      alert("You don't have permission to revert posts to draft.");
+      toast.warning("You don't have permission to revert posts to draft.");
       return;
     }
     if (confirm(`Revert "${post.fileName}" back to draft?`)) {
@@ -994,7 +1143,7 @@ const InstagramStagingTool = () => {
       console.log("✅ Updated post order in database");
     } catch (error) {
       console.error("❌ Error updating post order:", error);
-      alert("Failed to save order. Please try again.");
+      toast.error("Failed to save order. Please try again.");
     }
   };
 
@@ -1022,14 +1171,10 @@ const InstagramStagingTool = () => {
       }
 
       console.log(`✅ Deleted post ${post.id}`);
-      alert(
-        `Successfully deleted from ${
-          deleteFromDrive ? "database and Google Drive" : "database only"
-        }`
-      );
+      toast.success(`Successfully deleted from ${deleteFromDrive ? "database and Google Drive" : "database only"}`);
     } catch (error) {
       console.error("❌ Error deleting post:", error);
-      alert("Failed to delete post. Please try again.");
+      toast.error("Failed to delete post. Please try again.");
     }
   };
 
@@ -1101,15 +1246,29 @@ const InstagramStagingTool = () => {
               {posts.length > 0 && (
                 <button
                   onClick={() => {
-                    if (selectedPostIds.length === posts.length) {
-                      setSelectedPostIds([]);
+                    const filteredPosts = getFilteredPosts();
+                    const allFilteredSelected = filteredPosts.every(p => selectedPostIds.includes(p.id));
+                    
+                    if (allFilteredSelected) {
+                      // Deselect all filtered posts
+                      setSelectedPostIds(selectedPostIds.filter(id => !filteredPosts.find(p => p.id === id)));
                     } else {
-                      setSelectedPostIds(posts.map(p => p.id));
+                      // Select all filtered posts
+                      const newSelected = [...selectedPostIds];
+                      filteredPosts.forEach(p => {
+                        if (!newSelected.includes(p.id)) {
+                          newSelected.push(p.id);
+                        }
+                      });
+                      setSelectedPostIds(newSelected);
                     }
                   }}
                   className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                 >
-                  {selectedPostIds.length === posts.length ? '☐ Deselect All' : '☑ Select All'}
+                  {getFilteredPosts().every(p => selectedPostIds.includes(p.id)) && getFilteredPosts().length > 0 ? '☐ Deselect All' : '☑ Select All'}
+                  {(statusFilter !== "ALL" || postTypeFilter !== "ALL" || dateRangeFilter !== "ALL" || searchQuery) && 
+                    ` (${getFilteredPosts().length})`
+                  }
                 </button>
               )}
               
@@ -1126,6 +1285,187 @@ const InstagramStagingTool = () => {
                 }}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Smart Filters & Search Bar */}
+        <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          {/* Search Bar */}
+          <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by filename or caption..."
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Active Filters Count */}
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {[statusFilter, postTypeFilter, dateRangeFilter].filter(f => f !== "ALL").length} active
+              </span>
+              {(statusFilter !== "ALL" || postTypeFilter !== "ALL" || dateRangeFilter !== "ALL" || searchQuery) && (
+                <button
+                  onClick={() => {
+                    setStatusFilter("ALL");
+                    setPostTypeFilter("ALL");
+                    setDateRangeFilter("ALL");
+                    setSearchQuery("");
+                  }}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status:</span>
+              {["ALL", "REVIEW", "APPROVED", "SCHEDULED", "PUBLISHED", "DRAFT"].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    statusFilter === status
+                      ? "bg-blue-600 text-white shadow-md"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  {status === "ALL" ? "All" : status.charAt(0) + status.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div className="w-px bg-gray-300 dark:bg-gray-600" />
+
+            {/* Post Type Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type:</span>
+              {["ALL", "POST", "REEL", "STORY"].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setPostTypeFilter(type)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    postTypeFilter === type
+                      ? "bg-purple-600 text-white shadow-md"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  {type === "ALL" ? "All" : type.charAt(0) + type.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div className="w-px bg-gray-300 dark:bg-gray-600" />
+
+            {/* Date Range Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date:</span>
+              {["ALL", "TODAY", "THIS_WEEK", "THIS_MONTH", "PAST", "FUTURE"].map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setDateRangeFilter(range)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    dateRangeFilter === range
+                      ? "bg-green-600 text-white shadow-md"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  {range === "ALL" ? "All" : range.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ")}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Results Count */}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Showing <span className="font-semibold text-gray-900 dark:text-white">{getFilteredPosts().length}</span> of <span className="font-semibold">{posts.length}</span> posts
+              {searchQuery && <span className="text-blue-600 dark:text-blue-400"> matching "{searchQuery}"</span>}
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Stats Dashboard */}
+        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Pending Review */}
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-200 dark:border-yellow-700/30 rounded-lg p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-10 h-10 bg-yellow-500/20 dark:bg-yellow-500/30 rounded-full flex items-center justify-center">
+                <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <span className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
+                {posts.filter(p => p.status === 'REVIEW').length}
+              </span>
+            </div>
+            <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Pending Review</p>
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">Awaiting approval</p>
+          </div>
+
+          {/* Ready to Schedule */}
+          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700/30 rounded-lg p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-10 h-10 bg-green-500/20 dark:bg-green-500/30 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+              </div>
+              <span className="text-2xl font-bold text-green-700 dark:text-green-300">
+                {posts.filter(p => p.status === 'APPROVED').length}
+              </span>
+            </div>
+            <p className="text-sm font-medium text-green-700 dark:text-green-300">Ready to Schedule</p>
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">Approved posts</p>
+          </div>
+
+          {/* Scheduled Today */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-10 h-10 bg-blue-500/20 dark:bg-blue-500/30 rounded-full flex items-center justify-center">
+                <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <span className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                {posts.filter(p => {
+                  if (!p.date || p.status !== 'SCHEDULED') return false;
+                  const today = new Date();
+                  const postDate = new Date(p.date);
+                  return postDate.toDateString() === today.toDateString();
+                }).length}
+              </span>
+            </div>
+            <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Scheduled Today</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Going out today</p>
+          </div>
+
+          {/* Needs Attention */}
+          <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border border-red-200 dark:border-red-700/30 rounded-lg p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-10 h-10 bg-red-500/20 dark:bg-red-500/30 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <span className="text-2xl font-bold text-red-700 dark:text-red-300">
+                {posts.filter(p => p.rejectedAt).length}
+              </span>
+            </div>
+            <p className="text-sm font-medium text-red-700 dark:text-red-300">Needs Attention</p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">Rejected posts</p>
           </div>
         </div>
 
@@ -1215,6 +1555,140 @@ const InstagramStagingTool = () => {
             <WorkflowGuide userRole={userRole} />
           </div>
         </div>
+
+        {/* Bulk Actions Toolbar - Shows when posts are selected */}
+        {selectedPostIds.length > 0 && (
+          <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  <span className="font-semibold text-blue-900 dark:text-blue-100">
+                    {selectedPostIds.length} post{selectedPostIds.length > 1 ? 's' : ''} selected
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedPostIds([])}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                >
+                  Clear selection
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Bulk Approve - Admin/Manager only */}
+                {canApprove(userRole) && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Approve ${selectedPostIds.length} posts?`)) return;
+                      try {
+                        for (const postId of selectedPostIds) {
+                          const post = posts.find(p => p.id === postId);
+                          if (post && post.status === 'REVIEW') {
+                            await handleStatusChange(post, 'APPROVED');
+                          }
+                        }
+                        setSelectedPostIds([]);
+                        toast.success(`${selectedPostIds.length} posts approved!`);
+                      } catch (error) {
+                        toast.error('Failed to approve some posts');
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve All
+                  </button>
+                )}
+
+                {/* Bulk Schedule - Admin/Manager only */}
+                {canSchedule(userRole) && (
+                  <button
+                    onClick={() => {
+                      const approvedSelected = posts.filter(p => 
+                        selectedPostIds.includes(p.id) && p.status === 'APPROVED'
+                      );
+                      if (approvedSelected.length === 0) {
+                        toast.warning('No approved posts selected. Only approved posts can be scheduled.');
+                        return;
+                      }
+                      // Set default date/time to current date and time
+                      const now = new Date();
+                      const defaultDate = now.toISOString().split('T')[0];
+                      const defaultTime = now.toTimeString().slice(0, 5);
+                      setBulkScheduleDate(defaultDate);
+                      setBulkScheduleTime(defaultTime);
+                      setShowBulkScheduleDialog(true);
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Bulk Schedule
+                  </button>
+                )}
+
+                {/* Change Post Type */}
+                <div className="relative group">
+                  <button className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors">
+                    <Edit3 className="w-4 h-4" />
+                    Change Type
+                  </button>
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                    {['POST', 'REEL', 'STORY'].map(type => (
+                      <button
+                        key={type}
+                        onClick={async () => {
+                          if (!confirm(`Change ${selectedPostIds.length} posts to ${type}?`)) return;
+                          try {
+                            for (const postId of selectedPostIds) {
+                              await updateInstagramPost(postId, { postType: type as any } as any);
+                            }
+                            setPosts(posts.map(p => 
+                              selectedPostIds.includes(p.id) ? { ...p, type: type as any } : p
+                            ));
+                            setSelectedPostIds([]);
+                            toast.success(`Changed to ${type}!`);
+                          } catch (error) {
+                            toast.error('Failed to change type');
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm first:rounded-t-lg last:rounded-b-lg"
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bulk Delete */}
+                {(canDeleteAny(userRole) || selectedPostIds.every(id => {
+                  const post = posts.find(p => p.id === id);
+                  return post?.status === 'DRAFT';
+                })) && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`⚠️ Delete ${selectedPostIds.length} posts permanently? This cannot be undone.`)) return;
+                      try {
+                        for (const postId of selectedPostIds) {
+                          await deleteInstagramPost(postId);
+                        }
+                        setPosts(posts.filter(p => !selectedPostIds.includes(p.id)));
+                        setSelectedPostIds([]);
+                        toast.success(`${selectedPostIds.length} posts deleted!`);
+                      } catch (error) {
+                        toast.error('Failed to delete some posts');
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete All
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex h-[calc(100vh-200px)]">
@@ -1226,22 +1700,37 @@ const InstagramStagingTool = () => {
                 Feed Preview
               </h2>
               <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700">
-                {posts.length === 0 ? (
+                {getFilteredPosts().length === 0 ? (
                   <div className="text-center py-16">
                     <Grid3x3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      No posts in queue
+                      {posts.length === 0 ? "No posts in queue" : "No posts match your filters"}
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400 mb-4">
-                      Add images from your Google Drive library to start
-                      building your Instagram feed.
+                      {posts.length === 0 
+                        ? "Add images from your Google Drive library to start building your Instagram feed."
+                        : "Try adjusting your filters or search query to see more posts."}
                     </p>
+                    {posts.length > 0 && (
+                      <button
+                        onClick={() => {
+                          setStatusFilter("ALL");
+                          setPostTypeFilter("ALL");
+                          setDateRangeFilter("ALL");
+                          setSearchQuery("");
+                        }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-1">
-                    {posts.map((post) => (
+                    {getFilteredPosts().map((post) => (
                       <div
                         key={post.id}
+                        id={`post-${post.id}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, post)}
                         onDragEnd={handleDragEnd}
@@ -1370,9 +1859,7 @@ const InstagramStagingTool = () => {
                                     "❌ Failed to delete post:",
                                     error
                                   );
-                                  alert(
-                                    "Failed to delete post. Please try again."
-                                  );
+                                  toast.error("Failed to delete post. Please try again.");
                                 }
                               }}
                               className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition-colors"
@@ -1445,7 +1932,7 @@ const InstagramStagingTool = () => {
                       console.log(`✅ Status updated to ${newStatus}`);
                     } catch (error) {
                       console.error("❌ Failed to update status:", error);
-                      alert("Failed to update status. Please try again.");
+                      toast.error("Failed to update status. Please try again.");
                     }
                   }}
                 />
@@ -2001,7 +2488,7 @@ const InstagramStagingTool = () => {
                             localStorage.removeItem(
                               "google_drive_access_token"
                             );
-                            alert(
+                            toast.info(
                               'Disconnected from Google Drive. Click "Connect Google Drive" to reconnect.'
                             );
                           }}
@@ -2160,9 +2647,7 @@ const InstagramStagingTool = () => {
                                         const fileUrl = fileBlobUrls[file.id];
 
                                         if (!fileUrl) {
-                                          alert(
-                                            "File is still loading. Please wait a moment."
-                                          );
+                                          toast.warning("File is still loading. Please wait a moment.");
                                           return;
                                         }
 
@@ -2208,9 +2693,7 @@ const InstagramStagingTool = () => {
                                           "Error adding file to queue:",
                                           error
                                         );
-                                        alert(
-                                          "Failed to add file to queue. Please try again."
-                                        );
+                                        toast.error("Failed to add file to queue. Please try again.");
                                       }
                                     }}
                                     className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
@@ -2272,9 +2755,7 @@ const InstagramStagingTool = () => {
                                           });
                                         }
 
-                                        alert(
-                                          "File deleted from Google Drive successfully"
-                                        );
+                                        toast.success("File deleted from Google Drive successfully");
                                         console.log(
                                           `✅ Deleted file ${file.id} from Google Drive`
                                         );
@@ -2283,9 +2764,7 @@ const InstagramStagingTool = () => {
                                           "Error deleting file from Google Drive:",
                                           error
                                         );
-                                        alert(
-                                          "Failed to delete file from Google Drive. Please try again."
-                                        );
+                                        toast.error("Failed to delete file from Google Drive. Please try again.");
                                       }
                                     }}
                                     className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white p-2 rounded hover:bg-red-700"
@@ -2425,6 +2904,95 @@ const InstagramStagingTool = () => {
                     className="flex-1 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors font-medium"
                   >
                     Mark as Published ✓
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Schedule Dialog */}
+      {showBulkScheduleDialog && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  <Calendar className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Bulk Schedule Posts
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {posts.filter(p => selectedPostIds.includes(p.id) && p.status === 'APPROVED').length} approved post(s) will be scheduled
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    📅 Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={bulkScheduleDate}
+                    onChange={(e) => setBulkScheduleDate(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    🕐 Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    value={bulkScheduleTime}
+                    onChange={(e) => setBulkScheduleTime(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {bulkScheduleDate && bulkScheduleTime && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 rounded-lg">
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      📌 Scheduled for:
+                    </p>
+                    <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                      {new Date(`${bulkScheduleDate}T${bulkScheduleTime}`).toLocaleString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                      })}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setShowBulkScheduleDialog(false);
+                      setBulkScheduleDate("");
+                      setBulkScheduleTime("");
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmBulkSchedule}
+                    disabled={!bulkScheduleDate || !bulkScheduleTime}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  >
+                    Schedule Posts
                   </button>
                 </div>
               </div>

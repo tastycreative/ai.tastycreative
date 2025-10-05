@@ -37,7 +37,7 @@ interface NewEntryForm {
   videosTarget: number;
 }
 
-interface Manager {
+interface ContentCreator {
   id: string;
   firstName: string | null;
   lastName: string | null;
@@ -97,8 +97,9 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
   const [productionData, setProductionData] = useState<ProductionEntry[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [managers, setManagers] = useState<Manager[]>([]);
-  const [managersLoading, setManagersLoading] = useState(true);
+  const [contentCreators, setContentCreators] = useState<ContentCreator[]>([]);
+  const [contentCreatorsLoading, setContentCreatorsLoading] = useState(true);
+  const [selectedCreatorId, setSelectedCreatorId] = useState<string>('all');
   const [formData, setFormData] = useState<NewEntryForm>({
     date: '',
     assignee: '',
@@ -114,9 +115,9 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
     fetchProductionEntries();
   }, []);
 
-  // Fetch managers when component mounts
+  // Fetch content creators when component mounts
   useEffect(() => {
-    fetchManagers();
+    fetchContentCreators();
   }, []);
 
   const fetchProductionEntries = async () => {
@@ -146,10 +147,10 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
     }
   };
 
-  const fetchManagers = async () => {
+  const fetchContentCreators = async () => {
     try {
-      setManagersLoading(true);
-      const response = await fetch('/api/admin/managers', {
+      setContentCreatorsLoading(true);
+      const response = await fetch('/api/admin/content-creators', {
         method: 'GET',
         credentials: 'include', // Include cookies for authentication
         headers: {
@@ -159,28 +160,28 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched managers successfully:', data);
-        setManagers(data);
+        console.log('Fetched content creators successfully:', data);
+        setContentCreators(data);
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('API error:', response.status, errorData);
         
-        // If no managers found or authentication issues, provide a helpful fallback
+        // If no content creators found or authentication issues, provide a helpful fallback
         if (response.status === 401) {
           console.log('Authentication required - user may need to be logged in as admin');
         } else if (response.status === 403) {
           console.log('Admin access required');
         }
         
-        // Use empty array instead of mock data to indicate no managers found
-        setManagers([]);
+        // Use empty array instead of mock data to indicate no content creators found
+        setContentCreators([]);
       }
     } catch (error) {
-      console.error('Network error fetching managers:', error);
+      console.error('Network error fetching content creators:', error);
       // Use empty array to indicate error state
-      setManagers([]);
+      setContentCreators([]);
     } finally {
-      setManagersLoading(false);
+      setContentCreatorsLoading(false);
     }
   };
 
@@ -331,29 +332,74 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
     );
   };
 
+  const getCreatorDisplayName = (creator: ContentCreator): string => {
+    if (creator.firstName && creator.lastName) {
+      return `${creator.firstName} ${creator.lastName}`;
+    } else if (creator.firstName) {
+      return creator.firstName;
+    } else if (creator.lastName) {
+      return creator.lastName;
+    } else if (creator.email) {
+      return creator.email;
+    }
+    return 'Unknown Creator';
+  };
+
+  // Filter production data based on selected content creator
+  const filteredProductionData = selectedCreatorId === 'all' 
+    ? productionData 
+    : productionData.filter(entry => {
+        const assigneeCreator = contentCreators.find(creator => 
+          getCreatorDisplayName(creator) === entry.assignee
+        );
+        return assigneeCreator?.id === selectedCreatorId;
+      });
+
   return (
     <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/30 dark:to-gray-800/20 border border-gray-200/50 dark:border-gray-700/30 rounded-xl p-6 shadow-lg backdrop-blur-sm">
       <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Master Production Tracker</h3>
+      
+      {/* Content Creator Filter */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Filter by Content Creator
+        </label>
+        <select
+          value={selectedCreatorId}
+          onChange={(e) => setSelectedCreatorId(e.target.value)}
+          disabled={contentCreatorsLoading}
+          className="w-full md:w-64 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <option value="all">All Content Creators</option>
+          {contentCreators.map((creator) => (
+            <option key={creator.id} value={creator.id}>
+              {getCreatorDisplayName(creator)}
+            </option>
+          ))}
+        </select>
+      </div>
       
       <div className="space-y-6">
         {/* Production Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/10 border border-blue-200/50 dark:border-blue-700/30 rounded-lg p-4">
             <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">Active Jobs</h4>
-            <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{stats.activeJobs}</p>
+            <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+              {filteredProductionData.filter(item => item.status === 'IN_PROGRESS').length}
+            </p>
             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Currently processing</p>
           </div>
           <div className="bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/10 border border-green-200/50 dark:border-green-700/30 rounded-lg p-4">
             <h4 className="text-sm font-medium text-green-700 dark:text-green-300 mb-2">Completed Today</h4>
             <p className="text-2xl font-bold text-green-900 dark:text-green-100">
-              {productionData.filter(item => item.status === 'COMPLETED' && new Date(item.createdAt || item.deadline).toDateString() === new Date().toDateString()).length}
+              {filteredProductionData.filter(item => item.status === 'COMPLETED' && new Date(item.createdAt || item.deadline).toDateString() === new Date().toDateString()).length}
             </p>
             <p className="text-xs text-green-600 dark:text-green-400 mt-1">Jobs finished</p>
           </div>
           <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/10 border border-purple-200/50 dark:border-purple-700/30 rounded-lg p-4">
             <h4 className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">Queue Length</h4>
             <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-              {productionData.filter(item => item.status === 'PENDING').length}
+              {filteredProductionData.filter(item => item.status === 'PENDING').length}
             </p>
             <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Jobs waiting</p>
           </div>
@@ -364,7 +410,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Production Entries</h4>
             <div className="flex items-center space-x-2">
-              {productionData.length > 0 && (
+              {productionData.length > 0 && selectedCreatorId === 'all' && (
                 <button 
                   onClick={clearAllData}
                   className="bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg flex items-center space-x-2"
@@ -439,14 +485,16 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200/50 dark:divide-gray-700/30">
-                  {productionData.length === 0 ? (
+                  {filteredProductionData.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No production entries yet. Click "Add New Entry" to get started.
+                        {selectedCreatorId === 'all' 
+                          ? 'No production entries yet. Click "Add New Entry" to get started.'
+                          : 'No production entries found for this content creator.'}
                       </td>
                     </tr>
                   ) : (
-                    productionData.map((entry, index) => (
+                    filteredProductionData.map((entry, index) => (
                       <tr 
                         key={entry.id}
                         className={`${
@@ -530,37 +578,37 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Assignee (Manager)
+                Assignee (Content Creator)
               </label>
               <select
                 required
                 value={formData.assignee}
                 onChange={(e) => setFormData(prev => ({ ...prev, assignee: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                disabled={managersLoading}
+                disabled={contentCreatorsLoading}
               >
                 <option value="">
-                  {managersLoading 
-                    ? 'Loading managers...' 
-                    : managers.length === 0 
-                      ? 'No managers found - Create some managers first' 
-                      : 'Select Manager'
+                  {contentCreatorsLoading 
+                    ? 'Loading content creators...' 
+                    : contentCreators.length === 0 
+                      ? 'No content creators found - Create some content creators first' 
+                      : 'Select Content Creator'
                   }
                 </option>
-                {managers.map((manager: Manager) => {
-                  const displayName = manager.firstName && manager.lastName 
-                    ? `${manager.firstName} ${manager.lastName}`
-                    : manager.firstName || manager.lastName || manager.email || 'Unknown Manager';
+                {contentCreators.map((creator: ContentCreator) => {
+                  const displayName = creator.firstName && creator.lastName 
+                    ? `${creator.firstName} ${creator.lastName}`
+                    : creator.firstName || creator.lastName || creator.email || 'Unknown Creator';
                   return (
-                    <option key={manager.id} value={displayName}>
+                    <option key={creator.id} value={displayName}>
                       {displayName}
                     </option>
                   );
                 })}
               </select>
-              {!managersLoading && managers.length === 0 && (
+              {!contentCreatorsLoading && contentCreators.length === 0 && (
                 <p className="mt-1 text-sm text-yellow-600 dark:text-yellow-400">
-                  No managers found. You may need to assign some users the MANAGER role first.
+                  No content creators found. You may need to assign some users the CONTENT_CREATOR role first.
                 </p>
               )}
             </div>

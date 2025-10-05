@@ -116,6 +116,7 @@ model GeneratedImage {
   awsS3Url          String?
   user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  productionLinks   ProductionEntryImage[]
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
@@ -152,6 +153,7 @@ model GeneratedVideo {
   awsS3Url          String?
   user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  productionLinks   ProductionEntryVideo[]
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
@@ -243,6 +245,8 @@ model ProductionEntry {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   user            User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  linkedImages    ProductionEntryImage[]
+  linkedVideos    ProductionEntryVideo[]
 
   @@index([clerkId])
   @@index([status])
@@ -375,4 +379,34 @@ enum PostType {
   POST
   REEL
   STORY
+}
+
+// Junction table for linking images to production entries
+model ProductionEntryImage {
+  id                String           @id @default(cuid())
+  productionEntryId String
+  imageId           String
+  createdAt         DateTime         @default(now())
+  productionEntry   ProductionEntry  @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
+  image             GeneratedImage   @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@unique([productionEntryId, imageId])
+  @@index([productionEntryId])
+  @@index([imageId])
+  @@map("production_entry_images")
+}
+
+// Junction table for linking videos to production entries
+model ProductionEntryVideo {
+  id                String           @id @default(cuid())
+  productionEntryId String
+  videoId           String
+  createdAt         DateTime         @default(now())
+  productionEntry   ProductionEntry  @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
+  video             GeneratedVideo   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([productionEntryId, videoId])
+  @@index([productionEntryId])
+  @@index([videoId])
+  @@map("production_entry_videos")
 }

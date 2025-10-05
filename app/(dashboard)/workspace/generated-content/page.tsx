@@ -39,6 +39,8 @@ import {
   Clock,
   Copy,
   Info,
+  CheckSquare,
+  ClipboardCheck,
 } from "lucide-react";
 
 // Types
@@ -144,6 +146,15 @@ export default function GeneratedContentPage() {
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+  // Production Task Selection State
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [productionTasks, setProductionTasks] = useState<any[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [linkingContent, setLinkingContent] = useState(false);
+  const [linkedContentMap, setLinkedContentMap] = useState<Record<string, any[]>>({});
+  const [loadingLinkedContent, setLoadingLinkedContent] = useState(false);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [imagesPerPage] = useState(20);
@@ -159,6 +170,13 @@ export default function GeneratedContentPage() {
       });
     }
   }, [apiClient]);
+
+  // Fetch linked content when allContent changes
+  useEffect(() => {
+    if (apiClient && allContent.length > 0) {
+      fetchLinkedContent();
+    }
+  }, [apiClient, allContent.length]);
 
   // Check for OAuth callback tokens in URL
   useEffect(() => {
@@ -883,6 +901,140 @@ export default function GeneratedContentPage() {
     }
   };
 
+  // Production Task Functions
+  const toggleItemSelection = (itemId: string) => {
+    // Don't allow selection of already linked content
+    if (linkedContentMap[itemId]) {
+      alert(`This content is already linked to: ${linkedContentMap[itemId].map(t => t.influencer).join(', ')}`);
+      return;
+    }
+    
+    setSelectedItems((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    // Only select items that aren't already linked
+    const selectableIds = paginatedContent()
+      .filter((item) => !linkedContentMap[item.id])
+      .map((item) => item.id);
+    setSelectedItems(new Set(selectableIds));
+  };
+
+  const clearSelection = () => {
+    setSelectedItems(new Set());
+  };
+
+  const fetchLinkedContent = async () => {
+    if (!apiClient || allContent.length === 0) return;
+
+    try {
+      setLoadingLinkedContent(true);
+      
+      const imageIds = allContent
+        .filter((item) => item.itemType === "image")
+        .map((item) => item.id);
+      const videoIds = allContent
+        .filter((item) => item.itemType === "video")
+        .map((item) => item.id);
+
+      const response = await apiClient.post("/api/production/check-linked-content", {
+        imageIds,
+        videoIds,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Merge both image and video maps
+        const combined = { ...data.linkedImages, ...data.linkedVideos };
+        setLinkedContentMap(combined);
+      }
+    } catch (error) {
+      console.error("Error fetching linked content:", error);
+    } finally {
+      setLoadingLinkedContent(false);
+    }
+  };
+
+  const fetchProductionTasks = async () => {
+    if (!apiClient) return;
+
+    try {
+      setLoadingTasks(true);
+      const response = await apiClient.get("/api/production/my-tasks");
+
+      if (response.ok) {
+        const tasks = await response.json();
+        setProductionTasks(tasks);
+      } else {
+        console.error("Failed to fetch production tasks");
+        alert("Failed to load production tasks");
+      }
+    } catch (error) {
+      console.error("Error fetching production tasks:", error);
+      alert("Error loading production tasks");
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
+  const linkContentToTask = async (taskId: string) => {
+    if (!apiClient || selectedItems.size === 0) return;
+
+    try {
+      setLinkingContent(true);
+
+      // Separate selected items into images and videos
+      const selectedContent = allContent.filter((item) =>
+        selectedItems.has(item.id)
+      );
+      const imageIds = selectedContent
+        .filter((item) => item.itemType === "image")
+        .map((item) => item.id);
+      const videoIds = selectedContent
+        .filter((item) => item.itemType === "video")
+        .map((item) => item.id);
+
+      const response = await apiClient.post("/api/production/link-content", {
+        productionEntryId: taskId,
+        imageIds,
+        videoIds,
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(
+          `✅ ${result.message}\n\n` +
+            `Already linked: ${result.alreadyLinked.images} image(s), ${result.alreadyLinked.videos} video(s)`
+        );
+        clearSelection();
+        setShowTaskModal(false);
+        // Refresh linked content to update UI
+        fetchLinkedContent();
+      } else {
+        const error = await response.json();
+        alert(`Failed to link content: ${error.error}`);
+      }
+    } catch (error) {
+      console.error("Error linking content:", error);
+      alert("Error linking content to task");
+    } finally {
+      setLinkingContent(false);
+    }
+  };
+
+  const openTaskModal = () => {
+    fetchProductionTasks();
+    setShowTaskModal(true);
+  };
+
   // Format file size
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return "Unknown";
@@ -1315,6 +1467,44 @@ export default function GeneratedContentPage() {
         <BandwidthStats mediaList={allContent} className="mb-6" />
       )}
 
+      {/* Selection Toolbar */}
+      {selectedItems.size > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 shadow-lg">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-blue-500 rounded-lg">
+                  <CheckSquare className="w-5 h-5 text-white" />
+                </div>
+                <span className="font-semibold text-blue-900 dark:text-blue-100">
+                  {selectedItems.size} item{selectedItems.size !== 1 ? "s" : ""} selected
+                </span>
+              </div>
+              <button
+                onClick={clearSelection}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+              >
+                Clear selection
+              </button>
+              <button
+                onClick={selectAll}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+              >
+                Select all on page
+              </button>
+            </div>
+            <button
+              onClick={openTaskModal}
+              disabled={linkingContent}
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all duration-200 disabled:cursor-not-allowed"
+            >
+              <ClipboardCheck className="w-5 h-5" />
+              <span>{linkingContent ? "Linking..." : "Add to Production Task"}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Enhanced Controls */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 lg:space-x-6">
@@ -1563,23 +1753,62 @@ export default function GeneratedContentPage() {
           {/* Enhanced Grid View */}
           {viewMode === "grid" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
-              {paginatedContent().map((item, index) => (
+              {paginatedContent().map((item, index) => {
+                const isLinked = linkedContentMap[item.id];
+                const linkedTasks = isLinked || [];
+                
+                return (
                 <div
                   key={item.id}
-                  className="group bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-2xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300 hover:scale-[1.02] transform cursor-pointer"
+                  className={`group bg-white dark:bg-gray-800 rounded-2xl border overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] transform cursor-pointer ${
+                    isLinked
+                      ? 'border-green-400 dark:border-green-600 opacity-75'
+                      : selectedItems.has(item.id)
+                      ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-300 dark:ring-blue-600'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600'
+                  }`}
                   style={{
                     animationDelay: `${index * 0.05}s`,
                   }}
                   onClick={(e) => {
                     // Only handle clicks on the card itself, not on buttons
-                    if ((e.target as HTMLElement).closest('button')) {
-                      return; // Let button handle its own click
+                    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input') || (e.target as HTMLElement).closest('label')) {
+                      return; // Let button/checkbox/label handle its own click
                     }
                     console.log(`🎬 Card clicked for: ${item.filename} (${item.itemType})`);
                     setSelectedItem(item);
                   }}
                 >
                   <div className="relative aspect-square overflow-hidden">
+                    {/* Selection Checkbox - Inside the image container */}
+                    {!isLinked && (
+                      <div className="absolute top-2 left-2 z-20">
+                        <label
+                          className="flex items-center justify-center w-8 h-8 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition-colors hover:scale-110"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(item.id)}
+                            onChange={() => toggleItemSelection(item.id)}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Already Linked Badge - Top right corner, small and unobtrusive */}
+                    {isLinked && (
+                      <div className="absolute top-2 right-2 z-20">
+                        <div 
+                          className="bg-green-500 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform cursor-help"
+                          title={`Linked to: ${linkedTasks.map((t: any) => t.influencer).join(', ')}`}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </div>
+                      </div>
+                    )}
+
                     {item.itemType === "video" ? (
                       <video
                         src={(() => {
@@ -1885,7 +2114,8 @@ export default function GeneratedContentPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -1893,12 +2123,36 @@ export default function GeneratedContentPage() {
           {viewMode === "list" && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                {paginatedContent().map((item) => (
+                {paginatedContent().map((item) => {
+                  const isLinked = linkedContentMap[item.id];
+                  const linkedTasks = isLinked || [];
+                  
+                  return (
                   <div
                     key={item.id}
-                    className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className={`p-4 transition-colors ${
+                      isLinked
+                        ? 'bg-green-50 dark:bg-green-900/10'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
                   >
                     <div className="flex items-center space-x-4">
+                      {/* Checkbox or Linked indicator */}
+                      <div className="flex-shrink-0">
+                        {isLinked ? (
+                          <div className="w-6 h-6 flex items-center justify-center bg-green-500 rounded text-white">
+                            <CheckCircle className="w-4 h-4" />
+                          </div>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(item.id)}
+                            onChange={() => toggleItemSelection(item.id)}
+                            className="w-6 h-6 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                          />
+                        )}
+                      </div>
+
                       <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 relative">
                         {item.itemType === "video" ? (
                           <>
@@ -2054,7 +2308,8 @@ export default function GeneratedContentPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -2578,6 +2833,174 @@ export default function GeneratedContentPage() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Selection Modal */}
+      {showTaskModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowTaskModal(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <ClipboardCheck className="w-8 h-8" />
+                  <div>
+                    <h2 className="text-2xl font-bold">Select Production Task</h2>
+                    <p className="text-blue-100 text-sm mt-1">
+                      Choose a task to link {selectedItems.size} selected item{selectedItems.size !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowTaskModal(false)}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-140px)]">
+              {loadingTasks ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center space-y-4">
+                    <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto" />
+                    <p className="text-gray-600 dark:text-gray-400">Loading production tasks...</p>
+                  </div>
+                </div>
+              ) : productionTasks.length === 0 ? (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    No Production Tasks Found
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Create a production task in the admin panel first.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {productionTasks.map((task) => {
+                    const imagesNeeded = Math.max(0, task.imagesTarget - task.imagesGenerated);
+                    const videosNeeded = Math.max(0, task.videosTarget - task.videosGenerated);
+                    const isCompleted = task.status === 'COMPLETED';
+                    const imageProgress = task.imagesTarget > 0 ? (task.imagesGenerated / task.imagesTarget) * 100 : 0;
+                    const videoProgress = task.videosTarget > 0 ? (task.videosGenerated / task.videosTarget) * 100 : 0;
+
+                    return (
+                      <button
+                        key={task.id}
+                        onClick={() => linkContentToTask(task.id)}
+                        disabled={linkingContent || isCompleted}
+                        className="w-full text-left p-4 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900 dark:text-white text-lg mb-1">
+                              {task.influencer}
+                            </h3>
+                            <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+                              <span>📸 Instagram: @{task.instagramSource}</span>
+                              <span>🎨 LoRA: {task.loraModel}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                task.status === 'PENDING'
+                                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                  : task.status === 'IN_PROGRESS'
+                                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                                  : task.status === 'COMPLETED'
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                                  : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                              }`}
+                            >
+                              {task.status.replace('_', ' ')}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              Due: {new Date(task.deadline).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          {/* Images Progress */}
+                          {task.imagesTarget > 0 && (
+                            <div>
+                              <div className="flex items-center justify-between text-sm mb-1">
+                                <span className="text-gray-700 dark:text-gray-300">
+                                  Images: {task.imagesGenerated}/{task.imagesTarget}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {imagesNeeded > 0 ? `${imagesNeeded} needed` : 'Complete'}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.min(100, imageProgress)}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Videos Progress */}
+                          {task.videosTarget > 0 && (
+                            <div>
+                              <div className="flex items-center justify-between text-sm mb-1">
+                                <span className="text-gray-700 dark:text-gray-300">
+                                  Videos: {task.videosGenerated}/{task.videosTarget}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {videosNeeded > 0 ? `${videosNeeded} needed` : 'Complete'}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div
+                                  className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.min(100, videoProgress)}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {task.notes && (
+                          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
+                            Note: {task.notes}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 dark:bg-gray-900/50 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Select a task to link your content. Progress will be updated automatically.
+                </p>
+                <button
+                  onClick={() => setShowTaskModal(false)}
+                  className="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

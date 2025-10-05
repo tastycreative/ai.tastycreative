@@ -32,9 +32,9 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Check if user is a manager or admin
-    if (!['MANAGER', 'ADMIN'].includes(currentUser.role)) {
-      return NextResponse.json({ error: 'Access denied - Manager role required' }, { status: 403 });
+    // Check if user is a manager, admin, or content creator
+    if (!['MANAGER', 'ADMIN', 'CONTENT_CREATOR'].includes(currentUser.role)) {
+      return NextResponse.json({ error: 'Access denied - Manager or Content Creator role required' }, { status: 403 });
     }
 
     // Build possible assignee names (we need to match against the assignee string)
@@ -56,6 +56,40 @@ export async function GET() {
       where: {
         assignee: {
           in: possibleNames
+        }
+      },
+      include: {
+        linkedImages: {
+          include: {
+            image: {
+              select: {
+                id: true,
+                filename: true,
+                subfolder: true,
+                networkVolumePath: true,
+                s3Key: true,
+                awsS3Key: true,
+                awsS3Url: true,
+                createdAt: true
+              }
+            }
+          }
+        },
+        linkedVideos: {
+          include: {
+            video: {
+              select: {
+                id: true,
+                filename: true,
+                subfolder: true,
+                networkVolumePath: true,
+                s3Key: true,
+                awsS3Key: true,
+                awsS3Url: true,
+                createdAt: true
+              }
+            }
+          }
         }
       },
       orderBy: [
