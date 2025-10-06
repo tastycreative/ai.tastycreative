@@ -53,18 +53,7 @@ interface UploadProgress {
   progress: number;
   status: "uploading" | "processing" | "completed" | "failed";
   error?: string;
-  uploadMethod?:
-    | "direct"
-    | "streaming"
-    | "client-blob"
-    | "server-fallback"
-    | "chunked"
-    | "blob-first"
-    | "client-direct"
-    | "direct-comfyui-fallback"
-    | "direct-comfyui"
-    | "serverless-function"
-    | "direct-s3";
+  uploadMethod?: "multipart-s3";
 }
 
 interface UploadInstructions {
@@ -330,8 +319,8 @@ export default function MyInfluencersPage() {
     );
   };
 
-  // ✅ NEW FUNCTION: Direct client-side upload to S3 (for large files)
-  const uploadDirectToS3 = async (
+  // ✅ MAIN UPLOAD FUNCTION: Multipart chunked upload to S3 (RELIABLE & WORKING)
+  const uploadToS3 = async (
     file: File,
     displayName: string,
     onProgress?: (progress: number) => void
@@ -351,14 +340,14 @@ export default function MyInfluencersPage() {
       throw new Error("API client is not initialized");
     }
 
-    // Define chunk size (4MB to stay under Vercel's 6MB limit with FormData overhead)
-    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for faster processing
+    // Define chunk size (512KB for better reliability)
+    const CHUNK_SIZE = 512 * 1024; // 512KB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     console.log(
-      `📦 Using S3 multipart upload: ${totalChunks} parts of ~${Math.round(
-        CHUNK_SIZE / 1024 / 1024
-      )}MB each`
+      `📦 Using ${totalChunks} parts of ~${Math.round(
+        CHUNK_SIZE / 1024
+      )}KB each`
     );
 
     try {
@@ -515,51 +504,6 @@ export default function MyInfluencersPage() {
       throw error;
     }
   };
-
-  // ✅ FUNCTION: Upload via serverless function (for small files)
-  const uploadToNetworkVolume = async (
-    file: File,
-    displayName: string
-  ): Promise<{
-    success: boolean;
-    uniqueFileName: string;
-    comfyUIPath: string;
-    networkVolumePath?: string;
-  }> => {
-    const timestamp = Date.now();
-    const uniqueFileName = `${userId}_${timestamp}_${file.name}`;
-
-    console.log(
-      `🎯 Uploading ${file.name} to RunPod network volume as ${uniqueFileName}`
-    );
-
-    // Create FormData for the upload
-    const uploadFormData = new FormData();
-    uploadFormData.append("file", file);
-    uploadFormData.append("displayName", displayName);
-
-    // Upload to ComfyUI via our API
-    const response = await apiClient!.post(
-      "/api/user/influencers/upload-to-runpod",
-      uploadFormData
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Upload failed: ${response.status}`);
-    }
-
-    const result = await response.json();
-    console.log(`✅ Direct S3 network volume upload completed:`, result);
-
-    return {
-      success: true,
-      uniqueFileName: result.fileName,
-      comfyUIPath: result.comfyUIPath,
-      networkVolumePath: result.networkVolumePath,
-    };
-  };
-
   const createDatabaseRecord = async (
     uniqueFileName: string,
     file: File,
@@ -622,7 +566,7 @@ export default function MyInfluencersPage() {
           fileName: file.name,
           progress: 0,
           status: "uploading",
-          uploadMethod: "direct-comfyui",
+          uploadMethod: "multipart-s3",
         };
 
         setUploadProgress((prev) => [...prev, progressItem]);
@@ -647,89 +591,43 @@ export default function MyInfluencersPage() {
         let comfyUIPath: string | undefined;
 
         try {
-          // Check file size to determine upload method
-          const serverlessMaxSize = 6 * 1024 * 1024; // 6MB limit for serverless functions
-          const useDirectS3Upload = file.size > serverlessMaxSize;
+          // ✅ MULTIPART S3 UPLOAD (RELIABLE & WORKING - for all files)
+          console.log(
+            `🚀 Uploading ${file.name} (${Math.round(
+              file.size / 1024 / 1024
+            )}MB) using multipart S3 upload...`
+          );
 
-          if (useDirectS3Upload) {
-            // ✅ DIRECT S3 UPLOAD (for large files > 6MB)
-            console.log(
-              `🚀 File ${file.name} is ${Math.round(
-                file.size / 1024 / 1024
-              )}MB, using direct S3 upload...`
-            );
+          const s3UploadResult = await uploadToS3(
+            file,
+            displayName,
+            (progress: number) => {
+              setUploadProgress((prev) =>
+                prev.map((item) =>
+                  item.fileName === file.name
+                    ? {
+                        ...item,
+                        progress: Math.round(progress),
+                        status: "uploading",
+                        uploadMethod: "multipart-s3",
+                      }
+                    : item
+                )
+              );
+            }
+          );
 
-            const s3UploadResult = await uploadDirectToS3(
-              file,
-              displayName,
-              (progress: number) => {
-                setUploadProgress((prev) =>
-                  prev.map((item) =>
-                    item.fileName === file.name
-                      ? {
-                          ...item,
-                          progress: Math.round(progress),
-                          status: "uploading",
-                          uploadMethod: "direct-s3",
-                        }
-                      : item
-                  )
-                );
-              }
-            );
+          uploadResult = {
+            success: true,
+            uniqueFileName: s3UploadResult.uniqueFileName,
+            comfyResult: {
+              networkVolumePath: s3UploadResult.networkVolumePath,
+            },
+          };
+          syncStatus = "synced";
+          comfyUIPath = s3UploadResult.comfyUIPath;
 
-            uploadResult = {
-              success: true,
-              uniqueFileName: s3UploadResult.uniqueFileName,
-              comfyResult: {
-                networkVolumePath: s3UploadResult.networkVolumePath,
-              },
-            };
-            syncStatus = "synced";
-            comfyUIPath = s3UploadResult.comfyUIPath;
-
-            console.log(`✅ Direct S3 upload successful for ${file.name}`);
-          } else {
-            // ✅ SERVERLESS FUNCTION UPLOAD (for small files <= 6MB)
-            console.log(
-              `🚀 File ${file.name} is ${Math.round(
-                file.size / 1024 / 1024
-              )}MB, using serverless function upload...`
-            );
-            const networkUploadResult = await uploadToNetworkVolume(
-              file,
-              displayName
-            );
-
-            // Update progress to show completion
-            setUploadProgress((prev) =>
-              prev.map((item) =>
-                item.fileName === file.name
-                  ? {
-                      ...item,
-                      progress: 90,
-                      status: "processing",
-                      uploadMethod: "serverless-function",
-                    }
-                  : item
-              )
-            );
-
-            // Serverless upload completed successfully
-            uploadResult = {
-              success: true,
-              uniqueFileName: networkUploadResult.uniqueFileName,
-              comfyResult: {
-                networkVolumePath: networkUploadResult.comfyUIPath,
-              },
-            };
-            syncStatus = "synced";
-            comfyUIPath = networkUploadResult.comfyUIPath;
-
-            console.log(
-              `✅ Serverless function upload successful for ${file.name}`
-            );
-          }
+          console.log(`✅ Multipart S3 upload successful for ${file.name}`);
         } catch (error) {
           console.error(`❌ Upload failed for ${file.name}:`, error);
 
@@ -797,40 +695,17 @@ export default function MyInfluencersPage() {
     ).length;
 
     if (completedUploads > 0) {
-      const directS3Uploads = uploadProgress.filter(
-        (p) => p.status === "completed" && p.uploadMethod === "direct-s3"
-      ).length;
-      const serverlessUploads = uploadProgress.filter(
-        (p) =>
-          p.status === "completed" && p.uploadMethod === "serverless-function"
-      ).length;
-      const networkUploads = uploadProgress.filter(
-        (p) => p.status === "completed" && p.uploadMethod === "direct-comfyui"
-      ).length;
-      const fallbackUploads = uploadProgress.filter(
-        (p) => p.status === "completed" && p.uploadMethod === "server-fallback"
+      const multipartUploads = uploadProgress.filter(
+        (p) => p.status === "completed" && p.uploadMethod === "multipart-s3"
       ).length;
 
       let message = `🎉 Upload Results:\n\n✅ ${completedUploads} file(s) uploaded successfully\n`;
 
-      if (directS3Uploads > 0) {
-        message += `🚀 ${directS3Uploads} large file(s) uploaded directly to S3 network volume (ready for text-to-image generation!)\n`;
-      }
-      if (serverlessUploads > 0) {
-        message += `⚡ ${serverlessUploads} file(s) uploaded via serverless function (ready for text-to-image generation!)\n`;
-      }
-      if (networkUploads > 0) {
-        message += `🎯 ${networkUploads} uploaded to network volume (ready for text-to-image generation!)\n`;
-      }
-      if (fallbackUploads > 0) {
-        message += `💾 ${fallbackUploads} uploaded to storage (will sync to ComfyUI next)\n`;
+      if (multipartUploads > 0) {
+        message += `🚀 ${multipartUploads} file(s) uploaded to S3 network volume (ready for text-to-image generation!)\n`;
       }
       if (failedUploads > 0) {
         message += `❌ ${failedUploads} file(s) failed\n`;
-      }
-
-      if (fallbackUploads > 0) {
-        message += `\n🔧 Some files need to be synced to ComfyUI. Click "Sync Uploaded Files" to complete the process.`;
       }
 
       alert(message);
@@ -1750,33 +1625,15 @@ export default function MyInfluencersPage() {
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-400">
                           <span>
-                            {progress.uploadMethod === "direct-s3" &&
-                              "🚀 Direct S3 Upload (Large File)"}
-                            {progress.uploadMethod === "serverless-function" &&
-                              "⚡ Serverless Function Upload"}
-                            {progress.uploadMethod === "direct-comfyui" &&
-                              "🎯 Direct ComfyUI Upload"}
-                            {progress.uploadMethod === "server-fallback" &&
-                              "💾 Secure Storage Upload"}
-                            {!progress.uploadMethod && "🚀 Smart Upload"}
+                            {progress.uploadMethod === "multipart-s3" &&
+                              "🚀 Multipart S3 Upload"}
+                            {!progress.uploadMethod && "🚀 Uploading..."}
                           </span>
                           {progress.status === "uploading" &&
-                            progress.uploadMethod === "direct-s3" && (
+                            progress.uploadMethod === "multipart-s3" && (
                               <span>
-                                Uploading large file directly to S3...
+                                Uploading to S3 in chunks...
                               </span>
-                            )}
-                          {progress.status === "uploading" &&
-                            progress.uploadMethod === "serverless-function" && (
-                              <span>Uploading via serverless function...</span>
-                            )}
-                          {progress.status === "uploading" &&
-                            progress.uploadMethod === "direct-comfyui" && (
-                              <span>Uploading directly to ComfyUI...</span>
-                            )}
-                          {progress.status === "uploading" &&
-                            progress.uploadMethod === "server-fallback" && (
-                              <span>Uploading to secure storage...</span>
                             )}
                           {progress.status === "processing" && (
                             <span>Creating database record...</span>

@@ -377,6 +377,26 @@ def queue_workflow_with_comfyui(workflow: Dict, job_id: str) -> Optional[str]:
     try:
         logger.info(f"🎬 Queueing workflow with ComfyUI for job {job_id}")
         
+        # Detect and log multi-LoRA configuration
+        lora_nodes = []
+        for node_id, node in workflow.items():
+            if isinstance(node, dict) and node.get('class_type') in ['LoraLoader', 'LoraLoaderModelOnly']:
+                lora_name = node.get('inputs', {}).get('lora_name', 'Unknown')
+                strength = node.get('inputs', {}).get('strength_model', 0)
+                lora_nodes.append({
+                    'node_id': node_id,
+                    'name': lora_name,
+                    'strength': strength,
+                    'type': node.get('class_type')
+                })
+        
+        if lora_nodes:
+            logger.info(f"🎨 Multi-LoRA Configuration Detected:")
+            for idx, lora in enumerate(lora_nodes, 1):
+                logger.info(f"   LoRA {idx}: {lora['name']} (strength: {lora['strength']}, type: {lora['type']}, node: {lora['node_id']})")
+        else:
+            logger.info("ℹ️  No LoRA models detected in workflow")
+        
         # ComfyUI API endpoint (using network volume ComfyUI instance)
         comfyui_url = os.environ.get('COMFYUI_URL', 'http://localhost:8188')
         queue_url = f"{comfyui_url}/prompt"
@@ -1048,10 +1068,11 @@ def run_style_transfer_generation(job_input, job_id, webhook_url):
         # Fix LoRA paths - transform user LoRA names to include subdirectory structure
         try:
             for node_id, node in workflow.items():
-                if node.get('class_type') == 'LoraLoader' and 'inputs' in node:
+                # Handle both LoraLoader and LoraLoaderModelOnly nodes
+                if node.get('class_type') in ['LoraLoader', 'LoraLoaderModelOnly'] and 'inputs' in node:
                     if 'lora_name' in node.get('inputs', {}):
                         lora_name = node['inputs']['lora_name']
-                        logger.info(f"🎯 Found LoRA node {node_id}: {lora_name}")
+                        logger.info(f"🎯 Found LoRA node {node_id} ({node.get('class_type')}): {lora_name}")
                         
                         if lora_name.startswith('user_'):
                             lora_parts = lora_name.split('_')
@@ -1067,22 +1088,31 @@ def run_style_transfer_generation(job_input, job_id, webhook_url):
                                     user_dir_files = os.listdir(user_dir_path)
                                     logger.info(f"📁 Files in user directory {user_dir_path}: {user_dir_files}")
                                     
-                                    # Look for a file that matches the display name
-                                    for filename in user_dir_files:
-                                        if filename.endswith('.safetensors') and display_name in filename:
-                                            actual_lora_name = f"{lora_base_name}/{filename}"
-                                            logger.info(f"🎯 Found matching LoRA: {actual_lora_name}")
-                                            workflow[node_id]['inputs']['lora_name'] = actual_lora_name
-                                            break
+                                    # Look for exact match first
+                                    if lora_name in user_dir_files:
+                                        actual_lora_name = f"{lora_base_name}/{lora_name}"
+                                        logger.info(f"🎯 Found exact match: {actual_lora_name}")
+                                        workflow[node_id]['inputs']['lora_name'] = actual_lora_name
                                     else:
-                                        # Fallback: use the first .safetensors file in user directory
-                                        safetensors_files = [f for f in user_dir_files if f.endswith('.safetensors')]
-                                        if safetensors_files:
-                                            actual_lora_name = f"{lora_base_name}/{safetensors_files[0]}"
-                                            logger.info(f"🔄 Fallback: using first LoRA in subdirectory: {actual_lora_name}")
-                                            workflow[node_id]['inputs']['lora_name'] = actual_lora_name
-                                        else:
-                                            logger.error(f"❌ No .safetensors files found in {user_dir_path}")
+                                        # Look for a file that matches the display name
+                                        found = False
+                                        for filename in user_dir_files:
+                                            if filename.endswith('.safetensors') and display_name in filename:
+                                                actual_lora_name = f"{lora_base_name}/{filename}"
+                                                logger.info(f"🎯 Found matching LoRA: {actual_lora_name}")
+                                                workflow[node_id]['inputs']['lora_name'] = actual_lora_name
+                                                found = True
+                                                break
+                                        
+                                        if not found:
+                                            # Fallback: use the first .safetensors file in user directory
+                                            safetensors_files = [f for f in user_dir_files if f.endswith('.safetensors')]
+                                            if safetensors_files:
+                                                actual_lora_name = f"{lora_base_name}/{safetensors_files[0]}"
+                                                logger.info(f"🔄 Fallback: using first LoRA in subdirectory: {actual_lora_name}")
+                                                workflow[node_id]['inputs']['lora_name'] = actual_lora_name
+                                            else:
+                                                logger.error(f"❌ No .safetensors files found in {user_dir_path}")
                                 else:
                                     logger.warning(f"⚠️ User directory not found: {user_dir_path}")
         except Exception as e:

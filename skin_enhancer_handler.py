@@ -688,14 +688,20 @@ def queue_workflow_with_comfyui(workflow: Dict, job_id: str) -> Optional[str]:
         enhancement_loras = []
         
         for node_id, node in workflow.items():
-            if node.get('class_type') == 'LoraLoader' and 'inputs' in node:
+            if node.get('class_type') in ['LoraLoader', 'LoraLoaderModelOnly'] and 'inputs' in node:
                 lora_nodes_found += 1
+                node_type = node.get('class_type')
                 lora_name = node['inputs'].get('lora_name', 'Unknown')
                 lora_strength = node['inputs'].get('strength_model', 0)
-                enhancement_loras.append(f"Node {node_id}: {lora_name} (strength: {lora_strength})")
-                logger.info(f"🎭 Found enhancement LoRA in node {node_id}: {lora_name} (strength: {lora_strength})")
+                enhancement_loras.append(f"Node {node_id}: {lora_name} (strength: {lora_strength}, type: {node_type})")
+                logger.info(f"🎭 Found LoRA node {node_id} ({node_type}): {lora_name} (strength: {lora_strength})")
         
-        logger.info(f"📊 Total enhancement LoRA nodes found: {lora_nodes_found}")
+        if lora_nodes_found > 1:
+            logger.info(f"🎨 Multi-LoRA Configuration Detected:")
+            for i, lora_info in enumerate(enhancement_loras, 1):
+                logger.info(f"   LoRA {i}: {lora_info}")
+        
+        logger.info(f"📊 Total LoRA nodes found: {lora_nodes_found}")
         logger.info(f"🎭 Enhancement LoRAs: {enhancement_loras}")
         
         # Prepare payload with unique client_id to prevent caching

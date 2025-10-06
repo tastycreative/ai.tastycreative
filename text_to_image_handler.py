@@ -390,20 +390,22 @@ def queue_workflow_with_comfyui(workflow: Dict, job_id: str) -> Optional[str]:
     try:
         logger.info(f"🎬 Queueing workflow with ComfyUI for job {job_id}")
         
-        # Log LoRA information if present in workflow
-        if "14" in workflow and "inputs" in workflow["14"]:
-            lora_node = workflow["14"]
-            lora_name = lora_node["inputs"].get("lora_name", "unknown")
-            strength_model = lora_node["inputs"].get("strength_model", "unknown")
-            strength_clip = lora_node["inputs"].get("strength_clip", "unknown")
-            
-            logger.info(f"🎨 LoRA Configuration:")
-            logger.info(f"  📁 LoRA Name: {lora_name}")
-            logger.info(f"  💪 Model Strength: {strength_model}")
-            logger.info(f"  📎 CLIP Strength: {strength_clip}")
-            
-            # LoRA path should be used as-is since ComfyUI expects the full path with subdirectories
-            logger.info(f"✅ Using LoRA path as-is: {lora_name}")
+        # Log ALL LoRA information if present in workflow (supports multiple chained LoRAs)
+        lora_count = 0
+        for node_id, node in workflow.items():
+            if isinstance(node, dict) and node.get("class_type") == "LoraLoaderModelOnly":
+                lora_count += 1
+                lora_name = node.get("inputs", {}).get("lora_name", "unknown")
+                strength_model = node.get("inputs", {}).get("strength_model", "unknown")
+                
+                logger.info(f"🎨 LoRA {lora_count} Configuration (Node {node_id}):")
+                logger.info(f"  📁 LoRA Name: {lora_name}")
+                logger.info(f"  💪 Model Strength: {strength_model}")
+        
+        if lora_count > 0:
+            logger.info(f"✅ Total LoRAs in workflow: {lora_count} (chained)")
+        else:
+            logger.info(f"ℹ️ No LoRAs in workflow - using base model only")
         
         # ComfyUI API endpoint
         comfyui_url = os.environ.get('COMFYUI_URL', 'http://localhost:8188')
@@ -412,23 +414,26 @@ def queue_workflow_with_comfyui(workflow: Dict, job_id: str) -> Optional[str]:
         # Debug: Show the workflow being sent
         logger.info("🔍 === WORKFLOW DEBUG ===")
         
-        # Find LoRA nodes in workflow
+        # Find ALL LoRA nodes in workflow (supports multiple chained LoRAs)
         lora_nodes_found = 0
         for node_id, node in workflow.items():
             node_class = node.get("class_type", "unknown")
             
-            if node_class == "LoraLoader":
+            if node_class == "LoraLoaderModelOnly":
                 lora_nodes_found += 1
                 lora_name = node.get("inputs", {}).get("lora_name", "unknown")
                 strength_model = node.get("inputs", {}).get("strength_model", "unknown")
-                strength_clip = node.get("inputs", {}).get("strength_clip", "unknown")
+                model_input = node.get("inputs", {}).get("model", "unknown")
                 
-                logger.info(f"🔍 Found LoRA node {node_id}:")
+                logger.info(f"🔍 LoRA Node {node_id} (#{lora_nodes_found} in chain):")
                 logger.info(f"  📁 Name: {lora_name}")
-                logger.info(f"  💪 Model Strength: {strength_model}")
-                logger.info(f"  📎 CLIP Strength: {strength_clip}")
+                logger.info(f"  💪 Strength: {strength_model}")
+                logger.info(f"  � Input from: Node {model_input}")
         
-        logger.info(f"📊 Total LoRA nodes found in workflow: {lora_nodes_found}")
+        if lora_nodes_found > 0:
+            logger.info(f"📊 Total LoRA nodes found in workflow: {lora_nodes_found} (chained)")
+        else:
+            logger.info(f"📊 No LoRA nodes found - using base model only")
         
         # Show complete workflow for debugging
         logger.info(f"🔧 Complete workflow JSON: {json.dumps(workflow, indent=2)}")

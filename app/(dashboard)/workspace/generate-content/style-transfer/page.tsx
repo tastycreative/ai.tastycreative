@@ -32,6 +32,12 @@ import {
 } from "lucide-react";
 
 // Types
+interface LoRAConfig {
+  id: string;
+  modelName: string;
+  strength: number;
+}
+
 interface StyleTransferParams {
   prompt: string;
   width: number;
@@ -51,6 +57,8 @@ interface StyleTransferParams {
   downsamplingFactor: number;
   downsamplingFunction: string;
   autocropMargin: number;
+  // Multi-LoRA support
+  loras: LoRAConfig[];
 }
 
 interface GenerationJob {
@@ -172,6 +180,12 @@ export default function StyleTransferPage() {
     downsamplingFactor: 1,
     downsamplingFunction: "area",
     autocropMargin: 0.1,
+    // Multi-LoRA support
+    loras: [{
+      id: crypto.randomUUID(),
+      modelName: "AI MODEL 3.safetensors",
+      strength: 0.95
+    }],
   });
 
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
@@ -376,6 +390,35 @@ export default function StyleTransferPage() {
           (error instanceof Error ? error.message : "Unknown error")
       );
     }
+  };
+
+  // Multi-LoRA management functions
+  const addLoRA = () => {
+    const newLora: LoRAConfig = {
+      id: crypto.randomUUID(),
+      modelName: availableLoRAs[0]?.fileName || "AI MODEL 3.safetensors",
+      strength: 0.95
+    };
+    setParams(prev => ({
+      ...prev,
+      loras: [...prev.loras, newLora]
+    }));
+  };
+
+  const removeLoRA = (id: string) => {
+    setParams(prev => ({
+      ...prev,
+      loras: prev.loras.filter(lora => lora.id !== id)
+    }));
+  };
+
+  const updateLoRA = (id: string, field: keyof LoRAConfig, value: any) => {
+    setParams(prev => ({
+      ...prev,
+      loras: prev.loras.map(lora => 
+        lora.id === id ? { ...lora, [field]: value } : lora
+      )
+    }));
   };
 
   // Persistent generation state keys
@@ -1531,6 +1574,10 @@ export default function StyleTransferPage() {
   ) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
 
+    // Determine the last LoRA node ID for chaining
+    const loraCount = params.loras.length;
+    const lastLoraNodeId = loraCount > 1 ? `5${loraCount}` : "51";
+
     const workflow: any = {
       "8": {
         inputs: {
@@ -1549,13 +1596,13 @@ export default function StyleTransferPage() {
       "33": {
         inputs: {
           text: "", // Negative prompt - empty for style transfer
-          clip: ["51", 1],
+          clip: ["51", 1], // Always connect to first LoRA node's CLIP output (LoraLoaderModelOnly doesn't output CLIP)
         },
         class_type: "CLIPTextEncode",
       },
       "31": {
         inputs: {
-          model: ["51", 0],
+          model: [lastLoraNodeId, 0], // Connect to last LoRA node's model output
           positive: ["41", 0],
           negative: ["33", 0],
           latent_image: ["27", 0],
@@ -1575,12 +1622,14 @@ export default function StyleTransferPage() {
         },
         class_type: "UNETLoader",
       },
+      // Multi-LoRA support: Chain LoRA loaders
+      // First LoRA connects to base model (node 37)
       "51": {
         inputs: {
           model: ["37", 0],
           clip: ["38", 0],
-          lora_name: params.selectedLora,
-          strength_model: params.loraStrength,
+          lora_name: params.loras[0]?.modelName || params.selectedLora,
+          strength_model: params.loras[0]?.strength || params.loraStrength,
           strength_clip: 1,
         },
         class_type: "LoraLoader",
@@ -1647,7 +1696,7 @@ export default function StyleTransferPage() {
       "6": {
         inputs: {
           text: params.prompt,
-          clip: ["51", 1],
+          clip: ["51", 1], // Always connect to first LoRA node's CLIP output (LoraLoaderModelOnly doesn't output CLIP)
         },
         class_type: "CLIPTextEncode",
       },
@@ -1658,6 +1707,24 @@ export default function StyleTransferPage() {
         class_type: "LoadImage",
       },
     };
+
+    // Add additional chained LoRA nodes if multiple LoRAs are configured
+    if (params.loras.length > 1) {
+      for (let i = 1; i < params.loras.length; i++) {
+        const nodeId = `5${i + 1}`; // 52, 53, 54, etc.
+        const prevNodeId = i === 1 ? "51" : `5${i}`; // Chain from previous LoRA node
+        
+        workflow[nodeId] = {
+          inputs: {
+            model: [prevNodeId, 0], // Connect to previous LoRA's model output
+            lora_name: params.loras[i].modelName,
+            strength_model: params.loras[i].strength,
+            // Note: LoraLoaderModelOnly does NOT accept 'clip' or 'strength_clip' parameters
+          },
+          class_type: "LoraLoaderModelOnly",
+        };
+      }
+    }
 
     // Add mask processing nodes if mask is provided
     if (maskFilename) {
@@ -1962,11 +2029,22 @@ export default function StyleTransferPage() {
                 </select>
               </div>
 
-              {/* LoRA Model Selection */}
+              {/* Multi-LoRA Configuration */}
               <div className="space-y-3 mb-6">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  LoRA Model
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-slate-800 dark:text-white flex items-center">
+                    <Layers className="w-4 h-4 mr-2 text-purple-600" />
+                    LoRA Models (Power LoRA Loader)
+                  </label>
+                  <button
+                    onClick={addLoRA}
+                    disabled={loadingLoRAs}
+                    className="px-3 py-1 bg-gradient-to-r from-purple-500 to-indigo-500 text-white text-xs font-medium rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                  >
+                    <span>+</span>
+                    <span>Add LoRA</span>
+                  </button>
+                </div>
 
                 {loadingLoRAs ? (
                   <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
@@ -1976,25 +2054,83 @@ export default function StyleTransferPage() {
                     </span>
                   </div>
                 ) : (
-                  <select
-                    value={params.selectedLora}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        selectedLora: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    {availableLoRAs.map((lora, index) => (
-                      <option
-                        key={`${lora.fileName}-${index}`}
-                        value={lora.fileName}
+                  <div className="space-y-3">
+                    {params.loras.map((lora, index) => (
+                      <div
+                        key={lora.id}
+                        className="p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800/50 space-y-3"
                       >
-                        {lora.displayName}
-                      </option>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                            LoRA {index + 1}
+                          </span>
+                          {params.loras.length > 1 && (
+                            <button
+                              onClick={() => removeLoRA(lora.id)}
+                              className="text-red-500 hover:text-red-700 transition-colors"
+                              title="Remove LoRA"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* LoRA Model Selection */}
+                        <div>
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">
+                            Model
+                          </label>
+                          <select
+                            value={lora.modelName}
+                            onChange={(e) =>
+                              updateLoRA(lora.id, "modelName", e.target.value)
+                            }
+                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          >
+                            {availableLoRAs.map((loraModel, idx) => (
+                              <option
+                                key={`${loraModel.fileName}-${idx}`}
+                                value={loraModel.fileName}
+                              >
+                                {loraModel.displayName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* LoRA Strength */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                              Strength
+                            </label>
+                            <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
+                              {lora.strength.toFixed(2)}
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="0.05"
+                            value={lora.strength}
+                            onChange={(e) =>
+                              updateLoRA(
+                                lora.id,
+                                "strength",
+                                parseFloat(e.target.value)
+                              )
+                            }
+                            className="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                          />
+                          <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            <span>0</span>
+                            <span>2</span>
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </select>
+                  </div>
                 )}
               </div>
 

@@ -22,9 +22,17 @@ import {
   EyeOff,
   Layers,
   XCircle,
+  Plus,
+  X,
 } from "lucide-react";
 
 // Types
+interface LoRAConfig {
+  id: string;
+  modelName: string;
+  strength: number;
+}
+
 interface EnhancementParams {
   prompt: string;
   width: number;
@@ -38,6 +46,7 @@ interface EnhancementParams {
   guidance: number;
   influencerLoraStrength: number;
   selectedInfluencerLora: string;
+  loras: LoRAConfig[]; // Multi-LoRA support
   seed: number | null;
   denoise: number;
 }
@@ -202,6 +211,7 @@ export default function SkinEnhancerPage() {
     guidance: 4,
     influencerLoraStrength: 0.95,
     selectedInfluencerLora: "None",
+    loras: [], // Initialize with empty array - user can add influencer LoRAs
     seed: null,
     denoise: 0.25,
   });
@@ -898,6 +908,39 @@ export default function SkinEnhancerPage() {
     setParams((prev) => ({ ...prev, width, height, portraitSize }));
   };
 
+  // Multi-LoRA Management Functions
+  const addLoRA = () => {
+    const newLoRA: LoRAConfig = {
+      id: crypto.randomUUID(),
+      modelName: availableInfluencerLoRAs[0]?.fileName || "None",
+      strength: 0.95,
+    };
+    setParams((prev) => ({
+      ...prev,
+      loras: [...prev.loras, newLoRA],
+    }));
+  };
+
+  const removeLoRA = (id: string) => {
+    setParams((prev) => ({
+      ...prev,
+      loras: prev.loras.filter((lora) => lora.id !== id),
+    }));
+  };
+
+  const updateLoRA = (
+    id: string,
+    field: keyof LoRAConfig,
+    value: string | number
+  ) => {
+    setParams((prev) => ({
+      ...prev,
+      loras: prev.loras.map((lora) =>
+        lora.id === id ? { ...lora, [field]: value } : lora
+      ),
+    }));
+  };
+
   // Manual job status check (without starting continuous polling)
   const checkJobStatus = async (jobId: string) => {
     if (!apiClient) return;
@@ -1387,7 +1430,12 @@ export default function SkinEnhancerPage() {
   // Create workflow JSON for skin enhancer - SIMPLIFIED VERSION without PersonMaskUltra
   const createSkinEnhancerWorkflowJson = (params: EnhancementParams) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
-    const useInfluencerLoRA = params.selectedInfluencerLora !== "None";
+    
+    // Filter out "None" LoRAs (same pattern as text-to-image)
+    const activeInfluencerLoRAs = params.loras.filter(lora => lora.modelName !== "None");
+    const hasInfluencerLoRAs = activeInfluencerLoRAs.length > 0;
+    const loraCount = activeInfluencerLoRAs.length;
+    const lastLoraNodeId = hasInfluencerLoRAs ? `10${7 + loraCount}` : "108"; // 108, 109, 110, etc.
 
     const workflow: any = {
       // Initial FLUX generation
@@ -1477,7 +1525,7 @@ export default function SkinEnhancerPage() {
           sampler_name: "heun",
           scheduler: "beta",
           denoise: 1,
-          model: ["108", 0],
+          model: [lastLoraNodeId, 0], // Connect to last LoRA node's model output
           positive: ["103", 0],
           negative: ["107", 0],
           latent_image: ["100", 0],
@@ -1487,14 +1535,14 @@ export default function SkinEnhancerPage() {
       "105": {
         inputs: {
           text: "",
-          clip: ["108", 1],
+          clip: ["108", 1], // Always use first LoRA's CLIP output
         },
         class_type: "CLIPTextEncode",
       },
       "106": {
         inputs: {
           text: params.prompt, // Main user prompt
-          clip: ["108", 1],
+          clip: ["108", 1], // Always use first LoRA's CLIP output
         },
         class_type: "CLIPTextEncode",
       },
@@ -1504,18 +1552,19 @@ export default function SkinEnhancerPage() {
         },
         class_type: "ConditioningZeroOut",
       },
+      // First influencer LoRA (or fallback to enhancement LoRA)
       "108": {
         inputs: {
           model: ["118", 0],
           clip: ["119", 0],
-          lora_name: useInfluencerLoRA
-            ? params.selectedInfluencerLora
+          lora_name: hasInfluencerLoRAs
+            ? activeInfluencerLoRAs[0].modelName
             : "real-humans-PublicPrompts.safetensors", // Use existing enhancement LoRA as fallback
-          strength_model: useInfluencerLoRA
-            ? params.influencerLoraStrength
+          strength_model: hasInfluencerLoRAs
+            ? activeInfluencerLoRAs[0].strength
             : 0.95,
-          strength_clip: useInfluencerLoRA
-            ? params.influencerLoraStrength
+          strength_clip: hasInfluencerLoRAs
+            ? activeInfluencerLoRAs[0].strength
             : 0.95,
         },
         class_type: "LoraLoader",
@@ -1572,10 +1621,29 @@ export default function SkinEnhancerPage() {
       },
     };
 
+    // Add additional chained influencer LoRA nodes if multiple LoRAs are configured
+    if (hasInfluencerLoRAs && activeInfluencerLoRAs.length > 1) {
+      for (let i = 1; i < activeInfluencerLoRAs.length; i++) {
+        const nodeId = `10${8 + i}`; // 109, 110, 111, etc.
+        const prevNodeId = i === 1 ? "108" : `10${7 + i}`; // Chain from previous LoRA node
+        
+        workflow[nodeId] = {
+          inputs: {
+            model: [prevNodeId, 0], // Connect to previous LoRA's model output
+            lora_name: activeInfluencerLoRAs[i].modelName,
+            strength_model: activeInfluencerLoRAs[i].strength,
+            // Note: LoraLoaderModelOnly does NOT accept 'clip' or 'strength_clip' parameters
+          },
+          class_type: "LoraLoaderModelOnly",
+        };
+      }
+    }
+
     console.log(
       "📋 Simplified skin enhancer workflow created with main prompt:",
       params.prompt
     );
+    console.log(`🎭 Multi-LoRA: ${hasInfluencerLoRAs ? `${params.loras.length} influencer LoRAs` : 'Using fallback enhancement LoRA'}`);
     return workflow;
   };
 
@@ -1902,11 +1970,21 @@ export default function SkinEnhancerPage() {
               Settings
             </h3>
 
-            {/* Influencer LoRA Model Selection */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Influencer Model (Optional)
-              </label>
+            {/* Multi-Influencer LoRA Model Selection */}
+            <div className="space-y-4 mb-6">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Influencer Models (Optional)
+                </label>
+                <button
+                  onClick={addLoRA}
+                  disabled={loadingLoRAs || isGenerating}
+                  className="flex items-center space-x-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white text-xs rounded-lg transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Add LoRA</span>
+                </button>
+              </div>
 
               {loadingLoRAs ? (
                 <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
@@ -1916,33 +1994,95 @@ export default function SkinEnhancerPage() {
                   </span>
                 </div>
               ) : (
-                <select
-                  value={params.selectedInfluencerLora}
-                  onChange={(e) =>
-                    setParams((prev) => ({
-                      ...prev,
-                      selectedInfluencerLora: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {availableInfluencerLoRAs.map((lora, index) => (
-                    <option
-                      key={`${lora.fileName}-${index}`}
-                      value={lora.fileName}
-                    >
-                      {lora.displayName}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-3">
+                  {params.loras.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400 p-4 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center">
+                      No influencer LoRAs selected. Click "Add LoRA" to add one.
+                    </div>
+                  ) : (
+                    params.loras.map((lora, index) => (
+                      <div
+                        key={lora.id}
+                        className="p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            Influencer LoRA #{index + 1}
+                          </span>
+                          <button
+                            onClick={() => removeLoRA(lora.id)}
+                            disabled={isGenerating}
+                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50"
+                            title="Remove LoRA"
+                          >
+                            <X className="w-4 h-4 text-red-500" />
+                          </button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">
+                            Model
+                          </label>
+                          <select
+                            value={lora.modelName}
+                            onChange={(e) =>
+                              updateLoRA(lora.id, "modelName", e.target.value)
+                            }
+                            disabled={isGenerating}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:opacity-50"
+                          >
+                            {availableInfluencerLoRAs
+                              .filter((l) => l.fileName !== "None")
+                              .map((loraModel) => (
+                                <option
+                                  key={loraModel.fileName}
+                                  value={loraModel.fileName}
+                                >
+                                  {loraModel.displayName}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <label className="text-xs text-gray-600 dark:text-gray-400">
+                              Strength
+                            </label>
+                            <span className="text-xs font-mono text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
+                              {lora.strength.toFixed(2)}
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={lora.strength}
+                            onChange={(e) =>
+                              updateLoRA(
+                                lora.id,
+                                "strength",
+                                parseFloat(e.target.value)
+                              )
+                            }
+                            disabled={isGenerating}
+                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500 disabled:opacity-50"
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               )}
 
-              {params.selectedInfluencerLora !== "None" && (
-                <div className="text-xs text-green-600 dark:text-green-400">
-                  Using influencer model:{" "}
-                  {availableInfluencerLoRAs.find(
-                    (lora) => lora.fileName === params.selectedInfluencerLora
-                  )?.displayName || params.selectedInfluencerLora}
+              {params.loras.length > 0 && (
+                <div className="text-xs text-green-600 dark:text-green-400 flex items-center space-x-1">
+                  <CheckCircle className="w-3 h-3" />
+                  <span>
+                    Using {params.loras.length} influencer{" "}
+                    {params.loras.length > 1 ? "LoRAs" : "LoRA"}
+                  </span>
                 </div>
               )}
             </div>

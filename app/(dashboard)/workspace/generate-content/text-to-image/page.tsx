@@ -28,9 +28,16 @@ import {
   User,
   ChevronDown,
   X,
+  Plus,
 } from "lucide-react";
 
 // Types
+interface LoRAConfig {
+  id: string;
+  modelName: string;
+  strength: number;
+}
+
 interface GenerationParams {
   prompt: string;
   negativePrompt: string;
@@ -42,8 +49,7 @@ interface GenerationParams {
   samplerName: string;
   scheduler: string;
   guidance: number;
-  loraStrength: number;
-  selectedLora: string;
+  loras: LoRAConfig[]; // Support multiple LoRAs
   seed: number | null;
 }
 
@@ -162,8 +168,7 @@ export default function TextToImagePage() {
     samplerName: "euler",
     scheduler: "beta",
     guidance: 4,
-    loraStrength: 0.95,
-    selectedLora: "None",
+    loras: [], // Start with no LoRAs
     seed: null,
   });
 
@@ -828,21 +833,32 @@ export default function TextToImagePage() {
           console.log("Available LoRA models:", data.models);
           setAvailableLoRAs(data.models);
 
-          // Set default LoRA if current selection isn't available
-          const currentLoRAExists = data.models.some(
-            (lora: LoRAModel) => lora.fileName === params.selectedLora
-          );
-          if (!currentLoRAExists) {
-            const defaultLora =
-              data.models.find((lora: LoRAModel) => lora.fileName === "None")
-                ?.fileName ||
-              data.models[0]?.fileName ||
-              "None";
-            console.log("Setting default LoRA to:", defaultLora);
-            setParams((prev) => ({
-              ...prev,
-              selectedLora: defaultLora,
-            }));
+          // Migrate old single LoRA state to new multi-LoRA format if needed
+          if (typeof window !== 'undefined') {
+            const storedParams = localStorage.getItem('text-to-image-params');
+            if (storedParams) {
+              try {
+                const parsed = JSON.parse(storedParams);
+                // Check if old format (has selectedLora/loraStrength but no loras array)
+                if ('selectedLora' in parsed && !('loras' in parsed)) {
+                  const migratedLoras: LoRAConfig[] = [];
+                  if (parsed.selectedLora && parsed.selectedLora !== 'None') {
+                    migratedLoras.push({
+                      id: `lora-${Date.now()}`,
+                      modelName: parsed.selectedLora,
+                      strength: parsed.loraStrength || 0.95,
+                    });
+                  }
+                  setParams(prev => ({
+                    ...prev,
+                    loras: migratedLoras,
+                  }));
+                  console.log('✅ Migrated old LoRA format to new multi-LoRA format');
+                }
+              } catch (e) {
+                console.error('Error migrating LoRA format:', e);
+              }
+            }
           }
         } else {
           console.error("Invalid LoRA API response:", data);
@@ -890,6 +906,35 @@ export default function TextToImagePage() {
     setParams((prev) => ({ ...prev, width, height }));
   };
 
+  // LoRA management functions
+  const addLoRA = () => {
+    const newLoRA: LoRAConfig = {
+      id: `lora-${Date.now()}`,
+      modelName: "None",
+      strength: 0.95,
+    };
+    setParams((prev) => ({
+      ...prev,
+      loras: [...prev.loras, newLoRA],
+    }));
+  };
+
+  const removeLoRA = (id: string) => {
+    setParams((prev) => ({
+      ...prev,
+      loras: prev.loras.filter((lora) => lora.id !== id),
+    }));
+  };
+
+  const updateLoRA = (id: string, updates: Partial<LoRAConfig>) => {
+    setParams((prev) => ({
+      ...prev,
+      loras: prev.loras.map((lora) =>
+        lora.id === id ? { ...lora, ...updates } : lora
+      ),
+    }));
+  };
+
   // Submit generation
   const handleGenerate = async () => {
     if (!apiClient) {
@@ -923,12 +968,11 @@ export default function TextToImagePage() {
       console.log("=== STARTING GENERATION ===");
       console.log("🎯 Current form state:", {
         prompt: params.prompt,
-        selectedLora: params.selectedLora,
+        loras: params.loras,
         width: params.width,
         height: params.height,
         steps: params.steps,
         guidance: params.guidance,
-        loraStrength: params.loraStrength,
       });
 
       // Verify form state before submission
@@ -1404,7 +1448,9 @@ export default function TextToImagePage() {
     const seed = params.seed || Math.floor(Math.random() * 2147483647);
     console.log(`🎲 Using seed: ${seed}`);
 
-    const useLoRA = params.selectedLora !== "None";
+    // Check if we have any LoRAs to apply
+    const activeLoRAs = params.loras.filter(lora => lora.modelName !== "None");
+    const useLoRA = activeLoRAs.length > 0;
 
     const workflow: any = {
       "1": {
@@ -1459,7 +1505,7 @@ export default function TextToImagePage() {
       },
       "9": {
         inputs: {
-          model: useLoRA ? ["14", 0] : ["6", 0],
+          model: useLoRA ? [`${14 + activeLoRAs.length - 1}`, 0] : ["6", 0],
           max_shift: 1.15,
           base_shift: 0.3,
           width: params.width,
@@ -1497,38 +1543,37 @@ export default function TextToImagePage() {
       },
     };
 
+    // Chain multiple LoRA loaders (similar to rgthree Power LoRA Loader)
     if (useLoRA) {
-      // Format the LoRA path correctly for ComfyUI network volume
-      // ComfyUI expects: subdirectory/filename format for files in subdirectories
-      // Our files are stored as: /runpod-volume/loras/{user_id}/{filename}
-      // So ComfyUI should reference them as: {user_id}/{filename}
-      let loraPath = params.selectedLora;
-
-      if (params.selectedLora.startsWith("user_") && user?.id) {
-        // Extract the user ID from the filename and use it as subdirectory
-        // Format: user_id/filename.safetensors
-        loraPath = `${user.id}/${params.selectedLora}`;
-        console.log(`🎯 ComfyUI LoRA path: ${loraPath}`);
-        console.log(`🎯 Selected LoRA filename: ${params.selectedLora}`);
-        console.log(`🎯 User ID: ${user.id}`);
+      console.log(`🎯 Loading ${activeLoRAs.length} LoRA(s)`);
+      
+      activeLoRAs.forEach((lora, index) => {
+        const nodeId = `${14 + index}`;
+        const previousNodeId = index === 0 ? "6" : `${14 + index - 1}`;
+        
+        // Format the LoRA path correctly for ComfyUI network volume
+        let loraPath = lora.modelName;
+        
+        if (lora.modelName.startsWith("user_") && user?.id) {
+          loraPath = `${user.id}/${lora.modelName}`;
+          console.log(`🎯 LoRA ${index + 1} ComfyUI path: ${loraPath}`);
+          console.log(`🎯 LoRA ${index + 1} strength: ${lora.strength}`);
+        }
+        
+        workflow[nodeId] = {
+          inputs: {
+            model: [previousNodeId, 0],
+            lora_name: loraPath,
+            strength_model: lora.strength,
+          },
+          class_type: "LoraLoaderModelOnly",
+        };
+        
         console.log(
-          `🎯 Expected storage path: /runpod-volume/loras/${loraPath}`
+          `🎯 LoRA workflow node ${nodeId}:`,
+          JSON.stringify(workflow[nodeId], null, 2)
         );
-      }
-
-      workflow["14"] = {
-        inputs: {
-          model: ["6", 0],
-          lora_name: loraPath,
-          strength_model: params.loraStrength,
-        },
-        class_type: "LoraLoaderModelOnly",
-      };
-
-      console.log(
-        `🎯 LoRA workflow node 14:`,
-        JSON.stringify(workflow["14"], null, 2)
-      );
+      });
     }
 
     // Final workflow debugging
@@ -1537,8 +1582,10 @@ export default function TextToImagePage() {
     console.log(`🎭 Prompt: ${params.prompt}`);
     console.log(`🖼️ Filename prefix: ComfyUI_${Date.now()}_${seed}`);
     if (useLoRA) {
-      console.log(`🎯 LoRA being used: ${workflow["14"].inputs.lora_name}`);
-      console.log(`💪 LoRA strength: ${workflow["14"].inputs.strength_model}`);
+      console.log(`🎯 Total LoRAs being used: ${activeLoRAs.length}`);
+      activeLoRAs.forEach((lora, index) => {
+        console.log(`   LoRA ${index + 1}: ${lora.modelName} @ ${lora.strength} strength`);
+      });
     } else {
       console.log(`🚫 No LoRA selected`);
     }
@@ -1969,22 +2016,22 @@ export default function TextToImagePage() {
               </div>
             </div>
 
-            {/* Enhanced LoRA Model Selection */}
+            {/* Enhanced Multi-LoRA Model Selection */}
             <div className="space-y-4 mb-6 p-4 bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 dark:from-green-900/20 dark:via-emerald-900/20 dark:to-teal-900/20 rounded-2xl border border-green-200 dark:border-green-800">
               <div className="flex items-center justify-between">
                 <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
                   <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
                     <User className="w-5 h-5 text-white" />
                   </div>
-                  <span>AI Style Model</span>
+                  <span>AI Style Models (LoRA)</span>
                   <div className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
-                    Custom Trained
+                    Multi-Stack
                   </div>
                 </label>
-                {params.selectedLora !== "None" && (
+                {params.loras.filter(l => l.modelName !== "None").length > 0 && (
                   <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium">Active</span>
+                    <span className="text-sm font-medium">{params.loras.filter(l => l.modelName !== "None").length} Active</span>
                   </div>
                 )}
               </div>
@@ -2005,75 +2052,126 @@ export default function TextToImagePage() {
                   </div>
                 </div>
               ) : (
-                <div className="relative">
-                  <select
-                    value={params.selectedLora}
-                    onChange={(e) =>
-                      setParams((prev) => ({
-                        ...prev,
-                        selectedLora: e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-4 border-2 border-green-200 dark:border-green-600 rounded-2xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-4 focus:ring-green-500/20 focus:border-green-500 transition-all duration-300 appearance-none text-lg font-medium shadow-sm"
-                  >
-                    {availableLoRAs.map((lora, index) => (
-                      <option
-                        key={`${lora.fileName}-${index}`}
-                        value={lora.fileName}
-                      >
-                        {lora.displayName}
-                        {lora.fileName !== "None" &&
-                          lora.fileSize > 0 &&
-                          ` (${(lora.fileSize / 1024 / 1024).toFixed(1)}MB)`}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-green-500 pointer-events-none" />
-                </div>
-              )}
-
-              {params.selectedLora !== "None" && (
-                <div className="flex items-center space-x-3 p-4 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 border border-green-200 dark:border-green-700 rounded-2xl shadow-sm">
-                  <div className="p-2 bg-green-500 rounded-xl">
-                    <CheckCircle className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-bold text-green-800 dark:text-green-200 mb-1">
-                      Using Custom Style Model
-                    </div>
-                    <div className="text-xs text-green-600 dark:text-green-400 mb-1">
-                      {availableLoRAs.find(
-                        (lora) => lora.fileName === params.selectedLora
-                      )?.displayName || params.selectedLora}
-                    </div>
-                    {(() => {
-                      const selectedLoRA = availableLoRAs.find(
-                        (lora) => lora.fileName === params.selectedLora
-                      );
-                      return selectedLoRA && selectedLoRA.fileSize > 0 ? (
-                        <div className="text-xs text-green-500 dark:text-green-300 space-y-0.5">
-                          <div>
-                            Size:{" "}
-                            {(selectedLoRA.fileSize / 1024 / 1024).toFixed(1)}MB
+                <div className="space-y-3">
+                  {/* Existing LoRAs */}
+                  {params.loras.map((lora, index) => (
+                    <div key={lora.id} className="p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-green-200 dark:border-green-700 shadow-sm">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-bold">
+                            LoRA {index + 1}
                           </div>
-                          <div>
-                            Uploaded:{" "}
-                            {new Date(
-                              selectedLoRA.uploadedAt
-                            ).toLocaleDateString()}
-                          </div>
-                          {selectedLoRA.usageCount > 0 && (
-                            <div>Used {selectedLoRA.usageCount} times</div>
+                          {lora.modelName !== "None" && (
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                           )}
                         </div>
-                      ) : null;
-                    })()}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                      Strength: {(params.loraStrength * 100).toFixed(0)}%
+                        <button
+                          onClick={() => removeLoRA(lora.id)}
+                          className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                      
+                      {/* LoRA Model Selection */}
+                      <div className="relative mb-3">
+                        <select
+                          value={lora.modelName}
+                          onChange={(e) => updateLoRA(lora.id, { modelName: e.target.value })}
+                          className="w-full px-4 py-3 border-2 border-green-200 dark:border-green-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-4 focus:ring-green-500/20 focus:border-green-500 transition-all duration-300 appearance-none font-medium shadow-sm"
+                        >
+                          {availableLoRAs.map((loraModel, idx) => (
+                            <option
+                              key={`${loraModel.fileName}-${idx}`}
+                              value={loraModel.fileName}
+                            >
+                              {loraModel.displayName}
+                              {loraModel.fileName !== "None" &&
+                                loraModel.fileSize > 0 &&
+                                ` (${(loraModel.fileSize / 1024 / 1024).toFixed(1)}MB)`}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-green-500 pointer-events-none" />
+                      </div>
+
+                      {/* LoRA Strength Slider */}
+                      {lora.modelName !== "None" && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Strength
+                            </label>
+                            <span className="text-sm font-bold text-green-600 dark:text-green-400">
+                              {(lora.strength * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={lora.strength}
+                            onChange={(e) => updateLoRA(lora.id, { strength: parseFloat(e.target.value) })}
+                            className="w-full h-2 bg-green-200 dark:bg-green-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+                          />
+                          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <span>Subtle</span>
+                            <span>Balanced</span>
+                            <span>Strong</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* LoRA Info */}
+                      {lora.modelName !== "None" && (() => {
+                        const selectedLoRA = availableLoRAs.find(
+                          (l) => l.fileName === lora.modelName
+                        );
+                        return selectedLoRA && selectedLoRA.fileSize > 0 ? (
+                          <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
+                            <div className="text-xs text-green-600 dark:text-green-400 space-y-0.5">
+                              <div>
+                                Size: {(selectedLoRA.fileSize / 1024 / 1024).toFixed(1)}MB
+                              </div>
+                              <div>
+                                Uploaded: {new Date(selectedLoRA.uploadedAt).toLocaleDateString()}
+                              </div>
+                              {selectedLoRA.usageCount > 0 && (
+                                <div>Used {selectedLoRA.usageCount} times</div>
+                              )}
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
-                  </div>
+                  ))}
+
+                  {/* Add LoRA Button */}
+                  <button
+                    onClick={addLoRA}
+                    className="w-full py-3 px-4 border-2 border-dashed border-green-300 dark:border-green-600 rounded-xl bg-green-50 dark:bg-green-900/10 hover:bg-green-100 dark:hover:bg-green-900/20 text-green-700 dark:text-green-300 font-medium transition-all duration-300 flex items-center justify-center space-x-2 group"
+                  >
+                    <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                    <span>Add Another LoRA</span>
+                  </button>
+
+                  {/* Summary */}
+                  {params.loras.filter(l => l.modelName !== "None").length > 0 && (
+                    <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 border border-green-200 dark:border-green-700 rounded-xl shadow-sm">
+                      <div className="p-2 bg-green-500 rounded-lg">
+                        <CheckCircle className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-green-800 dark:text-green-200">
+                          {params.loras.filter(l => l.modelName !== "None").length} Style Model{params.loras.filter(l => l.modelName !== "None").length > 1 ? 's' : ''} Active
+                        </div>
+                        <div className="text-xs text-green-600 dark:text-green-400">
+                          Models will be applied in sequence (stacked)
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2328,29 +2426,6 @@ export default function TextToImagePage() {
                   />
                 </div>
 
-                {/* LoRA Strength */}
-                {params.selectedLora !== "None" && (
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      LoRA Strength: {params.loraStrength}
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={params.loraStrength}
-                      onChange={(e) =>
-                        setParams((prev) => ({
-                          ...prev,
-                          loraStrength: parseFloat(e.target.value),
-                        }))
-                      }
-                      className="w-full"
-                    />
-                  </div>
-                )}
-
                 {/* Sampler */}
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2452,9 +2527,9 @@ export default function TextToImagePage() {
                       Style Model:
                     </span>{" "}
                     <span className="text-gray-900 dark:text-white font-medium">
-                      {availableLoRAs
-                        .find((l) => l.fileName === params.selectedLora)
-                        ?.displayName?.substring(0, 20) || params.selectedLora}
+                      {params.loras.length > 0 && params.loras.some(l => l.modelName !== "None")
+                        ? `${params.loras.filter(l => l.modelName !== "None").length} LoRA${params.loras.filter(l => l.modelName !== "None").length > 1 ? 's' : ''}`
+                        : "Base Model"}
                     </span>
                   </div>
                   <div>
@@ -2463,14 +2538,6 @@ export default function TextToImagePage() {
                     </span>{" "}
                     <span className="text-gray-900 dark:text-white font-medium">
                       {params.width}×{params.height}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400">
-                      Style Strength:
-                    </span>{" "}
-                    <span className="text-gray-900 dark:text-white font-medium">
-                      {Math.round(params.loraStrength * 100)}%
                     </span>
                   </div>
                 </div>
@@ -2490,7 +2557,7 @@ export default function TextToImagePage() {
                       {params.batchSize} image
                       {params.batchSize !== 1 ? "s" : ""} • {params.width}×
                       {params.height}
-                      {params.selectedLora !== "None" && " • Custom Style"}
+                      {params.loras.some(l => l.modelName !== "None") && ` • ${params.loras.filter(l => l.modelName !== "None").length} LoRA${params.loras.filter(l => l.modelName !== "None").length > 1 ? 's' : ''}`}
                     </div>
                   </div>
                 </div>
@@ -3074,10 +3141,10 @@ export default function TextToImagePage() {
                               )}
                             </div>
                           ))
-                      ) : // Check if there are images without data (still processing)
+                      ) : // Check if there are images without any displayable URL (still processing)
                       jobImages[currentJob.id] &&
                         jobImages[currentJob.id].length > 0 &&
-                        jobImages[currentJob.id].some((img) => !img.dataUrl) ? (
+                        jobImages[currentJob.id].some((img) => !img.awsS3Url && !img.awsS3Key && !img.dataUrl && !img.url) ? (
                         <div className="text-center py-8">
                           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full mb-4">
                             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -3088,18 +3155,18 @@ export default function TextToImagePage() {
                           <p className="text-sm text-gray-500 dark:text-gray-500">
                             {
                               jobImages[currentJob.id].filter(
-                                (img) => !img.dataUrl
+                                (img) => !img.awsS3Url && !img.awsS3Key && !img.dataUrl && !img.url
                               ).length
                             }{" "}
-                            image(s) saving to database
+                            image(s) saving to storage
                           </p>
                           <button
                             onClick={() =>
-                              currentJob.id && fetchJobImages(currentJob.id)
+                              currentJob.id && fetchJobImages(currentJob.id, true)
                             }
                             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
                           >
-                            Check Again
+                            Refresh Images
                           </button>
                         </div>
                       ) : (

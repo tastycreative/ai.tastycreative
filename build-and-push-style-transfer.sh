@@ -1,16 +1,6 @@
 #!/bin/bash
 
-# Build and push RunPod Style Trecho "✨ This version includes:"
-echo "   • 🎨 Style Transfer (FLUX Redux)"
-echo "   • � S3 Storage Integration with automatic upload"
-echo "   • 💾 Network Volume Path tracking"
-echo "   • �🔗 Enhanced webhook system with S3 metadata"
-echo "   • 📊 Comprehensive progress tracking"
-echo "   • 🛡️  Robust error handling and recovery"
-echo "   • ⚡ Optimized for serverless RunPod deployments"
-echo "   • 🌐 Multi-platform support (linux/amd64, linux/arm64)"
-echo "   • � Real-time batch progress tracking"
-echo "   • �️  Database space optimization via S3 priority"Handler
+# Build and push RunPod Style Transfer Handler
 # Usage: ./build-and-push-style-transfer.sh
 
 set -e
@@ -57,6 +47,7 @@ echo "✨ This version includes:"
 echo "   • 🎨 Style Transfer (FLUX Redux)"
 echo "   • ☁️ AWS S3 Storage Integration with automatic upload"
 echo "   • 🚀 Direct S3 URLs (eliminates Vercel bandwidth usage)"
+echo "   • 🎭 Multi-LoRA Support (Power LoRA Loader)"
 echo "   • 📊 Comprehensive progress tracking"
 echo "   • 🛡️  Robust error handling and recovery"
 echo "   • ⚡ Optimized for serverless RunPod deployments"
