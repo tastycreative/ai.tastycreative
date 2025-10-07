@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { S3Client, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, UploadPartCommand } from '@aws-sdk/client-s3';
-
-import { writeFile, readFile, unlink } from 'fs/promises';
-import { existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { PrismaClient } from '@/lib/generated/prisma';
 
 // Upload session interface
 interface UploadSession {
@@ -15,56 +12,82 @@ interface UploadSession {
   totalParts: number;
 }
 
-// Use /tmp directory specifically for Vercel
-const SESSION_DIR = '/tmp/multipart-sessions';
+// Initialize Prisma client
+const prisma = new PrismaClient();
 
-// Ensure session directory exists
-function ensureSessionDir() {
-  if (!existsSync(SESSION_DIR)) {
-    mkdirSync(SESSION_DIR, { recursive: true });
-    console.log(`📁 Created session directory: ${SESSION_DIR}`);
-  }
-}
-
-// Helper functions for session persistence
-const getSessionPath = (sessionId: string) => {
-  ensureSessionDir();
-  const tempPath = join(SESSION_DIR, `${sessionId}.json`);
-  console.log(`🗂️ Session path: ${tempPath}`);
-  return tempPath;
-};
-
-async function saveSession(sessionId: string, session: UploadSession): Promise<void> {
-  const sessionPath = getSessionPath(sessionId);
-  console.log(`💾 Saving session ${sessionId} to ${sessionPath}`);
-  await writeFile(sessionPath, JSON.stringify(session), 'utf-8');
-  console.log(`✅ Session ${sessionId} saved successfully`);
+// Helper functions for session persistence using database
+async function saveSession(sessionId: string, clerkId: string, session: UploadSession): Promise<void> {
+  console.log(`� Saving session ${sessionId} to database`);
+  
+  // Calculate expiration time (24 hours from now)
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 24);
+  
+  await prisma.multipartUploadSession.upsert({
+    where: { sessionId },
+    create: {
+      sessionId,
+      clerkId,
+      uploadId: session.uploadId,
+      s3Key: session.s3Key,
+      uniqueFileName: session.uniqueFileName,
+      totalParts: session.totalParts,
+      uploadedParts: session.parts,
+      expiresAt,
+    },
+    update: {
+      uploadedParts: session.parts,
+      updatedAt: new Date(),
+    },
+  });
+  
+  console.log(`✅ Session ${sessionId} saved to database with ${session.parts.length}/${session.totalParts} parts`);
 }
 
 async function loadSession(sessionId: string): Promise<UploadSession | null> {
-  const sessionPath = getSessionPath(sessionId);
-  console.log(`📂 Loading session ${sessionId} from ${sessionPath}`);
-  
-  if (!existsSync(sessionPath)) {
-    console.log(`❌ Session file does not exist: ${sessionPath}`);
-    return null;
-  }
+  console.log(`📂 Loading session ${sessionId} from database`);
   
   try {
-    const data = await readFile(sessionPath, 'utf-8');
-    const session = JSON.parse(data);
-    console.log(`✅ Session ${sessionId} loaded successfully with ${session.parts.length}/${session.totalParts} parts`);
+    const dbSession = await prisma.multipartUploadSession.findUnique({
+      where: { sessionId },
+    });
+    
+    if (!dbSession) {
+      console.log(`❌ Session not found in database: ${sessionId}`);
+      return null;
+    }
+    
+    // Check if session has expired
+    if (dbSession.expiresAt < new Date()) {
+      console.log(`⚠️ Session ${sessionId} has expired, deleting...`);
+      await deleteSession(sessionId);
+      return null;
+    }
+    
+    const session: UploadSession = {
+      uploadId: dbSession.uploadId,
+      parts: dbSession.uploadedParts as Array<{ ETag: string; PartNumber: number }>,
+      s3Key: dbSession.s3Key,
+      uniqueFileName: dbSession.uniqueFileName,
+      totalParts: dbSession.totalParts,
+    };
+    
+    console.log(`✅ Session ${sessionId} loaded from database with ${session.parts.length}/${session.totalParts} parts`);
     return session;
   } catch (error) {
-    console.error(`Failed to load session ${sessionId}:`, error);
+    console.error(`Failed to load session ${sessionId} from database:`, error);
     return null;
   }
 }
 
 async function deleteSession(sessionId: string): Promise<void> {
-  const sessionPath = getSessionPath(sessionId);
-  if (existsSync(sessionPath)) {
-    await unlink(sessionPath);
+  try {
+    await prisma.multipartUploadSession.delete({
+      where: { sessionId },
+    });
+    console.log(`🗑️ Session ${sessionId} deleted from database`);
+  } catch (error) {
+    console.error(`Failed to delete session ${sessionId}:`, error);
   }
 }
 
@@ -141,7 +164,7 @@ export async function POST(request: NextRequest) {
       
       // Store upload state
       const sessionId = `${userId}_${timestamp}`;
-      await saveSession(sessionId, {
+      await saveSession(sessionId, userId, {
         uploadId,
         parts: [],
         s3Key,
@@ -189,7 +212,7 @@ export async function POST(request: NextRequest) {
           uniqueFileName,
           totalParts
         };
-        await saveSession(sessionId, uploadState);
+        await saveSession(sessionId, userId, uploadState);
       }
       
       if (!uploadState) {
@@ -223,7 +246,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Update session
-        await saveSession(sessionId, uploadState);
+        await saveSession(sessionId, userId, uploadState);
 
         console.log(`✅ Part ${partNumber} uploaded via server, ETag: ${etag}`);
         console.log(`📊 Parts completed: ${uploadState.parts.length}/${uploadState.totalParts}`);

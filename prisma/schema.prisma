@@ -410,3 +410,23 @@ model ProductionEntryVideo {
   @@index([videoId])
   @@map("production_entry_videos")
 }
+
+// Multipart upload session storage for large file uploads
+model MultipartUploadSession {
+  id               String   @id @default(cuid())
+  sessionId        String   @unique
+  clerkId          String
+  uploadId         String
+  s3Key            String
+  uniqueFileName   String
+  totalParts       Int
+  uploadedParts    Json     @default("[]") // Array of {ETag: string, PartNumber: number}
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  expiresAt        DateTime // Auto-cleanup old sessions
+
+  @@index([sessionId])
+  @@index([clerkId])
+  @@index([expiresAt])
+  @@map("multipart_upload_sessions")
+}
