@@ -972,6 +972,11 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                         filename = img_info['filename']
                                         subfolder = img_info.get('subfolder', '')
                                         
+                                        # Only process the final enhanced skin image, skip intermediate flux_initial
+                                        if 'flux_initial' in filename:
+                                            logger.info(f"⏭️ Skipping intermediate image: {filename}")
+                                            continue
+                                        
                                         logger.info(f"📸 Processing enhanced image: {filename}")
                                         
                                         # Download raw image bytes from ComfyUI

@@ -694,38 +694,8 @@ export default function SkinEnhancerPage() {
           data.images.length
         );
 
-        // Set up comparison images for two-way comparison
-        const initialImage = data.images.find(
-          (img: DatabaseImage) =>
-            img.filename.includes("flux_initial") ||
-            img.filename.includes("initial")
-        );
-        const finalImage = data.images.find(
-          (img: DatabaseImage) =>
-            img.filename.includes("skin_enhanced") &&
-            !img.filename.includes("intermediate")
-        );
-
-        if (initialImage && finalImage) {
-          setComparisonImages({
-            initial: initialImage,
-            final: finalImage,
-          });
-          console.log("🔄 Set up two-way comparison images:", {
-            initial: initialImage.filename,
-            final: finalImage.filename,
-          });
-        } else if (data.images.length >= 2) {
-          // Fallback: use first and last images
-          setComparisonImages({
-            initial: data.images[0],
-            final: data.images[data.images.length - 1],
-          });
-          console.log("🔄 Set up two-way comparison images (fallback):", {
-            initial: data.images[0].filename,
-            final: data.images[data.images.length - 1].filename,
-          });
-        }
+        // Note: Comparison feature disabled - only showing final enhanced image
+        // If you want before/after comparison in the future, you'll need to save both images
 
         return data.images.length > 0;
       } else {
@@ -1445,13 +1415,6 @@ export default function SkinEnhancerPage() {
           vae: ["102", 0],
         },
         class_type: "VAEDecode",
-      },
-      "8_save": {
-        inputs: {
-          images: ["8", 0],
-          filename_prefix: "flux_initial",
-        },
-        class_type: "SaveImage",
       },
       // Enhanced version using realistic checkpoint
       "31": {
