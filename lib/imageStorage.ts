@@ -514,10 +514,44 @@ export async function deleteImage(
   console.log('🗑️ Deleting image:', imageId, 'for user:', clerkId);
   
   try {
-    await prisma.generatedImage.delete({
+    // First, get the image to find its AWS S3 key
+    const image = await prisma.generatedImage.findUnique({
       where: {
         id: imageId,
         clerkId // Ensure user can only delete their own images
+      },
+      select: {
+        awsS3Key: true
+      }
+    });
+
+    if (!image) {
+      console.warn('⚠️ Image not found or user not authorized');
+      return false;
+    }
+
+    // Delete from AWS S3 if it exists there
+    if (image.awsS3Key) {
+      console.log(`🗑️ Deleting from AWS S3: ${image.awsS3Key}`);
+      try {
+        const { deleteFromAwsS3 } = await import('./awsS3Utils');
+        const result = await deleteFromAwsS3(image.awsS3Key);
+        if (result.success) {
+          console.log('✅ Image deleted from AWS S3');
+        } else {
+          console.warn('⚠️ Failed to delete from AWS S3:', result.error);
+        }
+      } catch (s3Error) {
+        console.error('❌ Error deleting from AWS S3:', s3Error);
+        // Continue with database deletion even if S3 deletion fails
+      }
+    }
+
+    // Delete from database
+    await prisma.generatedImage.delete({
+      where: {
+        id: imageId,
+        clerkId
       }
     });
     

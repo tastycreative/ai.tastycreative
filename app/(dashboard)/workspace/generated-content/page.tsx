@@ -1240,18 +1240,24 @@ export default function GeneratedContentPage() {
   };
 
   const deleteItem = async (item: ContentItem) => {
-    if (!window.confirm(`Are you sure you want to delete ${item.filename}?`)) {
+    if (!apiClient) {
+      alert("API client not available");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete ${item.filename}?\n\nThis will permanently delete:\n• The file from AWS S3 storage\n• The database record\n\nThis action cannot be undone.`)) {
       return;
     }
 
     try {
+      console.log(`🗑️ Deleting ${item.itemType}:`, item.filename, `(ID: ${item.id})`);
+      
       const endpoint =
         item.itemType === "video"
           ? `/api/videos/${item.id}`
           : `/api/images/${item.id}`;
-      const response = await fetch(endpoint, {
-        method: "DELETE",
-      });
+      
+      const response = await apiClient.delete(endpoint);
 
       if (response.ok) {
         // Remove from local state
@@ -1269,16 +1275,27 @@ export default function GeneratedContentPage() {
         }
 
         console.log(
-          `${
+          `✅ ${
             item.itemType === "video" ? "Video" : "Image"
-          } deleted successfully`
+          } deleted successfully from database and AWS S3`
         );
+        
+        alert(`✅ ${item.filename} deleted successfully!`);
+        
+        // Refresh stats
+        await fetchStats();
       } else {
-        const error = await response.text();
-        console.error("Delete failed:", error);
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        console.error("Delete failed:", response.status, errorData);
+        throw new Error(errorData.error || `Failed to delete: ${response.status}`);
       }
     } catch (error) {
-      console.error("Delete error:", error);
+      console.error("💥 Delete error:", error);
+      alert(
+        `Failed to delete ${item.filename}:\n\n${
+          error instanceof Error ? error.message : "Unknown error"
+        }\n\nPlease try again or contact support if the problem persists.`
+      );
     }
   };
 

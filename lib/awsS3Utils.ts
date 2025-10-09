@@ -3,7 +3,7 @@
  * Eliminates Vercel bandwidth usage completely
  */
 
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // AWS S3 Configuration
@@ -127,6 +127,37 @@ export async function checkAwsS3ObjectExists(s3Key: string): Promise<boolean> {
     }
     console.error(`❌ Error checking AWS S3 object ${s3Key}:`, error);
     return false;
+  }
+}
+
+/**
+ * Delete object from AWS S3
+ */
+export async function deleteFromAwsS3(s3Key: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const s3Client = getAwsS3Client();
+    
+    console.log(`🗑️ Deleting from AWS S3: ${s3Key}`);
+    
+    const command = new DeleteObjectCommand({
+      Bucket: AWS_S3_BUCKET,
+      Key: s3Key
+    });
+    
+    await s3Client.send(command);
+    
+    console.log(`✅ Successfully deleted from AWS S3: ${s3Key}`);
+    
+    return {
+      success: true
+    };
+    
+  } catch (error) {
+    console.error(`❌ AWS S3 delete error for ${s3Key}:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
   }
 }
 

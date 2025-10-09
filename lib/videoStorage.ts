@@ -502,10 +502,44 @@ export async function deleteVideo(
   console.log('🗑️ Deleting video:', videoId, 'for user:', clerkId);
   
   try {
-    await prisma.generatedVideo.delete({
+    // First, get the video to find its AWS S3 key
+    const video = await prisma.generatedVideo.findUnique({
       where: {
         id: videoId,
         clerkId // Ensure user can only delete their own videos
+      },
+      select: {
+        awsS3Key: true
+      }
+    });
+
+    if (!video) {
+      console.warn('⚠️ Video not found or user not authorized');
+      return false;
+    }
+
+    // Delete from AWS S3 if it exists there
+    if (video.awsS3Key) {
+      console.log(`🗑️ Deleting from AWS S3: ${video.awsS3Key}`);
+      try {
+        const { deleteFromAwsS3 } = await import('./awsS3Utils');
+        const result = await deleteFromAwsS3(video.awsS3Key);
+        if (result.success) {
+          console.log('✅ Video deleted from AWS S3');
+        } else {
+          console.warn('⚠️ Failed to delete from AWS S3:', result.error);
+        }
+      } catch (s3Error) {
+        console.error('❌ Error deleting from AWS S3:', s3Error);
+        // Continue with database deletion even if S3 deletion fails
+      }
+    }
+
+    // Delete from database
+    await prisma.generatedVideo.delete({
+      where: {
+        id: videoId,
+        clerkId
       }
     });
     
