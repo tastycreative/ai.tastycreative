@@ -912,7 +912,7 @@ export default function SkinEnhancerPage() {
   const addLoRA = () => {
     const newLoRA: LoRAConfig = {
       id: crypto.randomUUID(),
-      modelName: availableInfluencerLoRAs[0]?.fileName || "None",
+      modelName: "select", // Default to placeholder
       strength: 0.95,
     };
     setParams((prev) => ({
@@ -1431,8 +1431,8 @@ export default function SkinEnhancerPage() {
   const createSkinEnhancerWorkflowJson = (params: EnhancementParams) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
     
-    // Filter out "None" LoRAs (same pattern as text-to-image)
-    const activeInfluencerLoRAs = params.loras.filter(lora => lora.modelName !== "None");
+    // Filter out "None" and "select" placeholder LoRAs (same pattern as text-to-image)
+    const activeInfluencerLoRAs = params.loras.filter(lora => lora.modelName !== "None" && lora.modelName !== "select");
     const hasInfluencerLoRAs = activeInfluencerLoRAs.length > 0;
     const loraCount = activeInfluencerLoRAs.length;
     const lastLoraNodeId = hasInfluencerLoRAs ? `10${7 + loraCount}` : "108"; // 108, 109, 110, etc.
@@ -2031,6 +2031,9 @@ export default function SkinEnhancerPage() {
                             disabled={isGenerating}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:opacity-50"
                           >
+                            <option value="select" disabled>
+                              Select a LoRA
+                            </option>
                             {availableInfluencerLoRAs
                               .filter((l) => l.fileName !== "None")
                               .map((loraModel) => (

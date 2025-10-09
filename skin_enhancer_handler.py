@@ -226,7 +226,8 @@ def fix_lora_paths(workflow):
     """Fix LoRA paths to match ComfyUI's expected format"""
     try:
         for node_id, node in workflow.items():
-            if isinstance(node, dict) and node.get('class_type') == 'LoraLoader':
+            # Check for both LoraLoader and LoraLoaderModelOnly
+            if isinstance(node, dict) and node.get('class_type') in ['LoraLoader', 'LoraLoaderModelOnly']:
                 lora_name = node['inputs'].get('lora_name', '')
                 
                 # If LoRA name starts with user_ and doesn't contain /, add the subdirectory
@@ -236,7 +237,7 @@ def fix_lora_paths(workflow):
                     if len(parts) >= 3:
                         user_dir = f"{parts[0]}_{parts[1]}"
                         fixed_path = f"{user_dir}/{lora_name}"
-                        logger.info(f"🔧 Fixing LoRA path: {lora_name} -> {fixed_path}")
+                        logger.info(f"🔧 Fixing LoRA path for {node.get('class_type')}: {lora_name} -> {fixed_path}")
                         node['inputs']['lora_name'] = fixed_path
         
         return workflow
