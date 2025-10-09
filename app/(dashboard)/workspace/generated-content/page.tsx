@@ -186,9 +186,7 @@ export default function GeneratedContentPage() {
     
     if (accessToken) {
       setGoogleAccessToken(accessToken);
-      // Store in localStorage for persistence across tabs/pages
       localStorage.setItem('google_drive_access_token', accessToken);
-      // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
       console.log('✅ Google Drive access token received and stored');
     } else {
