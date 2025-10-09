@@ -324,6 +324,7 @@ enum GenerationType {
   VIDEO_TO_VIDEO
   SKIN_ENHANCEMENT
   FACE_SWAP
+  VIDEO_FPS_BOOST
 }
 
 enum UserRole {

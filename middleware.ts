@@ -33,6 +33,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/test(.*)',
   '/api/diagnostic(.*)', // ✅ Add diagnostic routes as public
   '/api/webhooks(.*)',  // ✅ Add webhooks as public API routes
+  '/api/webhook(.*)', // ✅ Add singular webhook routes (fps-boost, etc.)
   '/api/webhook-test(.*)', // ✅ Also add your test webhook
   '/api/models/upload-from-training(.*)', // ✅ Add training upload endpoint
   '/api/training/jobs(.*)', // ✅ Add training jobs endpoint for RunPod handler

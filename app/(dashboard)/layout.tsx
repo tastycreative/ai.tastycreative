@@ -121,6 +121,11 @@ export default function DashboardLayout({
           href: "/workspace/generate-content/skin-enhancer",
           icon: Sparkles,
         },
+        {
+          name: "FPS Boost",
+          href: "/workspace/generate-content/fps-boost",
+          icon: PlayCircle,
+        },
       ],
     },
     {
