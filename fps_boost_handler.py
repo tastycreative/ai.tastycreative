@@ -206,6 +206,11 @@ def queue_workflow_with_comfyui(workflow: Dict, job_id: str, video_path: str) ->
         if "1" in workflow and "inputs" in workflow["1"]:
             workflow["1"]["inputs"]["video"] = video_path
         
+        # Update workflow with unique filename prefix (includes job_id for uniqueness)
+        if "3" in workflow and "inputs" in workflow["3"]:
+            workflow["3"]["inputs"]["filename_prefix"] = f"fps_boost/fps_boosted_{job_id}"
+            logger.info(f"✅ Set unique filename prefix: fps_boost/fps_boosted_{job_id}")
+        
         # Send to ComfyUI
         response = requests.post(
             "http://127.0.0.1:8188/prompt",

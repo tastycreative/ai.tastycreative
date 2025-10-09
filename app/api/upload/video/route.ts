@@ -17,22 +17,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No video provided" }, { status: 400 });
     }
 
-    // Check file size (max 100MB to prevent memory issues)
-    const MAX_SIZE = 100 * 1024 * 1024; // 100MB
-    if (video.size > MAX_SIZE) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: `Video too large. Maximum size is 100MB. Your video is ${(video.size / 1024 / 1024).toFixed(2)}MB` 
-        },
-        { status: 400 }
-      );
-    }
-
     console.log("=== VIDEO UPLOAD ===");
     console.log("User ID:", userId);
     console.log("Video:", video.name, video.size, video.type);
-    console.log("Size (MB):", (video.size / 1024 / 1024).toFixed(2));
 
     // Convert video to base64
     const bytes = await video.arrayBuffer();
@@ -46,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     console.log("✅ Video processed successfully");
     console.log("Filename:", filename);
-    console.log("Base64 size (MB):", (base64.length / 1024 / 1024).toFixed(2));
+    console.log("Base64 size:", base64.length);
 
     return NextResponse.json({
       success: true,
