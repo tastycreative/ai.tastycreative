@@ -1195,27 +1195,31 @@ export default function GeneratedContentPage() {
 
       console.log(`📥 Downloading ${item.itemType} from:`, url);
 
-      const response = await fetch(url);
+      // Fetch as blob and create download link
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-cache',
+      });
+      
       if (!response.ok) {
-        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch: ${response.status} ${response.statusText}`);
       }
 
       const blob = await response.blob();
-
-      const downloadUrl = window.URL.createObjectURL(blob);
+      const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = downloadUrl;
+      link.href = blobUrl;
       link.download = item.filename;
+      
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
-
-      console.log(
-        `✅ ${
-          item.itemType === "video" ? "Video" : "Image"
-        } downloaded successfully`
-      );
+      
+      // Clean up blob URL after a short delay
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      
+      console.log(`✅ ${item.itemType} downloaded successfully`);
     } catch (error) {
       console.error("Download error:", error);
       alert(`Failed to download ${item.itemType}: ${error instanceof Error ? error.message : 'Unknown error'}`);
