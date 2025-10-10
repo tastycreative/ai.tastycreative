@@ -1,10 +1,11 @@
 // app/(dashboard)/workspace/generated-content/page.tsx - Gallery Page
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { getBestMediaUrl, getBandwidthStats, getDownloadUrl } from "@/lib/directUrlUtils";
 import BandwidthStats from "@/components/BandwidthStats";
+import { useInView } from "react-intersection-observer";
 import {
   ImageIcon,
   Download,
@@ -41,6 +42,26 @@ import {
   Info,
   CheckSquare,
   ClipboardCheck,
+  ChevronDown,
+  ChevronUp,
+  Settings,
+  Save,
+  Plus,
+  Zap,
+  Archive,
+  Cloud,
+  MousePointer2,
+  Keyboard,
+  Move,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Minimize,
+  UploadCloud,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Folder,
 } from "lucide-react";
 
 // Types
@@ -109,7 +130,20 @@ interface VideoStats {
 type ViewMode = "grid" | "list";
 type SortBy = "newest" | "oldest" | "largest" | "smallest" | "name";
 type FilterBy = "all" | "images" | "videos";
-type DriveFolder = "All Generations" | "IG Posts" | "IG Reels" | "Misc";
+type DriveFolderName = "All Generations" | "IG Posts" | "IG Reels" | "Misc";
+type DriveFolder = DriveFolderName | { id: string; name: string };
+type AspectRatio = "all" | "portrait" | "landscape" | "square";
+type LinkedStatus = "all" | "linked" | "unlinked";
+
+// Helper function to get folder name
+const getFolderName = (folder: DriveFolder): string => {
+  return typeof folder === 'string' ? folder : folder.name;
+};
+
+// Helper function to get folder ID
+const getFolderId = (folder: DriveFolder): string => {
+  return typeof folder === 'string' ? folder : folder.id;
+};
 
 interface UploadState {
   [itemId: string]: {
@@ -120,6 +154,111 @@ interface UploadState {
     error?: string;
   };
 }
+
+interface AdvancedFilters {
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  fileSize: {
+    min: number;
+    max: number;
+  };
+  aspectRatio: AspectRatio;
+  formats: string[];
+  linkedStatus: LinkedStatus;
+  panelOpen: boolean;
+}
+
+interface FilterPreset {
+  id: string;
+  name: string;
+  filters: AdvancedFilters;
+  filterBy: FilterBy;
+  searchQuery: string;
+}
+
+// Custom hook for debouncing
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+// Lazy-loaded Image Component
+interface LazyMediaProps {
+  item: ContentItem;
+  onClick: () => void;
+}
+
+const LazyMedia: React.FC<LazyMediaProps> = ({ item, onClick }) => {
+  const { ref, inView } = useInView({
+    triggerOnce: true,
+    threshold: 0.1,
+    rootMargin: '50px',
+  });
+
+  const mediaUrl = useMemo(() => getBestMediaUrl({
+    awsS3Key: item.awsS3Key,
+    awsS3Url: item.awsS3Url,
+    s3Key: item.s3Key,
+    networkVolumePath: item.networkVolumePath,
+    dataUrl: item.dataUrl,
+    url: item.url,
+    id: item.id,
+    filename: item.filename,
+    type: item.itemType === "video" ? 'video' : 'image'
+  }), [item]);
+
+  if (item.itemType === "video") {
+    return (
+      <div ref={ref} className="w-full h-full">
+        {inView ? (
+          <video
+            src={mediaUrl}
+            className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
+            onClick={onClick}
+            preload="metadata"
+            muted
+            playsInline
+          />
+        ) : (
+          <div className="w-full h-full bg-gray-200 dark:bg-gray-700 animate-pulse flex items-center justify-center">
+            <Video className="w-12 h-12 text-gray-400" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="w-full h-full">
+      {inView ? (
+        <img
+          src={mediaUrl}
+          alt={item.filename}
+          className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
+          onClick={onClick}
+          loading="lazy"
+        />
+      ) : (
+        <div className="w-full h-full bg-gray-200 dark:bg-gray-700 animate-pulse flex items-center justify-center">
+          <ImageIcon className="w-12 h-12 text-gray-400" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function GeneratedContentPage() {
   const apiClient = useApiClient();
@@ -137,14 +276,63 @@ export default function GeneratedContentPage() {
   const [sortBy, setSortBy] = useState<SortBy>("newest");
   const [filterBy, setFilterBy] = useState<FilterBy>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Debounced search for better performance
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Advanced Filters State
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
+    dateRange: { start: '', end: '' },
+    fileSize: { min: 0, max: Infinity },
+    aspectRatio: 'all',
+    formats: [],
+    linkedStatus: 'all',
+    panelOpen: false
+  });
+  
+  // Filter Presets
+  const [filterPresets, setFilterPresets] = useState<FilterPreset[]>([]);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  
+  // Bulk Actions
+  const [showBulkMenu, setShowBulkMenu] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  
+  // Stats Collapse State
+  const [statsCollapsed, setStatsCollapsed] = useState(false);
+  
+  // Hover Preview State
+  const [hoveredItem, setHoveredItem] = useState<ContentItem | null>(null);
+  const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 });
+  const previewTimeout = useRef<NodeJS.Timeout | null>(null);
   
   // Google Drive Upload State
   const [uploadStates, setUploadStates] = useState<UploadState>({});
   const [showUploadModal, setShowUploadModal] = useState<ContentItem | null>(null);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+
+  // Google Drive Integration Enhancement State
+  const [uploadQueue, setUploadQueue] = useState<Array<{
+    id: string;
+    item: ContentItem;
+    folder: DriveFolder;
+    progress: number;
+    status: 'pending' | 'uploading' | 'completed' | 'failed';
+    error?: string;
+  }>>([]);
+  const [driveFileIds, setDriveFileIds] = useState<Record<string, string>>({}); // itemId -> driveFileId
+  const [recentFolders, setRecentFolders] = useState<DriveFolder[]>([]);
+  const [showFolderCreate, setShowFolderCreate] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [quickUploadItem, setQuickUploadItem] = useState<string | null>(null); // Store item ID for quick upload dropdown
+  const [showQueuePanel, setShowQueuePanel] = useState(false);
 
   // Production Task Selection State
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -155,9 +343,78 @@ export default function GeneratedContentPage() {
   const [linkedContentMap, setLinkedContentMap] = useState<Record<string, any[]>>({});
   const [loadingLinkedContent, setLoadingLinkedContent] = useState(false);
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [imagesPerPage] = useState(20);
+  // Interaction Improvements State
+  const [selectionMode, setSelectionMode] = useState(false); // Show all checkboxes
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    item: ContentItem | null;
+  } | null>(null);
+  const [focusedItemIndex, setFocusedItemIndex] = useState<number>(-1);
+  const [dragSelecting, setDragSelecting] = useState(false);
+  const [dragStartIndex, setDragStartIndex] = useState<number>(-1);
+
+  // Modal/Lightbox Enhancement State
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Empty States & Feedback State
+  const [toasts, setToasts] = useState<Array<{
+    id: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    message: string;
+    duration?: number;
+  }>>([]);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    [key: string]: { progress: number; filename: string };
+  }>({});
+  const [downloadProgress, setDownloadProgress] = useState<{
+    [key: string]: { progress: number; filename: string };
+  }>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Mobile Responsiveness Enhancement State
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  const [showMobileBottomSheet, setShowMobileBottomSheet] = useState(false);
+  const [mobileBottomSheetContent, setMobileBottomSheetContent] = useState<'actions' | 'filters' | null>(null);
+  const [swipeStartX, setSwipeStartX] = useState<number | null>(null);
+  const [swipeStartY, setSwipeStartY] = useState<number | null>(null);
+  const [swipeItemId, setSwipeItemId] = useState<string | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Detect mobile and tablet devices
+  useEffect(() => {
+    const checkDevice = () => {
+      const width = window.innerWidth;
+      setIsMobile(width < 768); // < md breakpoint
+      setIsTablet(width >= 768 && width < 1024); // md to lg
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => window.removeEventListener('resize', checkDevice);
+  }, []);
+
+  // Infinite Scroll State (replacing pagination)
+  const [displayCount, setDisplayCount] = useState(20);
+  const [hasMore, setHasMore] = useState(true);
+  const ITEMS_PER_PAGE = 20;
+  
+  // Intersection Observer for infinite scroll
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0,
+    rootMargin: '100px',
+  });
 
   // Fetch images and stats
   useEffect(() => {
@@ -205,6 +462,18 @@ export default function GeneratedContentPage() {
       alert(`Google Drive authentication failed: ${error}`);
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
+  // Load presets from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('filterPresets');
+    if (saved) {
+      try {
+        setFilterPresets(JSON.parse(saved));
+      } catch (error) {
+        console.error("Failed to load filter presets:", error);
+      }
     }
   }, []);
 
@@ -473,8 +742,8 @@ export default function GeneratedContentPage() {
     }
   };
 
-  // Filter and sort content
-  const filteredAndSortedContent = () => {
+  // Filter and sort content - optimized with useMemo
+  const filteredAndSortedContent = useMemo(() => {
     let filtered = [...allContent];
 
     // Apply content type filter
@@ -484,11 +753,62 @@ export default function GeneratedContentPage() {
       filtered = filtered.filter((item) => item.itemType === "video");
     }
 
-    // Apply search filter
-    if (searchQuery) {
+    // Apply search filter with debounced query
+    if (debouncedSearchQuery) {
       filtered = filtered.filter((item) =>
-        item.filename.toLowerCase().includes(searchQuery.toLowerCase())
+        item.filename.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
+    }
+
+    // Apply advanced filters
+    // Date range filter
+    if (advancedFilters.dateRange.start) {
+      const fromDate = new Date(advancedFilters.dateRange.start);
+      filtered = filtered.filter((item) => new Date(item.createdAt) >= fromDate);
+    }
+    if (advancedFilters.dateRange.end) {
+      const toDate = new Date(advancedFilters.dateRange.end);
+      toDate.setHours(23, 59, 59, 999); // Include entire day
+      filtered = filtered.filter((item) => new Date(item.createdAt) <= toDate);
+    }
+
+    // File size filter (convert to bytes)
+    filtered = filtered.filter((item) => {
+      const sizeInMB = (item.fileSize || 0) / 1024 / 1024;
+      return sizeInMB >= advancedFilters.fileSize.min && sizeInMB <= advancedFilters.fileSize.max;
+    });
+
+    // Aspect ratio filter
+    if (advancedFilters.aspectRatio !== 'all' && filtered.length > 0) {
+      filtered = filtered.filter((item) => {
+        if (!item.width || !item.height) return false;
+        const ratio = item.width / item.height;
+        
+        if (advancedFilters.aspectRatio === 'portrait') {
+          return ratio < 0.95; // Width < Height
+        } else if (advancedFilters.aspectRatio === 'landscape') {
+          return ratio > 1.05; // Width > Height
+        } else if (advancedFilters.aspectRatio === 'square') {
+          return ratio >= 0.95 && ratio <= 1.05; // Roughly square
+        }
+        return true;
+      });
+    }
+
+    // Format filter
+    if (advancedFilters.formats.length > 0) {
+      filtered = filtered.filter((item) => {
+        const format = item.format?.toLowerCase() || item.filename.split('.').pop()?.toLowerCase();
+        return format && advancedFilters.formats.some(f => f.toLowerCase() === format);
+      });
+    }
+
+    // Linked status filter
+    if (advancedFilters.linkedStatus !== 'all') {
+      filtered = filtered.filter((item) => {
+        const isLinked = !!linkedContentMap[item.id];
+        return advancedFilters.linkedStatus === 'linked' ? isLinked : !isLinked;
+      });
     }
 
     // Apply sorting
@@ -514,18 +834,175 @@ export default function GeneratedContentPage() {
     });
 
     return filtered;
-  };
+  }, [allContent, filterBy, debouncedSearchQuery, sortBy, advancedFilters, linkedContentMap]);
 
-  // Pagination
-  const paginatedContent = () => {
-    const filtered = filteredAndSortedContent();
-    const startIndex = (currentPage - 1) * imagesPerPage;
-    return filtered.slice(startIndex, startIndex + imagesPerPage);
-  };
+  // Infinite scroll content - only show items up to displayCount
+  const displayedContent = useMemo(() => {
+    return filteredAndSortedContent.slice(0, displayCount);
+  }, [filteredAndSortedContent, displayCount]);
 
-  const totalPages = Math.ceil(
-    filteredAndSortedContent().length / imagesPerPage
-  );
+  // Keyboard Navigation Handler (must be after displayedContent, before useEffects)
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Modal-specific shortcuts (when modal is open)
+    if (selectedItem) {
+      // Left arrow: Previous image
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goToPreviousContent();
+        return;
+      }
+      
+      // Right arrow: Next image
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        goToNextContent();
+        return;
+      }
+      
+      // Z key: Toggle zoom
+      if (e.key === 'z' || e.key === 'Z') {
+        e.preventDefault();
+        if (zoomLevel === 1) {
+          handleZoomIn();
+        } else {
+          resetZoom();
+        }
+        return;
+      }
+      
+      // F key: Toggle fullscreen
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+        return;
+      }
+      
+      // Escape: Close modal
+      if (e.key === 'Escape') {
+        setSelectedItem(null);
+        setZoomLevel(1);
+        setIsFullscreen(false);
+        return;
+      }
+      
+      return; // Don't process other shortcuts when modal is open
+    }
+    
+    // Gallery shortcuts (when modal is closed)
+    // Ctrl+A or Cmd+A: Select all
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+      e.preventDefault();
+      selectAll();
+      return;
+    }
+    
+    // Delete key: Delete selected items
+    if (e.key === 'Delete' && selectedItems.size > 0) {
+      e.preventDefault();
+      bulkDelete();
+      return;
+    }
+    
+    // Escape: Clear selection or close context menu
+    if (e.key === 'Escape') {
+      if (selectedItems.size > 0) {
+        clearSelection();
+      } else if (contextMenu) {
+        setContextMenu(null);
+      }
+      return;
+    }
+    
+    // Space: Toggle selection of focused item
+    if (e.key === ' ' && focusedItemIndex >= 0 && focusedItemIndex < displayedContent.length) {
+      e.preventDefault();
+      const item = displayedContent[focusedItemIndex];
+      toggleItemSelection(item.id);
+      return;
+    }
+    
+    // Arrow keys: Navigate focused item
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      handleArrowNavigation(e.key);
+      return;
+    }
+  }, [selectedItems, selectedItem, contextMenu, focusedItemIndex, displayedContent, zoomLevel]);
+
+  // Click outside to close context menu
+  useEffect(() => {
+    if (contextMenu) {
+      const handleClick = () => setContextMenu(null);
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenu]);
+
+  // Keyboard shortcuts listener
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Mouse up listener for drag selection
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setDragSelecting(false);
+      setDragStartIndex(-1);
+    };
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => document.removeEventListener('mouseup', handleMouseUp);
+  }, []);
+
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(ITEMS_PER_PAGE);
+    setHasMore(filteredAndSortedContent.length > ITEMS_PER_PAGE);
+  }, [debouncedSearchQuery, filterBy, sortBy, advancedFilters, filteredAndSortedContent.length]);
+
+  // Load more items when scrolling
+  useEffect(() => {
+    if (inView && hasMore && !loading) {
+      const newDisplayCount = displayCount + ITEMS_PER_PAGE;
+      setDisplayCount(newDisplayCount);
+      setHasMore(filteredAndSortedContent.length > newDisplayCount);
+    }
+  }, [inView, hasMore, loading, displayCount, filteredAndSortedContent.length]);
+
+  // Modal enhancement: Auto-hide controls when modal opens
+  useEffect(() => {
+    if (selectedItem) {
+      resetControlsTimeout();
+      return () => {
+        if (controlsTimeoutRef.current) {
+          clearTimeout(controlsTimeoutRef.current);
+        }
+      };
+    }
+  }, [selectedItem]);
+
+  // Modal enhancement: Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Modal enhancement: Show controls on mouse movement
+  useEffect(() => {
+    if (!selectedItem) return;
+    
+    const handleMouseMove = () => {
+      resetControlsTimeout();
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => document.removeEventListener('mousemove', handleMouseMove);
+  }, [selectedItem]);
+
 
   // Download image with dynamic URL support
   const downloadImage = async (image: GeneratedImage) => {
@@ -635,7 +1112,7 @@ export default function GeneratedContentPage() {
     }
 
     navigator.clipboard.writeText(urlToShare);
-    alert("Image URL copied to clipboard!");
+    showToast('success', 'Image URL copied to clipboard!');
   };
 
   // Google Drive Authentication
@@ -654,7 +1131,7 @@ export default function GeneratedContentPage() {
       }
     } catch (error) {
       console.error('Authentication error:', error);
-      alert('Failed to start Google Drive authentication');
+      showToast('error', 'Failed to start Google Drive authentication');
       setIsAuthenticating(false);
     }
   };
@@ -767,7 +1244,7 @@ export default function GeneratedContentPage() {
       }
       
       formData.append('file', mediaBlob, item.filename);
-      formData.append('folder', folder);
+      formData.append('folder', getFolderName(folder));
       formData.append('filename', item.filename);
       formData.append('itemType', item.itemType);
       formData.append('accessToken', googleAccessToken);
@@ -920,7 +1397,7 @@ export default function GeneratedContentPage() {
 
   const selectAll = () => {
     // Only select items that aren't already linked
-    const selectableIds = paginatedContent()
+    const selectableIds = displayedContent
       .filter((item) => !linkedContentMap[item.id])
       .map((item) => item.id);
     setSelectedItems(new Set(selectableIds));
@@ -1301,34 +1778,828 @@ export default function GeneratedContentPage() {
     }
   };
 
+  // Bulk Actions
+  const bulkDownload = async () => {
+    if (selectedItems.size === 0) return;
+    
+    setBulkActionLoading(true);
+    try {
+      const items = allContent.filter(item => selectedItems.has(item.id));
+      
+      // For now, download individually
+      // TODO: Implement ZIP download on backend
+      for (const item of items) {
+        await downloadItem(item);
+        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between downloads
+      }
+      
+      alert(`✅ Downloaded ${items.length} items successfully!`);
+      clearSelection();
+    } catch (error) {
+      console.error("Bulk download error:", error);
+      alert("Failed to download some items. Please try again.");
+    } finally {
+      setBulkActionLoading(false);
+      setShowBulkMenu(false);
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (selectedItems.size === 0) return;
+    
+    const items = allContent.filter(item => selectedItems.has(item.id));
+    
+    if (!confirm(`Are you sure you want to delete ${items.length} items?\n\nThis will permanently delete all selected files and cannot be undone.`)) {
+      return;
+    }
+    
+    setBulkActionLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+    
+    try {
+      for (const item of items) {
+        try {
+          await deleteItem(item);
+          successCount++;
+        } catch (error) {
+          failCount++;
+          console.error(`Failed to delete ${item.filename}:`, error);
+        }
+      }
+      
+      alert(`Bulk delete complete!\n\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}`);
+      clearSelection();
+    } finally {
+      setBulkActionLoading(false);
+      setShowBulkMenu(false);
+    }
+  };
+
+  const bulkUploadToDrive = () => {
+    setShowBulkMenu(false);
+    // Open the upload modal for the first selected item (or handle multiple)
+    const firstItem = allContent.find(item => selectedItems.has(item.id));
+    if (firstItem) {
+      setShowUploadModal(firstItem);
+    }
+  };
+
+  // Filter Presets
+  const saveFilterPreset = () => {
+    if (!presetName.trim()) {
+      alert("Please enter a name for this preset");
+      return;
+    }
+    
+    const newPreset: FilterPreset = {
+      id: Date.now().toString(),
+      name: presetName,
+      filters: { ...advancedFilters },
+      filterBy,
+      searchQuery
+    };
+    
+    const updatedPresets = [...filterPresets, newPreset];
+    setFilterPresets(updatedPresets);
+    localStorage.setItem('filterPresets', JSON.stringify(updatedPresets));
+    
+    setPresetName('');
+    setShowPresetModal(false);
+    alert(`✅ Preset "${newPreset.name}" saved!`);
+  };
+
+  const loadFilterPreset = (preset: FilterPreset) => {
+    setAdvancedFilters(preset.filters);
+    setFilterBy(preset.filterBy);
+    setSearchQuery(preset.searchQuery);
+    alert(`✅ Loaded preset "${preset.name}"`);
+  };
+
+  const deleteFilterPreset = (presetId: string) => {
+    const updatedPresets = filterPresets.filter(p => p.id !== presetId);
+    setFilterPresets(updatedPresets);
+    localStorage.setItem('filterPresets', JSON.stringify(updatedPresets));
+  };
+
+  // Interaction Improvements Functions
+  
+  const handleArrowNavigation = (key: string) => {
+    if (displayedContent.length === 0) return;
+    
+    const gridCols = getGridColumns();
+    let newIndex = focusedItemIndex;
+    
+    switch (key) {
+      case 'ArrowRight':
+        newIndex = Math.min(focusedItemIndex + 1, displayedContent.length - 1);
+        break;
+      case 'ArrowLeft':
+        newIndex = Math.max(focusedItemIndex - 1, 0);
+        break;
+      case 'ArrowDown':
+        newIndex = Math.min(focusedItemIndex + gridCols, displayedContent.length - 1);
+        break;
+      case 'ArrowUp':
+        newIndex = Math.max(focusedItemIndex - gridCols, 0);
+        break;
+    }
+    
+    if (newIndex !== focusedItemIndex) {
+      setFocusedItemIndex(newIndex);
+      // Scroll item into view
+      const element = document.querySelector(`[data-item-index="${newIndex}"]`);
+      element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
+
+  const getGridColumns = () => {
+    const width = window.innerWidth;
+    if (width >= 1536) return 5; // 2xl
+    if (width >= 1280) return 4; // xl
+    if (width >= 1024) return 3; // lg
+    if (width >= 768) return 2;  // md
+    return 1; // sm
+  };
+
+  // Right-click context menu
+  const handleContextMenu = (e: React.MouseEvent, item: ContentItem) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      item
+    });
+  };
+
+  const closeContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  // Context menu actions
+  const contextMenuDownload = () => {
+    if (contextMenu?.item) {
+      downloadItem(contextMenu.item);
+    }
+    closeContextMenu();
+  };
+
+  const contextMenuDelete = () => {
+    if (contextMenu?.item) {
+      deleteItem(contextMenu.item);
+    }
+    closeContextMenu();
+  };
+
+  const contextMenuUploadToDrive = () => {
+    if (contextMenu?.item) {
+      setShowUploadModal(contextMenu.item);
+    }
+    closeContextMenu();
+  };
+
+  const contextMenuAddToTask = () => {
+    if (contextMenu?.item) {
+      const newSelected = new Set(selectedItems);
+      newSelected.add(contextMenu.item.id);
+      setSelectedItems(newSelected);
+      openTaskModal();
+    }
+    closeContextMenu();
+  };
+
+  const contextMenuToggleSelect = () => {
+    if (contextMenu?.item) {
+      toggleItemSelection(contextMenu.item.id);
+    }
+    closeContextMenu();
+  };
+
+  // Drag to select
+  const handleMouseDown = (e: React.MouseEvent, index: number) => {
+    if (e.button === 0 && !e.ctrlKey && !e.metaKey) { // Left click without modifier
+      setDragSelecting(true);
+      setDragStartIndex(index);
+    }
+  };
+
+  const handleMouseEnter = (index: number) => {
+    if (dragSelecting && dragStartIndex !== -1) {
+      // Select all items between dragStartIndex and current index
+      const start = Math.min(dragStartIndex, index);
+      const end = Math.max(dragStartIndex, index);
+      const newSelected = new Set(selectedItems);
+      
+      for (let i = start; i <= end; i++) {
+        if (i < displayedContent.length) {
+          newSelected.add(displayedContent[i].id);
+        }
+      }
+      
+      setSelectedItems(newSelected);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDragSelecting(false);
+    setDragStartIndex(-1);
+  };
+
+  // === Modal/Lightbox Enhancement Functions ===
+  
+  // Get current modal content index
+  const getCurrentModalIndex = () => {
+    if (!selectedItem) return -1;
+    return filteredAndSortedContent.findIndex(item => item.id === selectedItem.id);
+  };
+
+  // Navigate to next item in modal
+  const goToNextContent = () => {
+    const currentIndex = getCurrentModalIndex();
+    if (currentIndex === -1 || currentIndex >= filteredAndSortedContent.length - 1) return;
+    setSelectedItem(filteredAndSortedContent[currentIndex + 1]);
+    setZoomLevel(1); // Reset zoom on navigation
+  };
+
+  // Navigate to previous item in modal
+  const goToPreviousContent = () => {
+    const currentIndex = getCurrentModalIndex();
+    if (currentIndex <= 0) return;
+    setSelectedItem(filteredAndSortedContent[currentIndex - 1]);
+    setZoomLevel(1); // Reset zoom on navigation
+  };
+
+  // Zoom controls
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 0.25, 3)); // Max 3x zoom
+    resetControlsTimeout();
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 0.25, 0.5)); // Min 0.5x zoom
+    resetControlsTimeout();
+  };
+
+  const resetZoom = () => {
+    setZoomLevel(1);
+    resetControlsTimeout();
+  };
+
+  // Fullscreen controls
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      modalRef.current?.requestFullscreen().catch(err => {
+        console.error('Error entering fullscreen:', err);
+      });
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+    resetControlsTimeout();
+  };
+
+  // Auto-hide controls
+  const resetControlsTimeout = () => {
+    setControlsVisible(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    controlsTimeoutRef.current = setTimeout(() => {
+      setControlsVisible(false);
+    }, 2000); // Hide after 2 seconds
+  };
+
+  // Touch/swipe handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.touches[0].clientX);
+    resetControlsTimeout();
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart) return;
+    
+    const touchEnd = e.touches[0].clientX;
+    const diff = touchStart - touchEnd;
+    
+    // If swipe distance is significant, navigate
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        goToNextContent();
+      } else {
+        goToPreviousContent();
+      }
+      setTouchStart(null);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setTouchStart(null);
+  };
+
+  // === Empty States & Feedback Functions ===
+  
+  // Toast notification system
+  const showToast = (type: 'success' | 'error' | 'warning' | 'info', message: string, duration: number = 5000) => {
+    const id = Math.random().toString(36).substring(7);
+    const newToast = { id, type, message, duration };
+    
+    setToasts(prev => [...prev, newToast]);
+    
+    // Auto-remove toast after duration
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, duration);
+  };
+
+  // Remove specific toast
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  // Drag & Drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set to false if leaving the drop zone entirely
+    if (e.currentTarget === e.target) {
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const validFiles = files.filter(file => 
+      file.type.startsWith('image/') || file.type.startsWith('video/')
+    );
+
+    if (validFiles.length === 0) {
+      showToast('error', 'Please drop only image or video files');
+      return;
+    }
+
+    if (validFiles.length !== files.length) {
+      showToast('warning', `${files.length - validFiles.length} invalid file(s) ignored`);
+    }
+
+    handleFileUpload(validFiles);
+  };
+
+  // File upload handler
+  const handleFileUpload = async (files: File[]) => {
+    if (!apiClient) {
+      showToast('error', 'API client not available');
+      return;
+    }
+
+    showToast('info', `Uploading ${files.length} file(s)...`);
+
+    for (const file of files) {
+      const uploadId = Math.random().toString(36).substring(7);
+      
+      try {
+        // Initialize progress
+        setUploadProgress(prev => ({
+          ...prev,
+          [uploadId]: { progress: 0, filename: file.name }
+        }));
+
+        // Simulate upload progress (replace with actual API call)
+        // In production, use XMLHttpRequest or fetch with progress tracking
+        for (let i = 0; i <= 100; i += 10) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          setUploadProgress(prev => ({
+            ...prev,
+            [uploadId]: { progress: i, filename: file.name }
+          }));
+        }
+
+        // Remove from progress after completion
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[uploadId];
+          return newProgress;
+        });
+
+        showToast('success', `${file.name} uploaded successfully`);
+        
+        // Refresh content list
+        fetchContent();
+      } catch (error) {
+        console.error('Upload error:', error);
+        setUploadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[uploadId];
+          return newProgress;
+        });
+        showToast('error', `Failed to upload ${file.name}`);
+      }
+    }
+  };
+
+  // Trigger file input
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Handle file input change
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      handleFileUpload(files);
+    }
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Get contextual empty state message
+  const getEmptyStateMessage = () => {
+    if (searchQuery) {
+      return {
+        title: 'No matching content found',
+        description: `No results for "${searchQuery}". Try different keywords or clear the search.`,
+        showFilters: true
+      };
+    }
+    
+    if (filterBy !== 'all') {
+      return {
+        title: `No ${filterBy} found`,
+        description: `You haven't generated any ${filterBy} yet. Start creating now!`,
+        showFilters: true
+      };
+    }
+    
+    const activeFilterCount = Object.values(advancedFilters).filter(v => {
+      if (typeof v === 'object' && 'start' in v) return v.start || v.end;
+      if (typeof v === 'object' && 'min' in v) return v.min !== 0 || v.max !== Infinity;
+      if (Array.isArray(v)) return v.length > 0;
+      if (typeof v === 'string') return v !== 'all';
+      return false;
+    }).length;
+
+    if (activeFilterCount > 0) {
+      return {
+        title: 'No content matches your filters',
+        description: 'Try adjusting your filter settings or clear all filters to see more content.',
+        showFilters: true
+      };
+    }
+
+    return {
+      title: 'Your gallery is empty',
+      description: 'Start creating amazing AI-generated content or upload existing files!',
+      showFilters: false,
+      showUpload: true
+    };
+  };
+
+  // === Google Drive Integration Enhancement Functions ===
+
+  // Quick upload to Google Drive (from grid card)
+  const quickUploadToDrive = async (item: ContentItem, folder: DriveFolder) => {
+    if (!googleAccessToken) {
+      showToast('error', 'Please authenticate with Google Drive first');
+      authenticateGoogleDrive();
+      return;
+    }
+
+    // Add to upload queue
+    const queueId = Math.random().toString(36).substring(7);
+    const newQueueItem = {
+      id: queueId,
+      item,
+      folder,
+      progress: 0,
+      status: 'pending' as const
+    };
+
+    setUploadQueue(prev => [...prev, newQueueItem]);
+    setShowQueuePanel(true);
+
+    // Add folder to recent folders
+    addToRecentFolders(folder);
+
+    // Start upload
+    await processUploadQueue(queueId, item, folder);
+  };
+
+  // Process upload queue item
+  const processUploadQueue = async (queueId: string, item: ContentItem, folder: DriveFolder) => {
+    try {
+      // Update status to uploading
+      setUploadQueue(prev =>
+        prev.map(q => q.id === queueId ? { ...q, status: 'uploading' as const } : q)
+      );
+
+      // Simulate progress (replace with actual upload)
+      for (let i = 0; i <= 100; i += 10) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        setUploadQueue(prev =>
+          prev.map(q => q.id === queueId ? { ...q, progress: i } : q)
+        );
+      }
+
+      // Mark as completed
+      setUploadQueue(prev =>
+        prev.map(q => q.id === queueId ? { ...q, status: 'completed' as const, progress: 100 } : q)
+      );
+
+      // Store Drive file ID (simulated)
+      const driveFileId = `drive_${Math.random().toString(36).substring(7)}`;
+      setDriveFileIds(prev => ({ ...prev, [item.id]: driveFileId }));
+
+      showToast('success', `${item.filename} uploaded to ${getFolderName(folder)}`);
+
+      // Auto-remove from queue after 3 seconds
+      setTimeout(() => {
+        setUploadQueue(prev => prev.filter(q => q.id !== queueId));
+      }, 3000);
+
+    } catch (error) {
+      console.error('Upload queue error:', error);
+      setUploadQueue(prev =>
+        prev.map(q => 
+          q.id === queueId 
+            ? { ...q, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' }
+            : q
+        )
+      );
+      showToast('error', `Failed to upload ${item.filename}`);
+    }
+  };
+
+  // Add folder to recent folders
+  const addToRecentFolders = (folder: DriveFolder) => {
+    setRecentFolders(prev => {
+      // Remove if already exists
+      const filtered = prev.filter(f => getFolderId(f) !== getFolderId(folder));
+      // Add to beginning
+      const updated = [folder, ...filtered];
+      // Keep only last 5
+      return updated.slice(0, 5);
+    });
+  };
+
+  // Create new Google Drive folder
+  const createDriveFolder = async () => {
+    if (!newFolderName.trim()) {
+      showToast('warning', 'Please enter a folder name');
+      return;
+    }
+
+    if (!googleAccessToken) {
+      showToast('error', 'Please authenticate with Google Drive first');
+      return;
+    }
+
+    setCreatingFolder(true);
+
+    try {
+      // Simulate folder creation (replace with actual API call)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const newFolder: DriveFolder = {
+        id: `folder_${Math.random().toString(36).substring(7)}`,
+        name: newFolderName.trim()
+      };
+
+      // Add to recent folders
+      addToRecentFolders(newFolder);
+
+      showToast('success', `Folder "${getFolderName(newFolder)}" created`);
+      setNewFolderName('');
+      setShowFolderCreate(false);
+
+      // If quick upload is active, upload to new folder
+      if (quickUploadItem) {
+        const item = allContent.find((i: ContentItem) => i.id === quickUploadItem);
+        if (item) {
+          quickUploadToDrive(item, newFolder);
+        }
+        setQuickUploadItem(null);
+      }
+
+    } catch (error) {
+      console.error('Folder creation error:', error);
+      showToast('error', 'Failed to create folder');
+    } finally {
+      setCreatingFolder(false);
+    }
+  };
+
+  // Check if item is synced to Drive
+  const isItemSyncedToDrive = (itemId: string): boolean => {
+    return !!driveFileIds[itemId];
+  };
+
+  // Retry failed upload
+  const retryUpload = (queueId: string) => {
+    const queueItem = uploadQueue.find(q => q.id === queueId);
+    if (!queueItem) return;
+
+    processUploadQueue(queueId, queueItem.item, queueItem.folder);
+  };
+
+  // Remove from upload queue
+  const removeFromQueue = (queueId: string) => {
+    setUploadQueue(prev => prev.filter(q => q.id !== queueId));
+  };
+
+  // Clear completed uploads from queue
+  const clearCompletedUploads = () => {
+    setUploadQueue(prev => prev.filter(q => q.status !== 'completed'));
+  };
+
+  // Toggle upload queue panel
+  const toggleQueuePanel = () => {
+    setShowQueuePanel(prev => !prev);
+  };
+
+  // ==================== Mobile Responsiveness Enhancement Functions ====================
+  
+  // Pull to refresh handler
+  const handlePullStart = (e: React.TouchEvent) => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer || scrollContainer.scrollTop > 0) return;
+    
+    setSwipeStartY(e.touches[0].clientY);
+    setIsPulling(true);
+  };
+
+  const handlePullMove = (e: React.TouchEvent) => {
+    if (!isPulling || swipeStartY === null) return;
+    
+    const scrollContainer = scrollContainerRef.current;
+    if (scrollContainer && scrollContainer.scrollTop > 0) {
+      setIsPulling(false);
+      return;
+    }
+
+    const currentY = e.touches[0].clientY;
+    const distance = Math.max(0, currentY - swipeStartY);
+    
+    // Max pull distance is 120px
+    const maxPull = 120;
+    const dampedDistance = Math.min(distance * 0.5, maxPull);
+    
+    setPullDistance(dampedDistance);
+  };
+
+  const handlePullEnd = async () => {
+    if (!isPulling) return;
+    
+    setIsPulling(false);
+    
+    // Trigger refresh if pulled more than 80px
+    if (pullDistance > 80) {
+      setIsRefreshing(true);
+      setPullDistance(60); // Keep indicator visible during refresh
+      
+      try {
+        await fetchContent();
+        showToast('success', 'Content refreshed');
+      } catch (error) {
+        showToast('error', 'Failed to refresh content');
+      } finally {
+        setIsRefreshing(false);
+        setPullDistance(0);
+        setSwipeStartY(null);
+      }
+    } else {
+      setPullDistance(0);
+      setSwipeStartY(null);
+    }
+  };
+
+  // Swipe to delete/select handler for grid items
+  const handleCardSwipeStart = (e: React.TouchEvent, itemId: string) => {
+    setSwipeStartX(e.touches[0].clientX);
+    setSwipeItemId(itemId);
+  };
+
+  const handleCardSwipeMove = (e: React.TouchEvent) => {
+    if (swipeStartX === null || !swipeItemId) return;
+
+    const currentX = e.touches[0].clientX;
+    const diff = currentX - swipeStartX;
+    
+    // Only allow left swipe (negative diff)
+    if (diff < 0) {
+      setSwipeOffset(Math.max(diff, -120)); // Max swipe is 120px left
+    }
+  };
+
+  const handleCardSwipeEnd = () => {
+    if (!swipeItemId) return;
+
+    // If swiped more than 60px, trigger action
+    if (swipeOffset < -60) {
+      // Show delete confirmation or toggle selection
+      if (selectedItems.has(swipeItemId)) {
+        toggleItemSelection(swipeItemId);
+        showToast('info', 'Item deselected');
+      } else {
+        toggleItemSelection(swipeItemId);
+        showToast('info', 'Item selected');
+      }
+    }
+
+    // Reset swipe
+    setSwipeOffset(0);
+    setSwipeStartX(null);
+    setSwipeItemId(null);
+  };
+
+  // Mobile bottom sheet handlers
+  const openMobileBottomSheet = (content: 'actions' | 'filters') => {
+    setMobileBottomSheetContent(content);
+    setShowMobileBottomSheet(true);
+  };
+
+  const closeMobileBottomSheet = () => {
+    setShowMobileBottomSheet(false);
+    setTimeout(() => setMobileBottomSheetContent(null), 300);
+  };
+
+  // Touch-optimized selection toggle
+  const handleMobileItemLongPress = (itemId: string) => {
+    // Haptic feedback if available
+    if ('vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+    
+    toggleItemSelection(itemId);
+    showToast('info', selectedItems.has(itemId) ? 'Item deselected' : 'Item selected');
+  };
+
+  // Clear advanced filters
+  const clearAdvancedFilters = () => {
+    setAdvancedFilters({
+      dateRange: { start: '', end: '' },
+      fileSize: { min: 0, max: Infinity },
+      aspectRatio: 'all',
+      formats: [],
+      linkedStatus: 'all',
+      panelOpen: advancedFilters.panelOpen
+    });
+  };
+
+  // Check if advanced filters are active
+  const hasActiveAdvancedFilters = 
+    advancedFilters.dateRange.start !== '' ||
+    advancedFilters.dateRange.end !== '' ||
+    advancedFilters.fileSize.min !== 0 ||
+    advancedFilters.fileSize.max !== Infinity ||
+    advancedFilters.aspectRatio !== 'all' ||
+    advancedFilters.formats.length > 0 ||
+    advancedFilters.linkedStatus !== 'all';
+
   return (
     <div className="space-y-6">
-      {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 rounded-2xl shadow-2xl border border-blue-200 dark:border-indigo-800 p-8 text-white">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+      {/* Enhanced Header with Softer Gradient */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-blue-950 dark:to-indigo-950 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 p-8">
+        {/* Subtle Background Pattern */}
+        <div className="absolute inset-0 opacity-5 dark:opacity-10">
+          <div className="absolute inset-0 bg-grid-pattern"></div>
         </div>
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="flex items-center space-x-6">
-            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
-              <ImageIcon className="w-10 h-10 text-white drop-shadow-sm" />
+            <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-md">
+              <ImageIcon className="w-10 h-10 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold mb-2 drop-shadow-sm">
+              <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">
                 Generated Content
               </h1>
-              <p className="text-blue-100 text-lg font-medium opacity-90">
+              <p className="text-gray-600 dark:text-gray-300 text-lg font-medium">
                 Manage your AI-generated images and videos
               </p>
-              <div className="flex items-center space-x-4 mt-3 text-sm text-blue-100">
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-sm"></div>
                   <span>Live updates</span>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-blue-300 rounded-full"></div>
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full shadow-sm"></div>
                   <span>Cloud synchronized</span>
                 </div>
               </div>
@@ -1342,28 +2613,28 @@ export default function GeneratedContentPage() {
                 fetchStats();
               }}
               disabled={loading}
-              className="flex items-center space-x-3 px-6 py-3 bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/30 group"
+              className="flex items-center space-x-3 px-6 py-3 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 text-gray-700 dark:text-gray-200 font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 border border-gray-200 dark:border-slate-700 group"
               title="Refresh content"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-700 dark:text-gray-200" />
                   <span>Updating...</span>
                 </>
               ) : (
                 <>
-                  <RefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+                  <RefreshCw className="w-5 h-5 text-gray-700 dark:text-gray-200 group-hover:rotate-180 transition-transform duration-500" />
                   <span>Refresh</span>
                 </>
               )}
             </button>
 
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
+            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 backdrop-blur-sm rounded-2xl p-5 shadow-md">
               <div className="text-center">
-                <div className="text-3xl font-bold text-white drop-shadow-sm">
+                <div className="text-3xl font-bold text-white">
                   {allContent.length}
                 </div>
-                <div className="text-sm text-blue-100 font-medium">
+                <div className="text-sm text-blue-100 font-medium mt-1">
                   Total Items
                 </div>
               </div>
@@ -1372,9 +2643,31 @@ export default function GeneratedContentPage() {
         </div>
       </div>
 
-      {/* Enhanced Stats */}
+      {/* Collapsible Enhanced Stats */}
       {(imageStats || videoStats) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <button
+            onClick={() => setStatsCollapsed(!statsCollapsed)}
+            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+          >
+            <div className="flex items-center space-x-3">
+              <BarChart3 className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Statistics
+              </h3>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                ({allContent.length} items)
+              </span>
+            </div>
+            {statsCollapsed ? (
+              <ChevronDown className="w-5 h-5 text-gray-400" />
+            ) : (
+              <ChevronUp className="w-5 h-5 text-gray-400" />
+            )}
+          </button>
+          
+          {!statsCollapsed && (
+        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {imageStats && (
             <>
               <div className="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:border-blue-300 dark:hover:border-blue-600">
@@ -1479,6 +2772,8 @@ export default function GeneratedContentPage() {
             </>
           )}
         </div>
+          )}
+        </div>
       )}
 
       {/* Bandwidth Optimization Stats */}
@@ -1490,7 +2785,7 @@ export default function GeneratedContentPage() {
       {selectedItems.size > 0 && (
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 shadow-lg">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 flex-wrap">
               <div className="flex items-center space-x-2">
                 <div className="p-2 bg-blue-500 rounded-lg">
                   <CheckSquare className="w-5 h-5 text-white" />
@@ -1512,14 +2807,38 @@ export default function GeneratedContentPage() {
                 Select all on page
               </button>
             </div>
-            <button
-              onClick={openTaskModal}
-              disabled={linkingContent}
-              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-semibold shadow-lg transition-all duration-200 disabled:cursor-not-allowed"
-            >
-              <ClipboardCheck className="w-5 h-5" />
-              <span>{linkingContent ? "Linking..." : "Add to Production Task"}</span>
-            </button>
+            <div className="flex items-center space-x-3 flex-wrap">
+              {/* Bulk Actions */}
+              <button
+                onClick={bulkDownload}
+                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download</span>
+              </button>
+              <button
+                onClick={bulkUploadToDrive}
+                className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+              >
+                <Cloud className="w-4 h-4" />
+                <span>Upload to Drive</span>
+              </button>
+              <button
+                onClick={bulkDelete}
+                className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete</span>
+              </button>
+              <button
+                onClick={openTaskModal}
+                disabled={linkingContent}
+                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200 disabled:cursor-not-allowed"
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                <span>{linkingContent ? "Linking..." : "Add to Task"}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1632,7 +2951,244 @@ export default function GeneratedContentPage() {
                 <List className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Selection Mode Toggle */}
+            <button
+              onClick={() => setSelectionMode(!selectionMode)}
+              className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border transition-all duration-200 font-medium text-sm ${
+                selectionMode
+                  ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                  : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
+              }`}
+              title={selectionMode ? "Exit selection mode" : "Enter selection mode - Show all checkboxes"}
+            >
+              <MousePointer2 className="w-4 h-4" />
+              <span>{selectionMode ? "Exit Select" : "Select Mode"}</span>
+            </button>
+
+            {/* Keyboard Shortcuts Help */}
+            <div className="relative group">
+              <button
+                className="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-all"
+                title="Keyboard shortcuts"
+              >
+                <Keyboard className="w-4 h-4" />
+              </button>
+              
+              {/* Shortcuts Tooltip */}
+              <div className="absolute right-0 top-12 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-3 flex items-center">
+                  <Keyboard className="w-4 h-4 mr-2" />
+                  Keyboard Shortcuts
+                </h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Select All</span>
+                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 font-mono">Ctrl+A</kbd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Delete Selected</span>
+                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 font-mono">Delete</kbd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Navigate</span>
+                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 font-mono">Arrow Keys</kbd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Toggle Select</span>
+                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 font-mono">Space</kbd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Close/Cancel</span>
+                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 font-mono">Esc</kbd>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Right-click Menu</span>
+                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded border border-gray-300 dark:border-gray-600 font-mono">Right Click</kbd>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center text-gray-500 dark:text-gray-400">
+                      <Move className="w-3 h-3 mr-1" />
+                      <span>Drag to select multiple items</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
+
+        {/* Advanced Filters Panel */}
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => setAdvancedFilters({...advancedFilters, panelOpen: !advancedFilters.panelOpen})}
+            className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          >
+            <Filter className="w-4 h-4" />
+            <span>Advanced Filters</span>
+            {advancedFilters.panelOpen ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
+            {(advancedFilters.dateRange.start || advancedFilters.dateRange.end || 
+              advancedFilters.fileSize.min > 0 || advancedFilters.fileSize.max < Infinity ||
+              advancedFilters.aspectRatio !== 'all' || advancedFilters.formats.length > 0 ||
+              advancedFilters.linkedStatus !== 'all') && (
+              <span className="ml-2 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full font-semibold">
+                Active
+              </span>
+            )}
+          </button>
+
+          {advancedFilters.panelOpen && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Date Range Filter */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Date Range
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="date"
+                    value={advancedFilters.dateRange.start || ''}
+                    onChange={(e) => setAdvancedFilters({
+                      ...advancedFilters,
+                      dateRange: {...advancedFilters.dateRange, start: e.target.value}
+                    })}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={advancedFilters.dateRange.end || ''}
+                    onChange={(e) => setAdvancedFilters({
+                      ...advancedFilters,
+                      dateRange: {...advancedFilters.dateRange, end: e.target.value}
+                    })}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* File Size Filter */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  File Size (MB)
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="Min"
+                    value={advancedFilters.fileSize.min === 0 ? '' : advancedFilters.fileSize.min}
+                    onChange={(e) => setAdvancedFilters({
+                      ...advancedFilters,
+                      fileSize: {...advancedFilters.fileSize, min: parseFloat(e.target.value) || 0}
+                    })}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-500">to</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="Max"
+                    value={advancedFilters.fileSize.max === Infinity ? '' : advancedFilters.fileSize.max}
+                    onChange={(e) => setAdvancedFilters({
+                      ...advancedFilters,
+                      fileSize: {...advancedFilters.fileSize, max: parseFloat(e.target.value) || Infinity}
+                    })}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Aspect Ratio Filter */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Aspect Ratio
+                </label>
+                <select
+                  value={advancedFilters.aspectRatio}
+                  onChange={(e) => setAdvancedFilters({
+                    ...advancedFilters,
+                    aspectRatio: e.target.value as AspectRatio
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Ratios</option>
+                  <option value="portrait">📱 Portrait</option>
+                  <option value="landscape">🖥️ Landscape</option>
+                  <option value="square">⬛ Square</option>
+                </select>
+              </div>
+
+              {/* Format Filter */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Formats
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {['PNG', 'JPEG', 'WEBP', 'MP4', 'MOV'].map((format) => (
+                    <button
+                      key={format}
+                      onClick={() => {
+                        const formats = advancedFilters.formats.includes(format)
+                          ? advancedFilters.formats.filter(f => f !== format)
+                          : [...advancedFilters.formats, format];
+                        setAdvancedFilters({...advancedFilters, formats});
+                      }}
+                      className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+                        advancedFilters.formats.includes(format)
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {format}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Linked Status Filter */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Task Status
+                </label>
+                <select
+                  value={advancedFilters.linkedStatus}
+                  onChange={(e) => setAdvancedFilters({
+                    ...advancedFilters,
+                    linkedStatus: e.target.value as LinkedStatus
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Items</option>
+                  <option value="linked">✅ Linked to Tasks</option>
+                  <option value="unlinked">⭕ Not Linked</option>
+                </select>
+              </div>
+
+              {/* Clear Filters Button */}
+              <div className="flex items-end">
+                <button
+                  onClick={() => setAdvancedFilters({
+                    dateRange: { start: '', end: '' },
+                    fileSize: { min: 0, max: Infinity },
+                    aspectRatio: 'all',
+                    formats: [],
+                    linkedStatus: 'all',
+                    panelOpen: advancedFilters.panelOpen
+                  })}
+                  className="w-full px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm"
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Results Summary */}
@@ -1640,9 +3196,9 @@ export default function GeneratedContentPage() {
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600 dark:text-gray-400">
-                {filteredAndSortedContent().length === 1
+                {filteredAndSortedContent.length === 1
                   ? "1 item found"
-                  : `${filteredAndSortedContent().length} items found`}
+                  : `${filteredAndSortedContent.length} items found`}
                 {searchQuery && (
                   <span className="ml-1">
                     for "
@@ -1670,10 +3226,58 @@ export default function GeneratedContentPage() {
         )}
       </div>
 
-      {/* Enhanced Empty State */}
-      {filteredAndSortedContent().length === 0 ? (
+      {/* Enhanced Empty State with Drag & Drop */}
+      {filteredAndSortedContent.length === 0 ? (
         <div className="text-center py-16">
-          <div className="max-w-md mx-auto">
+          <div className="max-w-2xl mx-auto">
+            {/* Drag & Drop Zone */}
+            {getEmptyStateMessage().showUpload && (
+              <div
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={triggerFileInput}
+                className={`mb-12 p-12 border-3 border-dashed rounded-3xl transition-all duration-300 cursor-pointer ${
+                  isDraggingOver
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-105'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,video/*"
+                  onChange={handleFileInputChange}
+                  className="hidden"
+                />
+                <div className="flex flex-col items-center space-y-4">
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    isDraggingOver
+                      ? 'bg-blue-500 scale-110'
+                      : 'bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-800 dark:to-blue-900'
+                  }`}>
+                    <UploadCloud className={`w-10 h-10 ${
+                      isDraggingOver ? 'text-white' : 'text-blue-600 dark:text-blue-400'
+                    }`} />
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                      {isDraggingOver ? 'Drop files here' : 'Drag & drop files here'}
+                    </h4>
+                    <p className="text-gray-600 dark:text-gray-400">
+                      or <span className="text-blue-600 dark:text-blue-400 font-semibold">click to browse</span>
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                      Supports images (PNG, JPG, WebP) and videos (MP4, WebM)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Empty State Icon & Message */}
             <div className="relative mb-8">
               <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
                 <ImageIcon className="w-12 h-12 text-gray-400 dark:text-gray-500" />
@@ -1684,62 +3288,52 @@ export default function GeneratedContentPage() {
             </div>
 
             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-              {searchQuery || filterBy !== "all"
-                ? "No matching content found"
-                : "Your gallery is empty"}
+              {getEmptyStateMessage().title}
             </h3>
 
             <div className="space-y-2 mb-8">
-              {searchQuery || filterBy !== "all" ? (
-                <>
-                  <p className="text-gray-600 dark:text-gray-400">
-                    We couldn't find any content matching your search criteria.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
-                    {searchQuery && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
-                        Search: "{searchQuery}"
-                        <button
-                          onClick={() => setSearchQuery("")}
-                          className="ml-2 text-blue-600 hover:text-blue-800"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    )}
-                    {filterBy !== "all" && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
-                        Filter:{" "}
-                        {filterBy === "images" ? "🖼️ Images" : "🎥 Videos"}
-                        <button
-                          onClick={() => setFilterBy("all")}
-                          className="ml-2 text-purple-600 hover:text-purple-800"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-600 dark:text-gray-400 text-lg">
-                    Start creating amazing AI-generated content to see it here!
-                  </p>
-                  <p className="text-gray-500 dark:text-gray-500 text-sm">
-                    Your generated images and videos will appear in this
-                    gallery.
-                  </p>
-                </>
+              <p className="text-gray-600 dark:text-gray-400">
+                {getEmptyStateMessage().description}
+              </p>
+              
+              {/* Active Filters Display */}
+              {getEmptyStateMessage().showFilters && (searchQuery || filterBy !== "all") && (
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                  {searchQuery && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                      Search: "{searchQuery}"
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="ml-2 text-blue-600 hover:text-blue-800"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {filterBy !== "all" && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
+                      Filter:{" "}
+                      {filterBy === "images" ? "🖼️ Images" : "🎥 Videos"}
+                      <button
+                        onClick={() => setFilterBy("all")}
+                        className="ml-2 text-purple-600 hover:text-purple-800"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
+            {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              {searchQuery || filterBy !== "all" ? (
+              {getEmptyStateMessage().showFilters ? (
                 <button
                   onClick={() => {
                     setSearchQuery("");
                     setFilterBy("all");
+                    clearAdvancedFilters();
                   }}
                   className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
                 >
@@ -1769,198 +3363,112 @@ export default function GeneratedContentPage() {
         </div>
       ) : (
         <>
-          {/* Enhanced Grid View */}
+          {/* Enhanced Grid View with Lazy Loading */}
           {viewMode === "grid" && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
-              {paginatedContent().map((item, index) => {
-                const isLinked = linkedContentMap[item.id];
-                const linkedTasks = isLinked || [];
-                
-                return (
-                <div
-                  key={item.id}
-                  className={`group bg-white dark:bg-gray-800 rounded-2xl border overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] transform cursor-pointer ${
-                    isLinked
-                      ? 'border-green-400 dark:border-green-600 opacity-75'
-                      : selectedItems.has(item.id)
-                      ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-300 dark:ring-blue-600'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600'
-                  }`}
-                  style={{
-                    animationDelay: `${index * 0.05}s`,
-                  }}
-                  onClick={(e) => {
-                    // Only handle clicks on the card itself, not on buttons
-                    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input') || (e.target as HTMLElement).closest('label')) {
-                      return; // Let button/checkbox/label handle its own click
-                    }
-                    console.log(`🎬 Card clicked for: ${item.filename} (${item.itemType})`);
-                    setSelectedItem(item);
-                  }}
-                >
-                  <div className="relative aspect-square overflow-hidden">
-                    {/* Selection Checkbox - Inside the image container */}
-                    {!isLinked && (
-                      <div className="absolute top-2 left-2 z-20">
-                        <label
-                          className="flex items-center justify-center w-8 h-8 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg shadow-lg border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition-colors hover:scale-110"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedItems.has(item.id)}
-                            onChange={() => toggleItemSelection(item.id)}
-                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                          />
-                        </label>
-                      </div>
-                    )}
-
-                    {/* Already Linked Badge - Top right corner, small and unobtrusive */}
-                    {isLinked && (
-                      <div className="absolute top-2 right-2 z-20">
-                        <div 
-                          className="bg-green-500 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-transform cursor-help"
-                          title={`Linked to: ${linkedTasks.map((t: any) => t.influencer).join(', ')}`}
-                        >
-                          <CheckCircle className="w-4 h-4" />
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                {displayedContent.map((item, index) => {
+                  const isLinked = linkedContentMap[item.id];
+                  const linkedTasks = isLinked || [];
+                  const isFocused = focusedItemIndex === index;
+                  
+                  return (
+                  <div
+                    key={item.id}
+                    data-item-index={index}
+                    className={`group bg-white dark:bg-gray-800 rounded-2xl border overflow-visible transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer ${
+                      selectedItems.has(item.id)
+                        ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-300 dark:ring-blue-600 shadow-lg'
+                        : isFocused
+                        ? 'border-purple-500 dark:border-purple-400 ring-2 ring-purple-300 dark:ring-purple-600'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 shadow-sm'
+                    }`}
+                    style={{
+                      animationDelay: `${index * 0.05}s`,
+                    }}
+                    onClick={(e) => {
+                      // Only handle clicks on the card itself, not on buttons
+                      if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input') || (e.target as HTMLElement).closest('label')) {
+                        return; // Let button/checkbox/label handle its own click
+                      }
+                      setSelectedItem(item);
+                      setFocusedItemIndex(index);
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e, item)}
+                    onMouseDown={(e) => handleMouseDown(e, index)}
+                    onMouseEnter={() => handleMouseEnter(index)}
+                    tabIndex={0}
+                    onFocus={() => setFocusedItemIndex(index)}
+                  >
+                    {/* Aspect Ratio Container - Prevents layout shift */}
+                    <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-900">
+                      {/* Hover Overlay with Blur Effect */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 pointer-events-none" />
+                      
+                      {/* Selection Checkbox - Always visible in selection mode or on hover */}
+                      {!isLinked && (
+                        <div className={`absolute top-3 left-3 z-20 transition-opacity duration-200 ${
+                          selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        }`}>
+                          <label
+                            className="flex items-center justify-center w-9 h-9 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:scale-110 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-200"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.has(item.id)}
+                              onChange={() => toggleItemSelection(item.id)}
+                              className="w-5 h-5 text-blue-600 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </label>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {item.itemType === "video" ? (
-                      <video
-                        src={(() => {
-                          const videoUrl = getBestMediaUrl({
-                            awsS3Key: item.awsS3Key,
-                            awsS3Url: item.awsS3Url,
-                            s3Key: item.s3Key,
-                            networkVolumePath: item.networkVolumePath,
-                            dataUrl: item.dataUrl,
-                            url: item.url,
-                            id: item.id,
-                            filename: item.filename,
-                            type: 'video'
-                          });
-                          console.log(`🎬 Grid video URL for ${item.filename}:`, videoUrl);
-                          return videoUrl;
-                        })()}
-                        className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
-                        onClick={(e) => {
-                          console.log(`🎬 Video clicked: ${item.filename}`);
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setSelectedItem(item);
-                        }}
-                        preload="metadata"
-                        muted
-                        onLoadStart={() => {
-                          console.log(`🎬 Grid video load started: ${item.filename}`);
-                        }}
-                        onCanPlay={() => {
-                          console.log(`✅ Grid video can play: ${item.filename}`);
-                        }}
-                        onError={(e) => {
-                          console.error("❌ Grid video load error for:", item.filename);
-                          console.log(
-                            "Current src:",
-                            (e.target as HTMLVideoElement).src
-                          );
-                          console.log("Video data:", {
-                            awsS3Url: item.awsS3Url,
-                            awsS3Key: item.awsS3Key,
-                            dataUrl: item.dataUrl,
-                            url: item.url
-                          });
+                      {/* Keyboard Focus Indicator */}
+                      {isFocused && (
+                        <div className="absolute top-3 right-3 z-20">
+                          <div className="bg-purple-500 text-white p-2 rounded-lg shadow-lg animate-pulse">
+                            <Keyboard className="w-4 h-4" />
+                          </div>
+                        </div>
+                      )}
 
-                          // Try fallback URLs in priority order
-                          const fallbackUrls = [
-                            item.awsS3Url,
-                            item.awsS3Key ? `https://tastycreative.s3.amazonaws.com/${item.awsS3Key}` : null,
-                            item.dataUrl,
-                            item.url
-                          ].filter(Boolean);
+                      {/* Linked Badge - Prominent but not intrusive */}
+                      {isLinked && (
+                        <div className="absolute top-3 left-3 right-3 z-20">
+                          <div 
+                            className="inline-flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 cursor-help text-sm font-medium"
+                            title={`Linked to: ${linkedTasks.map((t: any) => t.influencer).join(', ')}`}
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Linked</span>
+                          </div>
+                        </div>
+                      )}
 
-                          const currentIndex = fallbackUrls.indexOf((e.target as HTMLVideoElement).src);
-                          const nextIndex = currentIndex + 1;
-                          
-                          if (nextIndex < fallbackUrls.length) {
-                            console.log("🔄 Grid trying next fallback URL:", fallbackUrls[nextIndex]);
-                            (e.target as HTMLVideoElement).src = fallbackUrls[nextIndex]!;
-                          } else {
-                            console.error("💥 All grid URLs failed for:", item.filename);
-                            // Hide the video element and show a placeholder
-                            const videoElement = e.target as HTMLVideoElement;
-                            videoElement.style.display = "none";
-                            
-                            // Create a clickable placeholder
-                            const placeholder = document.createElement("div");
-                            placeholder.className = "w-full h-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center cursor-pointer transition-transform duration-300 group-hover:scale-110";
-                            placeholder.innerHTML = `
-                              <div class="text-center">
-                                <svg class="w-12 h-12 mx-auto mb-2 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/>
-                                </svg>
-                                <p class="text-xs text-gray-500">Video Preview</p>
-                              </div>
-                            `;
-                            placeholder.onclick = () => {
-                              console.log(`🎬 Placeholder clicked: ${item.filename}`);
-                              setSelectedItem(item);
-                            };
-                            videoElement.parentNode?.appendChild(placeholder);
-                          }
-                        }}
+                      {/* Google Drive Sync Status Badge */}
+                      {isItemSyncedToDrive(item.id) && (
+                        <div className="absolute top-3 right-3 z-20">
+                          <div 
+                            className="inline-flex items-center space-x-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2.5 py-1.5 rounded-lg shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 text-xs font-medium"
+                            title="Synced to Google Drive"
+                          >
+                            <Cloud className="w-3.5 h-3.5" />
+                            <CheckCircle className="w-3 h-3" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Lazy Loaded Media */}
+                      <LazyMedia 
+                        item={item} 
+                        onClick={() => setSelectedItem(item)} 
                       />
-                    ) : (
-                      <img
-                        src={getBestMediaUrl({
-                          awsS3Key: item.awsS3Key,
-                          awsS3Url: item.awsS3Url,
-                          s3Key: item.s3Key,
-                          networkVolumePath: item.networkVolumePath,
-                          dataUrl: item.dataUrl,
-                          url: item.url,
-                          id: item.id,
-                          filename: item.filename,
-                          type: 'image'
-                        })}
-                        alt={item.filename}
-                        className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
-                        onClick={() => setSelectedItem(item)}
-                        onError={(e) => {
-                          console.warn(
-                            "⚠️ Image load error for:",
-                            item.filename
-                          );
 
-                          const currentSrc = (e.target as HTMLImageElement).src;
-                          
-                          // Try fallback URLs in order: AWS S3 -> Database -> ComfyUI -> Placeholder
-                          if (item.awsS3Key && !currentSrc.includes(item.awsS3Key)) {
-                            console.log("Trying AWS S3 URL for:", item.filename);
-                            (e.target as HTMLImageElement).src = `https://tastycreative.s3.amazonaws.com/${item.awsS3Key}`;
-                          } else if (item.awsS3Url && currentSrc !== item.awsS3Url) {
-                            console.log("Trying direct AWS S3 URL for:", item.filename);
-                            (e.target as HTMLImageElement).src = item.awsS3Url;
-                          } else if (item.dataUrl && !currentSrc.includes('/api/images/')) {
-                            console.log("Falling back to database URL for:", item.filename);
-                            (e.target as HTMLImageElement).src = item.dataUrl;
-                          } else if (item.url && currentSrc !== item.url) {
-                            console.log("Falling back to ComfyUI URL for:", item.filename);
-                            (e.target as HTMLImageElement).src = item.url;
-                          } else {
-                            console.error("All URLs failed for:", item.filename);
-                            (e.target as HTMLImageElement).src = "/api/placeholder-image";
-                          }
-                        }}
-                      />
-                    )}
-
-                    {/* Content Type Badge */}
-                    <div className="absolute top-3 left-3">
+                    {/* Content Type Badge - Better positioning */}
+                    <div className="absolute bottom-3 left-3 z-10">
                       <div
-                        className={`flex items-center space-x-1 px-2 py-1 rounded-lg text-xs font-semibold shadow-lg backdrop-blur-sm border transition-all duration-300 ${
+                        className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg backdrop-blur-md border transition-all duration-300 ${
                           item.itemType === "video"
                             ? "bg-purple-500/90 text-white border-purple-400"
                             : "bg-blue-500/90 text-white border-blue-400"
@@ -1991,7 +3499,7 @@ export default function GeneratedContentPage() {
                         ) : uploadStates[item.id].success ? (
                           <div className="bg-green-500/90 text-white px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm border border-green-400/50 flex items-center space-x-1">
                             <CheckCircle className="w-3 h-3" />
-                            <span>Uploaded to {uploadStates[item.id].folder}</span>
+                            <span>Uploaded to {uploadStates[item.id].folder ? getFolderName(uploadStates[item.id].folder!) : 'Drive'}</span>
                           </div>
                         ) : uploadStates[item.id].error ? (
                           <div className="bg-red-500/90 text-white px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm border border-red-400/50 flex items-center space-x-1">
@@ -2011,117 +3519,57 @@ export default function GeneratedContentPage() {
                       </div>
                     )}
 
-                    {/* Hover Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300">
-                      <div className="absolute bottom-4 left-4 right-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedItem(item);
-                              }}
-                              className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/20"
-                              title="View full size"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                downloadItem(item);
-                              }}
-                              className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/20"
-                              title="Download"
-                            >
-                              <Download className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowUploadModal(item);
-                              }}
-                              className="p-2.5 bg-blue-500/80 hover:bg-blue-600/90 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-blue-400/20"
-                              title="Upload to Google Drive"
-                            >
-                              <Upload className="w-4 h-4" />
-                            </button>
-                          </div>
 
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                shareItem(item);
-                              }}
-                              className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-white/20"
-                              title="Share"
-                            >
-                              <Share2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteItem(item);
-                              }}
-                              className="p-2.5 bg-red-500/80 hover:bg-red-500 text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 backdrop-blur-sm border border-red-400/20"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
 
                     {/* Play Button for Videos */}
                     {item.itemType === "video" && (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                        <div className="p-4 bg-white/20 rounded-full backdrop-blur-sm border border-white/30 pointer-events-auto">
-                          <Play className="w-8 h-8 text-white drop-shadow-lg" />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                        <div className="p-5 bg-white/25 rounded-full backdrop-blur-md border-2 border-white/40 shadow-2xl pointer-events-auto">
+                          <Play className="w-10 h-10 text-white drop-shadow-2xl" />
                         </div>
                       </div>
                     )}
-                  </div>
+                    </div>
+                    {/* End of aspect-square container */}
 
-                  {/* Enhanced Card Footer */}
-                  <div className="p-4">
+                  {/* Enhanced Card Footer with better typography */}
+                  <div className="p-5">
                     <h3
-                      className="text-sm font-semibold text-gray-900 dark:text-white truncate mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200"
+                      className="text-base font-semibold text-gray-900 dark:text-white truncate mb-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors duration-200"
                       title={item.filename}
                     >
                       {item.filename}
                     </h3>
 
-                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-3">
                       <div className="flex items-center space-x-3">
-                        <span className="flex items-center space-x-1">
-                          <HardDrive className="w-3 h-3" />
-                          <span>{formatFileSize(item.fileSize)}</span>
+                        <span className="flex items-center space-x-1.5">
+                          <HardDrive className="w-4 h-4" />
+                          <span className="font-medium">{formatFileSize(item.fileSize)}</span>
                         </span>
 
                         {item.width && item.height && (
-                          <span className="flex items-center space-x-1">
-                            <span>📐</span>
-                            <span>
+                          <span className="flex items-center space-x-1.5">
+                            <span className="text-base">📐</span>
+                            <span className="font-medium">
                               {item.width}×{item.height}
                             </span>
                           </span>
                         )}
                       </div>
 
-                      <div className="text-xs text-gray-400 dark:text-gray-500">
+                      <div className="text-sm text-gray-500 dark:text-gray-400 font-medium">
                         {formatDate(item.createdAt).split(" ")[0]}
                       </div>
                     </div>
 
                     {/* Progress bar for file size visualization */}
-                    <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden mb-4">
                       <div
-                        className={`h-1 rounded-full transition-all duration-300 ${
+                        className={`h-1.5 rounded-full transition-all duration-500 ${
                           item.itemType === "video"
-                            ? "bg-gradient-to-r from-purple-400 to-purple-600"
-                            : "bg-gradient-to-r from-blue-400 to-blue-600"
+                            ? "bg-gradient-to-r from-purple-500 via-purple-600 to-purple-700"
+                            : "bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700"
                         }`}
                         style={{
                           width: `${Math.min(
@@ -2131,18 +3579,185 @@ export default function GeneratedContentPage() {
                         }}
                       ></div>
                     </div>
+
+                    {/* Action Buttons - Moved from hover overlay */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedItem(item);
+                          }}
+                          className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200`}
+                          title="View full size"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadItem(item);
+                          }}
+                          className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200`}
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        
+                        {/* Quick Upload to Drive with Folder Dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickUploadItem(quickUploadItem === item.id ? null : item.id);
+                            }}
+                            className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} ${isItemSyncedToDrive(item.id) ? 'bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400'} rounded-lg transition-all duration-200`}
+                            title={isItemSyncedToDrive(item.id) ? "Already in Google Drive - Upload again" : "Upload to Google Drive"}
+                          >
+                            {isItemSyncedToDrive(item.id) ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (
+                              <Cloud className="w-4 h-4" />
+                            )}
+                          </button>
+
+                          {/* Folder Dropdown Menu */}
+                          {quickUploadItem === item.id && (
+                            <div 
+                              className="absolute bottom-full mb-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[9999] overflow-hidden"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="p-2">
+                                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 py-2">
+                                  Upload to folder:
+                                </div>
+                                
+                                {/* Predefined Folders */}
+                                {(["All Generations", "IG Posts", "IG Reels", "Misc"] as DriveFolderName[]).map((folder) => (
+                                  <button
+                                    key={folder}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      quickUploadToDrive(item, folder);
+                                      setQuickUploadItem(null);
+                                    }}
+                                    className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150"
+                                  >
+                                    <Folder className="w-4 h-4 text-blue-500" />
+                                    <span>{folder}</span>
+                                  </button>
+                                ))}
+
+                                {/* Recent Folders */}
+                                {recentFolders.length > 0 && (
+                                  <>
+                                    <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
+                                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 py-1">
+                                      Recent:
+                                    </div>
+                                    {recentFolders.map((folder) => (
+                                      <button
+                                        key={typeof folder === 'string' ? folder : folder.id}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          quickUploadToDrive(item, folder);
+                                          setQuickUploadItem(null);
+                                        }}
+                                        className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150"
+                                      >
+                                        <Clock className="w-4 h-4 text-gray-400" />
+                                        <span>{getFolderName(folder)}</span>
+                                      </button>
+                                    ))}
+                                  </>
+                                )}
+
+                                {/* Create New Folder */}
+                                <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowFolderCreate(true);
+                                    setQuickUploadItem(null);
+                                  }}
+                                  className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150 font-medium"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                  <span>Create New Folder</span>
+                                </button>
+
+                                {/* Full Upload Modal Option */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowUploadModal(item);
+                                    setQuickUploadItem(null);
+                                  }}
+                                  className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150"
+                                >
+                                  <Upload className="w-4 h-4" />
+                                  <span>More Options...</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            shareItem(item);
+                          }}
+                          className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200`}
+                          title="Share"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteItem(item);
+                          }}
+                          className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200`}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 );
               })}
             </div>
+            
+            {/* Infinite Scroll Loading Trigger */}
+            {hasMore && (
+              <div
+                ref={loadMoreRef}
+                className="flex items-center justify-center py-8"
+              >
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <span className="ml-2 text-gray-600 dark:text-gray-400">Loading more...</span>
+              </div>
+            )}
+            
+            {/* Show when all items are loaded */}
+            {!hasMore && displayedContent.length > 0 && (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <p>✓ All {displayedContent.length} items loaded</p>
+              </div>
+            )}
+            </>
           )}
 
           {/* List View */}
           {viewMode === "list" && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                {paginatedContent().map((item) => {
+              <div className="divide-y divide-gray-200 dark:border-gray-700">
+                {displayedContent.map((item) => {
                   const isLinked = linkedContentMap[item.id];
                   const linkedTasks = isLinked || [];
                   
@@ -2330,144 +3945,174 @@ export default function GeneratedContentPage() {
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* Enhanced Pagination */}
-          {totalPages > 1 && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                  <span className="font-medium">
-                    Showing {(currentPage - 1) * imagesPerPage + 1}–
-                    {Math.min(
-                      currentPage * imagesPerPage,
-                      filteredAndSortedContent().length
-                    )}
-                  </span>
-                  <span>of</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    {filteredAndSortedContent().length.toLocaleString()}
-                  </span>
-                  <span>items</span>
+              
+              {/* Infinite Scroll Loading Trigger for List View */}
+              {hasMore && (
+                <div
+                  ref={loadMoreRef}
+                  className="flex items-center justify-center py-6 border-t border-gray-200 dark:border-gray-700"
+                >
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                  <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading more...</span>
                 </div>
-
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className="p-2.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    title="First page"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
-                  >
-                    Previous
-                  </button>
-
-                  <div className="flex items-center space-x-1">
-                    {/* Page Numbers */}
-                    {(() => {
-                      const pages = [];
-                      const maxVisiblePages = 5;
-                      let startPage = Math.max(
-                        1,
-                        currentPage - Math.floor(maxVisiblePages / 2)
-                      );
-                      const endPage = Math.min(
-                        totalPages,
-                        startPage + maxVisiblePages - 1
-                      );
-
-                      if (endPage - startPage < maxVisiblePages - 1) {
-                        startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                      }
-
-                      for (let i = startPage; i <= endPage; i++) {
-                        pages.push(
-                          <button
-                            key={i}
-                            onClick={() => setCurrentPage(i)}
-                            className={`w-10 h-10 text-sm rounded-lg font-medium transition-all duration-200 ${
-                              currentPage === i
-                                ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg"
-                                : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            {i}
-                          </button>
-                        );
-                      }
-                      return pages;
-                    })()}
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      setCurrentPage(Math.min(totalPages, currentPage + 1))
-                    }
-                    disabled={currentPage === totalPages}
-                    className="px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium"
-                  >
-                    Next
-                  </button>
-
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className="p-2.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                    title="Last page"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M4.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414zm6 0a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L14.586 10l-4.293-4.293a1 1 0 010-1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
+              )}
+              
+              {/* Show when all items are loaded */}
+              {!hasMore && displayedContent.length > 0 && (
+                <div className="text-center py-6 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
+                  <p>✓ All {displayedContent.length} items loaded</p>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </>
       )}
 
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 z-50 min-w-[200px]"
+          style={{
+            top: `${contextMenu.y}px`,
+            left: `${contextMenu.x}px`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 truncate">
+              {contextMenu.item?.filename}
+            </p>
+          </div>
+          
+          <button
+            onClick={contextMenuToggleSelect}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
+          >
+            <CheckSquare className="w-4 h-4" />
+            <span>{selectedItems.has(contextMenu.item?.id || '') ? 'Deselect' : 'Select'}</span>
+          </button>
+          
+          <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+          
+          <button
+            onClick={contextMenuDownload}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download</span>
+          </button>
+          
+          <button
+            onClick={contextMenuUploadToDrive}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
+          >
+            <Cloud className="w-4 h-4" />
+            <span>Upload to Drive</span>
+          </button>
+          
+          <button
+            onClick={contextMenuAddToTask}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            <span>Add to Task</span>
+          </button>
+          
+          <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+          
+          <button
+            onClick={contextMenuDelete}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center space-x-2 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
+
       {/* Enhanced Modal/Lightbox */}
       {selectedItem && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
-          onClick={() => setSelectedItem(null)}
+          ref={modalRef}
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4"
+          onClick={() => {
+            setSelectedItem(null);
+            setZoomLevel(1);
+            setIsFullscreen(false);
+          }}
+          onMouseMove={() => resetControlsTimeout()}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{ 
+            pointerEvents: 'auto',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh'
+          }}
         >
           <div
-            className="relative max-w-7xl max-h-[95vh] mx-4 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden"
+            className="relative w-full max-w-7xl h-full max-h-[95vh] flex flex-col md:flex-row overflow-hidden rounded-2xl shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
+            {/* Left Side - Media Viewer (Full height on mobile, 75% on desktop) */}
+            <div className="relative flex-1 md:w-[75%] bg-black flex items-center justify-center overflow-hidden">
+              {/* Close Button - Top Right */}
+              <button
+                onClick={() => {
+                  setSelectedItem(null);
+                  setZoomLevel(1);
+                  setIsFullscreen(false);
+                }}
+                className={`absolute top-4 right-4 z-30 p-3 bg-black/60 hover:bg-black/80 text-white rounded-full shadow-xl backdrop-blur-sm transition-all duration-200 hover:scale-110 ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}
+                title="Close (Esc)"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              {/* Navigation Controls */}
+              <div className={`absolute inset-y-0 left-0 right-0 z-20 flex items-center justify-between px-6 pointer-events-none transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                {/* Previous Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToPreviousContent();
+                  }}
+                  disabled={getCurrentModalIndex() <= 0}
+                  className={`pointer-events-auto p-4 bg-black/60 hover:bg-black/80 text-white rounded-full shadow-xl backdrop-blur-sm transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed ${
+                    getCurrentModalIndex() <= 0 ? '' : 'hover:scale-110'
+                  }`}
+                  title="Previous (Left Arrow)"
+                >
+                  <ChevronLeft className="w-8 h-8" />
+                </button>
+
+                {/* Next Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goToNextContent();
+                  }}
+                  disabled={getCurrentModalIndex() >= filteredAndSortedContent.length - 1}
+                  className={`pointer-events-auto p-4 bg-black/60 hover:bg-black/80 text-white rounded-full shadow-xl backdrop-blur-sm transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed ${
+                    getCurrentModalIndex() >= filteredAndSortedContent.length - 1 ? '' : 'hover:scale-110'
+                  }`}
+                  title="Next (Right Arrow)"
+                >
+                  <ChevronRight className="w-8 h-8" />
+                </button>
+              </div>
+
+              {/* Top Center Controls - Counter Only */}
+              <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-30 transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                {/* Type Badge and Counter */}
+                <div className="flex items-center space-x-2 px-4 py-2 bg-black/60 backdrop-blur-sm rounded-full shadow-xl">
                   <div
-                    className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${
+                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
                       selectedItem.itemType === "video"
                         ? "bg-purple-500/90 text-white"
                         : "bg-blue-500/90 text-white"
@@ -2475,33 +4120,40 @@ export default function GeneratedContentPage() {
                   >
                     {selectedItem.itemType === "video" ? (
                       <>
-                        <Video className="w-4 h-4" />
+                        <Video className="w-3.5 h-3.5" />
                         <span>VIDEO</span>
                       </>
                     ) : (
                       <>
-                        <ImageIcon className="w-4 h-4" />
+                        <ImageIcon className="w-3.5 h-3.5" />
                         <span>IMAGE</span>
                       </>
                     )}
                   </div>
-                  <h3 className="text-white font-semibold text-lg truncate max-w-md">
-                    {selectedItem.filename}
-                  </h3>
+                  <span className="text-white/90 text-sm font-medium">
+                    {getCurrentModalIndex() + 1} / {filteredAndSortedContent.length}
+                  </span>
                 </div>
-
-                <button
-                  onClick={() => setSelectedItem(null)}
-                  className="p-2 text-white hover:text-gray-300 rounded-xl bg-black/20 hover:bg-black/40 transition-all duration-200 backdrop-blur-sm"
-                  title="Close"
-                >
-                  <X className="w-6 h-6" />
-                </button>
               </div>
-            </div>
 
-            {/* Media Content */}
-            <div className="flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+              {/* Fullscreen Toggle - Top Left */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFullscreen();
+                }}
+                className={`absolute top-4 left-4 z-30 p-3 bg-black/60 hover:bg-black/80 text-white rounded-full shadow-xl backdrop-blur-sm transition-all duration-200 hover:scale-110 ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}
+                title="Toggle Fullscreen (F)"
+              >
+                {isFullscreen ? (
+                  <Minimize className="w-5 h-5" />
+                ) : (
+                  <Maximize className="w-5 h-5" />
+                )}
+              </button>
+
+              {/* Media Content */}
+              <div className="w-full h-full flex items-center justify-center p-4">
               {selectedItem.itemType === "video" ? (
                 <video
                   src={(() => {
@@ -2527,7 +4179,8 @@ export default function GeneratedContentPage() {
                     });
                     return videoUrl;
                   })()}
-                  className="max-w-full max-h-[80vh] object-contain"
+                  className="object-contain"
+                  style={{ maxWidth: '85%', maxHeight: '85%' }}
                   controls
                   preload="metadata"
                   playsInline
@@ -2582,7 +4235,8 @@ export default function GeneratedContentPage() {
                     type: 'image'
                   })}
                   alt={selectedItem.filename}
-                  className="max-w-full max-h-[80vh] object-contain"
+                  className="object-contain"
+                  style={{ maxWidth: '85%', maxHeight: '85%' }}
                   onError={(e) => {
                     console.warn(
                       "⚠️ Modal image load error for:",
@@ -2611,120 +4265,155 @@ export default function GeneratedContentPage() {
                 />
               )}
             </div>
+            </div>
 
-            {/* Modal Footer - Enhanced Layout */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/95 via-black/80 to-transparent p-8">
-              <div className="flex flex-col gap-6">
-                {/* Details Section */}
-                <div className="text-white space-y-3">
-                  <h4 className="text-lg font-semibold text-white mb-3 truncate">
-                    {selectedItem.filename}
-                  </h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-sm">
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <span className="text-gray-300 block text-xs">Created</span>
-                        <span className="font-medium text-white block truncate">
-                          {formatDate(selectedItem.createdAt).split(' ')[0]}
-                        </span>
+            {/* Right Side - Information Sidebar (25% on desktop, full width below on mobile) */}
+            <div className="w-full md:w-[25%] bg-white dark:bg-gray-900 flex flex-col overflow-y-auto max-h-[40vh] md:max-h-full">
+              {/* Keyboard Shortcuts - At the very top */}
+              <div className="p-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <Keyboard className="w-3 h-3" />
+                    <span className="font-medium">Shortcuts:</span>
+                  </span>
+                  <span>← →</span>
+                  <span>•</span>
+                  <span>F</span>
+                  <span>•</span>
+                  <span>Esc</span>
+                </div>
+              </div>
+
+              {/* Header */}
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 break-words">
+                  {selectedItem.filename}
+                </h3>
+                <div className="flex items-center space-x-2">
+                  <div
+                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                      selectedItem.itemType === "video"
+                        ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                        : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                    }`}
+                  >
+                    {selectedItem.itemType === "video" ? (
+                      <>
+                        <Video className="w-3.5 h-3.5" />
+                        <span>VIDEO</span>
+                      </>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>IMAGE</span>
+                      </>
+                    )}
+                  </div>
+                  {selectedItem.format && (
+                    <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold uppercase">
+                      {selectedItem.format}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Information Grid */}
+              <div className="p-6 space-y-4 flex-1">
+                <div className="space-y-3">
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <Calendar className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Created</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {formatDate(selectedItem.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {selectedItem.width && selectedItem.height && (
+                    <div className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <span className="text-xl mt-0.5 flex-shrink-0">📐</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Dimensions</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedItem.width} × {selectedItem.height} px
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {(selectedItem.width * selectedItem.height / 1000000).toFixed(2)} MP
+                        </p>
                       </div>
                     </div>
+                  )}
 
-                    {selectedItem.width && selectedItem.height && (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-300 text-lg flex-shrink-0">📐</span>
-                        <div className="min-w-0">
-                          <span className="text-gray-300 block text-xs">Dimensions</span>
-                          <span className="font-medium text-white block truncate">
-                            {selectedItem.width} × {selectedItem.height}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedItem.itemType === "video" && selectedItem.duration && (
-                      <div className="flex items-center space-x-2">
-                        <Video className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <span className="text-gray-300 block text-xs">Duration</span>
-                          <span className="font-medium text-white block">
-                            {selectedItem.duration.toFixed(1)}s
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center space-x-2">
-                      <HardDrive className="w-4 h-4 text-gray-300 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <span className="text-gray-300 block text-xs">File size</span>
-                        <span className="font-medium text-white block">
-                          {formatFileSize(selectedItem.fileSize)}
-                        </span>
+                  {selectedItem.itemType === "video" && selectedItem.duration && (
+                    <div className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <Video className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Duration</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {selectedItem.duration.toFixed(1)} seconds
+                        </p>
                       </div>
                     </div>
+                  )}
 
-                    {selectedItem.format && (
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-300 text-lg flex-shrink-0">📄</span>
-                        <div className="min-w-0">
-                          <span className="text-gray-300 block text-xs">Format</span>
-                          <span className="font-medium uppercase bg-gray-700/70 px-2 py-1 rounded text-xs text-white block">
-                            {selectedItem.format}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex items-center space-x-2">
-                      <span className="text-gray-300 text-lg flex-shrink-0">
-                        {selectedItem.itemType === "video" ? "🎥" : "🖼️"}
-                      </span>
-                      <div className="min-w-0">
-                        <span className="text-gray-300 block text-xs">Type</span>
-                        <span className="font-medium text-white block capitalize">
-                          {selectedItem.itemType}
-                        </span>
+                  <div className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <HardDrive className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">File Size</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {formatFileSize(selectedItem.fileSize)}
+                      </p>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-2">
+                        <div
+                          className={`h-1.5 rounded-full ${
+                            selectedItem.itemType === "video"
+                              ? "bg-gradient-to-r from-purple-500 to-purple-600"
+                              : "bg-gradient-to-r from-blue-500 to-blue-600"
+                          }`}
+                          style={{
+                            width: `${Math.min(
+                              ((selectedItem.fileSize || 0) / (10 * 1024 * 1024)) * 100,
+                              100
+                            )}%`,
+                          }}
+                        ></div>
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Action Buttons - Enhanced Layout */}
-                <div className="flex flex-col sm:flex-row gap-3 sm:justify-center">
-                  <button
-                    onClick={() => downloadItem(selectedItem)}
-                    className="flex items-center justify-center space-x-3 px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 min-w-[140px]"
-                    title="Download this item"
-                  >
-                    <Download className="w-5 h-5" />
-                    <span>Download</span>
-                  </button>
+              {/* Action Buttons */}
+              <div className="p-6 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                <button
+                  onClick={() => downloadItem(selectedItem)}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                >
+                  <Download className="w-5 h-5" />
+                  <span>Download</span>
+                </button>
 
-                  <button
-                    onClick={() => shareItem(selectedItem)}
-                    className="flex items-center justify-center space-x-3 px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 min-w-[140px]"
-                    title="Share this item"
-                  >
-                    <Share2 className="w-5 h-5" />
-                    <span>Share</span>
-                  </button>
+                <button
+                  onClick={() => shareItem(selectedItem)}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                >
+                  <Share2 className="w-5 h-5" />
+                  <span>Share</span>
+                </button>
 
-                  <button
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to delete "${selectedItem.filename}"? This action cannot be undone.`)) {
-                        deleteItem(selectedItem);
-                        setSelectedItem(null);
-                      }
-                    }}
-                    className="flex items-center justify-center space-x-3 px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 min-w-[140px] border-2 border-red-400/20"
-                    title="Delete this item permanently"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                    <span>Delete</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to delete "${selectedItem.filename}"? This action cannot be undone.`)) {
+                      deleteItem(selectedItem);
+                      setSelectedItem(null);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span>Delete</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2820,7 +4509,7 @@ export default function GeneratedContentPage() {
                     Select Google Drive folder:
                   </label>
                   <div className="grid grid-cols-1 gap-2">
-                    {(["All Generations", "IG Posts", "IG Reels", "Misc"] as DriveFolder[]).map((folder) => (
+                    {(["All Generations", "IG Posts", "IG Reels", "Misc"] as DriveFolderName[]).map((folder) => (
                       <button
                         key={folder}
                         onClick={() => {
@@ -3020,6 +4709,315 @@ export default function GeneratedContentPage() {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-4 right-4 z-50 space-y-2 max-w-md">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`flex items-start space-x-3 p-4 rounded-xl shadow-2xl backdrop-blur-sm transform transition-all duration-300 animate-in slide-in-from-right ${
+              toast.type === 'success'
+                ? 'bg-green-500/95 text-white'
+                : toast.type === 'error'
+                ? 'bg-red-500/95 text-white'
+                : toast.type === 'warning'
+                ? 'bg-yellow-500/95 text-white'
+                : 'bg-blue-500/95 text-white'
+            }`}
+          >
+            <div className="flex-shrink-0 mt-0.5">
+              {toast.type === 'success' && <CheckCircle2 className="w-5 h-5" />}
+              {toast.type === 'error' && <XCircle className="w-5 h-5" />}
+              {toast.type === 'warning' && <AlertTriangle className="w-5 h-5" />}
+              {toast.type === 'info' && <Info className="w-5 h-5" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium break-words">{toast.message}</p>
+            </div>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className="flex-shrink-0 text-white/80 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Upload Progress Indicators */}
+      {Object.keys(uploadProgress).length > 0 && (
+        <div className="fixed bottom-4 left-4 z-50 space-y-2 max-w-sm">
+          {Object.entries(uploadProgress).map(([id, { progress, filename }]) => (
+            <div
+              key={id}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-4 border border-gray-200 dark:border-gray-700"
+            >
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {filename}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Uploading... {progress}%
+                  </p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Download Progress Indicators */}
+      {Object.keys(downloadProgress).length > 0 && (
+        <div className="fixed bottom-4 left-4 z-50 space-y-2 max-w-sm">
+          {Object.entries(downloadProgress).map(([id, { progress, filename }]) => (
+            <div
+              key={id}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-4 border border-gray-200 dark:border-gray-700"
+            >
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <Download className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {filename}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Downloading... {progress}%
+                  </p>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div
+                  className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Upload Queue Panel */}
+      {uploadQueue.length > 0 && (
+        <div className={`fixed ${showQueuePanel ? 'bottom-0' : 'bottom-[-300px]'} left-0 right-0 z-50 transition-all duration-300`}>
+          <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-2xl">
+            {/* Queue Header */}
+            <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-900">
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={toggleQueuePanel}
+                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  {showQueuePanel ? (
+                    <ChevronDown className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  ) : (
+                    <ChevronUp className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                  )}
+                </button>
+                <UploadCloud className="w-5 h-5 text-blue-500" />
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    Upload Queue
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {uploadQueue.filter(q => q.status === 'uploading').length} uploading, 
+                    {' '}{uploadQueue.filter(q => q.status === 'pending').length} pending,
+                    {' '}{uploadQueue.filter(q => q.status === 'completed').length} completed
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={clearCompletedUploads}
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Clear Completed
+              </button>
+            </div>
+
+            {/* Queue Items */}
+            <div className="max-h-80 overflow-y-auto">
+              <div className="p-4 space-y-3">
+                {uploadQueue.map((queueItem) => (
+                  <div
+                    key={queueItem.id}
+                    className="flex items-center space-x-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700"
+                  >
+                    {/* Item Preview */}
+                    <div className="flex-shrink-0">
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
+                        {queueItem.item.itemType === 'video' ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Video className="w-8 h-8 text-gray-400" />
+                          </div>
+                        ) : (
+                          <img
+                            src={queueItem.item.dataUrl || queueItem.item.url}
+                            alt={queueItem.item.filename}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Item Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {queueItem.item.filename}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        To: {getFolderName(queueItem.folder)}
+                      </p>
+
+                      {/* Progress Bar */}
+                      {queueItem.status === 'uploading' && (
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+                            <span>Uploading...</span>
+                            <span>{queueItem.progress}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                            <div
+                              className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                              style={{ width: `${queueItem.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Error Message */}
+                      {queueItem.error && (
+                        <p className="text-xs text-red-500 mt-1">{queueItem.error}</p>
+                      )}
+                    </div>
+
+                    {/* Status Icon */}
+                    <div className="flex-shrink-0">
+                      {queueItem.status === 'pending' && (
+                        <Clock className="w-5 h-5 text-gray-400" />
+                      )}
+                      {queueItem.status === 'uploading' && (
+                        <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                      )}
+                      {queueItem.status === 'completed' && (
+                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      )}
+                      {queueItem.status === 'failed' && (
+                        <XCircle className="w-5 h-5 text-red-500" />
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex-shrink-0 flex space-x-1">
+                      {queueItem.status === 'failed' && (
+                        <button
+                          onClick={() => retryUpload(queueItem.id)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                          title="Retry upload"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeFromQueue(queueItem.id)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        title="Remove from queue"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Folder Modal */}
+      {showFolderCreate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowFolderCreate(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-200 dark:border-gray-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+                <Folder className="w-5 h-5 text-blue-500" />
+                <span>Create New Folder</span>
+              </h3>
+              <button
+                onClick={() => setShowFolderCreate(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Folder Name
+              </label>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newFolderName.trim()) {
+                    createDriveFolder();
+                  }
+                }}
+                placeholder="Enter folder name..."
+                className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-400"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowFolderCreate(false)}
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createDriveFolder}
+                disabled={!newFolderName.trim() || creatingFolder}
+                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
+              >
+                {creatingFolder ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    <span>Create Folder</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
