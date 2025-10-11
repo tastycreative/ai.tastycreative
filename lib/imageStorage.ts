@@ -315,6 +315,9 @@ export async function getUserImages(
         s3Key: true,
         awsS3Key: true,
         awsS3Url: true,
+        googleDriveFileId: true,
+        googleDriveFolderName: true,
+        googleDriveUploadedAt: true,
         metadata: true,
         createdAt: true,
         updatedAt: true

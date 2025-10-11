@@ -109,6 +109,9 @@ interface ContentItem extends GeneratedImage {
   itemType: "image" | "video";
   duration?: number; // For videos
   fps?: number; // For videos
+  googleDriveFileId?: string | null; // Google Drive sync status
+  googleDriveFolderName?: string | null; // Folder where uploaded
+  googleDriveUploadedAt?: Date | null; // Upload timestamp
 }
 
 interface ImageStats {
@@ -1378,12 +1381,6 @@ export default function GeneratedContentPage() {
 
   // Production Task Functions
   const toggleItemSelection = (itemId: string) => {
-    // Don't allow selection of already linked content
-    if (linkedContentMap[itemId]) {
-      alert(`This content is already linked to: ${linkedContentMap[itemId].map(t => t.influencer).join(', ')}`);
-      return;
-    }
-    
     setSelectedItems((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(itemId)) {
@@ -1396,10 +1393,8 @@ export default function GeneratedContentPage() {
   };
 
   const selectAll = () => {
-    // Only select items that aren't already linked
-    const selectableIds = displayedContent
-      .filter((item) => !linkedContentMap[item.id])
-      .map((item) => item.id);
+    // Select all displayed items
+    const selectableIds = displayedContent.map((item) => item.id);
     setSelectedItems(new Set(selectableIds));
   };
 
@@ -2324,7 +2319,46 @@ export default function GeneratedContentPage() {
 
       // Store Drive file ID (simulated)
       const driveFileId = `drive_${Math.random().toString(36).substring(7)}`;
-      setDriveFileIds(prev => ({ ...prev, [item.id]: driveFileId }));
+
+      // Persist to database
+      try {
+        const response = await fetch('/api/generated-content/update-drive-sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            itemId: item.id,
+            itemType: item.itemType,
+            driveFileId: driveFileId,
+            folderName: getFolderName(folder)
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('❌ API Error Response:', {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData
+          });
+          throw new Error(errorData.error || 'Failed to update database');
+        }
+
+        const result = await response.json();
+        console.log('✅ API Success Response:', result);
+
+        // Update local state to show the sync indicator immediately
+        setDriveFileIds(prev => ({ ...prev, [item.id]: driveFileId }));
+        
+        // Refresh content from database to get the updated sync status
+        await fetchContent();
+        
+        console.log('✅ Google Drive sync status saved to database');
+      } catch (error) {
+        console.error('❌ Failed to save Google Drive sync status:', error);
+        showToast('warning', 'Upload succeeded but failed to save sync status');
+      }
 
       showToast('success', `${item.filename} uploaded to ${getFolderName(folder)}`);
 
@@ -2407,7 +2441,9 @@ export default function GeneratedContentPage() {
 
   // Check if item is synced to Drive
   const isItemSyncedToDrive = (itemId: string): boolean => {
-    return !!driveFileIds[itemId];
+    // Check if item has googleDriveFileId in database
+    const item = allContent.find(i => i.id === itemId);
+    return !!item?.googleDriveFileId;
   };
 
   // Retry failed upload
@@ -2774,11 +2810,6 @@ export default function GeneratedContentPage() {
         </div>
           )}
         </div>
-      )}
-
-      {/* Bandwidth Optimization Stats */}
-      {allContent.length > 0 && (
-        <BandwidthStats mediaList={allContent} className="mb-6" />
       )}
 
       {/* Selection Toolbar */}
@@ -3378,7 +3409,7 @@ export default function GeneratedContentPage() {
                     data-item-index={index}
                     className={`group bg-white dark:bg-gray-800 rounded-2xl border overflow-visible transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 cursor-pointer ${
                       selectedItems.has(item.id)
-                        ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-300 dark:ring-blue-600 shadow-lg'
+                        ? 'border-blue-500 dark:border-blue-400 ring-4 ring-blue-400/50 dark:ring-blue-500/50 shadow-xl shadow-blue-500/20'
                         : isFocused
                         ? 'border-purple-500 dark:border-purple-400 ring-2 ring-purple-300 dark:ring-purple-600'
                         : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 shadow-sm'
@@ -3406,55 +3437,27 @@ export default function GeneratedContentPage() {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 z-10 pointer-events-none" />
                       
                       {/* Selection Checkbox - Always visible in selection mode or on hover */}
-                      {!isLinked && (
-                        <div className={`absolute top-3 left-3 z-20 transition-opacity duration-200 ${
-                          selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                        }`}>
-                          <label
-                            className="flex items-center justify-center w-9 h-9 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:scale-110 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-200"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedItems.has(item.id)}
-                              onChange={() => toggleItemSelection(item.id)}
-                              className="w-5 h-5 text-blue-600 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                            />
-                          </label>
-                        </div>
-                      )}
+                      <div className={`absolute top-3 left-3 z-20 transition-opacity duration-200 ${
+                        selectionMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}>
+                        <label
+                          className="flex items-center justify-center w-9 h-9 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:scale-110 hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-200"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.has(item.id)}
+                            onChange={() => toggleItemSelection(item.id)}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </label>
+                      </div>
 
                       {/* Keyboard Focus Indicator */}
                       {isFocused && (
                         <div className="absolute top-3 right-3 z-20">
                           <div className="bg-purple-500 text-white p-2 rounded-lg shadow-lg animate-pulse">
                             <Keyboard className="w-4 h-4" />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Linked Badge - Prominent but not intrusive */}
-                      {isLinked && (
-                        <div className="absolute top-3 left-3 right-3 z-20">
-                          <div 
-                            className="inline-flex items-center space-x-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 cursor-help text-sm font-medium"
-                            title={`Linked to: ${linkedTasks.map((t: any) => t.influencer).join(', ')}`}
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            <span>Linked</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Google Drive Sync Status Badge */}
-                      {isItemSyncedToDrive(item.id) && (
-                        <div className="absolute top-3 right-3 z-20">
-                          <div 
-                            className="inline-flex items-center space-x-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2.5 py-1.5 rounded-lg shadow-lg backdrop-blur-sm hover:shadow-xl transition-all duration-200 text-xs font-medium"
-                            title="Synced to Google Drive"
-                          >
-                            <Cloud className="w-3.5 h-3.5" />
-                            <CheckCircle className="w-3 h-3" />
                           </div>
                         </div>
                       )}
@@ -3727,6 +3730,33 @@ export default function GeneratedContentPage() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Status Indicators Below Buttons */}
+                    {(isLinked || isItemSyncedToDrive(item.id)) && (
+                      <div className="flex items-center gap-2 mt-3 flex-wrap">
+                        {/* Linked Indicator */}
+                        {isLinked && (
+                          <div 
+                            className="inline-flex items-center space-x-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-2.5 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 cursor-help text-xs font-medium"
+                            title={`Linked to: ${linkedTasks.map((t: any) => t.influencer).join(', ')}`}
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            <span>Linked</span>
+                          </div>
+                        )}
+
+                        {/* Google Drive Sync Indicator */}
+                        {isItemSyncedToDrive(item.id) && (
+                          <div 
+                            className="inline-flex items-center space-x-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2.5 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs font-medium"
+                            title="Synced to Google Drive"
+                          >
+                            <Cloud className="w-3.5 h-3.5" />
+                            <CheckCircle className="w-3 h-3" />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 );

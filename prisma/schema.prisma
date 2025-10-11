@@ -114,6 +114,9 @@ model GeneratedImage {
   s3Key             String?
   awsS3Key          String?
   awsS3Url          String?
+  googleDriveFileId String?       // Google Drive file ID for sync tracking
+  googleDriveFolderName String?   // Folder name where it was uploaded
+  googleDriveUploadedAt DateTime? // When it was uploaded to Google Drive
   user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
   productionLinks   ProductionEntryImage[]
@@ -127,6 +130,7 @@ model GeneratedImage {
   @@index([networkVolumePath])
   @@index([s3Key])
   @@index([awsS3Key])
+  @@index([googleDriveFileId])
   @@map("generated_images")
 }
 
@@ -151,6 +155,9 @@ model GeneratedVideo {
   s3Key             String?
   awsS3Key          String?
   awsS3Url          String?
+  googleDriveFileId String?       // Google Drive file ID for sync tracking
+  googleDriveFolderName String?   // Folder name where it was uploaded
+  googleDriveUploadedAt DateTime? // When it was uploaded to Google Drive
   user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
   productionLinks   ProductionEntryVideo[]
@@ -164,6 +171,7 @@ model GeneratedVideo {
   @@index([duration])
   @@index([fileSize])
   @@index([s3Key])
+  @@index([googleDriveFileId])
   @@map("generated_videos")
 }
 
