@@ -17,6 +17,12 @@ import {
   BarChart3,
   Calendar,
   Cpu,
+  Search,
+  Filter,
+  ArrowUpDown,
+  TrendingUp,
+  Zap,
+  Package,
 } from "lucide-react";
 
 const statusConfig = {
@@ -86,6 +92,9 @@ export default function TrainingJobsPage() {
   const [selectedTab, setSelectedTab] = useState<
     "all" | "active" | "completed"
   >("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "progress" | "name">("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const {
     data: trainingJobs = [],
@@ -112,24 +121,56 @@ export default function TrainingJobsPage() {
     },
   });
 
-  const filteredJobs = trainingJobs.filter((job) => {
-    if (selectedTab === "active") {
-      return [
-        "PENDING",
-        "QUEUED",
-        "INITIALIZING",
-        "PROCESSING",
-        "SAMPLING",
-        "SAVING",
-      ].includes(job.status);
-    }
-    if (selectedTab === "completed") {
-      return ["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"].includes(
-        job.status
-      );
-    }
-    return true;
-  });
+  const filteredJobs = trainingJobs
+    .filter((job) => {
+      // Filter by tab
+      if (selectedTab === "active") {
+        if (
+          ![
+            "PENDING",
+            "QUEUED",
+            "INITIALIZING",
+            "PROCESSING",
+            "SAMPLING",
+            "SAVING",
+          ].includes(job.status)
+        )
+          return false;
+      }
+      if (selectedTab === "completed") {
+        if (
+          !["COMPLETED", "FAILED", "CANCELLED", "TIMEOUT"].includes(job.status)
+        )
+          return false;
+      }
+
+      // Filter by search query
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          job.name.toLowerCase().includes(query) ||
+          job.description?.toLowerCase().includes(query) ||
+          job.status.toLowerCase().includes(query)
+        );
+      }
+
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort jobs
+      let comparison = 0;
+
+      if (sortBy === "date") {
+        comparison =
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortBy === "progress") {
+        comparison = (a.progress || 0) - (b.progress || 0);
+      } else if (sortBy === "name") {
+        comparison = a.name.localeCompare(b.name);
+      }
+
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
 
   const handleCancelJob = async (jobId: string) => {
     if (window.confirm("Are you sure you want to cancel this training job?")) {
@@ -193,7 +234,7 @@ export default function TrainingJobsPage() {
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-8">
       {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-700 rounded-3xl shadow-2xl border border-indigo-200 dark:border-indigo-800 p-8 text-white">
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800 p-8 text-white">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
@@ -214,16 +255,16 @@ export default function TrainingJobsPage() {
                 <span>Training Jobs</span>
                 <span className="text-2xl">🚀</span>
               </h1>
-              <p className="text-indigo-100 text-lg font-medium opacity-90 mb-2">
+              <p className="text-blue-100 text-lg font-medium opacity-90 mb-2">
                 Monitor and manage your AI model training jobs
               </p>
-              <div className="flex items-center space-x-4 text-sm text-indigo-100">
+              <div className="flex items-center space-x-4 text-sm text-blue-100">
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                   <span>Real-time Status</span>
                 </div>
                 <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-cyan-300 rounded-full"></div>
+                  <div className="w-2 h-2 bg-purple-300 rounded-full"></div>
                   <span>GPU Training</span>
                 </div>
                 <div className="flex items-center space-x-1">
@@ -249,9 +290,11 @@ export default function TrainingJobsPage() {
       {/* Stats */}
       {trainingStats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <BarChart3 className="w-8 h-8 text-blue-600" />
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg group-hover:scale-110 transition-transform">
+                <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {trainingStats.totalJobs}
@@ -263,9 +306,11 @@ export default function TrainingJobsPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-yellow-300 dark:hover:border-yellow-600 transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <Cpu className="w-8 h-8 text-yellow-600" />
+              <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg group-hover:scale-110 transition-transform">
+                <Cpu className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+              </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {trainingStats.activeJobs}
@@ -277,9 +322,11 @@ export default function TrainingJobsPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-green-300 dark:hover:border-green-600 transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg group-hover:scale-110 transition-transform">
+                <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {trainingStats.completedJobs}
@@ -291,9 +338,11 @@ export default function TrainingJobsPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-red-300 dark:hover:border-red-600 transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <XCircle className="w-8 h-8 text-red-600" />
+              <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg group-hover:scale-110 transition-transform">
+                <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {trainingStats.failedJobs}
@@ -305,9 +354,11 @@ export default function TrainingJobsPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+          <div className="group bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:shadow-lg hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-200 cursor-pointer">
             <div className="flex items-center gap-3">
-              <Download className="w-8 h-8 text-purple-600" />
+              <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg group-hover:scale-110 transition-transform">
+                <Download className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
               <div>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {trainingStats.totalLoRAs}
@@ -320,6 +371,64 @@ export default function TrainingJobsPage() {
           </div>
         </div>
       )}
+
+      {/* Search, Filter & Sort Bar */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          {/* Search */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search jobs by name, description, or status..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            />
+          </div>
+
+          {/* Sort */}
+          <div className="flex gap-2">
+            <select
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(e.target.value as "date" | "progress" | "name")
+              }
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            >
+              <option value="date">Sort by Date</option>
+              <option value="progress">Sort by Progress</option>
+              <option value="name">Sort by Name</option>
+            </select>
+
+            <button
+              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              title={sortOrder === "asc" ? "Ascending" : "Descending"}
+            >
+              <ArrowUpDown className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </button>
+          </div>
+        </div>
+
+        {/* Active Filters */}
+        {searchQuery && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Searching:
+            </span>
+            <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-sm">
+              {searchQuery}
+              <button
+                onClick={() => setSearchQuery("")}
+                className="hover:text-blue-900 dark:hover:text-blue-100"
+              >
+                ×
+              </button>
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700">
@@ -350,27 +459,55 @@ export default function TrainingJobsPage() {
 
       {/* Training Jobs List */}
       {filteredJobs.length === 0 ? (
-        <div className="text-center py-12">
-          <Cpu className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {selectedTab === "all"
-              ? "No training jobs yet"
-              : `No ${selectedTab} jobs`}
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            {selectedTab === "all"
-              ? "Start training your first LoRA model"
-              : `You don't have any ${selectedTab} training jobs`}
-          </p>
-          {selectedTab === "all" && (
-            <Link
-              href="/workspace/train-lora"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Play className="w-4 h-4" />
-              Start Training
-            </Link>
-          )}
+        <div className="text-center py-16 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600">
+          <div className="max-w-md mx-auto px-6">
+            <div className="relative inline-block mb-6">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+              <div className="relative bg-white dark:bg-gray-800 p-6 rounded-full shadow-lg">
+                <Cpu className="w-16 h-16 text-gray-400 dark:text-gray-500" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
+              {searchQuery
+                ? "No matching jobs found"
+                : selectedTab === "all"
+                ? "No training jobs yet"
+                : `No ${selectedTab} jobs`}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-8 text-lg">
+              {searchQuery
+                ? `Try adjusting your search terms or filters`
+                : selectedTab === "all"
+                ? "Start training your first LoRA model and bring your AI vision to life"
+                : `You don't have any ${selectedTab} training jobs`}
+            </p>
+            {selectedTab === "all" && !searchQuery && (
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link
+                  href="/workspace/train-lora"
+                  className="group inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
+                >
+                  <Zap className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  Start Training
+                </Link>
+                <Link
+                  href="/docs/training"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 font-semibold border-2 border-gray-300 dark:border-gray-600"
+                >
+                  <Package className="w-5 h-5" />
+                  Learn More
+                </Link>
+              </div>
+            )}
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold"
+              >
+                Clear Search
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -382,7 +519,7 @@ export default function TrainingJobsPage() {
             return (
               <div
                 key={job.id}
-                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-md transition-shadow"
+                className="group bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 hover:-translate-y-1 transition-all duration-200"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   <div className="flex-1">
@@ -483,11 +620,11 @@ export default function TrainingJobsPage() {
                         <button
                           onClick={() => handleSyncJob(job.id)}
                           disabled={syncJobMutation.isPending}
-                          className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-all duration-200"
                           title="Sync with RunPod"
                         >
                           <RefreshCw
-                            className={`w-4 h-4 ${
+                            className={`w-5 h-5 ${
                               syncJobMutation.isPending ? "animate-spin" : ""
                             }`}
                           />
@@ -496,10 +633,10 @@ export default function TrainingJobsPage() {
 
                     <Link
                       href={`/workspace/training-jobs/${job.id}`}
-                      className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                      className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-all duration-200 group-hover:scale-110"
                       title="View Details"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-5 h-5" />
                     </Link>
 
                     {[
@@ -513,10 +650,10 @@ export default function TrainingJobsPage() {
                       <button
                         onClick={() => handleCancelJob(job.id)}
                         disabled={cancelJobMutation.isPending}
-                        className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition-all duration-200"
                         title="Cancel Job"
                       >
-                        <Pause className="w-4 h-4" />
+                        <Pause className="w-5 h-5" />
                       </button>
                     )}
 
@@ -526,10 +663,10 @@ export default function TrainingJobsPage() {
                       <button
                         onClick={() => handleDeleteJob(job.id)}
                         disabled={deleteJobMutation.isPending}
-                        className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                        className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/30 transition-all duration-200"
                         title="Delete Job"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-5 h-5" />
                       </button>
                     )}
                   </div>

@@ -26,6 +26,13 @@ import {
   HardDrive,
   Wifi,
   Thermometer,
+  Search,
+  Filter,
+  Copy,
+  Share2,
+  ChevronRight,
+  DollarSign,
+  Repeat,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc-client";
 
@@ -130,6 +137,9 @@ export default function TrainingJobDetailPage() {
   const [samples, setSamples] = useState<GeneratedSample[]>([]);
   const [metrics, setMetrics] = useState<TrainingMetrics | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [logSearchQuery, setLogSearchQuery] = useState("");
+  const [logLevelFilter, setLogLevelFilter] = useState<string>("all");
+  const [showCopyNotification, setShowCopyNotification] = useState(false);
 
   // API calls
   const {
@@ -301,6 +311,38 @@ export default function TrainingJobDetailPage() {
     refetch();
   };
 
+  const handleDownloadLogs = () => {
+    const logText = logs.map((log) => `[${log.timestamp}] [${log.level.toUpperCase()}] ${log.message}`).join("\n");
+    const blob = new Blob([logText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `training-logs-${jobId}-${new Date().toISOString()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyJobId = () => {
+    navigator.clipboard.writeText(jobId);
+    setShowCopyNotification(true);
+    setTimeout(() => setShowCopyNotification(false), 2000);
+  };
+
+  const handleShareJob = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setShowCopyNotification(true);
+    setTimeout(() => setShowCopyNotification(false), 2000);
+  };
+
+  const filteredLogs = logs.filter((log) => {
+    if (logLevelFilter !== "all" && log.level !== logLevelFilter) return false;
+    if (logSearchQuery && !log.message.toLowerCase().includes(logSearchQuery.toLowerCase())) return false;
+    return true;
+  });
+
   // Helper functions
   const formatDuration = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
@@ -393,25 +435,74 @@ export default function TrainingJobDetailPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Copy Notification Toast */}
+      {showCopyNotification && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 duration-300">
+          <div className="bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <CheckCircle className="w-5 h-5" />
+            <span className="font-medium">Copied to clipboard!</span>
+          </div>
+        </div>
+      )}
+
+      {/* Breadcrumb Navigation */}
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center space-x-2 text-sm">
+            <Link
+              href="/workspace/training-jobs"
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+            >
+              Training Jobs
+            </Link>
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+            <span className="text-gray-900 dark:text-white font-medium">
+              {job?.name || "Loading..."}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-white/20 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 sticky top-0 z-40 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-center space-x-4">
               <Link
-                href="/workspace/training"
-                className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+                href="/workspace/training-jobs"
+                className="flex items-center text-white/80 hover:text-white transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 mr-2" />
-                Back to Training
+                Back
               </Link>
-              <div className="h-6 w-px bg-gray-300" />
-              <h1 className="text-2xl font-bold text-gray-900">{job.name}</h1>
+              <div className="h-6 w-px bg-white/30" />
+              <div>
+                <h1 className="text-2xl font-bold text-white">{job.name}</h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-white/70 text-sm">Job ID:</span>
+                  <code className="text-white/90 text-xs bg-white/10 px-2 py-1 rounded">
+                    {jobId.slice(0, 8)}...
+                  </code>
+                  <button
+                    onClick={handleCopyJobId}
+                    className="text-white/70 hover:text-white transition-colors"
+                    title="Copy Job ID"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
               <div
-                className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(
-                  job.status
-                )}`}
+                className={`inline-flex items-center px-4 py-2 rounded-xl text-sm font-semibold shadow-lg ${
+                  job.status === "COMPLETED"
+                    ? "bg-green-500 text-white"
+                    : job.status === "PROCESSING"
+                    ? "bg-yellow-500 text-white animate-pulse"
+                    : job.status === "FAILED"
+                    ? "bg-red-500 text-white"
+                    : "bg-gray-500 text-white"
+                }`}
               >
                 {getStatusIcon(job.status)}
                 <span className="ml-2">{job.status}</span>
@@ -420,18 +511,27 @@ export default function TrainingJobDetailPage() {
 
             <div className="flex items-center space-x-3">
               {isConnected && (
-                <div className="flex items-center text-green-600 text-sm">
-                  <Wifi className="w-4 h-4 mr-1" />
+                <div className="flex items-center text-green-300 text-sm font-medium bg-white/10 px-3 py-2 rounded-lg backdrop-blur-sm">
+                  <Wifi className="w-4 h-4 mr-1 animate-pulse" />
                   Live
                 </div>
               )}
 
               <button
+                onClick={handleShareJob}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all duration-200 text-sm font-medium backdrop-blur-sm border border-white/20"
+                title="Share Job"
+              >
+                <Share2 className="w-4 h-4 mr-2 inline" />
+                Share
+              </button>
+
+              <button
                 onClick={() => setAutoRefresh(!autoRefresh)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 backdrop-blur-sm border ${
                   autoRefresh
-                    ? "bg-purple-100 text-purple-700 hover:bg-purple-200"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    ? "bg-white/20 text-white border-white/30"
+                    : "bg-white/10 text-white/70 border-white/20 hover:bg-white/15"
                 }`}
               >
                 <RefreshCw
@@ -446,10 +546,20 @@ export default function TrainingJobDetailPage() {
                 <button
                   onClick={handleCancelJob}
                   disabled={cancelJobMutation.isPending}
-                  className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
+                  className="px-4 py-2 bg-red-500/90 hover:bg-red-600 text-white rounded-lg transition-all duration-200 text-sm font-medium backdrop-blur-sm shadow-lg"
                 >
                   <Square className="w-4 h-4 mr-2 inline" />
                   Cancel
+                </button>
+              )}
+
+              {job.status === "FAILED" && (
+                <button
+                  onClick={handleRefresh}
+                  className="px-4 py-2 bg-blue-500/90 hover:bg-blue-600 text-white rounded-lg transition-all duration-200 text-sm font-medium backdrop-blur-sm shadow-lg"
+                >
+                  <Repeat className="w-4 h-4 mr-2 inline" />
+                  Retry
                 </button>
               )}
 
@@ -457,7 +567,7 @@ export default function TrainingJobDetailPage() {
                 <button
                   onClick={handleSyncJob}
                   disabled={syncJobMutation.isPending}
-                  className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all duration-200 text-sm font-medium backdrop-blur-sm border border-white/20"
                 >
                   <RefreshCw className="w-4 h-4 mr-2 inline" />
                   Sync
@@ -473,12 +583,14 @@ export default function TrainingJobDetailPage() {
         {metrics && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {/* Progress Card */}
-            <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-lg">
+            <div className="group bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-2xl border-2 border-blue-200 dark:border-blue-800 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Progress
                 </h3>
-                <Activity className="w-6 h-6 text-purple-600" />
+                <div className="p-2 bg-blue-600 rounded-lg group-hover:scale-110 transition-transform">
+                  <Activity className="w-6 h-6 text-white" />
+                </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
@@ -489,7 +601,7 @@ export default function TrainingJobDetailPage() {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3">
                   <div
-                    className="bg-gradient-to-r from-purple-500 to-blue-500 h-3 rounded-full transition-all duration-300"
+                    className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 h-3 rounded-full transition-all duration-300"
                     style={{ width: `${metrics.progressPercentage}%` }}
                   />
                 </div>
@@ -500,17 +612,19 @@ export default function TrainingJobDetailPage() {
             </div>
 
             {/* Performance Card */}
-            <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-lg">
+            <div className="group bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-2xl border-2 border-purple-200 dark:border-purple-800 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Performance
                 </h3>
-                <TrendingUp className="w-6 h-6 text-green-600" />
+                <div className="p-2 bg-purple-600 rounded-lg group-hover:scale-110 transition-transform">
+                  <TrendingUp className="w-6 h-6 text-white" />
+                </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Loss</span>
-                  <span className="font-medium text-green-600">
+                  <span className="font-medium text-purple-600">
                     {metrics.loss.toFixed(4)}
                   </span>
                 </div>
@@ -530,10 +644,12 @@ export default function TrainingJobDetailPage() {
             </div>
 
             {/* System Card */}
-            <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-lg">
+            <div className="group bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 rounded-2xl border-2 border-indigo-200 dark:border-indigo-800 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">System</h3>
-                <Monitor className="w-6 h-6 text-blue-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">System</h3>
+                <div className="p-2 bg-indigo-600 rounded-lg group-hover:scale-110 transition-transform">
+                  <Monitor className="w-6 h-6 text-white" />
+                </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
@@ -558,10 +674,12 @@ export default function TrainingJobDetailPage() {
             </div>
 
             {/* Timing Card */}
-            <div className="bg-white/70 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-lg">
+            <div className="group bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-2xl border-2 border-green-200 dark:border-green-800 p-6 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Timing</h3>
-                <Clock className="w-6 h-6 text-orange-600" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Timing</h3>
+                <div className="p-2 bg-green-600 rounded-lg group-hover:scale-110 transition-transform">
+                  <Clock className="w-6 h-6 text-white" />
+                </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
@@ -604,7 +722,7 @@ export default function TrainingJobDetailPage() {
                     onClick={() => setSelectedTab(tab.id as any)}
                     className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${
                       selectedTab === tab.id
-                        ? "border-purple-500 text-purple-600"
+                        ? "border-blue-600 text-blue-600"
                         : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                     }`}
                   >
@@ -692,27 +810,63 @@ export default function TrainingJobDetailPage() {
 
             {selectedTab === "logs" && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                     Live Training Logs
                   </h3>
-                  <div className="text-sm text-gray-600">
-                    {logs.length} messages • Auto-updating every{" "}
-                    {refreshInterval / 1000}s
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {filteredLogs.length} messages
+                    </span>
+                    <button
+                      onClick={handleDownloadLogs}
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download
+                    </button>
                   </div>
                 </div>
 
-                <div className="bg-gray-900 rounded-lg p-4 h-96 overflow-y-auto font-mono text-sm">
-                  {logs.length === 0 ? (
+                {/* Log Search & Filter */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search logs..."
+                      value={logSearchQuery}
+                      onChange={(e) => setLogSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm dark:text-white"
+                    />
+                  </div>
+                  <select
+                    value={logLevelFilter}
+                    onChange={(e) => setLogLevelFilter(e.target.value)}
+                    className="px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm dark:text-white"
+                  >
+                    <option value="all">All Levels</option>
+                    <option value="info">Info</option>
+                    <option value="progress">Progress</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                    <option value="debug">Debug</option>
+                  </select>
+                </div>
+
+                <div className="bg-gray-900 rounded-xl p-4 h-96 overflow-y-auto font-mono text-sm shadow-inner border border-gray-700">
+                  {filteredLogs.length === 0 ? (
                     <div className="text-gray-400 text-center py-8">
-                      No logs available yet...
+                      {logSearchQuery || logLevelFilter !== "all"
+                        ? "No logs match your filters..."
+                        : "No logs available yet..."}
                     </div>
                   ) : (
                     <div className="space-y-1">
-                      {logs.map((log) => (
+                      {filteredLogs.map((log) => (
                         <div
                           key={log.id}
-                          className="flex items-start space-x-3"
+                          className="flex items-start space-x-3 hover:bg-gray-800 p-1 rounded transition-colors"
                         >
                           <span className="text-gray-500 text-xs min-w-0 flex-shrink-0">
                             {new Date(log.timestamp).toLocaleTimeString()}
@@ -720,7 +874,7 @@ export default function TrainingJobDetailPage() {
                           <span
                             className={`text-xs ${getLogLevelColor(
                               log.level
-                            )} min-w-0 flex-shrink-0`}
+                            )} min-w-0 flex-shrink-0 font-semibold`}
                           >
                             [{log.level.toUpperCase()}]
                           </span>
