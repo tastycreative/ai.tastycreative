@@ -122,6 +122,11 @@ export default function DashboardLayout({
           icon: Sparkles,
         },
         {
+          name: "Image-to-Image Skin Enhancer",
+          href: "/workspace/generate-content/image-to-image-skin-enhancer",
+          icon: Palette,
+        },
+        {
           name: "FPS Boost",
           href: "/workspace/generate-content/fps-boost",
           icon: PlayCircle,

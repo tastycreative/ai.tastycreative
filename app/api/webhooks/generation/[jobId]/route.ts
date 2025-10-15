@@ -200,11 +200,20 @@ export async function POST(
         updateData.completedAt = new Date();
         updateData.resultImages = savedItems.filter(item => !item.filename.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/));
         
-        // For videos, set resultUrls to video API endpoints
+        // Set resultUrls for both videos AND images
         const videoItems = savedItems.filter(item => item.filename.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/));
+        const imageItems = savedItems.filter(item => !item.filename.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/));
+        
         if (videoItems.length > 0) {
+          // For videos, use video API endpoints
           updateData.resultUrls = videoItems.map(video => `/api/videos/${video.id}/data`);
           console.log(`✅ Saved ${videoItems.length} AWS S3 videos for job ${jobId}`);
+        } else if (imageItems.length > 0) {
+          // For images, use AWS S3 URLs directly
+          updateData.resultUrls = body.aws_s3_paths
+            .filter((path: any) => !path.filename.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/))
+            .map((path: any) => path.awsS3Url);
+          console.log(`✅ Saved ${imageItems.length} AWS S3 images with resultUrls for job ${jobId}`);
         }
         
         console.log(`✅ Saved ${savedItems.length} AWS S3 items for job ${jobId}`);

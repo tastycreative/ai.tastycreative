@@ -6,6 +6,24 @@ const nextConfig: NextConfig = {
   // Enable compression for better performance
   compress: true,
   
+  // Configure allowed image domains for Next.js Image component
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'tastycreative.s3.amazonaws.com',
+        port: '',
+        pathname: '/outputs/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.amazonaws.com',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
+  
   // Configure server actions with larger body size limit for file uploads
   experimental: {
     serverActions: {
