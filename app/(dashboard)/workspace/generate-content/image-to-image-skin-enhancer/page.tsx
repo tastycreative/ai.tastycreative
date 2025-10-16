@@ -13,9 +13,7 @@ import {
   CheckCircle,
   XCircle,
   Star,
-  Eye,
   Settings,
-  Palette,
   Share2
 } from 'lucide-react';
 import Image from 'next/image';
@@ -47,10 +45,38 @@ interface DatabaseImage {
   width?: number;
   height?: number;
   format?: string;
-  url?: string | null;
-  dataUrl?: string;
+  url?: string | null; // Dynamically constructed URL (includes awsS3Url as priority)
+  dataUrl?: string; // Database-served image URL
   createdAt: Date | string;
 }
+
+const PROGRESS_STAGES: Array<{ key: 'queued' | 'enhancing' | 'saving'; label: string; description: string }> = [
+  {
+    key: 'queued',
+    label: 'Queued',
+    description: 'Job received and preparing workflow'
+  },
+  {
+    key: 'enhancing',
+    label: 'Enhancing',
+    description: 'AI retouching skin and refining details'
+  },
+  {
+    key: 'saving',
+    label: 'Saving',
+    description: 'Uploading enhanced image to your library'
+  }
+];
+
+const formatDuration = (milliseconds: number) => {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes === 0) {
+    return `${remainingSeconds}s`;
+  }
+  return `${minutes}m ${remainingSeconds.toString().padStart(2, '0')}s`;
+};
 
 export default function ImageToImageSkinEnhancerPage() {
   const { user } = useUser();
@@ -60,8 +86,19 @@ export default function ImageToImageSkinEnhancerPage() {
   const [resultImages, setResultImages] = useState<string[]>([]);
   const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>({});
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [comparisonMode, setComparisonMode] = useState<'side-by-side' | 'slider'>('side-by-side');
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState<string>('');
+  const [jobStartTime, setJobStartTime] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
+  const adjustSlider = useCallback((delta: number) => {
+    setSliderPosition(prev => Math.max(0, Math.min(100, prev + delta)));
+  }, []);
 
   // Fixed values from your JSON workflow - no user modifications needed
   const FIXED_VALUES = {
@@ -97,9 +134,99 @@ export default function ImageToImageSkinEnhancerPage() {
     }
   }, [selectedImage]);
 
+  // Restore comparison preference
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedMode = window.localStorage.getItem('image-to-image-comparison-mode');
+    if (storedMode === 'side-by-side' || storedMode === 'slider') {
+      setComparisonMode(storedMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('image-to-image-comparison-mode', comparisonMode);
+  }, [comparisonMode]);
+
+  useEffect(() => {
+    if (currentJob?.status === 'PROCESSING' && !jobStartTime) {
+      setJobStartTime(Date.now());
+      setElapsedSeconds(0);
+    }
+    if (!currentJob || currentJob.status === 'COMPLETED' || currentJob.status === 'FAILED') {
+      setJobStartTime(null);
+    }
+  }, [currentJob, jobStartTime]);
+
+  useEffect(() => {
+    if (!jobStartTime || !currentJob || currentJob.status === 'COMPLETED' || currentJob.status === 'FAILED') {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - jobStartTime) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [jobStartTime, currentJob]);
+
+  useEffect(() => {
+    const handleKeyShortcuts = (event: KeyboardEvent) => {
+      if (!currentJob || currentJob.status !== 'COMPLETED') return;
+      const target = event.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) {
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        setComparisonMode('side-by-side');
+        event.preventDefault();
+      } else if (event.key === 'ArrowRight') {
+        setComparisonMode('slider');
+        event.preventDefault();
+      } else if ((event.key === '+' || event.key === '=') && comparisonMode === 'slider') {
+        adjustSlider(5);
+        event.preventDefault();
+      } else if ((event.key === '-' || event.key === '_') && comparisonMode === 'slider') {
+        adjustSlider(-5);
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyShortcuts);
+    return () => window.removeEventListener('keydown', handleKeyShortcuts);
+  }, [currentJob, comparisonMode, adjustSlider]);
+
+  const activeStageIndex = React.useMemo(() => {
+    if (!currentJob) return -1;
+    if (currentJob.status === 'FAILED') return 0;
+    if (currentJob.status === 'COMPLETED') return PROGRESS_STAGES.length - 1;
+    if (currentJob.status === 'PROCESSING') return 1;
+    return 0;
+  }, [currentJob]);
+
+  const formattedElapsed = React.useMemo(() => {
+    const minutes = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
+    const seconds = (elapsedSeconds % 60).toString().padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  }, [elapsedSeconds]);
+
+  const describeImageSource = useCallback((image: DatabaseImage) => {
+    if (image.url && image.dataUrl) {
+      return 'Stored in cloud & cached';
+    }
+    if (image.url) {
+      return 'Served from cloud storage';
+    }
+    if (image.dataUrl) {
+      return 'Served from database';
+    }
+    return 'Source unknown';
+  }, []);
+
   // Function to fetch images for a completed job from database
-  const fetchJobImages = useCallback(async (jobId: string): Promise<boolean> => {
-    if (!apiClient) return false;
+  const fetchJobImages = useCallback(async (jobId: string): Promise<DatabaseImage[] | null> => {
+    if (!apiClient) return null;
 
     try {
       console.log("🖼️ Fetching database images for job:", jobId);
@@ -109,28 +236,28 @@ export default function ImageToImageSkinEnhancerPage() {
 
       if (!response.ok) {
         console.error("Failed to fetch job images:", response.status);
-        return false;
+        return null;
       }
 
       const data = await response.json();
       console.log("📊 Job images data:", data);
 
       if (data.success && data.images && Array.isArray(data.images)) {
-        console.log(`✅ Fetched ${data.images.length} database images for job ${jobId}`);
-        
+        console.log("📊 Raw images from database:", data.images);
         setJobImages((prev) => ({
           ...prev,
           [jobId]: data.images,
         }));
+        console.log(`✅ Updated job images state for job: ${jobId}, Images count: ${data.images.length}`);
 
-        return true;
+        return data.images;
       } else {
-        console.warn("No images found in response");
-        return false;
+        console.warn("⚠️ Invalid response format:", data);
+        return null;
       }
     } catch (error) {
       console.error("💥 Error fetching job images:", error);
-      return false;
+      return null;
     }
   }, [apiClient]);
 
@@ -140,9 +267,20 @@ export default function ImageToImageSkinEnhancerPage() {
 
     try {
       console.log("📥 Downloading image:", image.filename);
+      console.log("📥 Available URLs:", {
+        dataUrl: image.dataUrl,
+        url: image.url
+      });
 
+      // Priority 1: Download from URL (which includes AWS S3 URL)
+      if (image.url) {
+        console.log("Using url for download");
+        downloadFromUrl(image.url, image.filename);
+        return;
+      }
+
+      // Priority 2: Download from database URL
       if (image.dataUrl) {
-        // Priority 1: Download from database URL
         const response = await apiClient.get(image.dataUrl);
         if (response.ok) {
           const blob = await response.blob();
@@ -151,12 +289,6 @@ export default function ImageToImageSkinEnhancerPage() {
           window.URL.revokeObjectURL(url);
           return;
         }
-      }
-
-      if (image.url) {
-        // Priority 2: Download from ComfyUI URL
-        downloadFromUrl(image.url, image.filename);
-        return;
       }
 
       throw new Error("No download URL available");
@@ -198,6 +330,10 @@ export default function ImageToImageSkinEnhancerPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    processImageFile(file);
+  }, []);
+
+  const processImageFile = useCallback((file: File) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       setError('Please select a valid image file');
@@ -224,6 +360,34 @@ export default function ImageToImageSkinEnhancerPage() {
     setSelectedImage(imageFile);
     setError(null);
   }, [selectedImage]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      processImageFile(files[0]);
+    }
+  }, [processImageFile]);
 
   const removeImage = useCallback(() => {
     if (selectedImage) {
@@ -751,6 +915,9 @@ export default function ImageToImageSkinEnhancerPage() {
         createdAt: new Date(),
         params
       });
+      setJobStartTime(Date.now());
+      setElapsedSeconds(0);
+      setLastJobDuration(null);
 
     } catch (error) {
       console.error('❌ Generation error:', error);
@@ -791,43 +958,71 @@ export default function ImageToImageSkinEnhancerPage() {
         const jobData = await response.json();
         console.log("📊 Poll response:", jobData);
 
+        const normalizedStatus = typeof jobData.status === 'string'
+          ? jobData.status.toUpperCase()
+          : undefined;
+
         // Update progress
         setCurrentJob(prev => prev ? {
           ...prev,
-          status: jobData.status,
+          status: (normalizedStatus as JobStatus['status']) || prev.status,
           progress: jobData.progress || prev.progress,
           message: jobData.message || prev.message,
           resultUrls: jobData.resultUrls || prev.resultUrls
         } : null);
 
         // Handle completion
-        if (jobData.status === 'COMPLETED') {
+        if (normalizedStatus === 'COMPLETED') {
           console.log("✅ Job completed! ResultUrls:", jobData.resultUrls);
+          if (jobStartTime) {
+            setLastJobDuration(formatDuration(Date.now() - jobStartTime));
+          } else if (currentJob.createdAt) {
+            const createdTimestamp = new Date(currentJob.createdAt).getTime();
+            setLastJobDuration(formatDuration(Date.now() - createdTimestamp));
+          }
           setIsProcessing(false);
 
-          // Fetch database images
-          console.log("🖼️ Calling fetchJobImages...");
-          const fetchSuccess = await fetchJobImages(currentJob.id);
-          console.log("📸 fetchJobImages result:", fetchSuccess);
+          const jobId = currentJob.id;
+          console.log("🖼️ Calling fetchJobImages for job:", jobId);
+          const images = await fetchJobImages(jobId);
 
-          // Fallback to resultUrls if database fetch fails
-          if (!fetchSuccess && jobData.resultUrls?.length > 0) {
-            console.log("⚠️ Using fallback resultUrls:", jobData.resultUrls);
+          if (images && images.length > 0) {
+            const mappedImages = images
+              .map((img) => img.dataUrl || img.url || '')
+              .filter(Boolean);
+
+            if (mappedImages.length > 0) {
+              setResultImages(mappedImages);
+              console.log("🖼️ Updated resultImages with database images", mappedImages.length);
+            }
+          } else if (jobData.resultUrls?.length > 0) {
+            console.log("⚠️ Using fallback resultUrls:", jobData.resultUrls.length);
             setResultImages(jobData.resultUrls);
-          } else if (!fetchSuccess) {
-            // Retry after delay
+          } else {
             console.log("🔄 Retrying image fetch after 3s...");
-            setTimeout(() => fetchJobImages(currentJob.id), 3000);
+            setTimeout(async () => {
+              const retryImages = await fetchJobImages(jobId);
+              if (retryImages && retryImages.length > 0) {
+                const mappedRetry = retryImages
+                  .map((img) => img.dataUrl || img.url || '')
+                  .filter(Boolean);
+                if (mappedRetry.length > 0) {
+                  setResultImages(mappedRetry);
+                  console.log("🖼️ Updated resultImages after retry", mappedRetry.length);
+                }
+              }
+            }, 3000);
           }
 
           return; // Stop polling
         }
 
         // Handle failure
-        if (jobData.status === 'FAILED') {
+        if (normalizedStatus === 'FAILED') {
           console.error("❌ Job failed:", jobData.error);
           setError(jobData.error || 'Generation failed');
           setIsProcessing(false);
+          setLastJobDuration(null);
           return; // Stop polling
         }
 
@@ -892,6 +1087,27 @@ export default function ImageToImageSkinEnhancerPage() {
     }
   }, []);
 
+  const openLightbox = useCallback((imageUrl: string, title: string) => {
+    setLightboxImage(imageUrl);
+    setLightboxTitle(title);
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxImage(null);
+    setLightboxTitle('');
+  }, []);
+
+  // Close lightbox on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && lightboxImage) {
+        closeLightbox();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [lightboxImage, closeLightbox]);
+
   // Debug: Log state changes
   useEffect(() => {
     console.log("🔍 State Debug:", {
@@ -946,7 +1162,18 @@ export default function ImageToImageSkinEnhancerPage() {
               </p>
             </div>
             <div className="p-6">
-              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
+              <div 
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-out shadow-sm focus-within:ring-4 focus-within:ring-blue-300/50 ${
+                  isDragging 
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-blue-900/30 dark:via-gray-900 dark:to-purple-900/30 shadow-lg scale-[1.02]' 
+                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:shadow-md'
+                }`}
+                aria-label="Upload image dropzone"
+              >
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -955,7 +1182,18 @@ export default function ImageToImageSkinEnhancerPage() {
                   className="hidden"
                   id="image-upload"
                 />
-                <label htmlFor="image-upload" className="cursor-pointer">
+                <label
+                  htmlFor="image-upload"
+                  className="cursor-pointer outline-none"
+                  tabIndex={0}
+                  role="button"
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                >
                   {selectedImage ? (
                     <div className="space-y-3">
                       <div className="relative w-32 h-32 mx-auto">
@@ -983,11 +1221,19 @@ export default function ImageToImageSkinEnhancerPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <ImageIcon className="w-12 h-12 text-gray-400 mx-auto" />
+                      <div className="relative mx-auto flex h-28 w-28 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-100 via-white to-gray-200 dark:from-gray-700 dark:via-gray-800 dark:to-gray-700 shadow-inner">
+                        <ImageIcon className="w-10 h-10 text-gray-400 dark:text-gray-300 animate-pulse" />
+                        <div className="absolute inset-0 rounded-2xl border border-dashed border-gray-300/70 dark:border-gray-500/70" />
+                      </div>
                       <div>
-                        <p className="text-lg font-medium">Click to upload image</p>
+                        <p className="text-lg font-medium">
+                          {isDragging ? 'Drop image here' : 'Click to upload or drag & drop'}
+                        </p>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
                           PNG, JPG, JPEG up to 10MB
+                        </p>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          Tip: Drag a face photo anywhere on this card to preview before enhancing.
                         </p>
                       </div>
                     </div>
@@ -1099,10 +1345,14 @@ export default function ImageToImageSkinEnhancerPage() {
                     <span>Progress</span>
                     <span>{currentJob.progress || 0}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
                     <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
                       style={{ width: `${currentJob.progress || 0}%` }}
+                      aria-valuenow={currentJob.progress || 0}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      role="progressbar"
                     />
                   </div>
                 </div>
@@ -1111,6 +1361,10 @@ export default function ImageToImageSkinEnhancerPage() {
                     {currentJob.message}
                   </p>
                 )}
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                  <span>Elapsed: {formattedElapsed}</span>
+                  <span>Typical: 1-3 min</span>
+                </div>
                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                   currentJob.status === 'COMPLETED' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
                   currentJob.status === 'FAILED' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
@@ -1118,130 +1372,427 @@ export default function ImageToImageSkinEnhancerPage() {
                 }`}>
                   {currentJob.status}
                 </span>
+
+                <div className="pt-4">
+                  <ol className="grid grid-cols-3 gap-2 text-xs">
+                    {PROGRESS_STAGES.map((stage, index) => {
+                      const isActive = index === activeStageIndex;
+                      const isCompleted = index < activeStageIndex || currentJob?.status === 'COMPLETED';
+                      return (
+                        <li
+                          key={stage.key}
+                          className={`rounded-md border px-3 py-2 text-center transition-colors ${
+                            isActive
+                              ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
+                              : isCompleted
+                                ? 'border-green-500 bg-green-50 dark:border-green-400 dark:bg-green-900/30 text-green-700 dark:text-green-200'
+                                : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-300'
+                          }`}
+                          aria-current={isActive ? 'step' : undefined}
+                        >
+                          <p className="font-semibold">{stage.label}</p>
+                          <p className="mt-1 leading-tight text-[11px] opacity-80">{stage.description}</p>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+
+                {/* Skeleton Loader for Processing Images */}
+                {(currentJob.status === 'PROCESSING' || currentJob.status === 'PENDING') && (
+                  <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                      Processing your image...
+                    </p>
+                    <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 animate-pulse">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent animate-shimmer"></div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 animate-pulse"></div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {/* Results */}
-          {(currentJob && (jobImages[currentJob.id]?.length > 0 || resultImages.length > 0)) && (
+          {currentJob && currentJob.status === 'COMPLETED' && (
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
               <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-2 mb-2">
-                  <Star className="w-5 h-5" />
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 text-yellow-500" />
                   <h3 className="text-lg font-semibold">Enhanced Images</h3>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   Your enhanced images are ready!
                 </p>
               </div>
-              <div className="p-6 space-y-4">
-                {/* Debug info */}
-                <div className="text-xs text-gray-500 mb-4 p-2 bg-gray-100 dark:bg-gray-900 rounded">
-                  <div>Current Job ID: {currentJob?.id}</div>
-                  <div>Job Images Count: {currentJob ? jobImages[currentJob.id]?.length || 0 : 0}</div>
-                  <div>Result Images Count: {resultImages.length}</div>
-                  <div>Job Status: {currentJob?.status}</div>
-                  <div>Has ResultUrls: {currentJob?.resultUrls?.length || 0}</div>
-                </div>
-                
-                {/* Show database images if available */}
-                {currentJob && jobImages[currentJob.id] && jobImages[currentJob.id].length > 0
-                  ? // Database images with dynamic URLs
-                    jobImages[currentJob.id].map((dbImage, index) => (
-                      <div key={`db-${dbImage.id}`} className="space-y-3">
-                        <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 group">
-                          {/* Only render img if we have a valid URL */}
-                          {(dbImage.dataUrl || dbImage.url) ? (
-                            <Image
-                              src={(dbImage.dataUrl || dbImage.url) as string}
-                              alt={`Enhanced image ${index + 1}`}
-                              fill
-                              className="object-cover"
-                              onError={(e) => {
-                                console.error("Image load error for:", dbImage.filename);
-                                
-                                // Smart fallback logic
-                                const currentSrc = (e.target as HTMLImageElement).src;
-                                
-                                if (currentSrc === dbImage.dataUrl && dbImage.url) {
-                                  console.log("Falling back to URL");
-                                  (e.target as HTMLImageElement).src = dbImage.url;
-                                } else if (currentSrc === dbImage.url && dbImage.dataUrl) {
-                                  console.log("Falling back to database URL");
-                                  (e.target as HTMLImageElement).src = dbImage.dataUrl;
-                                } else {
-                                  console.error("All URLs failed for:", dbImage.filename);
+
+              {/* Show loading or no images message */}
+              {(!currentJob.resultUrls || currentJob.resultUrls.length === 0) &&
+                (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0) && (
+                  <div className="p-6">
+                    <div className="text-center py-8">
+                      <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Loading enhanced images...</span>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const images = await fetchJobImages(currentJob.id);
+                          if (images && images.length > 0) {
+                            const mappedImages = images
+                              .map((img) => img.dataUrl || img.url || '')
+                              .filter(Boolean);
+                            if (mappedImages.length > 0) {
+                              setResultImages(mappedImages);
+                            }
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                      >
+                        Refresh Images
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+              {/* Display images */}
+              {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
+                (jobImages[currentJob.id] && jobImages[currentJob.id].length > 0)) && (
+                <div className="p-6 space-y-4">
+                  {(() => {
+                    const totalImages = jobImages[currentJob.id]?.length || currentJob.resultUrls?.length || 0;
+                    return (
+                      <div className="rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-purple-50 p-4 text-sm shadow-sm dark:border-blue-800 dark:from-blue-900/40 dark:via-gray-900 dark:to-purple-900/30" role="status" aria-live="polite">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Enhancement Complete</p>
+                            <p className="mt-1 text-base font-medium text-gray-800 dark:text-gray-100">
+                              {totalImages} {totalImages === 1 ? 'image' : 'images'} enhanced in {lastJobDuration || formattedElapsed}.
+                            </p>
+                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                              Results are saved to your gallery. You can rerun with a different photo or download immediately.
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => {
+                                resetForm();
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              className="inline-flex items-center rounded-full border border-blue-500 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-200 dark:hover:bg-blue-900/40"
+                            >
+                              <Sparkles className="mr-1.5 h-4 w-4" />
+                              Enhance another
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const images = await fetchJobImages(currentJob.id);
+                                if (images && images.length > 0) {
+                                  const mappedImages = images.map((img) => img.dataUrl || img.url || '').filter(Boolean);
+                                  if (mappedImages.length > 0) {
+                                    setResultImages(mappedImages);
+                                  }
                                 }
                               }}
-                            />
-                          ) : (
-                            // Fallback for images without valid URLs
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="text-center text-gray-500 dark:text-gray-400">
-                                <p className="text-sm">Image not available</p>
-                                <p className="text-xs">{dbImage.filename}</p>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Image metadata overlay */}
-                          <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                              {dbImage.width && dbImage.height
-                                ? `${dbImage.width}×${dbImage.height}`
-                                : "Unknown size"}
-                              {dbImage.fileSize &&
-                                ` • ${Math.round(dbImage.fileSize / 1024)}KB`}
-                              {dbImage.format &&
-                                ` • ${dbImage.format.toUpperCase()}`}
-                            </div>
+                              className="inline-flex items-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                            >
+                              <RefreshCw className="mr-1.5 h-4 w-4" />
+                              Update gallery
+                            </button>
                           </div>
                         </div>
-                        
-                        {/* Action buttons */}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => downloadDatabaseImage(dbImage)}
-                            className="flex-1 inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            Download
-                          </button>
-                          <button
-                            onClick={() => shareImage(dbImage)}
-                            className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                            title="Copy image URL"
-                          >
-                            <Share2 className="w-4 h-4" />
-                          </button>
-                        </div>
                       </div>
-                    ))
-                  : // Fallback to legacy URLs if no database images
-                    resultImages.map((imageUrl, index) => (
-                      <div key={`legacy-${index}`} className="space-y-3">
-                        <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                          <Image
-                            src={imageUrl}
-                            alt={`Enhanced image ${index + 1}`}
-                            fill
-                            className="object-cover"
-                          />
+                    );
+                  })()}
+                  {/* Before/After Comparison Toggle */}
+                  {selectedImage && jobImages[currentJob.id]?.[0] && (
+                    <div className="flex items-center gap-2 mb-4">
+                      <button
+                        onClick={() => setComparisonMode('side-by-side')}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                          comparisonMode === 'side-by-side'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        Side by Side
+                      </button>
+                      <button
+                        onClick={() => setComparisonMode('slider')}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                          comparisonMode === 'slider'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        Slider
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Before/After Comparison View */}
+                  {selectedImage && jobImages[currentJob.id]?.[0] && (
+                    <div className="mb-6">
+                      {comparisonMode === 'side-by-side' ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 text-center">BEFORE</p>
+                            <img
+                              src={selectedImage.preview}
+                              alt="Original image"
+                              className="w-full rounded-lg shadow-md"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 text-center">AFTER</p>
+                            <img
+                              src={(jobImages[currentJob.id][0].dataUrl || jobImages[currentJob.id][0].url) as string}
+                              alt="Enhanced image"
+                              className="w-full rounded-lg shadow-md"
+                            />
+                          </div>
                         </div>
-                        <button
-                          onClick={() => downloadImage(imageUrl, `enhanced_image_${index + 1}.png`)}
-                          className="w-full inline-flex items-center justify-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          Download
-                        </button>
-                      </div>
-                    ))}
-              </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 text-center">DRAG TO COMPARE</p>
+                          <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                            <img
+                              src={(jobImages[currentJob.id][0].dataUrl || jobImages[currentJob.id][0].url) as string}
+                              alt="Enhanced image"
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                            <div 
+                              className="absolute inset-0"
+                              style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+                            >
+                              <img
+                                src={selectedImage.preview}
+                                alt="Original image"
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            </div>
+                            <div
+                              className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-ew-resize"
+                              style={{ left: `${sliderPosition}%` }}
+                              role="slider"
+                              tabIndex={0}
+                              aria-label="Comparison slider"
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={Math.round(sliderPosition)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'ArrowLeft') {
+                                  adjustSlider(-5);
+                                  event.preventDefault();
+                                } else if (event.key === 'ArrowRight') {
+                                  adjustSlider(5);
+                                  event.preventDefault();
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                const container = e.currentTarget.parentElement;
+                                if (!container) return;
+
+                                const handleMove = (moveEvent: MouseEvent) => {
+                                  const rect = container.getBoundingClientRect();
+                                  const x = moveEvent.clientX - rect.left;
+                                  const percentage = (x / rect.width) * 100;
+                                  setSliderPosition(Math.max(0, Math.min(100, percentage)));
+                                };
+
+                                const handleUp = () => {
+                                  document.removeEventListener('mousemove', handleMove);
+                                  document.removeEventListener('mouseup', handleUp);
+                                };
+
+                                document.addEventListener('mousemove', handleMove);
+                                document.addEventListener('mouseup', handleUp);
+                              }}
+                              onTouchStart={(event) => {
+                                const container = event.currentTarget.parentElement;
+                                if (!container) return;
+
+                                const handleTouchMove = (touchEvent: TouchEvent) => {
+                                  const rect = container.getBoundingClientRect();
+                                  const touch = touchEvent.touches[0];
+                                  const x = touch.clientX - rect.left;
+                                  const percentage = (x / rect.width) * 100;
+                                  setSliderPosition(Math.max(0, Math.min(100, percentage)));
+                                };
+
+                                const cleanup = () => {
+                                  document.removeEventListener('touchmove', handleTouchMove);
+                                  document.removeEventListener('touchend', cleanup);
+                                  document.removeEventListener('touchcancel', cleanup);
+                                };
+
+                                document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                                document.addEventListener('touchend', cleanup);
+                                document.addEventListener('touchcancel', cleanup);
+                              }}
+                            >
+                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center">
+                                <div className="flex gap-0.5">
+                                  <div className="w-0.5 h-4 bg-gray-400"></div>
+                                  <div className="w-0.5 h-4 bg-gray-400"></div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">BEFORE</div>
+                            <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">AFTER</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Enhanced Images Grid */}
+                  <div className="grid grid-cols-1 gap-3">
+                    {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0
+                      ? jobImages[currentJob.id].map((dbImage, index) => (
+                          <div key={`db-${dbImage.id}`} className="relative group">
+                            {(dbImage.dataUrl || dbImage.url) ? (
+                              <img
+                                src={(dbImage.dataUrl || dbImage.url) as string}
+                                alt={`Enhanced image ${index + 1}`}
+                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+                                onClick={() => openLightbox((dbImage.dataUrl || dbImage.url) as string, dbImage.filename)}
+                                onError={(e) => {
+                                  console.error("Image load error for:", dbImage.filename);
+
+                                  const currentSrc = (e.target as HTMLImageElement).src;
+                                  
+                                  if (currentSrc === dbImage.dataUrl && dbImage.url) {
+                                    console.log("Falling back to url");
+                                    (e.target as HTMLImageElement).src = dbImage.url;
+                                  } else if (currentSrc === dbImage.url && dbImage.dataUrl) {
+                                    console.log("Falling back to dataUrl");
+                                    (e.target as HTMLImageElement).src = dbImage.dataUrl;
+                                  } else {
+                                    console.error("All URLs failed for:", dbImage.filename);
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-64 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                                <div className="text-center text-gray-500 dark:text-gray-400">
+                                  <p className="text-sm">Image not available</p>
+                                  <p className="text-xs">{dbImage.filename}</p>
+                                  <p className="text-xs">dataUrl={dbImage.dataUrl || 'null'}</p>
+                                  <p className="text-xs">url={dbImage.url || 'null'}</p>
+                                </div>
+                              </div>
+                            )}
+                            <div className="absolute top-2 right-2 flex space-x-1 transition-opacity">
+                              <div className="flex space-x-1 rounded-full bg-white/90 px-1 py-0.5 shadow-md backdrop-blur dark:bg-gray-800/90">
+                                <button
+                                  onClick={() => downloadDatabaseImage(dbImage)}
+                                  className="p-2 rounded-full text-gray-700 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 dark:text-gray-200 dark:hover:bg-blue-900/40"
+                                  aria-label={`Download ${dbImage.filename}`}
+                                  title={`Download ${dbImage.filename}`}
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => shareImage(dbImage)}
+                                  className="p-2 rounded-full text-gray-700 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 dark:text-gray-200 dark:hover:bg-blue-900/40"
+                                  aria-label={`Copy share link for ${dbImage.filename}`}
+                                  title={`Copy share link for ${dbImage.filename}`}
+                                >
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                            {dbImage.width && dbImage.height && (
+                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                  {dbImage.width}×{dbImage.height}
+                                  {dbImage.fileSize && ` • ${Math.round(dbImage.fileSize / 1024)}KB`}
+                                  {dbImage.format && ` • ${dbImage.format.toUpperCase()}`}
+                                </div>
+                              </div>
+                            )}
+                            <div className="absolute bottom-2 right-2">
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full bg-white/85 px-2 py-1 text-[11px] font-medium text-gray-600 shadow-sm backdrop-blur transition group-hover:bg-white dark:bg-gray-900/85 dark:text-gray-200"
+                                title={describeImageSource(dbImage)}
+                              >
+                                <span
+                                  className={`inline-block h-2 w-2 rounded-full ${dbImage.url ? 'bg-blue-500' : 'bg-amber-500'}`}
+                                  aria-hidden="true"
+                                />
+                                {dbImage.url ? 'Cloud' : 'Database'}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      : currentJob.resultUrls && currentJob.resultUrls.map((imageUrl, index) => (
+                          <div key={`legacy-${index}`} className="relative group">
+                            <img
+                              src={imageUrl}
+                              alt={`Enhanced image ${index + 1}`}
+                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+                              onClick={() => openLightbox(imageUrl, `Enhanced image ${index + 1}`)}
+                            />
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => downloadImage(imageUrl, `enhanced_image_${index + 1}.png`)}
+                                className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4 animate-fade-in"
+          onClick={closeLightbox}
+        >
+          <button
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors z-10"
+            aria-label="Close lightbox"
+          >
+            <XCircle className="w-8 h-8" />
+          </button>
+          
+          <div className="relative max-w-7xl max-h-[90vh] w-full h-full flex flex-col items-center justify-center">
+            <div className="relative w-full h-full flex items-center justify-center">
+              <img
+                src={lightboxImage as string}
+                alt={lightboxTitle}
+                className="max-w-full max-h-full object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+            
+            {lightboxTitle && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black bg-opacity-75 text-white px-4 py-2 rounded-lg">
+                <p className="text-sm font-medium">{lightboxTitle}</p>
+              </div>
+            )}
+            
+            <div className="absolute bottom-4 right-4 text-white text-xs bg-black bg-opacity-50 px-3 py-1 rounded">
+              Press ESC to close
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
