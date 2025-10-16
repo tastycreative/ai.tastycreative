@@ -1,11 +1,41 @@
-import { Search, Plus, CreditCard, Users, FileText, ChevronRight } from 'lucide-react';
+import { Plus, CreditCard, Users, FileText, ChevronRight } from 'lucide-react';
 import SearchBar from './SearchBar';
+
+interface DashboardInfluencer {
+  id: string;
+  name: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  uploadedAt: string;
+  usageCount: number;
+}
 
 interface DashboardContentProps {
   firstName: string;
+  totalInfluencers: number;
+  totalContentGenerated: number;
+  influencers: DashboardInfluencer[];
 }
 
-export default function DashboardContent({ firstName }: DashboardContentProps) {
+function formatDate(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return '--';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+}
+
+export default function DashboardContent({
+  firstName,
+  totalInfluencers,
+  totalContentGenerated,
+  influencers,
+}: DashboardContentProps) {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Welcome Section */}
@@ -62,7 +92,7 @@ export default function DashboardContent({ firstName }: DashboardContentProps) {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">Influencers</h3>
-              <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">1</p>
+              <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">{totalInfluencers}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Total influencers created</p>
             </div>
             <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-lg">
@@ -75,7 +105,7 @@ export default function DashboardContent({ firstName }: DashboardContentProps) {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">Content Generated</h3>
-              <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">0</p>
+              <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">{totalContentGenerated}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Total pieces of content created</p>
             </div>
             <div className="p-1.5 sm:p-2 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg shadow-lg">
@@ -100,70 +130,55 @@ export default function DashboardContent({ firstName }: DashboardContentProps) {
 
         {/* Influencers Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-          {/* Mila - Influencer Card */}
-          <div className="bg-gradient-to-br from-white to-pink-50/30 dark:from-gray-800/50 dark:to-pink-900/10 border border-pink-200/30 dark:border-pink-700/20 rounded-xl p-2 sm:p-3 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 backdrop-blur-sm">
-            <div className="space-y-2">
-              <div className="w-full aspect-square rounded-lg overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1494790108755-2616b612b77c?w=300&h=300&fit=crop&crop=face"
-                  alt="Mila"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="text-center">
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Mila</h3>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Content Creator</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">7/31/2025</p>
-                <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-1.5 sm:py-2 px-2 sm:px-4 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 shadow-md hover:shadow-lg">
-                  View Details
-                </button>
-              </div>
+          {influencers.length === 0 ? (
+            <div className="col-span-full bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800/40 dark:to-gray-900/20 border border-dashed border-blue-300/40 dark:border-blue-600/30 rounded-xl p-4 sm:p-6 text-center space-y-2">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">No influencers yet</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Get started by training your first AI influencer.
+              </p>
             </div>
-          </div>
+          ) : (
+            influencers.map((influencer) => (
+              <div
+                key={influencer.id}
+                className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/10 border border-blue-200/30 dark:border-blue-700/20 rounded-xl p-2 sm:p-3 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 backdrop-blur-sm"
+              >
+                <div className="space-y-2">
+                  <div className="w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-blue-100/40 dark:from-gray-700/40 dark:to-blue-900/20 flex items-center justify-center">
+                    {influencer.thumbnailUrl ? (
+                      <img
+                        src={influencer.thumbnailUrl}
+                        alt={influencer.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-2xl sm:text-3xl font-semibold text-blue-500 dark:text-blue-300">
+                        {influencer.name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-center space-y-1">
+                    <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                      {influencer.name}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                      {influencer.description || 'AI Influencer'}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      {formatDate(influencer.uploadedAt)}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Usage count: {influencer.usageCount}
+                    </p>
+                    <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-1.5 sm:py-2 px-2 sm:px-4 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 shadow-md hover:shadow-lg">
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
 
-          {/* Sample Influencer 2 */}
-          <div className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/10 border border-blue-200/30 dark:border-blue-700/20 rounded-xl p-2 sm:p-3 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 backdrop-blur-sm">
-            <div className="space-y-2">
-              <div className="w-full aspect-square rounded-lg overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=300&fit=crop&crop=face"
-                  alt="Emma"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="text-center">
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Emma</h3>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Lifestyle Blogger</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">7/30/2025</p>
-                <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-1.5 sm:py-2 px-2 sm:px-4 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 shadow-md hover:shadow-lg">
-                  View Details
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Sample Influencer 3 */}
-          <div className="bg-gradient-to-br from-white to-purple-50/30 dark:from-gray-800/50 dark:to-purple-900/10 border border-purple-200/30 dark:border-purple-700/20 rounded-xl p-2 sm:p-3 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 backdrop-blur-sm">
-            <div className="space-y-2">
-              <div className="w-full aspect-square rounded-lg overflow-hidden">
-                <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=300&fit=crop&crop=face"
-                  alt="Sofia"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="text-center">
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">Sofia</h3>
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Fashion Influencer</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">7/29/2025</p>
-                <button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-1.5 sm:py-2 px-2 sm:px-4 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 shadow-md hover:shadow-lg">
-                  View Details
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Add New Influencer Card */}
           <div className="bg-gradient-to-br from-gray-50 to-blue-50/20 dark:from-gray-800/30 dark:to-blue-900/10 border-2 border-dashed border-blue-300/50 dark:border-blue-600/30 rounded-xl p-2 sm:p-3 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 backdrop-blur-sm">
             <div className="space-y-2 h-full flex flex-col items-center justify-center text-center">
               <div className="w-full aspect-square rounded-lg bg-gradient-to-br from-gray-100 to-blue-100/50 dark:from-gray-700/50 dark:to-blue-800/20 flex items-center justify-center border border-blue-200/30 dark:border-blue-700/20">

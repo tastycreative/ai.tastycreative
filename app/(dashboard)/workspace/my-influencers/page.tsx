@@ -15,6 +15,7 @@ import {
   Loader2,
   Plus,
   Image as ImageIcon,
+  ImagePlus,
   User,
   Settings,
   Info,
@@ -28,6 +29,7 @@ import {
   BarChart3,
   Sparkles,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // Types
 interface InfluencerLoRA {
@@ -81,6 +83,13 @@ export default function MyInfluencersPage() {
   const [selectedInfluencer, setSelectedInfluencer] =
     useState<InfluencerLoRA | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [thumbnailUploadingId, setThumbnailUploadingId] = useState<string | null>(
+    null
+  );
+  const [deleteCandidate, setDeleteCandidate] = useState<InfluencerLoRA | null>(
+    null
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // ✅ Get the authenticated API client and user
   const apiClient = useApiClient();
@@ -241,6 +250,84 @@ export default function MyInfluencersPage() {
       setSyncing(false);
     }
   };
+
+    const uploadThumbnail = async (influencerId: string, file: File) => {
+      if (!apiClient) return;
+
+      setThumbnailUploadingId(influencerId);
+
+      try {
+        const formData = new FormData();
+        formData.append("thumbnail", file);
+
+        const response = await apiClient.postFormData(
+          `/api/user/influencers/${influencerId}/thumbnail`,
+          formData
+        );
+
+        if (!response.ok) {
+          let message = `Failed to upload thumbnail (status ${response.status})`;
+          try {
+            const errorBody = await response.json();
+            if (errorBody?.error) {
+              message = errorBody.error;
+            }
+          } catch (parseError) {
+            console.warn("Could not parse thumbnail upload error:", parseError);
+          }
+
+          throw new Error(message);
+        }
+
+        const data = await response.json();
+
+        setInfluencers((prev) =>
+          prev.map((inf) =>
+            inf.id === influencerId
+              ? {
+                  ...inf,
+                  thumbnailUrl:
+                    data?.influencer?.thumbnailUrl ?? data?.thumbnailUrl ?? inf.thumbnailUrl,
+                }
+              : inf
+          )
+        );
+      } catch (error) {
+        console.error("Thumbnail upload error:", error);
+        alert(
+          `Failed to upload thumbnail: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }`
+        );
+      } finally {
+        setThumbnailUploadingId(null);
+      }
+    };
+
+    const handleThumbnailSelect = async (
+      influencerId: string,
+      event: React.ChangeEvent<HTMLInputElement>
+    ) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+
+      if (!file) {
+        return;
+      }
+
+      if (!file.type.startsWith("image/")) {
+        alert("Please select an image file (JPG, PNG, WebP).");
+        return;
+      }
+
+      const maxSizeBytes = 5 * 1024 * 1024;
+      if (file.size > maxSizeBytes) {
+        alert("Thumbnail image is too large. Please choose a file under 5MB.");
+        return;
+      }
+
+      await uploadThumbnail(influencerId, file);
+    };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -721,25 +808,16 @@ export default function MyInfluencersPage() {
   };
 
   // Delete influencer
-  const deleteInfluencer = async (id: string) => {
+  const deleteInfluencer = async (influencer: InfluencerLoRA) => {
     if (!apiClient) return;
 
-    // Find the influencer to get its name for the confirmation
-    const influencer = influencers.find((inf) => inf.id === id);
-    const influencerName = influencer?.displayName || "this influencer";
-
-    if (
-      !confirm(
-        `Are you sure you want to delete "${influencerName}"?\n\nThis will permanently remove:\n• The database record\n• The file from network storage\n• All associated data\n\nThis action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
     try {
-      console.log(`🗑️ Deleting influencer: ${influencerName}`);
+      setIsDeleting(true);
+      console.log(`🗑️ Deleting influencer: ${influencer.displayName}`);
 
-      const response = await apiClient.delete(`/api/user/influencers/${id}`);
+      const response = await apiClient.delete(
+        `/api/user/influencers/${influencer.id}`
+      );
 
       if (!response.ok) {
         const errorData = await response
@@ -748,22 +826,29 @@ export default function MyInfluencersPage() {
         throw new Error(errorData.error || "Failed to delete influencer");
       }
 
-      const result = await response.json();
+      await response.json();
 
-      // Remove from local state
-      setInfluencers((prev) => prev.filter((inf) => inf.id !== id));
-
-      // Show success message
-      alert(
-        `✅ Successfully deleted "${influencerName}" from both database and storage!`
+      setInfluencers((prev) =>
+        prev.filter((inf) => inf.id !== influencer.id)
       );
 
-      console.log(`✅ Influencer deleted successfully: ${influencerName}`);
+      toast.success(`Deleted ${influencer.displayName}`, {
+        description: "Removed from database and storage.",
+      });
+
+      console.log(
+        `✅ Influencer deleted successfully: ${influencer.displayName}`
+      );
     } catch (error) {
       console.error("Delete error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Failed to delete influencer";
-      alert(`❌ Failed to delete "${influencerName}": ${errorMessage}`);
+      toast.error(`Failed to delete ${influencer.displayName}`, {
+        description: errorMessage,
+      });
+    } finally {
+      setIsDeleting(false);
+      setDeleteCandidate(null);
     }
   };
 
@@ -1071,9 +1156,7 @@ export default function MyInfluencersPage() {
                 Your Influencer Collection Awaits
               </h3>
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                Upload your first LoRA model directly to the network volume
-                storage. Each model becomes instantly available for
-                text-to-image generation with consistent, personalized results.
+                Upload your first LoRA model directly to the network volume storage. Each model becomes instantly available for text-to-image generation with consistent, personalized results.
               </p>
 
               <div className="grid grid-cols-3 gap-4 py-4">
@@ -1116,126 +1199,164 @@ export default function MyInfluencersPage() {
               </button>
 
               <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                ✨ Supports .safetensors, .pt, .ckpt • Up to 500MB • Direct
-                network volume storage
+                ✨ Supports .safetensors, .pt, .ckpt • Up to 500MB • Direct network volume storage
               </p>
             </div>
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {influencers.map((influencer) => (
-            <div
-              key={influencer.id}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow"
-            >
-              {/* Thumbnail */}
-              <div className="h-48 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 flex items-center justify-center relative">
-                {influencer.thumbnailUrl ? (
-                  <img
-                    src={influencer.thumbnailUrl}
-                    alt={influencer.displayName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <ImageIcon className="w-16 h-16 text-purple-400" />
-                )}
+          {influencers.map((influencer) => {
+            const isThumbnailUploading =
+              thumbnailUploadingId === influencer.id;
+            const statusClass =
+              influencer.syncStatus === "synced"
+                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                : influencer.syncStatus === "pending"
+                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+                : influencer.syncStatus === "missing" ||
+                  influencer.syncStatus === "error"
+                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                : "bg-gray-200 text-gray-700 dark:bg-gray-700/40 dark:text-gray-200";
+            const activeButtonClass = influencer.isActive
+              ? "bg-green-600 hover:bg-green-700 text-white"
+              : "bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700/50 dark:hover:bg-gray-600 dark:text-gray-200";
+            const uploadInputId = `thumbnail-upload-${influencer.id}`;
 
-                {/* Usage badge */}
-                {influencer.usageCount > 0 && (
-                  <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-                    {influencer.usageCount} uses
+            return (
+              <div
+                key={influencer.id}
+                className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/20 shadow-lg rounded-xl border border-blue-200/30 dark:border-blue-700/20 p-3 sm:p-4 backdrop-blur-sm hover:shadow-xl transition-all duration-300"
+              >
+                <div className="space-y-3">
+                  <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-blue-100/40 dark:from-gray-700/40 dark:to-blue-900/30 flex items-center justify-center">
+                    {influencer.thumbnailUrl ? (
+                      <img
+                        src={influencer.thumbnailUrl}
+                        alt={influencer.displayName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <ImageIcon className="w-14 h-14 text-purple-400" />
+                    )}
+
+                    {isThumbnailUploading && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      </div>
+                    )}
+
+                    {influencer.usageCount > 0 && (
+                      <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-sm">
+                        {influencer.usageCount} uses
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Content */}
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                      {influencer.displayName}
-                    </h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {influencer.fileName}
+                  <div className="text-center space-y-2">
+                    <div className="space-y-1">
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white line-clamp-1">
+                        {influencer.displayName}
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {influencer.fileName}
+                      </p>
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[32px]">
+                      {influencer.description || "No description provided"}
                     </p>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {getSyncStatusIcon(influencer.syncStatus)}
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between mb-2">
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      influencer.syncStatus === "synced"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                        : influencer.syncStatus === "pending"
-                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
-                        : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                    }`}
-                  >
-                    {getSyncStatusText(influencer.syncStatus)}
-                  </span>
-                  <button
-                    onClick={() =>
-                      toggleInfluencerStatus(
-                        influencer.id,
-                        !influencer.isActive
-                      )
-                    }
-                    className={`w-3 h-3 rounded-full ${
-                      influencer.isActive
-                        ? "bg-green-500"
-                        : "bg-gray-300 dark:bg-gray-600"
-                    }`}
-                    title={influencer.isActive ? "Active" : "Inactive"}
-                  />
-                </div>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}>
+                        {getSyncStatusText(influencer.syncStatus)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleInfluencerStatus(
+                            influencer.id,
+                            !influencer.isActive
+                          )
+                        }
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${activeButtonClass}`}
+                      >
+                        {influencer.isActive ? "Active" : "Inactive"}
+                      </button>
+                    </div>
 
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-                  {influencer.description || "No description provided"}
-                </p>
+                    <div className="flex items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                      <span>{formatFileSize(influencer.fileSize)}</span>
+                      <span>•</span>
+                      <span>{new Date(influencer.uploadedAt).toLocaleDateString()}</span>
+                    </div>
 
-                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-4">
-                  <span>{formatFileSize(influencer.fileSize)}</span>
-                  <span>
-                    {new Date(influencer.uploadedAt).toLocaleDateString()}
-                  </span>
-                </div>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => showInfluencerDetails(influencer)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View</span>
+                      </button>
 
-                {/* Actions */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
+                      <input
+                        id={uploadInputId}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) =>
+                          handleThumbnailSelect(influencer.id, event)
+                        }
+                        disabled={isThumbnailUploading}
+                      />
+                      <label
+                        htmlFor={uploadInputId}
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-md transition-all ${
+                          isThumbnailUploading
+                            ? "opacity-70 cursor-wait pointer-events-none"
+                            : "cursor-pointer"
+                        }`}
+                      >
+                        {isThumbnailUploading ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Uploading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ImagePlus className="w-3.5 h-3.5" />
+                            <span>Thumbnail</span>
+                          </>
+                        )}
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          alert("Download functionality coming soon!");
+                        }}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download</span>
+                      </button>
+                    </div>
+
                     <button
-                      onClick={() => showInfluencerDetails(influencer)}
-                      className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
-                      title="View Details"
+                      type="button"
+                      onClick={() => setDeleteCandidate(influencer)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
                     >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        alert("Download functionality coming soon!");
-                      }}
-                      className="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 transition-colors"
-                      title="Download"
-                    >
-                      <Download className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
                     </button>
                   </div>
-
-                  <button
-                    onClick={() => deleteInfluencer(influencer.id)}
-                    className="p-1.5 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1257,6 +1378,16 @@ export default function MyInfluencersPage() {
               </div>
 
               <div className="space-y-4">
+                {selectedInfluencer.thumbnailUrl && (
+                  <div className="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                    <img
+                      src={selectedInfluencer.thumbnailUrl}
+                      alt={selectedInfluencer.displayName}
+                      className="w-full h-64 object-cover"
+                    />
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1375,6 +1506,80 @@ export default function MyInfluencersPage() {
                   className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteCandidate && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Delete Influencer
+                </h3>
+                <button
+                  onClick={() => {
+                    if (!isDeleting) {
+                      setDeleteCandidate(null);
+                    }
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  aria-label="Close delete confirmation"
+                  disabled={isDeleting}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                <p>
+                  Are you sure you want to delete <strong>{deleteCandidate.displayName}</strong>?
+                </p>
+                <p className="text-xs text-red-500 dark:text-red-400">
+                  This permanently removes the model, associated files, and cannot be undone.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/60 rounded-lg text-xs text-gray-500 dark:text-gray-400">
+                <span>File name</span>
+                <span className="font-mono truncate max-w-[180px]">
+                  {deleteCandidate.fileName}
+                </span>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-2">
+                <button
+                  onClick={() => {
+                    if (!isDeleting) {
+                      setDeleteCandidate(null);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-60"
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteInfluencer(deleteCandidate)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
