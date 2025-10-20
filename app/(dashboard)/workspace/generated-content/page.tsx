@@ -6,6 +6,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { getBestMediaUrl, getBandwidthStats, getDownloadUrl } from "@/lib/directUrlUtils";
 import BandwidthStats from "@/components/BandwidthStats";
 import { useInView } from "react-intersection-observer";
+import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
+import { Users } from "lucide-react";
 import {
   ImageIcon,
   Download,
@@ -181,6 +183,17 @@ interface FilterPreset {
   searchQuery: string;
 }
 
+interface UserInfo {
+  id: string;
+  clerkId: string;
+  email: string | null;
+  name: string;
+  role: string;
+  imageCount: number;
+  videoCount: number;
+  totalContent: number;
+}
+
 // Custom hook for debouncing
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -265,6 +278,12 @@ const LazyMedia: React.FC<LazyMediaProps> = ({ item, onClick }) => {
 
 export default function GeneratedContentPage() {
   const apiClient = useApiClient();
+  const { isAdmin, loading: adminLoading } = useIsAdmin();
+
+  // Admin User Filter State
+  const [availableUsers, setAvailableUsers] = useState<UserInfo[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
@@ -421,7 +440,7 @@ export default function GeneratedContentPage() {
 
   // Fetch images and stats
   useEffect(() => {
-    if (apiClient) {
+    if (apiClient && !adminLoading) {
       // First auto-process any completed serverless jobs
       autoProcessServerlessJobs().then(() => {
         // Then fetch the content
@@ -429,7 +448,14 @@ export default function GeneratedContentPage() {
         fetchStats();
       });
     }
-  }, [apiClient]);
+  }, [apiClient, adminLoading, selectedUserId]);
+
+  // Fetch available users when admin status is confirmed
+  useEffect(() => {
+    if (apiClient && isAdmin && !adminLoading) {
+      fetchAvailableUsers();
+    }
+  }, [apiClient, isAdmin, adminLoading]);
 
   // Fetch linked content when allContent changes
   useEffect(() => {
@@ -496,11 +522,23 @@ export default function GeneratedContentPage() {
       console.log("🌍 Environment:", process.env.NODE_ENV);
       console.log("🔗 Origin:", window.location.origin);
       console.log("⏰ Timestamp:", new Date().toISOString());
+      console.log("👤 Selected User ID:", selectedUserId || "current user");
+
+      // Build query params
+      const queryParams = new URLSearchParams({
+        includeData: 'false',
+        limit: '100'
+      });
+      
+      // Add userId param if admin has selected a user
+      if (selectedUserId) {
+        queryParams.append('userId', selectedUserId);
+      }
 
       // Fetch images with more detailed parameters
       console.log("📡 Fetching images from /api/images...");
       const imagesResponse = await apiClient.get(
-        "/api/images?includeData=false&limit=100"
+        `/api/images?${queryParams.toString()}`
       );
       console.log("📡 Images response status:", imagesResponse.status);
       console.log(
@@ -511,7 +549,7 @@ export default function GeneratedContentPage() {
       // Fetch videos
       console.log("📡 Fetching videos from /api/videos...");
       const videosResponse = await apiClient.get(
-        "/api/videos?includeData=false&limit=100"
+        `/api/videos?${queryParams.toString()}`
       );
       console.log("📡 Videos response status:", videosResponse.status);
       console.log(
@@ -695,9 +733,17 @@ export default function GeneratedContentPage() {
     }
 
     try {
+      // Build query params
+      const queryParams = new URLSearchParams({ stats: 'true' });
+      
+      // Add userId param if admin has selected a user
+      if (selectedUserId) {
+        queryParams.append('userId', selectedUserId);
+      }
+
       const [imagesStatsResponse, videosStatsResponse] = await Promise.all([
-        apiClient.get("/api/images?stats=true"),
-        apiClient.get("/api/videos?stats=true"),
+        apiClient.get(`/api/images?${queryParams.toString()}`),
+        apiClient.get(`/api/videos?${queryParams.toString()}`),
       ]);
 
       if (imagesStatsResponse.ok) {
@@ -742,6 +788,47 @@ export default function GeneratedContentPage() {
       }
     } catch (error) {
       console.error("❌ Auto-processing error:", error);
+    }
+  };
+
+  // Fetch available users for admin user filter
+  const fetchAvailableUsers = async () => {
+    if (!apiClient || !isAdmin) {
+      return;
+    }
+
+    try {
+      setLoadingUsers(true);
+      console.log("👥 Fetching available users...");
+      
+      const response = await apiClient.get("/api/admin/users");
+
+      if (response.ok) {
+        const users = await response.json();
+        
+        // Transform to UserInfo format
+        const formattedUsers: UserInfo[] = users.map((user: any) => ({
+          id: user.id,
+          clerkId: user.clerkId,
+          email: user.email,
+          name: user.firstName && user.lastName 
+            ? `${user.firstName} ${user.lastName}`
+            : user.firstName || user.email || 'Unknown User',
+          role: user.role,
+          imageCount: user._count?.images || 0,
+          videoCount: user._count?.videos || 0,
+          totalContent: (user._count?.images || 0) + (user._count?.videos || 0)
+        }));
+
+        setAvailableUsers(formattedUsers);
+        console.log(`✅ Loaded ${formattedUsers.length} users`);
+      } else {
+        console.error("Failed to fetch users:", response.status);
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -2679,6 +2766,42 @@ export default function GeneratedContentPage() {
         </div>
       </div>
 
+      {/* Admin User Selection Banner */}
+      {isAdmin && selectedUserId && (
+        <div className="bg-gradient-to-r from-purple-100 via-blue-100 to-indigo-100 dark:from-purple-900/30 dark:via-blue-900/30 dark:to-indigo-900/30 border-2 border-purple-300 dark:border-purple-600 rounded-2xl p-6 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-purple-500 rounded-xl shadow-md">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Viewing User Content
+                </h3>
+                <p className="text-gray-700 dark:text-gray-300">
+                  {availableUsers.find(u => u.clerkId === selectedUserId)?.name || 'Unknown User'}
+                  {availableUsers.find(u => u.clerkId === selectedUserId)?.email && (
+                    <span className="text-gray-500 dark:text-gray-400 ml-2">
+                      ({availableUsers.find(u => u.clerkId === selectedUserId)?.email})
+                    </span>
+                  )}
+                  <span className="ml-3 px-2 py-1 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 text-xs rounded-full font-semibold">
+                    {availableUsers.find(u => u.clerkId === selectedUserId)?.role}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedUserId(null)}
+              className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl border border-gray-300 dark:border-gray-600 transition-all duration-200 font-medium"
+            >
+              <X className="w-4 h-4" />
+              <span>View All Users</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Collapsible Enhanced Stats */}
       {(imageStats || videoStats) && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -2956,6 +3079,34 @@ export default function GeneratedContentPage() {
                 </svg>
               </div>
             </div>
+
+            {/* Admin User Filter */}
+            {isAdmin && !adminLoading && (
+              <div className="relative">
+                <select
+                  value={selectedUserId || ""}
+                  onChange={(e) => setSelectedUserId(e.target.value || null)}
+                  disabled={loadingUsers}
+                  className="appearance-none bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 border-2 border-purple-300 dark:border-purple-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-10 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:from-purple-100 hover:to-blue-100 dark:hover:from-purple-900/50 dark:hover:to-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed [&>option]:bg-white [&>option]:dark:bg-gray-800 [&>option]:text-gray-900 [&>option]:dark:text-white [&>option]:py-2"
+                  title="Admin: View any user's content"
+                >
+                  <option value="" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">👤 All Users</option>
+                  {availableUsers.map((user) => (
+                    <option key={user.clerkId} value={user.clerkId} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                      {user.role === 'ADMIN' ? '⭐ ' : user.role === 'MANAGER' ? '👔 ' : '👤 '}
+                      {user.name} {user.email ? `(${user.email})` : ''} - {user.totalContent} items
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-purple-600 dark:text-purple-400">
+                  {loadingUsers ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Users className="h-4 w-4" />
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* View Mode Toggle */}
             <div className="flex bg-gray-100 dark:bg-gray-700 rounded-xl p-1 border border-gray-200 dark:border-gray-600">

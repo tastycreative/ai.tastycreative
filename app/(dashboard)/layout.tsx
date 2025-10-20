@@ -127,6 +127,11 @@ export default function DashboardLayout({
           icon: Palette,
         },
         {
+          name: "Flux Kontext",
+          href: "/workspace/generate-content/flux-kontext",
+          icon: Wand2,
+        },
+        {
           name: "FPS Boost",
           href: "/workspace/generate-content/fps-boost",
           icon: PlayCircle,
@@ -167,6 +172,11 @@ export default function DashboardLayout({
           name: "Video Prompts",
           href: "/workspace/ai-tools/video-prompts",
           icon: PlayCircle,
+        },
+        {
+          name: "Flux Kontext Prompts",
+          href: "/workspace/ai-tools/flux-kontext-prompts",
+          icon: Sparkles,
         },
       ],
     },

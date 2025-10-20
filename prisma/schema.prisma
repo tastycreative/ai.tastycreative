@@ -333,6 +333,7 @@ enum GenerationType {
   SKIN_ENHANCEMENT
   FACE_SWAP
   VIDEO_FPS_BOOST
+  FLUX_KONTEXT
 }
 
 enum UserRole {

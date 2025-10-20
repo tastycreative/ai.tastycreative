@@ -17,24 +17,43 @@ export async function GET(request: NextRequest) {
     const includeData = searchParams.get('includeData') === 'true';
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
+    const requestedUserId = searchParams.get('userId'); // Admin can request another user's content
 
-    console.log('🔍 API /images called by user:', userId, 'stats:', stats, 'includeData:', includeData);
+    // Check if the requesting user is an admin
+    let targetUserId = userId; // Default to current user
+    if (requestedUserId) {
+      // Verify the requesting user is an admin
+      const requestingUser = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { role: true }
+      });
+
+      if (requestingUser?.role === 'ADMIN') {
+        targetUserId = requestedUserId;
+        console.log('🔑 Admin user requesting content for userId:', requestedUserId);
+      } else {
+        console.warn('⚠️ Non-admin user attempted to access another user\'s content');
+        // Silently ignore the userId parameter for non-admins
+      }
+    }
+
+    console.log('🔍 API /images called by user:', userId, 'targetUserId:', targetUserId, 'stats:', stats, 'includeData:', includeData);
 
     if (stats === 'true') {
       // Get actual image statistics from database
       try {
         const [totalImages, imagesWithData, totalSize] = await Promise.all([
           prisma.generatedImage.count({
-            where: { clerkId: userId }
+            where: { clerkId: targetUserId }
           }),
           prisma.generatedImage.count({
             where: { 
-              clerkId: userId,
+              clerkId: targetUserId,
               data: { not: null }
             }
           }),
           prisma.generatedImage.aggregate({
-            where: { clerkId: userId },
+            where: { clerkId: targetUserId },
             _sum: { fileSize: true }
           })
         ]);
@@ -42,7 +61,7 @@ export async function GET(request: NextRequest) {
         // Get format breakdown
         const formatBreakdown = await prisma.generatedImage.groupBy({
           by: ['format'],
-          where: { clerkId: userId },
+          where: { clerkId: targetUserId },
           _count: { format: true }
         });
 
@@ -77,13 +96,13 @@ export async function GET(request: NextRequest) {
 
     // Get user images using the imageStorage function
     console.log('📡 Fetching user images with options:', { includeData, limit, offset });
-    const images = await getUserImages(userId, {
+    const images = await getUserImages(targetUserId, {
       includeData,
       limit,
       offset
     });
 
-    console.log('✅ Found', images.length, 'images for user:', userId);
+    console.log('✅ Found', images.length, 'images for user:', targetUserId);
     if (images.length > 0) {
       console.log('📸 Sample image:', {
         id: images[0].id,

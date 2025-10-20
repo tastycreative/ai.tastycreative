@@ -18,9 +18,32 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
     const stats = searchParams.get('stats') === 'true';
+    const requestedUserId = searchParams.get('userId'); // Admin can request another user's content
+
+    // Check if the requesting user is an admin
+    let targetUserId = userId; // Default to current user
+    if (requestedUserId) {
+      // Import prisma
+      const { prisma } = await import('@/lib/database');
+      
+      // Verify the requesting user is an admin
+      const requestingUser = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { role: true }
+      });
+
+      if (requestingUser?.role === 'ADMIN') {
+        targetUserId = requestedUserId;
+        console.log('🔑 Admin user requesting videos for userId:', requestedUserId);
+      } else {
+        console.warn('⚠️ Non-admin user attempted to access another user\'s videos');
+        // Silently ignore the userId parameter for non-admins
+      }
+    }
 
     console.log('🎬 GET /api/videos:', {
       userId,
+      targetUserId,
       includeData,
       limit,
       offset,
@@ -29,12 +52,12 @@ export async function GET(request: NextRequest) {
 
     // If stats are requested, return stats instead of videos
     if (stats) {
-      const videoStats = await getVideoStats(userId);
+      const videoStats = await getVideoStats(targetUserId);
       return NextResponse.json({ success: true, stats: videoStats });
     }
 
     // Get user videos
-    const videos = await getUserVideos(userId, {
+    const videos = await getUserVideos(targetUserId, {
       includeData,
       limit,
       offset
