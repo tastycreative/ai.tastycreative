@@ -266,8 +266,10 @@ model ProductionEntry {
 model InstagramPost {
   id              String              @id @default(cuid())
   clerkId         String
-  driveFileId     String
-  driveFileUrl    String
+  driveFileId     String?             // Made optional for S3 migration
+  driveFileUrl    String?             // Made optional for S3 migration
+  awsS3Key        String?             // S3 object key
+  awsS3Url        String?             // Direct S3 URL
   fileName        String
   caption         String              @default("")
   scheduledDate   DateTime?
@@ -294,6 +296,7 @@ model InstagramPost {
   @@index([status])
   @@index([scheduledDate])
   @@index([driveFileId])
+  @@index([awsS3Key])
   @@map("instagram_posts")
 }
 
@@ -331,6 +334,7 @@ enum GenerationType {
   TEXT_TO_VIDEO
   VIDEO_TO_VIDEO
   SKIN_ENHANCEMENT
+  IMAGE_TO_IMAGE_SKIN_ENHANCEMENT
   FACE_SWAP
   VIDEO_FPS_BOOST
   FLUX_KONTEXT

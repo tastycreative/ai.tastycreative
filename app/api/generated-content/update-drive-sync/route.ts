@@ -14,19 +14,43 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { itemId, itemType, driveFileId, folderName } = body;
+    const {
+      itemId,
+      itemType,
+      driveFileId,
+      folderName,
+      s3Key,
+      s3Url,
+    } = body;
 
-    console.log('📤 Update Drive Sync Request:', { itemId, itemType, driveFileId, folderName, userId });
+    console.log('📤 Update Storage Sync Request:', {
+      itemId,
+      itemType,
+      driveFileId,
+      folderName,
+      s3Key,
+      s3Url,
+      userId,
+    });
 
-    if (!itemId || !itemType || !driveFileId) {
+    if (!itemId || !itemType) {
       return NextResponse.json(
-        { error: 'Missing required fields: itemId, itemType, driveFileId' },
+        { error: 'Missing required fields: itemId and itemType' },
+        { status: 400 }
+      );
+    }
+
+    if (!driveFileId && !s3Key) {
+      return NextResponse.json(
+        { error: 'Missing required storage identifier (driveFileId or s3Key)' },
         { status: 400 }
       );
     }
 
     // Update the appropriate table based on itemType (case-insensitive)
     const normalizedType = itemType.toUpperCase();
+  const storageIdentifier = driveFileId || s3Key;
+    const now = new Date();
     
     if (normalizedType === 'IMAGE') {
       const image = await prisma.generatedImage.findUnique({
@@ -53,9 +77,9 @@ export async function POST(request: NextRequest) {
       await prisma.generatedImage.update({
         where: { id: itemId },
         data: {
-          googleDriveFileId: driveFileId,
+          googleDriveFileId: storageIdentifier,
           googleDriveFolderName: folderName || null,
-          googleDriveUploadedAt: new Date()
+          googleDriveUploadedAt: now,
         }
       });
 
@@ -85,9 +109,9 @@ export async function POST(request: NextRequest) {
       await prisma.generatedVideo.update({
         where: { id: itemId },
         data: {
-          googleDriveFileId: driveFileId,
+          googleDriveFileId: storageIdentifier,
           googleDriveFolderName: folderName || null,
-          googleDriveUploadedAt: new Date()
+          googleDriveUploadedAt: now,
         }
       });
 
@@ -102,12 +126,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Google Drive sync status updated successfully'
+      message: 'Storage sync status updated successfully'
     });
   } catch (error) {
-    console.error('❌ Error updating Google Drive sync status:', error);
+    console.error('❌ Error updating storage sync status:', error);
     return NextResponse.json(
-      { error: 'Failed to update Google Drive sync status', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to update storage sync status', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

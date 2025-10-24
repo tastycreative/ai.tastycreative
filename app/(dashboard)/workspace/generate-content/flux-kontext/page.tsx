@@ -7,7 +7,7 @@ import { useApiClient } from '@/lib/apiClient';
 
 interface JobStatus {
   id: string;
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'pending' | 'processing' | 'completed' | 'failed';
   progress?: number;
   message?: string;
   resultUrls?: string[];
@@ -132,9 +132,10 @@ export default function FluxKontextPage() {
 
   const activeStageIndex = useMemo(() => {
     if (!currentJob) return -1;
-    if (currentJob.status === 'PENDING') return 0;
-    if (currentJob.status === 'PROCESSING') return 1;
-    if (currentJob.status === 'COMPLETED') return 2;
+    const status = currentJob.status.toUpperCase();
+    if (status === 'PENDING') return 0;
+    if (status === 'PROCESSING') return 1;
+    if (status === 'COMPLETED') return 2;
     return -1;
   }, [currentJob]);
 
@@ -154,17 +155,20 @@ export default function FluxKontextPage() {
     if (!apiClient) return null;
     
     try {
+      console.log('🖼️ Fetching images for job:', jobId);
       const response = await apiClient.get(`/api/jobs/${jobId}/images`);
       
       if (!response.ok) {
-        console.error('Failed to fetch job images:', response.statusText);
+        console.error('❌ Failed to fetch job images:', response.statusText);
         return null;
       }
 
       const data = await response.json();
+      console.log('✅ Fetched images:', data.images);
+      console.log('📊 Image count:', data.images?.length || 0);
       return data.images || [];
     } catch (error) {
-      console.error('Error fetching job images:', error);
+      console.error('❌ Error fetching job images:', error);
       return null;
     }
   }, [apiClient]);
@@ -451,7 +455,8 @@ export default function FluxKontextPage() {
         const updatedJob = await response.json();
         setCurrentJob(updatedJob);
 
-        if (updatedJob.status === 'COMPLETED') {
+        if (updatedJob.status === 'completed' || updatedJob.status === 'COMPLETED') {
+          console.log('✅ Job completed, fetching images...');
           setIsProcessing(false);
           if (jobStartTime) {
             const duration = Date.now() - jobStartTime;
@@ -460,10 +465,14 @@ export default function FluxKontextPage() {
           setJobStartTime(null);
 
           const images = await fetchJobImages(updatedJob.id);
+          console.log('📸 Images received:', images);
           if (images && images.length > 0) {
+            console.log('💾 Storing images in state for job:', updatedJob.id);
             setJobImages(prev => ({ ...prev, [updatedJob.id]: images }));
+          } else {
+            console.warn('⚠️ No images returned for completed job');
           }
-        } else if (updatedJob.status === 'FAILED') {
+        } else if (updatedJob.status === 'failed' || updatedJob.status === 'FAILED') {
           setIsProcessing(false);
           setError(updatedJob.error || 'Generation failed');
           setJobStartTime(null);
@@ -476,6 +485,13 @@ export default function FluxKontextPage() {
     const interval = setInterval(pollJob, 2000);
     return () => clearInterval(interval);
   }, [currentJob?.id, apiClient, jobStartTime, fetchJobImages]);
+
+  // Debug: Log jobImages state changes
+  useEffect(() => {
+    console.log('🎨 JobImages state updated:', jobImages);
+    console.log('🎯 Current job ID:', currentJob?.id);
+    console.log('📦 Images for current job:', currentJob?.id ? jobImages[currentJob.id] : 'No current job');
+  }, [jobImages, currentJob?.id]);
 
   const generateRandomSeed = useCallback(() => {
     FIXED_VALUES.seed = Math.floor(Math.random() * 1000000000000);
@@ -677,7 +693,7 @@ export default function FluxKontextPage() {
             )}
 
             {/* Results Section */}
-            {currentJob?.status === 'COMPLETED' && jobImages[currentJob.id] && (
+            {(currentJob?.status === 'completed' || currentJob?.status === 'COMPLETED') && jobImages[currentJob.id] && (
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">

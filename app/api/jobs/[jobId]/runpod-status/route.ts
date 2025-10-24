@@ -28,7 +28,16 @@ export async function GET(
 
     // Check RunPod status
     const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
-    const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
+    
+    // Determine which endpoint to use based on job type
+    let RUNPOD_ENDPOINT_ID: string | undefined;
+    if (job.type === 'FLUX_KONTEXT') {
+      RUNPOD_ENDPOINT_ID = process.env.RUNPOD_FLUX_KONTEXT_ENDPOINT_ID;
+    } else if (job.type === 'IMAGE_TO_VIDEO') {
+      RUNPOD_ENDPOINT_ID = process.env.RUNPOD_IMAGE_TO_VIDEO_ENDPOINT_ID;
+    } else {
+      RUNPOD_ENDPOINT_ID = process.env.RUNPOD_TEXT_TO_IMAGE_ENDPOINT_ID;
+    }
     
     if (!RUNPOD_API_KEY || !RUNPOD_ENDPOINT_ID) {
       return NextResponse.json({ error: 'RunPod configuration missing' }, { status: 500 });
@@ -65,35 +74,78 @@ export async function GET(
       if (statusData.output && statusData.output.images) {
         console.log('🖼️ Saving generated images to database');
         
+        // Collect result URLs
+        const resultUrls: string[] = [];
+        
         for (const imageData of statusData.output.images) {
           try {
             console.log('💾 Saving image to database:', imageData.filename);
             console.log('👤 User:', job.userId);
             console.log('🆔 Job:', jobId);
             
-            // Convert base64 string to Buffer for Prisma Bytes field
-            const imageBuffer = Buffer.from(imageData.data, 'base64');
-            console.log('📏 Image buffer size:', imageBuffer.length, 'bytes');
-            
-            // Save image directly to database using RunPod data
-            const savedImage = await prisma.generatedImage.create({
-              data: {
-                clerkId: job.userId,
+            // Check if this image already exists
+            const existing = await prisma.generatedImage.findFirst({
+              where: {
                 jobId: jobId,
-                filename: imageData.filename || `generated_${Date.now()}.png`,
-                subfolder: '',
-                type: 'output',
-                data: imageBuffer, // Save Buffer instead of raw base64 string
-                metadata: { source: 'runpod', nodeId: imageData.node_id },
-                fileSize: imageBuffer.length,
-                format: 'png'
+                filename: imageData.filename,
               }
             });
+
+            if (existing) {
+              console.log(`⏭️  Image already exists: ${imageData.filename}`);
+              if (imageData.awsS3Url) {
+                resultUrls.push(imageData.awsS3Url);
+              }
+              continue;
+            }
             
-            console.log('✅ Image saved with ID:', savedImage.id);
+            // Check if image has AWS S3 URL (Flux Kontext) or base64 data (text-to-image)
+            if (imageData.awsS3Url) {
+              // Flux Kontext image with S3 URL
+              const savedImage = await prisma.generatedImage.create({
+                data: {
+                  clerkId: job.userId,
+                  jobId: jobId,
+                  filename: imageData.filename,
+                  subfolder: imageData.subfolder || '',
+                  type: imageData.type || 'output',
+                  awsS3Url: imageData.awsS3Url,
+                  awsS3Key: imageData.awsS3Key,
+                  fileSize: imageData.fileSize,
+                  format: 'png',
+                  metadata: { source: 'runpod-flux-kontext' },
+                }
+              });
+              resultUrls.push(imageData.awsS3Url);
+              console.log('✅ Flux Kontext image saved with ID:', savedImage.id);
+            } else if (imageData.data) {
+              // Text-to-image with base64 data
+              const imageBuffer = Buffer.from(imageData.data, 'base64');
+              console.log('📏 Image buffer size:', imageBuffer.length, 'bytes');
+              
+              const savedImage = await prisma.generatedImage.create({
+                data: {
+                  clerkId: job.userId,
+                  jobId: jobId,
+                  filename: imageData.filename || `generated_${Date.now()}.png`,
+                  subfolder: '',
+                  type: 'output',
+                  data: imageBuffer,
+                  metadata: { source: 'runpod', nodeId: imageData.node_id },
+                  fileSize: imageBuffer.length,
+                  format: 'png'
+                }
+              });
+              console.log('✅ Text-to-image image saved with ID:', savedImage.id);
+            }
           } catch (error) {
             console.error('❌ Failed to save image:', error);
           }
+        }
+        
+        // Update job with result URLs if we have any
+        if (resultUrls.length > 0) {
+          updateData.resultUrls = resultUrls;
         }
         
         // Update production progress for manager tasks if images were generated

@@ -44,8 +44,7 @@ export async function uploadToAwsS3(
       Body: imageData,
       ContentType: contentType,
       CacheControl: 'public, max-age=31536000', // 1 year cache
-      // Make publicly readable (since we configured bucket policy)
-      ACL: 'public-read'
+      // Note: ACL removed - bucket uses bucket policy for public access instead
     });
     
     await s3Client.send(command);

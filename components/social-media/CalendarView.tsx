@@ -13,7 +13,11 @@ interface Post {
   date: string | null;
   status: InstagramPost["status"];
   type: "POST" | "REEL" | "STORY";
-  driveFileId?: string;
+  driveFileId?: string | null;
+  driveFileUrl?: string | null;
+  awsS3Key?: string | null;
+  awsS3Url?: string | null;
+  mimeType?: string | null;
 }
 
 const CalendarView = () => {
@@ -22,15 +26,6 @@ const CalendarView = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-
-  // Check for Google Drive access token
-  useEffect(() => {
-    const token = localStorage.getItem("google_drive_access_token");
-    if (token) {
-      setGoogleAccessToken(token);
-    }
-  }, []);
 
   // Fetch posts
   useEffect(() => {
@@ -42,12 +37,16 @@ const CalendarView = () => {
         const convertedPosts: Post[] = dbPosts.map((dbPost: InstagramPost) => ({
           id: dbPost.id,
           fileName: dbPost.fileName || "Untitled",
-          image: null, // Will be loaded from Google Drive
+          image: dbPost.awsS3Url || dbPost.driveFileUrl || null,
           caption: dbPost.caption || "",
           date: dbPost.scheduledDate || dbPost.createdAt,
           status: dbPost.status as InstagramPost["status"],
           type: (dbPost.postType || "POST") as "POST" | "REEL" | "STORY",
           driveFileId: dbPost.driveFileId,
+          driveFileUrl: dbPost.driveFileUrl,
+          awsS3Key: dbPost.awsS3Key,
+          awsS3Url: dbPost.awsS3Url,
+          mimeType: dbPost.mimeType,
         }));
         setPosts(convertedPosts);
       } catch (error) {
@@ -59,40 +58,6 @@ const CalendarView = () => {
 
     loadPosts();
   }, [isLoaded, user]);
-
-  // Load blob URLs for posts from Google Drive
-  useEffect(() => {
-    const loadPostBlobUrls = async () => {
-      if (!googleAccessToken) return;
-
-      for (const post of posts) {
-        if (post.driveFileId && !post.image) {
-          try {
-            const downloadUrl = `https://www.googleapis.com/drive/v3/files/${post.driveFileId}?alt=media`;
-            const response = await fetch(downloadUrl, {
-              headers: {
-                Authorization: `Bearer ${googleAccessToken}`,
-              },
-            });
-
-            if (response.ok) {
-              const blob = await response.blob();
-              const blobUrl = URL.createObjectURL(blob);
-              setPosts((prev) =>
-                prev.map((p) =>
-                  p.id === post.id ? { ...p, image: blobUrl } : p
-                )
-              );
-            }
-          } catch (error) {
-            console.error(`Error loading blob for post ${post.id}:`, error);
-          }
-        }
-      }
-    };
-
-    loadPostBlobUrls();
-  }, [posts.length, googleAccessToken]);
 
   // Get posts for a specific date
   const getPostsForDate = (date: Date) => {

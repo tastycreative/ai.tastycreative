@@ -9,6 +9,14 @@
     "app/api/**/*.ts": {
       "maxDuration": 60
     },
+    "app/api/s3/upload/**/*.ts": {
+      "maxDuration": 120,
+      "memory": 1024
+    },
+    "app/api/s3/copy/**/*.ts": {
+      "maxDuration": 60,
+      "memory": 512
+    },
     "app/api/user/influencers/**/*.ts": {
       "maxDuration": 300,
       "memory": 1024

@@ -75,6 +75,8 @@ export async function POST(request: NextRequest) {
     const {
       driveFileId,
       driveFileUrl,
+      awsS3Key,
+      awsS3Url,
       fileName,
       caption = '',
       scheduledDate,
@@ -84,9 +86,19 @@ export async function POST(request: NextRequest) {
       mimeType,
     } = body;
 
-    if (!driveFileId || !driveFileUrl || !fileName || !folder) {
+    if (!fileName || !folder) {
       return NextResponse.json(
-        { error: 'Missing required fields: driveFileId, driveFileUrl, fileName, or folder' },
+        { error: 'Missing required fields: fileName or folder' },
+        { status: 400 }
+      );
+    }
+
+    const hasS3Payload = Boolean(awsS3Key && awsS3Url);
+    const hasDrivePayload = Boolean(driveFileId && driveFileUrl);
+
+    if (!hasS3Payload && !hasDrivePayload) {
+      return NextResponse.json(
+        { error: 'Missing media reference: provide awsS3Key/awsS3Url or driveFileId/driveFileUrl' },
         { status: 400 }
       );
     }
@@ -103,8 +115,10 @@ export async function POST(request: NextRequest) {
     const post = await prisma.instagramPost.create({
       data: {
         clerkId: userId,
-        driveFileId,
-        driveFileUrl,
+  driveFileId: hasDrivePayload ? driveFileId : null,
+  driveFileUrl: hasDrivePayload ? driveFileUrl : null,
+  awsS3Key: hasS3Payload ? awsS3Key : null,
+  awsS3Url: hasS3Payload ? awsS3Url : null,
         fileName,
         caption,
         scheduledDate: scheduledDate ? new Date(scheduledDate) : null,

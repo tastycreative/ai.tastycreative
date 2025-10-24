@@ -4,6 +4,7 @@ import { prisma, withRetry } from '@/lib/database';
 import { google } from 'googleapis';
 import { recordPostChange, notifyPostChange } from '@/lib/post-change-tracker';
 import { createInAppNotification } from '@/lib/notification-service';
+import { deleteFromAwsS3 } from '@/lib/awsS3Utils';
 
 // Helper to initialize Google Drive client
 function getDriveClient(accessToken: string) {
@@ -81,7 +82,22 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { caption, scheduledDate, status, postType, rejectionReason, instagramUrl, publishedAt } = body;
+    const {
+      caption,
+      scheduledDate,
+      status,
+      postType,
+      rejectionReason,
+      instagramUrl,
+      publishedAt,
+      driveFileId,
+      driveFileUrl,
+      awsS3Key,
+      awsS3Url,
+      fileName,
+      folder,
+      mimeType,
+    } = body;
 
     // Get current user's role from database
     const currentUser = await withRetry(() => 
@@ -131,6 +147,13 @@ export async function PATCH(
           // Handle Instagram URL and published date
           ...(instagramUrl !== undefined && { instagramUrl }),
           ...(publishedAt !== undefined && { publishedAt: publishedAt ? new Date(publishedAt) : null }),
+          ...(driveFileId !== undefined && { driveFileId }),
+          ...(driveFileUrl !== undefined && { driveFileUrl }),
+          ...(awsS3Key !== undefined && { awsS3Key }),
+          ...(awsS3Url !== undefined && { awsS3Url }),
+          ...(fileName !== undefined && { fileName }),
+          ...(folder !== undefined && { folder }),
+          ...(mimeType !== undefined && { mimeType }),
           // Handle rejection
           ...(status === 'DRAFT' && rejectionReason && {
             rejectedAt: new Date(),
@@ -190,7 +213,7 @@ export async function PATCH(
                 metadata: { 
                   postId: updatedPost.id,
                   fileName: updatedPost.fileName,
-                  imageUrl: updatedPost.driveFileUrl,
+                  imageUrl: updatedPost.awsS3Url || updatedPost.driveFileUrl || undefined,
                   status: status,
                 },
                 read: false,
@@ -245,9 +268,10 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const { searchParams } = new URL(request.url);
-    const deleteFromDrive = searchParams.get('deleteFromDrive') === 'true';
-    const accessToken = searchParams.get('accessToken');
+  const { searchParams } = new URL(request.url);
+  const deleteFromStorageParam = searchParams.get('deleteFromStorage') === 'true';
+  const deleteFromDriveParam = searchParams.get('deleteFromDrive') === 'true';
+  const accessToken = searchParams.get('accessToken');
 
     // Get current user's role from database
     const currentUser = await prisma.user.findUnique({
@@ -281,18 +305,41 @@ export async function DELETE(
       );
     }
 
-    // Delete from Google Drive if requested
-    if (deleteFromDrive && accessToken && post.driveFileId) {
+    const shouldDeleteFromStorage = deleteFromStorageParam || deleteFromDriveParam;
+
+    let deletedFromS3 = false;
+    if (shouldDeleteFromStorage && post.awsS3Key) {
+      try {
+        const result = await deleteFromAwsS3(post.awsS3Key);
+        deletedFromS3 = result.success;
+        if (!result.success) {
+          console.error(`⚠️ Failed to delete from AWS S3 for key ${post.awsS3Key}: ${result.error}`);
+        }
+      } catch (s3Error) {
+        console.error('⚠️ Unexpected error deleting from AWS S3:', s3Error);
+      }
+    }
+
+    let deletedFromDrive = false;
+    const shouldDeleteDrive =
+      (deleteFromDriveParam || (deleteFromStorageParam && !post.awsS3Key)) &&
+      Boolean(post.driveFileId) &&
+      Boolean(accessToken);
+
+    if (shouldDeleteDrive && accessToken && post.driveFileId) {
       try {
         const drive = getDriveClient(accessToken);
         await drive.files.delete({
           fileId: post.driveFileId,
         });
+        deletedFromDrive = true;
         console.log(`🗑️ Deleted file from Google Drive: ${post.driveFileId}`);
       } catch (driveError) {
         console.error('⚠️ Failed to delete from Google Drive:', driveError);
         // Continue with database deletion even if Drive deletion fails
       }
+    } else if ((deleteFromDriveParam || deleteFromStorageParam) && post.driveFileId && !accessToken) {
+      console.warn('⚠️ Skipping Google Drive deletion due to missing access token');
     }
 
     // Delete from database
@@ -315,7 +362,8 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       message: 'Post deleted successfully',
-      deletedFromDrive: deleteFromDrive,
+      deletedFromS3,
+      deletedFromDrive,
     });
   } catch (error) {
     console.error('❌ Error deleting Instagram post:', error);

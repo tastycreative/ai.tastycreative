@@ -7,6 +7,7 @@ import { getBestMediaUrl, getBandwidthStats, getDownloadUrl } from "@/lib/direct
 import BandwidthStats from "@/components/BandwidthStats";
 import { useInView } from "react-intersection-observer";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
+import { uploadToS3, S3_FOLDERS, S3_UPLOAD_FOLDERS, type S3File } from "@/lib/s3-helpers";
 import { Users } from "lucide-react";
 import {
   ImageIcon,
@@ -36,7 +37,6 @@ import {
   FolderOpen,
   CheckCircle,
   Share,
-  ExternalLink,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -82,6 +82,9 @@ interface GeneratedImage {
   networkVolumePath?: string; // Path on network volume (RunPod)
   awsS3Key?: string; // AWS S3 key for primary storage
   awsS3Url?: string; // AWS S3 public URL for direct access
+  googleDriveFileId?: string | null;
+  googleDriveFolderName?: string | null;
+  googleDriveUploadedAt?: Date | string | null;
   createdAt: Date | string;
   jobId: string;
 }
@@ -103,6 +106,9 @@ interface GeneratedVideo {
   networkVolumePath?: string; // Path on network volume (RunPod)
   awsS3Key?: string; // AWS S3 key for primary storage
   awsS3Url?: string; // AWS S3 public URL for direct access
+  googleDriveFileId?: string | null;
+  googleDriveFolderName?: string | null;
+  googleDriveUploadedAt?: Date | string | null;
   createdAt: Date | string;
   jobId: string;
 }
@@ -111,9 +117,9 @@ interface ContentItem extends GeneratedImage {
   itemType: "image" | "video";
   duration?: number; // For videos
   fps?: number; // For videos
-  googleDriveFileId?: string | null; // Google Drive sync status
-  googleDriveFolderName?: string | null; // Folder where uploaded
-  googleDriveUploadedAt?: Date | null; // Upload timestamp
+  stagingStorageKey?: string | null; // S3 staging key (legacy drive field)
+  stagingStorageFolder?: string | null; // S3 staging folder name
+  stagingStorageUploadedAt?: Date | null; // Timestamp for latest staging upload
 }
 
 interface ImageStats {
@@ -135,26 +141,32 @@ interface VideoStats {
 type ViewMode = "grid" | "list";
 type SortBy = "newest" | "oldest" | "largest" | "smallest" | "name";
 type FilterBy = "all" | "images" | "videos";
-type DriveFolderName = "All Generations" | "IG Posts" | "IG Reels" | "Misc";
-type DriveFolder = DriveFolderName | { id: string; name: string };
+type S3FolderName = (typeof S3_FOLDERS)[number]["name"];
+type S3Folder = {
+  name: S3FolderName;
+  prefix: string;
+};
 type AspectRatio = "all" | "portrait" | "landscape" | "square";
 type LinkedStatus = "all" | "linked" | "unlinked";
 
 // Helper function to get folder name
-const getFolderName = (folder: DriveFolder): string => {
-  return typeof folder === 'string' ? folder : folder.name;
+const getFolderName = (folder: S3FolderName): string => folder;
+
+const getS3FolderByName = (folderName: S3FolderName): S3Folder => {
+  const match = S3_FOLDERS.find((folder) => folder.name === folderName);
+  return match ?? { name: "All Generations", prefix: "outputs/" };
 };
 
-// Helper function to get folder ID
-const getFolderId = (folder: DriveFolder): string => {
-  return typeof folder === 'string' ? folder : folder.id;
+const getS3FolderPrefix = (folderName: S3FolderName): string => {
+  const folder = getS3FolderByName(folderName);
+  return folder.prefix.replace(/\/$/, "");
 };
 
 interface UploadState {
   [itemId: string]: {
     uploading: boolean;
     progress: number;
-    folder?: DriveFolder;
+    folder?: S3FolderName;
     success?: boolean;
     error?: string;
   };
@@ -333,26 +345,19 @@ export default function GeneratedContentPage() {
   const [previewPosition, setPreviewPosition] = useState({ x: 0, y: 0 });
   const previewTimeout = useRef<NodeJS.Timeout | null>(null);
   
-  // Google Drive Upload State
+  // S3 Upload State
   const [uploadStates, setUploadStates] = useState<UploadState>({});
   const [showUploadModal, setShowUploadModal] = useState<ContentItem | null>(null);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Google Drive Integration Enhancement State
+  // S3 Upload Queue State
   const [uploadQueue, setUploadQueue] = useState<Array<{
     id: string;
     item: ContentItem;
-    folder: DriveFolder;
+    folder: S3FolderName;
     progress: number;
     status: 'pending' | 'uploading' | 'completed' | 'failed';
     error?: string;
   }>>([]);
-  const [driveFileIds, setDriveFileIds] = useState<Record<string, string>>({}); // itemId -> driveFileId
-  const [recentFolders, setRecentFolders] = useState<DriveFolder[]>([]);
-  const [showFolderCreate, setShowFolderCreate] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [creatingFolder, setCreatingFolder] = useState(false);
   const [quickUploadItem, setQuickUploadItem] = useState<string | null>(null); // Store item ID for quick upload dropdown
   const [showQueuePanel, setShowQueuePanel] = useState(false);
 
@@ -463,36 +468,6 @@ export default function GeneratedContentPage() {
       fetchLinkedContent();
     }
   }, [apiClient, allContent.length]);
-
-  // Check for OAuth callback tokens in URL
-  useEffect(() => {
-    // First check URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const accessToken = urlParams.get('access_token');
-    
-    if (accessToken) {
-      setGoogleAccessToken(accessToken);
-      localStorage.setItem('google_drive_access_token', accessToken);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      console.log('✅ Google Drive access token received and stored');
-    } else {
-      // Check localStorage for existing token
-      const storedToken = localStorage.getItem('google_drive_access_token');
-      if (storedToken) {
-        setGoogleAccessToken(storedToken);
-        console.log('✅ Google Drive access token loaded from storage');
-      }
-    }
-
-    // Handle OAuth errors
-    const error = urlParams.get('error');
-    if (error) {
-      console.error('❌ OAuth error:', error);
-      alert(`Google Drive authentication failed: ${error}`);
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
 
   // Load presets from localStorage on mount
   useEffect(() => {
@@ -643,6 +618,11 @@ export default function GeneratedContentPage() {
           ...img,
           createdAt: new Date(img.createdAt),
           itemType: "image" as const,
+          stagingStorageKey: img.googleDriveFileId || null,
+          stagingStorageFolder: img.googleDriveFolderName || null,
+          stagingStorageUploadedAt: img.googleDriveUploadedAt
+            ? new Date(img.googleDriveUploadedAt)
+            : null,
         }));
 
         setImages(processedImages);
@@ -658,6 +638,11 @@ export default function GeneratedContentPage() {
           ...video,
           createdAt: new Date(video.createdAt),
           itemType: "video" as const,
+          stagingStorageKey: video.googleDriveFileId || null,
+          stagingStorageFolder: video.googleDriveFolderName || null,
+          stagingStorageUploadedAt: video.googleDriveUploadedAt
+            ? new Date(video.googleDriveUploadedAt)
+            : null,
         }));
 
         setVideos(processedVideos);
@@ -674,6 +659,11 @@ export default function GeneratedContentPage() {
               ...img,
               createdAt: new Date(img.createdAt),
               itemType: "image" as const,
+              stagingStorageKey: img.googleDriveFileId || null,
+              stagingStorageFolder: img.googleDriveFolderName || null,
+              stagingStorageUploadedAt: img.googleDriveUploadedAt
+                ? new Date(img.googleDriveUploadedAt)
+                : null,
             }))
           : []),
         ...(videosData.success && videosData.videos
@@ -681,6 +671,11 @@ export default function GeneratedContentPage() {
               ...video,
               createdAt: new Date(video.createdAt),
               itemType: "video" as const,
+              stagingStorageKey: video.googleDriveFileId || null,
+              stagingStorageFolder: video.googleDriveFolderName || null,
+              stagingStorageUploadedAt: video.googleDriveUploadedAt
+                ? new Date(video.googleDriveUploadedAt)
+                : null,
             }))
           : []),
       ];
@@ -1205,42 +1200,35 @@ export default function GeneratedContentPage() {
     showToast('success', 'Image URL copied to clipboard!');
   };
 
-  // Google Drive Authentication
-  const authenticateGoogleDrive = async () => {
-    try {
-      setIsAuthenticating(true);
-      // Pass current page as redirect parameter
-      const currentPage = '/workspace/generated-content';
-      const response = await fetch(`/api/auth/google?redirect=${encodeURIComponent(currentPage)}`);
-      const data = await response.json();
-      
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      } else {
-        throw new Error('Failed to get authorization URL');
-      }
-    } catch (error) {
-      console.error('Authentication error:', error);
-      showToast('error', 'Failed to start Google Drive authentication');
-      setIsAuthenticating(false);
-    }
-  };
-
-  // Upload to Google Drive
-  const uploadToGoogleDrive = async (item: ContentItem, folder: DriveFolder) => {
+  // Upload generated content to S3 staging bucket
+  const uploadGeneratedItemToS3 = async (
+    item: ContentItem,
+    folder: S3FolderName,
+    options: { onProgress?: (progress: number) => void; silent?: boolean } = {}
+  ) => {
     if (!apiClient) {
       alert("API client not available");
       return;
     }
 
-    if (!googleAccessToken) {
-      alert("Please authenticate with Google Drive first");
-      return;
-    }
+    const folderDetails = getS3FolderByName(folder);
+    const folderLabel = folderDetails.name;
+    const folderPrefix = getS3FolderPrefix(folder);
+
+    const updateProgress = (progress: number) => {
+      setUploadStates(prev => ({
+        ...prev,
+        [item.id]: {
+          ...prev[item.id],
+          progress,
+        },
+      }));
+      options.onProgress?.(progress);
+    };
 
     try {
-      console.log(`📤 Uploading ${item.filename} to Google Drive folder: ${folder}`);
-      
+      console.log(`📤 Uploading ${item.filename} to S3 folder: ${folderLabel} (${folderPrefix})`);
+
       // Set uploading state
       setUploadStates(prev => ({
         ...prev,
@@ -1248,151 +1236,185 @@ export default function GeneratedContentPage() {
           uploading: true,
           progress: 0,
           folder,
-        }
-      }));
-
-      // Get the best URL for the item
-      const mediaUrl = getBestMediaUrl({
-        awsS3Key: item.awsS3Key,
-        awsS3Url: item.awsS3Url,
-        s3Key: item.s3Key,
-        networkVolumePath: item.networkVolumePath,
-        dataUrl: item.dataUrl,
-        url: item.url,
-        id: item.id,
-        filename: item.filename,
-        type: item.itemType === "video" ? 'video' : 'image'
-      });
-
-      if (!mediaUrl) {
-        throw new Error("No media URL available for upload");
-      }
-
-      console.log(`📥 Fetching media from: ${mediaUrl}`);
-
-      // Update progress
-      setUploadStates(prev => ({
-        ...prev,
-        [item.id]: {
-          ...prev[item.id],
-          progress: 25,
-        }
-      }));
-
-      // Create form data for upload
-      const formData = new FormData();
-      
-      // Fetch the media file with proper headers and error handling
-      let mediaBlob: Blob;
-      try {
-        // Try direct fetch first
-        const mediaResponse = await fetch(mediaUrl, {
-          method: 'GET',
-          mode: 'cors', // Enable CORS
-          headers: {
-            'Accept': item.itemType === 'video' ? 'video/*' : 'image/*',
-          },
-        });
-        
-        if (!mediaResponse.ok) {
-          throw new Error(`Direct fetch failed: ${mediaResponse.status} ${mediaResponse.statusText}`);
-        }
-        
-        mediaBlob = await mediaResponse.blob();
-        console.log(`✅ Direct media fetch successful, size: ${mediaBlob.size} bytes, type: ${mediaBlob.type}`);
-      } catch (fetchError) {
-        console.error('❌ Direct fetch failed, trying proxy approach:', fetchError);
-        
-        try {
-          // Use our proxy endpoint to fetch the media
-          console.log('🔄 Trying proxy route...');
-          const proxyUrl = `/api/proxy/media?url=${encodeURIComponent(mediaUrl)}`;
-          const proxyResponse = await fetch(proxyUrl);
-          
-          if (!proxyResponse.ok) {
-            throw new Error(`Proxy fetch failed: ${proxyResponse.status} ${proxyResponse.statusText}`);
-          }
-          
-          mediaBlob = await proxyResponse.blob();
-          console.log(`✅ Proxy media fetch successful, size: ${mediaBlob.size} bytes, type: ${mediaBlob.type}`);
-        } catch (proxyError) {
-          console.error('❌ Proxy fetch also failed:', proxyError);
-          
-          // Final fallback: try the dataUrl if available
-          if (item.dataUrl && item.dataUrl.startsWith('/api/')) {
-            console.log('🔄 Final attempt: trying dataUrl API route...');
-            const dataResponse = await fetch(item.dataUrl);
-            if (!dataResponse.ok) {
-              throw new Error(`DataUrl fetch failed: ${dataResponse.status} ${dataResponse.statusText}`);
-            }
-            mediaBlob = await dataResponse.blob();
-            console.log(`✅ DataUrl fetch successful, size: ${mediaBlob.size} bytes`);
-          } else {
-            throw new Error('Unable to fetch media file from any source. Please try again or contact support.');
-          }
-        }
-      }
-      
-      formData.append('file', mediaBlob, item.filename);
-      formData.append('folder', getFolderName(folder));
-      formData.append('filename', item.filename);
-      formData.append('itemType', item.itemType);
-      formData.append('accessToken', googleAccessToken);
-
-      // Update progress
-      setUploadStates(prev => ({
-        ...prev,
-        [item.id]: {
-          ...prev[item.id],
-          progress: 50,
-        }
-      }));
-
-      console.log(`📤 Uploading to Google Drive API...`);
-
-      // Upload to Google Drive via API with enhanced error handling
-      const uploadResponse = await fetch('/api/google-drive/upload', {
-        method: 'POST',
-        body: formData,
-        // Add timeout and headers for better reliability
-        signal: AbortSignal.timeout(120000), // 2 minute timeout
-        headers: {
-          // Don't set Content-Type for FormData - browser will set it with boundary
         },
-      }).catch(fetchError => {
-        console.error('❌ Fetch error details:', fetchError);
-        
-        // Handle specific network errors
-        if (fetchError.name === 'TimeoutError') {
-          throw new Error('Upload timeout - file may be too large or connection is slow');
-        }
-        if (fetchError.name === 'TypeError' && fetchError.message.includes('Failed to fetch')) {
-          throw new Error('Network error - please check your internet connection and try again');
-        }
-        
-        throw fetchError;
-      });
+      }));
 
-      console.log(`📡 Upload response status: ${uploadResponse.status}`);
+      let uploadedFile: S3File | null = null;
 
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error('❌ Upload response error:', errorText);
-        
-        let errorData;
+      // Attempt to copy directly within S3 when the asset already lives there
+      if (item.awsS3Key) {
         try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText };
+          console.log("📤 Attempting server-side S3 copy", {
+            sourceKey: item.awsS3Key,
+            destinationFolder: folderPrefix,
+          });
+          updateProgress(15);
+
+          const copyResponse = await fetch("/api/s3/copy", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              itemId: item.id,
+              itemType: item.itemType,
+              destinationFolder: folderPrefix,
+            }),
+          });
+
+          if (!copyResponse.ok) {
+            const errorData = await copyResponse.json().catch(() => ({ error: copyResponse.statusText }));
+            throw new Error(errorData.error || `Copy failed with status ${copyResponse.status}`);
+          }
+
+          const copyData = await copyResponse.json();
+          uploadedFile = copyData.file as S3File;
+          console.log("✅ Server-side copy completed", uploadedFile);
+          updateProgress(70);
+        } catch (copyError) {
+          console.warn("⚠️ S3 copy optimisation failed, falling back to re-upload:", copyError);
+          uploadedFile = null;
         }
-        
-        throw new Error(errorData.error || `Upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
       }
 
-      const result = await uploadResponse.json();
-      console.log('✅ Upload response:', result);
-      
-      // Set success state
+      if (!uploadedFile) {
+        // Get the best URL for the item
+        const mediaUrl = getBestMediaUrl({
+          awsS3Key: item.awsS3Key,
+          awsS3Url: item.awsS3Url,
+          s3Key: item.s3Key,
+          networkVolumePath: item.networkVolumePath,
+          dataUrl: item.dataUrl,
+          url: item.url,
+          id: item.id,
+          filename: item.filename,
+          type: item.itemType === "video" ? "video" : "image",
+        });
+
+        if (!mediaUrl) {
+          throw new Error("No media URL available for upload");
+        }
+
+        console.log(`📥 Fetching media from: ${mediaUrl}`);
+        updateProgress(25);
+
+        // Fetch the media file with proper headers and error handling
+        let mediaBlob: Blob;
+        try {
+          // Try direct fetch first
+          const mediaResponse = await fetch(mediaUrl, {
+            method: "GET",
+            mode: "cors",
+            headers: {
+              Accept: item.itemType === "video" ? "video/*" : "image/*",
+            },
+          });
+
+          if (!mediaResponse.ok) {
+            throw new Error(`Direct fetch failed: ${mediaResponse.status} ${mediaResponse.statusText}`);
+          }
+
+          mediaBlob = await mediaResponse.blob();
+          console.log(
+            `✅ Direct media fetch successful, size: ${mediaBlob.size} bytes, type: ${mediaBlob.type}`
+          );
+        } catch (fetchError) {
+          console.error("❌ Direct fetch failed, trying proxy approach:", fetchError);
+
+          try {
+            // Use proxy endpoint to fetch the media
+            console.log("🔄 Trying proxy route...");
+            const proxyUrl = `/api/proxy/media?url=${encodeURIComponent(mediaUrl)}`;
+            const proxyResponse = await fetch(proxyUrl);
+
+            if (!proxyResponse.ok) {
+              throw new Error(`Proxy fetch failed: ${proxyResponse.status} ${proxyResponse.statusText}`);
+            }
+
+            mediaBlob = await proxyResponse.blob();
+            console.log(
+              `✅ Proxy media fetch successful, size: ${mediaBlob.size} bytes, type: ${mediaBlob.type}`
+            );
+          } catch (proxyError) {
+            console.error("❌ Proxy fetch also failed:", proxyError);
+
+            // Final fallback: try the dataUrl if available
+            if (item.dataUrl && item.dataUrl.startsWith("/api/")) {
+              console.log("🔄 Final attempt: trying dataUrl API route...");
+              const dataResponse = await fetch(item.dataUrl);
+              if (!dataResponse.ok) {
+                throw new Error(`DataUrl fetch failed: ${dataResponse.status} ${dataResponse.statusText}`);
+              }
+              mediaBlob = await dataResponse.blob();
+              console.log(`✅ DataUrl fetch successful, size: ${mediaBlob.size} bytes`);
+            } else {
+              throw new Error(
+                "Unable to fetch media file from any source. Please try again or contact support."
+              );
+            }
+          }
+        }
+
+        updateProgress(50);
+
+        const fallbackMime = item.itemType === "video" ? "video/mp4" : "image/png";
+        const uploadFile = new File([mediaBlob], item.filename, {
+          type: mediaBlob.type || fallbackMime,
+          lastModified: Date.now(),
+        });
+
+        console.log("🚀 Uploading file to S3 via /api/s3/upload", {
+          name: uploadFile.name,
+          size: uploadFile.size,
+          type: uploadFile.type,
+        });
+
+        updateProgress(70);
+        uploadedFile = await uploadToS3(uploadFile, folderPrefix);
+        updateProgress(85);
+      }
+
+      if (!uploadedFile) {
+        throw new Error("Failed to stage item on S3");
+      }
+
+      updateProgress(90);
+
+      // Persist S3 metadata to database for quick discovery later
+      try {
+        const response = await fetch("/api/generated-content/update-drive-sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            itemId: item.id,
+            itemType: item.itemType,
+            folderName: folderLabel,
+            driveFileId: uploadedFile.key,
+            s3Key: uploadedFile.key,
+            s3Url: uploadedFile.url,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+          console.error("❌ Failed to persist S3 metadata:", errorData);
+          throw new Error(errorData.error || "Failed to save S3 metadata");
+        }
+
+        console.log("✅ S3 metadata saved to database");
+        await fetchContent();
+      } catch (metadataError) {
+        console.error("⚠️ S3 metadata save warning:", metadataError);
+        if (!options.silent) {
+          showToast(
+            "warning",
+            "Upload succeeded but failed to store metadata. Please refresh and verify manually."
+          );
+        }
+      }
+
       setUploadStates(prev => ({
         ...prev,
         [item.id]: {
@@ -1400,11 +1422,17 @@ export default function GeneratedContentPage() {
           progress: 100,
           folder,
           success: true,
-        }
+        },
       }));
 
-      console.log(`✅ Successfully uploaded ${item.filename} to ${folder}`);
-      
+      updateProgress(100);
+
+      console.log(`✅ Successfully uploaded ${item.filename} to S3 folder ${folderLabel}`);
+
+      if (!options.silent) {
+        showToast("success", `${item.filename} uploaded to ${folderLabel}`);
+      }
+
       // Clear success state after 3 seconds
       setTimeout(() => {
         setUploadStates(prev => {
@@ -1414,21 +1442,23 @@ export default function GeneratedContentPage() {
         });
       }, 3000);
 
+      return uploadedFile;
     } catch (error) {
-      console.error('💥 Google Drive upload error:', error);
-      
+      console.error("💥 S3 upload error:", error);
+
       setUploadStates(prev => ({
         ...prev,
         [item.id]: {
           uploading: false,
           progress: 0,
           folder,
-          error: error instanceof Error ? error.message : 'Upload failed'
-        }
+          error: error instanceof Error ? error.message : "Upload failed",
+        },
       }));
 
-      // Show user-friendly error message
-      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (!options.silent) {
+        alert(`Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
 
       // Clear error state after 5 seconds
       setTimeout(() => {
@@ -1438,6 +1468,19 @@ export default function GeneratedContentPage() {
           return newState;
         });
       }, 5000);
+
+      throw error;
+    }
+  };
+
+  const handleModalUpload = async (folder: S3FolderName) => {
+    if (!showUploadModal) return;
+    try {
+      await uploadGeneratedItemToS3(showUploadModal, folder);
+    } catch (error) {
+      console.error('Modal upload error:', error);
+    } finally {
+      setShowUploadModal(null);
     }
   };
 
@@ -1918,7 +1961,7 @@ export default function GeneratedContentPage() {
     }
   };
 
-  const bulkUploadToDrive = () => {
+  const bulkUploadToS3 = () => {
     setShowBulkMenu(false);
     // Open the upload modal for the first selected item (or handle multiple)
     const firstItem = allContent.find(item => selectedItems.has(item.id));
@@ -2033,7 +2076,7 @@ export default function GeneratedContentPage() {
     closeContextMenu();
   };
 
-  const contextMenuUploadToDrive = () => {
+  const contextMenuUploadToS3 = () => {
     if (contextMenu?.item) {
       setShowUploadModal(contextMenu.item);
     }
@@ -2353,113 +2396,66 @@ export default function GeneratedContentPage() {
     };
   };
 
-  // === Google Drive Integration Enhancement Functions ===
+  // === S3 Staging Upload Helpers ===
 
-  // Quick upload to Google Drive (from grid card)
-  const quickUploadToDrive = async (item: ContentItem, folder: DriveFolder) => {
-    if (!googleAccessToken) {
-      showToast('error', 'Please authenticate with Google Drive first');
-      authenticateGoogleDrive();
-      return;
-    }
-
-    // Add to upload queue
+  // Quick upload to S3 (triggered from grid card shortcut)
+  const quickUploadToS3 = async (item: ContentItem, folder: S3FolderName) => {
     const queueId = Math.random().toString(36).substring(7);
     const newQueueItem = {
       id: queueId,
       item,
       folder,
       progress: 0,
-      status: 'pending' as const
+      status: 'pending' as const,
     };
 
     setUploadQueue(prev => [...prev, newQueueItem]);
     setShowQueuePanel(true);
 
-    // Add folder to recent folders
-    addToRecentFolders(folder);
-
-    // Start upload
     await processUploadQueue(queueId, item, folder);
   };
 
   // Process upload queue item
-  const processUploadQueue = async (queueId: string, item: ContentItem, folder: DriveFolder) => {
+  const processUploadQueue = async (queueId: string, item: ContentItem, folder: S3FolderName) => {
     try {
-      // Update status to uploading
+      const folderLabel = getS3FolderByName(folder).name;
+
       setUploadQueue(prev =>
-        prev.map(q => q.id === queueId ? { ...q, status: 'uploading' as const } : q)
+        prev.map(q => (q.id === queueId ? { ...q, status: 'uploading' as const, progress: 5 } : q))
       );
 
-      // Simulate progress (replace with actual upload)
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setUploadQueue(prev =>
-          prev.map(q => q.id === queueId ? { ...q, progress: i } : q)
-        );
-      }
+      await uploadGeneratedItemToS3(item, folder, {
+        silent: true,
+        onProgress: progress => {
+          setUploadQueue(prev =>
+            prev.map(q => (q.id === queueId ? { ...q, progress } : q))
+          );
+        },
+      });
 
-      // Mark as completed
       setUploadQueue(prev =>
-        prev.map(q => q.id === queueId ? { ...q, status: 'completed' as const, progress: 100 } : q)
+        prev.map(q =>
+          q.id === queueId
+            ? { ...q, status: 'completed' as const, progress: 100 }
+            : q
+        )
       );
 
-      // Store Drive file ID (simulated)
-      const driveFileId = `drive_${Math.random().toString(36).substring(7)}`;
+      showToast('success', `${item.filename} uploaded to ${folderLabel}`);
 
-      // Persist to database
-      try {
-        const response = await fetch('/api/generated-content/update-drive-sync', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            itemId: item.id,
-            itemType: item.itemType,
-            driveFileId: driveFileId,
-            folderName: getFolderName(folder)
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          console.error('❌ API Error Response:', {
-            status: response.status,
-            statusText: response.statusText,
-            error: errorData
-          });
-          throw new Error(errorData.error || 'Failed to update database');
-        }
-
-        const result = await response.json();
-        console.log('✅ API Success Response:', result);
-
-        // Update local state to show the sync indicator immediately
-        setDriveFileIds(prev => ({ ...prev, [item.id]: driveFileId }));
-        
-        // Refresh content from database to get the updated sync status
-        await fetchContent();
-        
-        console.log('✅ Google Drive sync status saved to database');
-      } catch (error) {
-        console.error('❌ Failed to save Google Drive sync status:', error);
-        showToast('warning', 'Upload succeeded but failed to save sync status');
-      }
-
-      showToast('success', `${item.filename} uploaded to ${getFolderName(folder)}`);
-
-      // Auto-remove from queue after 3 seconds
       setTimeout(() => {
         setUploadQueue(prev => prev.filter(q => q.id !== queueId));
       }, 3000);
-
     } catch (error) {
       console.error('Upload queue error:', error);
       setUploadQueue(prev =>
-        prev.map(q => 
-          q.id === queueId 
-            ? { ...q, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' }
+        prev.map(q =>
+          q.id === queueId
+            ? {
+                ...q,
+                status: 'failed' as const,
+                error: error instanceof Error ? error.message : 'Upload failed',
+              }
             : q
         )
       );
@@ -2467,70 +2463,13 @@ export default function GeneratedContentPage() {
     }
   };
 
-  // Add folder to recent folders
-  const addToRecentFolders = (folder: DriveFolder) => {
-    setRecentFolders(prev => {
-      // Remove if already exists
-      const filtered = prev.filter(f => getFolderId(f) !== getFolderId(folder));
-      // Add to beginning
-      const updated = [folder, ...filtered];
-      // Keep only last 5
-      return updated.slice(0, 5);
-    });
-  };
-
-  // Create new Google Drive folder
-  const createDriveFolder = async () => {
-    if (!newFolderName.trim()) {
-      showToast('warning', 'Please enter a folder name');
-      return;
-    }
-
-    if (!googleAccessToken) {
-      showToast('error', 'Please authenticate with Google Drive first');
-      return;
-    }
-
-    setCreatingFolder(true);
-
-    try {
-      // Simulate folder creation (replace with actual API call)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newFolder: DriveFolder = {
-        id: `folder_${Math.random().toString(36).substring(7)}`,
-        name: newFolderName.trim()
-      };
-
-      // Add to recent folders
-      addToRecentFolders(newFolder);
-
-      showToast('success', `Folder "${getFolderName(newFolder)}" created`);
-      setNewFolderName('');
-      setShowFolderCreate(false);
-
-      // If quick upload is active, upload to new folder
-      if (quickUploadItem) {
-        const item = allContent.find((i: ContentItem) => i.id === quickUploadItem);
-        if (item) {
-          quickUploadToDrive(item, newFolder);
-        }
-        setQuickUploadItem(null);
-      }
-
-    } catch (error) {
-      console.error('Folder creation error:', error);
-      showToast('error', 'Failed to create folder');
-    } finally {
-      setCreatingFolder(false);
-    }
-  };
-
-  // Check if item is synced to Drive
-  const isItemSyncedToDrive = (itemId: string): boolean => {
-    // Check if item has googleDriveFileId in database
+  // Check if item is already staged to S3
+  const isItemStagedToS3 = (itemId: string): boolean => {
     const item = allContent.find(i => i.id === itemId);
-    return !!item?.googleDriveFileId;
+    return Boolean(
+      item?.stagingStorageKey ||
+      item?.googleDriveFileId
+    );
   };
 
   // Retry failed upload
@@ -2971,11 +2910,11 @@ export default function GeneratedContentPage() {
                 <span>Download</span>
               </button>
               <button
-                onClick={bulkUploadToDrive}
+                onClick={bulkUploadToS3}
                 className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
               >
                 <Cloud className="w-4 h-4" />
-                <span>Upload to Drive</span>
+                <span>Upload to S3</span>
               </button>
               <button
                 onClick={bulkDelete}
@@ -3653,7 +3592,7 @@ export default function GeneratedContentPage() {
                         ) : uploadStates[item.id].success ? (
                           <div className="bg-green-500/90 text-white px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm border border-green-400/50 flex items-center space-x-1">
                             <CheckCircle className="w-3 h-3" />
-                            <span>Uploaded to {uploadStates[item.id].folder ? getFolderName(uploadStates[item.id].folder!) : 'Drive'}</span>
+                            <span>Uploaded to {uploadStates[item.id].folder ? getFolderName(uploadStates[item.id].folder!) : 'S3'}</span>
                           </div>
                         ) : uploadStates[item.id].error ? (
                           <div className="bg-red-500/90 text-white px-2 py-1 rounded-lg text-xs font-medium backdrop-blur-sm border border-red-400/50 flex items-center space-x-1">
@@ -3758,17 +3697,17 @@ export default function GeneratedContentPage() {
                           <Download className="w-4 h-4" />
                         </button>
                         
-                        {/* Quick Upload to Drive with Folder Dropdown */}
+                        {/* Quick Upload to S3 with Folder Dropdown */}
                         <div className="relative">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setQuickUploadItem(quickUploadItem === item.id ? null : item.id);
                             }}
-                            className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} ${isItemSyncedToDrive(item.id) ? 'bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400'} rounded-lg transition-all duration-200`}
-                            title={isItemSyncedToDrive(item.id) ? "Already in Google Drive - Upload again" : "Upload to Google Drive"}
+                            className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} ${isItemStagedToS3(item.id) ? 'bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400'} rounded-lg transition-all duration-200`}
+                            title={isItemStagedToS3(item.id) ? "Already staged on S3 - Upload again" : "Upload to S3 staging"}
                           >
-                            {isItemSyncedToDrive(item.id) ? (
+                            {isItemStagedToS3(item.id) ? (
                               <CheckCircle className="w-4 h-4" />
                             ) : (
                               <Cloud className="w-4 h-4" />
@@ -3787,60 +3726,23 @@ export default function GeneratedContentPage() {
                                 </div>
                                 
                                 {/* Predefined Folders */}
-                                {(["All Generations", "IG Posts", "IG Reels", "Misc"] as DriveFolderName[]).map((folder) => (
+                                {S3_UPLOAD_FOLDERS.map((folder) => (
                                   <button
-                                    key={folder}
+                                    key={folder.prefix}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      quickUploadToDrive(item, folder);
+                                      quickUploadToS3(item, folder.name);
                                       setQuickUploadItem(null);
                                     }}
                                     className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150"
                                   >
                                     <Folder className="w-4 h-4 text-blue-500" />
-                                    <span>{folder}</span>
+                                    <span>{folder.name}</span>
                                   </button>
                                 ))}
 
-                                {/* Recent Folders */}
-                                {recentFolders.length > 0 && (
-                                  <>
-                                    <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
-                                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 py-1">
-                                      Recent:
-                                    </div>
-                                    {recentFolders.map((folder) => (
-                                      <button
-                                        key={typeof folder === 'string' ? folder : folder.id}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          quickUploadToDrive(item, folder);
-                                          setQuickUploadItem(null);
-                                        }}
-                                        className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150"
-                                      >
-                                        <Clock className="w-4 h-4 text-gray-400" />
-                                        <span>{getFolderName(folder)}</span>
-                                      </button>
-                                    ))}
-                                  </>
-                                )}
-
-                                {/* Create New Folder */}
-                                <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowFolderCreate(true);
-                                    setQuickUploadItem(null);
-                                  }}
-                                  className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150 font-medium"
-                                >
-                                  <Plus className="w-4 h-4" />
-                                  <span>Create New Folder</span>
-                                </button>
-
                                 {/* Full Upload Modal Option */}
+                                <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -3883,7 +3785,7 @@ export default function GeneratedContentPage() {
                     </div>
 
                     {/* Status Indicators Below Buttons */}
-                    {(isLinked || isItemSyncedToDrive(item.id)) && (
+                    {(isLinked || isItemStagedToS3(item.id)) && (
                       <div className="flex items-center gap-2 mt-3 flex-wrap">
                         {/* Linked Indicator */}
                         {isLinked && (
@@ -3896,11 +3798,11 @@ export default function GeneratedContentPage() {
                           </div>
                         )}
 
-                        {/* Google Drive Sync Indicator */}
-                        {isItemSyncedToDrive(item.id) && (
+                        {/* S3 Staging Indicator */}
+                        {isItemStagedToS3(item.id) && (
                           <div 
                             className="inline-flex items-center space-x-1.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2.5 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-xs font-medium"
-                            title="Synced to Google Drive"
+                            title="Synced to S3 staging"
                           >
                             <Cloud className="w-3.5 h-3.5" />
                             <CheckCircle className="w-3 h-3" />
@@ -4184,11 +4086,11 @@ export default function GeneratedContentPage() {
           </button>
           
           <button
-            onClick={contextMenuUploadToDrive}
+            onClick={contextMenuUploadToS3}
             className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
           >
             <Cloud className="w-4 h-4" />
-            <span>Upload to Drive</span>
+            <span>Upload to S3</span>
           </button>
           
           <button
@@ -4601,7 +4503,7 @@ export default function GeneratedContentPage() {
         </div>
       )}
 
-      {/* Google Drive Upload Modal */}
+  {/* S3 Upload Modal */}
       {showUploadModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
@@ -4642,78 +4544,45 @@ export default function GeneratedContentPage() {
               </div>
             </div>
 
-            {/* Google Drive Authentication Status */}
-            {!googleAccessToken ? (
-              <div className="mb-6">
-                <div className="flex items-center space-x-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                  <AlertCircle className="w-5 h-5 text-yellow-600" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                      Google Drive Authentication Required
-                    </p>
-                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-                      Please authenticate with Google Drive to upload files.
-                    </p>
-                  </div>
+            {/* S3 Upload Options */}
+            <div className="mb-4">
+              <div className="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <Cloud className="w-5 h-5 text-blue-600" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    Upload to AWS S3 staging
+                  </p>
+                  <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+                    Pick a staging folder. We will upload the original file and store metadata automatically.
+                  </p>
                 </div>
-                <button
-                  onClick={authenticateGoogleDrive}
-                  disabled={isAuthenticating}
-                  className="w-full mt-4 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
-                >
-                  {isAuthenticating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Authenticating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink className="w-4 h-4" />
-                      <span>Authenticate with Google Drive</span>
-                    </>
-                  )}
-                </button>
               </div>
-            ) : (
-              <>
-                <div className="mb-4">
-                  <div className="flex items-center space-x-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                      Google Drive Connected
-                    </p>
-                  </div>
-                </div>
+            </div>
 
-                <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Select Google Drive folder:
-                  </label>
-                  <div className="grid grid-cols-1 gap-2">
-                    {(["All Generations", "IG Posts", "IG Reels", "Misc"] as DriveFolderName[]).map((folder) => (
-                      <button
-                        key={folder}
-                        onClick={() => {
-                          uploadToGoogleDrive(showUploadModal, folder);
-                          setShowUploadModal(null);
-                        }}
-                        className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 group"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <FolderOpen className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
-                          <span className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                            {folder}
-                          </span>
-                        </div>
-                        <div className="text-gray-400 group-hover:text-blue-500">
-                          <Upload className="w-4 h-4" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Choose an S3 folder:
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                {S3_UPLOAD_FOLDERS.map((folder) => (
+                  <button
+                    key={folder.prefix}
+                    onClick={() => handleModalUpload(folder.name)}
+                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 group"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <FolderOpen className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                      <span className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                        {folder.name}
+                      </span>
+                    </div>
+                    <div className="text-gray-400 group-hover:text-blue-500">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="flex justify-end space-x-3">
               <button
@@ -5133,76 +5002,6 @@ export default function GeneratedContentPage() {
         </div>
       )}
 
-      {/* Create Folder Modal */}
-      {showFolderCreate && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={() => setShowFolderCreate(false)}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-200 dark:border-gray-700"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
-                <Folder className="w-5 h-5 text-blue-500" />
-                <span>Create New Folder</span>
-              </h3>
-              <button
-                onClick={() => setShowFolderCreate(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Folder Name
-              </label>
-              <input
-                type="text"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newFolderName.trim()) {
-                    createDriveFolder();
-                  }
-                }}
-                placeholder="Enter folder name..."
-                className="w-full px-4 py-3 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-400"
-                autoFocus
-              />
-            </div>
-
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowFolderCreate(false)}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createDriveFolder}
-                disabled={!newFolderName.trim() || creatingFolder}
-                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
-              >
-                {creatingFolder ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Creating...</span>
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    <span>Create Folder</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

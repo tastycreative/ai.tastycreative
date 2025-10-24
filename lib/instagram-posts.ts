@@ -3,8 +3,10 @@
 export interface InstagramPost {
   id: string;
   clerkId: string;
-  driveFileId: string;
-  driveFileUrl: string;
+  driveFileId: string | null;
+  driveFileUrl: string | null;
+  awsS3Key: string | null;
+  awsS3Url: string | null;
   fileName: string;
   caption: string;
   scheduledDate: string | null;
@@ -23,8 +25,10 @@ export interface InstagramPost {
 }
 
 export interface CreatePostData {
-  driveFileId: string;
-  driveFileUrl: string;
+  driveFileId?: string | null;
+  driveFileUrl?: string | null;
+  awsS3Key?: string | null;
+  awsS3Url?: string | null;
   fileName: string;
   caption?: string;
   scheduledDate?: string | null;
@@ -120,14 +124,11 @@ export async function updateInstagramPost(id: string, updates: UpdatePostData): 
 // Delete a post
 export async function deleteInstagramPost(
   id: string, 
-  options?: { deleteFromDrive?: boolean; accessToken?: string }
+  options?: { deleteFromStorage?: boolean }
 ): Promise<void> {
   const params = new URLSearchParams();
-  if (options?.deleteFromDrive) {
-    params.append('deleteFromDrive', 'true');
-  }
-  if (options?.accessToken) {
-    params.append('accessToken', options.accessToken);
+  if (options?.deleteFromStorage) {
+    params.append('deleteFromStorage', 'true');
   }
   
   const url = `/api/instagram-posts/${id}${params.toString() ? `?${params.toString()}` : ''}`;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -33,6 +33,12 @@ import {
   updatePostsOrder,
   type InstagramPost,
 } from "@/lib/instagram-posts";
+import {
+  initializeS3Folders,
+  loadS3Folder,
+  type S3Folder,
+  type S3File,
+} from "@/lib/s3-helpers";
 import QueueTimelineView from "./QueueTimelineView";
 import WorkflowGuide from "./WorkflowGuide";
 import { ExportButton } from "./ExportButton";
@@ -78,7 +84,9 @@ interface Post {
   status: "DRAFT" | "REVIEW" | "APPROVED" | "SCHEDULED" | "PENDING" | "PUBLISHED";
   type: "POST" | "REEL" | "STORY";
   date: string;
-  driveFileId: string;
+  driveFileId?: string | null;
+  awsS3Key?: string | null;
+  awsS3Url?: string | null;
   originalFolder: string;
   order: number;
   fileName: string;
@@ -88,25 +96,6 @@ interface Post {
   rejectedBy?: string | null;
   instagramUrl?: string | null;
   publishedAt?: string | null;
-}
-
-interface GoogleDriveFile {
-  id: string;
-  name: string;
-  webViewLink: string;
-  webContentLink: string;
-  thumbnailLink?: string;
-  mimeType: string;
-  size: string;
-  modifiedTime: string;
-}
-
-interface GoogleDriveFolder {
-  name: string;
-  id: string;
-  files: GoogleDriveFile[];
-  loading: boolean;
-  error?: string;
 }
 
 // Helper function to convert date to local timezone format (YYYY-MM-DDTHH:mm)
@@ -136,12 +125,12 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [selectedPostIds, setSelectedPostIds] = useState<string[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(
-    null
+  const initialS3Folders = useMemo(() => initializeS3Folders(), []);
+  const [s3Folders, setS3Folders] = useState<S3Folder[]>(initialS3Folders);
+  const [selectedFolder, setSelectedFolder] = useState<string>(
+    initialS3Folders[0]?.name || "All Generations"
   );
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [selectedFolder, setSelectedFolder] =
-    useState<string>("All Generations");
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const [fileBlobUrls, setFileBlobUrls] = useState<Record<string, string>>({});
   const [draggedPost, setDraggedPost] = useState<Post | null>(null);
   const [dragOverPost, setDragOverPost] = useState<string | null>(null);
@@ -229,66 +218,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     }
   }, [highlightPostId, posts]);
 
-  // Google Drive folders with their IDs from env
-  const [driveFolders, setDriveFolders] = useState<GoogleDriveFolder[]>([
-    {
-      name: "All Generations",
-      id: process.env.NEXT_PUBLIC_GOOGLE_DRIVE_ALL_GENERATIONS_FOLDER_ID || "",
-      files: [],
-      loading: false,
-    },
-    {
-      name: "IG Posts",
-      id: process.env.NEXT_PUBLIC_GOOGLE_DRIVE_IG_POSTS_FOLDER_ID || "",
-      files: [],
-      loading: false,
-    },
-    {
-      name: "IG Reels",
-      id: process.env.NEXT_PUBLIC_GOOGLE_DRIVE_IG_REELS_FOLDER_ID || "",
-      files: [],
-      loading: false,
-    },
-    {
-      name: "Misc",
-      id: process.env.NEXT_PUBLIC_GOOGLE_DRIVE_MISC_FOLDER_ID || "",
-      files: [],
-      loading: false,
-    },
-  ]);
-
-  // Check for OAuth token on component mount
-  useEffect(() => {
-    // First check URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const accessToken = urlParams.get("access_token");
-
-    if (accessToken) {
-      setGoogleAccessToken(accessToken);
-      // Store in localStorage for persistence across tabs/pages
-      localStorage.setItem("google_drive_access_token", accessToken);
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-      console.log("✅ Google Drive access token received and stored");
-    } else {
-      // Check localStorage for existing token
-      const storedToken = localStorage.getItem("google_drive_access_token");
-      if (storedToken) {
-        setGoogleAccessToken(storedToken);
-        console.log("✅ Google Drive access token loaded from storage");
-      }
-    }
-
-    // Handle OAuth errors
-    const error = urlParams.get("error");
-    if (error) {
-      console.error("❌ OAuth error:", error);
-      toast.error(`Google Drive authentication failed: ${error}`);
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
-
   // Load posts from database on mount
   useEffect(() => {
     const loadPosts = async () => {
@@ -303,14 +232,16 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         // Convert database posts to component format
         const convertedPosts: Post[] = dbPosts.map((dbPost) => ({
           id: dbPost.id,
-          image: "", // Will be loaded via blob URL
+          image: dbPost.awsS3Url || dbPost.driveFileUrl || "",
           caption: dbPost.caption,
           status: dbPost.status,
           type: dbPost.postType,
           date: dbPost.scheduledDate
             ? toLocalDateTimeString(dbPost.scheduledDate)
             : "", // Keep empty if no scheduled date (don't default to now)
-          driveFileId: dbPost.driveFileId,
+          driveFileId: dbPost.driveFileId ?? undefined,
+          awsS3Key: dbPost.awsS3Key ?? undefined,
+          awsS3Url: dbPost.awsS3Url ?? undefined,
           originalFolder: dbPost.folder,
           order: dbPost.order,
           fileName: dbPost.fileName,
@@ -386,7 +317,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
               try {
                 const params = new URLSearchParams();
                 if (selectedUserId) {
-                  params.append("userId", selectedUserId);
                 }
 
                 const response = await fetch(`/api/instagram-posts?${params}`);
@@ -397,12 +327,15 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                     const blobUrls = new Map(prev.map((p) => [p.id, p.image]));
                     return result.posts.map((post: any) => ({
                       id: post.id,
-                      image: blobUrls.get(post.id) || post.driveFileUrl,
+                      image:
+                        blobUrls.get(post.id) || post.awsS3Url || post.driveFileUrl,
                       caption: post.caption,
                       status: post.status,
                       type: post.postType,
                       date: post.scheduledDate || post.createdAt,
                       driveFileId: post.driveFileId,
+                      awsS3Key: post.awsS3Key,
+                      awsS3Url: post.awsS3Url,
                       originalFolder: post.folder,
                       order: post.order,
                       fileName: post.fileName,
@@ -467,12 +400,15 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
               const blobUrls = new Map(prev.map((p) => [p.id, p.image]));
               return data.posts.map((post: any) => ({
                 id: post.id,
-                image: blobUrls.get(post.id) || post.driveFileUrl,
+                image:
+                  blobUrls.get(post.id) || post.awsS3Url || post.driveFileUrl,
                 caption: post.caption,
                 status: post.status,
                 type: post.postType,
                 date: post.scheduledDate || post.createdAt,
                 driveFileId: post.driveFileId,
+                awsS3Key: post.awsS3Key,
+                awsS3Url: post.awsS3Url,
                 originalFolder: post.folder,
                 order: post.order,
                 fileName: post.fileName,
@@ -504,190 +440,64 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     }
   }, [isLoaded, user, selectedUserId]);
 
-  // Load blob URLs for posts from Google Drive
-  useEffect(() => {
-    const loadPostBlobUrls = async () => {
-      if (!googleAccessToken) return;
-
-      for (const post of posts) {
-        if (post.driveFileId && !post.image) {
-          try {
-            const downloadUrl = `https://www.googleapis.com/drive/v3/files/${post.driveFileId}?alt=media`;
-            const response = await fetch(downloadUrl, {
-              headers: {
-                Authorization: `Bearer ${googleAccessToken}`,
-              },
-            });
-
-            if (response.ok) {
-              const blob = await response.blob();
-              const blobUrl = URL.createObjectURL(blob);
-              setPosts((prev) =>
-                prev.map((p) =>
-                  p.id === post.id ? { ...p, image: blobUrl } : p
-                )
-              );
-            }
-          } catch (error) {
-            console.error(`Error loading blob for post ${post.id}:`, error);
-          }
-        }
-      }
-    };
-
-    loadPostBlobUrls();
-  }, [posts.length, googleAccessToken]);
-
-  // Load folder contents when access token is available
-  useEffect(() => {
-    if (googleAccessToken) {
-      loadAllFolders();
-    }
-  }, [googleAccessToken]);
-
-  // Download and create blob URLs for files in current folder
-  useEffect(() => {
-    const downloadFilesForPreview = async () => {
-      const currentFolder = driveFolders.find((f) => f.name === selectedFolder);
-      if (!currentFolder || !googleAccessToken) return;
-
-      const filesToDownload = currentFolder.files.filter(
-        (file) => !fileBlobUrls[file.id]
+  const loadFolderContents = useCallback(
+    async (prefix: string, folderName: string) => {
+      setS3Folders((prev) =>
+        prev.map((folder) =>
+          folder.name === folderName
+            ? { ...folder, loading: true, error: undefined }
+            : folder
+        )
       );
 
-      for (const file of filesToDownload) {
-        try {
-          const downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
-          const response = await fetch(downloadUrl, {
-            headers: {
-              Authorization: `Bearer ${googleAccessToken}`,
-            },
+      try {
+        const files = await loadS3Folder(prefix);
+
+        setS3Folders((prev) =>
+          prev.map((folder) =>
+            folder.name === folderName
+              ? { ...folder, files, loading: false, error: undefined }
+              : folder
+          )
+        );
+
+        setFileBlobUrls((prev) => {
+          const next = { ...prev };
+          files.forEach((file: S3File) => {
+            next[file.id] = file.url;
           });
+          return next;
+        });
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to load folder";
 
-          if (response.ok) {
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            setFileBlobUrls((prev) => ({ ...prev, [file.id]: blobUrl }));
-          }
-        } catch (error) {
-          console.error(`Error downloading file ${file.name}:`, error);
-        }
-      }
-    };
-
-    downloadFilesForPreview();
-  }, [selectedFolder, driveFolders, googleAccessToken]);
-
-  const authenticateGoogleDrive = async () => {
-    try {
-      setIsAuthenticating(true);
-      // Pass current page as redirect parameter
-      const currentPage = "/workspace/social-media";
-      const response = await fetch(
-        `/api/auth/google?redirect=${encodeURIComponent(currentPage)}`
-      );
-      const data = await response.json();
-
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      } else {
-        throw new Error("Failed to get authorization URL");
-      }
-    } catch (error) {
-      console.error("Authentication error:", error);
-      toast.error("Failed to start Google Drive authentication");
-      setIsAuthenticating(false);
-    }
-  };
-
-  const loadFolderContents = async (folderId: string, folderName: string) => {
-    if (!googleAccessToken) return;
-
-    // Update loading state
-    setDriveFolders((prev) =>
-      prev.map((folder) =>
-        folder.name === folderName
-          ? { ...folder, loading: true, error: undefined }
-          : folder
-      )
-    );
-
-    try {
-      console.log(`📂 Loading ${folderName} (ID: ${folderId})...`);
-      const response = await fetch(
-        `/api/google-drive/files?folderId=${folderId}&accessToken=${encodeURIComponent(
-          googleAccessToken
-        )}`
-      );
-
-      if (!response.ok) {
-        // Check if it's an authentication error
-        if (response.status === 401 || response.status === 403) {
-          throw new Error(
-            "Authentication expired. Please reconnect to Google Drive."
-          );
-        }
-        throw new Error(
-          `Failed to load folder contents: ${response.statusText}`
+        setS3Folders((prev) =>
+          prev.map((folder) =>
+            folder.name === folderName
+              ? { ...folder, loading: false, error: errorMessage }
+              : folder
+          )
         );
       }
+    },
+    [setS3Folders, setFileBlobUrls]
+  );
 
-      const data = await response.json();
-
-      // Check if the response contains an error (even with 200 status)
-      if (data.error && data.error.includes("authentication")) {
-        throw new Error(
-          "Authentication expired. Please reconnect to Google Drive."
-        );
+  const loadAllFolders = useCallback(async () => {
+    setIsLoadingFolders(true);
+    try {
+      for (const folder of initialS3Folders) {
+        await loadFolderContents(folder.prefix, folder.name);
       }
-
-      console.log(
-        `✅ Loaded ${data.files?.length || 0} files from ${folderName}`
-      );
-      console.log(
-        "📋 Files received:",
-        data.files?.map((f: any) => `${f.name} (${f.mimeType})`)
-      );
-
-      // Update folder with files
-      setDriveFolders((prev) =>
-        prev.map((folder) =>
-          folder.name === folderName
-            ? { ...folder, files: data.files || [], loading: false }
-            : folder
-        )
-      );
-    } catch (error) {
-      console.error(`❌ Error loading ${folderName}:`, error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to load";
-
-      // If it's an auth error, clear the token to show reconnect button
-      if (
-        errorMessage.includes("Authentication expired") ||
-        errorMessage.includes("authentication")
-      ) {
-        setGoogleAccessToken(null);
-        localStorage.removeItem("google_drive_access_token");
-      }
-
-      setDriveFolders((prev) =>
-        prev.map((folder) =>
-          folder.name === folderName
-            ? { ...folder, loading: false, error: errorMessage }
-            : folder
-        )
-      );
+    } finally {
+      setIsLoadingFolders(false);
     }
-  };
+  }, [initialS3Folders, loadFolderContents]);
 
-  const loadAllFolders = async () => {
-    for (const folder of driveFolders) {
-      if (folder.id) {
-        await loadFolderContents(folder.id, folder.name);
-      }
-    }
-  };
+  useEffect(() => {
+    loadAllFolders();
+  }, [loadAllFolders]);
 
   const getStatusColor = (status: Post["status"], isRejected?: boolean) => {
     if (isRejected && status === "DRAFT") {
@@ -1149,17 +959,16 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
 
   // Delete post function
   const handleDeletePost = async (post: Post) => {
-    const deleteFromDrive = confirm(
-      `Delete "${post.fileName}"?\n\nDo you also want to delete it from Google Drive?\n\nClick OK to delete from both database and Google Drive.\nClick Cancel to delete from database only.`
+    const deleteFromStorage = confirm(
+      `Delete "${post.fileName}"?\n\nDo you also want to delete the original file from storage?\n\nClick OK to delete from both database and storage.\nClick Cancel to delete from database only.`
     );
 
-    if (deleteFromDrive === null) return; // User cancelled
+    if (deleteFromStorage === null) return; // User cancelled
 
     try {
       // Delete from database (and optionally from Google Drive)
       await deleteInstagramPost(post.id, {
-        deleteFromDrive: deleteFromDrive,
-        accessToken: googleAccessToken || undefined,
+        deleteFromStorage: deleteFromStorage,
       });
 
       // Remove from local state
@@ -1171,7 +980,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       }
 
       console.log(`✅ Deleted post ${post.id}`);
-      toast.success(`Successfully deleted from ${deleteFromDrive ? "database and Google Drive" : "database only"}`);
+  toast.success(`Successfully deleted from ${deleteFromStorage ? "database and storage" : "database only"}`);
     } catch (error) {
       console.error("❌ Error deleting post:", error);
       toast.error("Failed to delete post. Please try again.");
@@ -1825,7 +1634,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                 e.stopPropagation();
                                 if (
                                   !confirm(
-                                    `Delete "${post.fileName}" from feed?\n\nThis will remove the post from your database. The file will remain in Google Drive.`
+                                    `Delete "${post.fileName}" from the staging queue?\n\nThis will remove the post from your database but keep the original asset in storage.`
                                   )
                                 ) {
                                   return;
@@ -1834,7 +1643,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                 try {
                                   // Delete from database (but keep in Google Drive)
                                   await deleteInstagramPost(post.id, {
-                                    deleteFromDrive: false, // Keep file in Drive
+                                    deleteFromStorage: false,
                                   });
 
                                   // Remove from local state
@@ -1891,28 +1700,35 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
               </h2>
               <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
                 <QueueTimelineView
-                  posts={posts.map((p) => ({
-                    id: p.id,
-                    clerkId: "", // Not needed for display
-                    driveFileId: p.driveFileId,
-                    driveFileUrl: "", // Not needed for display
-                    fileName: p.fileName,
-                    caption: p.caption,
-                    scheduledDate: p.date,
-                    status: p.status,
-                    postType: p.type,
-                    folder: p.originalFolder,
-                    order: p.order,
-                    mimeType: p.mimeType || null,
-                    rejectedAt: p.rejectedAt || null,
-                    rejectionReason: p.rejectionReason || null,
-                    rejectedBy: p.rejectedBy || null,
-                    instagramUrl: p.instagramUrl || null,
-                    publishedAt: p.publishedAt || null,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    image: p.image,
-                  }))}
+                  posts={posts.map((p) => {
+                    const driveFileId = p.driveFileId ?? null;
+                    const awsS3Url = p.awsS3Url ?? (driveFileId ? p.image : null);
+
+                    return {
+                      id: p.id,
+                      clerkId: currentUserId,
+                      driveFileId,
+                      driveFileUrl: driveFileId ? p.image : null,
+                      awsS3Key: p.awsS3Key ?? null,
+                      awsS3Url,
+                      fileName: p.fileName,
+                      caption: p.caption,
+                      scheduledDate: p.date || null,
+                      status: p.status,
+                      postType: p.type,
+                      folder: p.originalFolder,
+                      order: p.order,
+                      mimeType: p.mimeType ?? null,
+                      rejectedAt: p.rejectedAt ?? null,
+                      rejectionReason: p.rejectionReason ?? null,
+                      rejectedBy: p.rejectedBy ?? null,
+                      instagramUrl: p.instagramUrl ?? null,
+                      publishedAt: p.publishedAt ?? null,
+                      createdAt: new Date().toISOString(),
+                      updatedAt: new Date().toISOString(),
+                      image: p.image,
+                    };
+                  })}
                   onEditPost={(queuePost) => {
                     // Convert back to Post type
                     const post = posts.find((p) => p.id === queuePost.id);
@@ -2436,357 +2252,214 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           ) : (
             <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Google Drive Library
+                Media Library (AWS S3)
               </h3>
 
-              {!googleAccessToken ? (
-                <div className="text-center py-8">
-                  <div className="mb-4">
-                    <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                      Connect to Google Drive to access your folders
-                    </p>
+              <div className="space-y-4">
+                {/* Folder Selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Select Folder
+                    </span>
+                    <button
+                      onClick={loadAllFolders}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 disabled:opacity-60"
+                      title="Refresh folders"
+                      disabled={isLoadingFolders}
+                    >
+                      <RefreshCw
+                        className={`w-3 h-3 ${isLoadingFolders ? "animate-spin" : ""}`}
+                      />
+                      {isLoadingFolders ? "Refreshing" : "Refresh"}
+                    </button>
                   </div>
-                  <button
-                    onClick={authenticateGoogleDrive}
-                    disabled={isAuthenticating}
-                    className="flex items-center justify-center space-x-2 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
-                  >
-                    {isAuthenticating ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Connecting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4" />
-                        <span>Connect Google Drive</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Folder Selection */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Select Folder
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={loadAllFolders}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
-                          title="Refresh folders"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                          Refresh
-                        </button>
-                        <button
-                          onClick={() => {
-                            setGoogleAccessToken(null);
-                            localStorage.removeItem(
-                              "google_drive_access_token"
-                            );
-                            toast.info(
-                              'Disconnected from Google Drive. Click "Connect Google Drive" to reconnect.'
-                            );
-                          }}
-                          className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1"
-                          title="Disconnect Google Drive"
-                        >
-                          <Upload className="w-3 h-3" />
-                          Reconnect
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 mb-4">
-                      {driveFolders.map((folder) => (
-                        <button
-                          key={folder.name}
-                          onClick={() => setSelectedFolder(folder.name)}
-                          className={`p-3 rounded-lg border text-left transition-colors ${
-                            selectedFolder === folder.name
-                              ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300"
-                              : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <FolderOpen className="w-4 h-4" />
-                            <div>
-                              <div className="text-xs font-medium">
-                                {folder.name}
-                              </div>
-                              <div className="text-xs opacity-60">
-                                {folder.loading
-                                  ? "Loading..."
-                                  : `${folder.files.length} files`}
-                              </div>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {s3Folders.map((folder) => (
+                      <button
+                        key={folder.name}
+                        onClick={() => setSelectedFolder(folder.name)}
+                        className={`p-3 rounded-lg border text-left transition-colors ${
+                          selectedFolder === folder.name
+                            ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300"
+                            : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <FolderOpen className="w-4 h-4" />
+                          <div>
+                            <div className="text-xs font-medium">
+                              {folder.name}
+                            </div>
+                            <div className="text-xs opacity-60">
+                              {folder.loading
+                                ? "Loading..."
+                                : `${folder.files.length} files`}
                             </div>
                           </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Selected Folder Contents */}
-                  <div>
-                    <div className="mb-2">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {selectedFolder} Files
-                      </span>
-                    </div>
-
-                    {(() => {
-                      const currentFolder = driveFolders.find(
-                        (f) => f.name === selectedFolder
-                      );
-
-                      if (!currentFolder) {
-                        return (
-                          <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
-                            Folder not found
-                          </div>
-                        );
-                      }
-
-                      if (currentFolder.loading) {
-                        return (
-                          <div className="text-center py-4">
-                            <RefreshCw className="w-6 h-6 text-gray-400 mx-auto mb-2 animate-spin" />
-                            <p className="text-gray-500 dark:text-gray-400 text-sm">
-                              Loading files...
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      if (currentFolder.error) {
-                        return (
-                          <div className="text-center py-4 text-red-500 dark:text-red-400 text-sm">
-                            Error: {currentFolder.error}
-                          </div>
-                        );
-                      }
-
-                      if (currentFolder.files.length === 0) {
-                        return (
-                          <div className="text-center py-8">
-                            <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                            <p className="text-gray-500 dark:text-gray-400 text-sm">
-                              No files in {selectedFolder}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-2">
-                              Upload files from Generated Content tab to see
-                              them here
-                            </p>
-                          </div>
-                        );
-                      }
-
-                      console.log(
-                        `📋 Rendering ${currentFolder.files.length} files from ${selectedFolder}`
-                      );
-
-                      return (
-                        <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                          {currentFolder.files.map((file) => {
-                            const isVideo = file.mimeType.startsWith("video/");
-                            const blobUrl = fileBlobUrls[file.id];
-
-                            return (
-                              <div
-                                key={file.id}
-                                className="relative group cursor-pointer"
-                              >
-                                {blobUrl ? (
-                                  isVideo ? (
-                                    <video
-                                      src={blobUrl}
-                                      className="w-full aspect-square object-cover rounded-lg"
-                                      muted
-                                      playsInline
-                                      onMouseEnter={(e) =>
-                                        (e.target as HTMLVideoElement).play()
-                                      }
-                                      onMouseLeave={(e) => {
-                                        const video =
-                                          e.target as HTMLVideoElement;
-                                        video.pause();
-                                        video.currentTime = 0;
-                                      }}
-                                    />
-                                  ) : (
-                                    <img
-                                      src={blobUrl}
-                                      alt={file.name}
-                                      className="w-full aspect-square object-cover rounded-lg"
-                                      loading="lazy"
-                                    />
-                                  )
-                                ) : (
-                                  <div className="w-full aspect-square bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                                    <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
-                                  </div>
-                                )}
-
-                                {/* Video indicator badge */}
-                                {isVideo && (
-                                  <div className="absolute top-2 right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1">
-                                    <Video className="w-3 h-3" />
-                                    VIDEO
-                                  </div>
-                                )}
-
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors rounded-lg flex items-center justify-center gap-2">
-                                  <button
-                                    onClick={async () => {
-                                      // Add to staging queue with downloaded file
-                                      try {
-                                        // If we already have the blob URL, use it directly
-                                        const fileUrl = fileBlobUrls[file.id];
-
-                                        if (!fileUrl) {
-                                          toast.warning("File is still loading. Please wait a moment.");
-                                          return;
-                                        }
-
-                                        const isVideo =
-                                          file.mimeType.startsWith("video/");
-
-                                        // Save to database first
-                                        const dbPost =
-                                          await createInstagramPost({
-                                            driveFileId: file.id,
-                                            driveFileUrl: file.webViewLink,
-                                            fileName: file.name,
-                                            caption: "",
-                                            status: "DRAFT",
-                                            postType: isVideo ? "REEL" : "POST",
-                                            folder: selectedFolder,
-                                            mimeType: file.mimeType,
-                                          });
-
-                                        // Add to local state
-                                        const newPost: Post = {
-                                          id: dbPost.id,
-                                          image: fileUrl,
-                                          caption: "",
-                                          status: "DRAFT",
-                                          type: isVideo ? "REEL" : "POST",
-                                          date: new Date()
-                                            .toISOString()
-                                            .split("T")[0],
-                                          driveFileId: file.id,
-                                          originalFolder: selectedFolder,
-                                          order: dbPost.order,
-                                          fileName: file.name,
-                                          mimeType: file.mimeType,
-                                        };
-
-                                        setPosts((prev) => [newPost, ...prev]);
-                                        console.log(
-                                          "✅ Added post to queue and database"
-                                        );
-                                      } catch (error) {
-                                        console.error(
-                                          "Error adding file to queue:",
-                                          error
-                                        );
-                                        toast.error("Failed to add file to queue. Please try again.");
-                                      }
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
-                                  >
-                                    Add to Queue
-                                  </button>
-                                  <button
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      if (
-                                        !confirm(
-                                          `Delete "${file.name}" from Google Drive?\n\nThis will permanently delete the file from Google Drive.`
-                                        )
-                                      ) {
-                                        return;
-                                      }
-
-                                      try {
-                                        // Delete from Google Drive
-                                        const drive = await fetch(
-                                          `https://www.googleapis.com/drive/v3/files/${file.id}`,
-                                          {
-                                            method: "DELETE",
-                                            headers: {
-                                              Authorization: `Bearer ${googleAccessToken}`,
-                                            },
-                                          }
-                                        );
-
-                                        if (!drive.ok) {
-                                          throw new Error(
-                                            "Failed to delete from Google Drive"
-                                          );
-                                        }
-
-                                        // Remove from local state
-                                        setDriveFolders((prev) =>
-                                          prev.map((folder) =>
-                                            folder.name === selectedFolder
-                                              ? {
-                                                  ...folder,
-                                                  files: folder.files.filter(
-                                                    (f) => f.id !== file.id
-                                                  ),
-                                                }
-                                              : folder
-                                          )
-                                        );
-
-                                        // Remove blob URL
-                                        if (fileBlobUrls[file.id]) {
-                                          URL.revokeObjectURL(
-                                            fileBlobUrls[file.id]
-                                          );
-                                          setFileBlobUrls((prev) => {
-                                            const newUrls = { ...prev };
-                                            delete newUrls[file.id];
-                                            return newUrls;
-                                          });
-                                        }
-
-                                        toast.success("File deleted from Google Drive successfully");
-                                        console.log(
-                                          `✅ Deleted file ${file.id} from Google Drive`
-                                        );
-                                      } catch (error) {
-                                        console.error(
-                                          "Error deleting file from Google Drive:",
-                                          error
-                                        );
-                                        toast.error("Failed to delete file from Google Drive. Please try again.");
-                                      }
-                                    }}
-                                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white p-2 rounded hover:bg-red-700"
-                                    title="Delete from Google Drive"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                                <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                                  {file.name.length > 15
-                                    ? file.name.substring(0, 15) + "..."
-                                    : file.name}
-                                </div>
-                              </div>
-                            );
-                          })}
                         </div>
-                      );
-                    })()}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              )}
+
+                {/* Selected Folder Contents */}
+                <div>
+                  <div className="mb-2">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {selectedFolder} Files
+                    </span>
+                  </div>
+
+                  {(() => {
+                    const currentFolder = s3Folders.find(
+                      (f) => f.name === selectedFolder
+                    );
+
+                    if (!currentFolder) {
+                      return (
+                        <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
+                          Folder not found
+                        </div>
+                      );
+                    }
+
+                    if (currentFolder.error) {
+                      return (
+                        <div className="text-center py-4 text-red-500 dark:text-red-400 text-sm">
+                          Error: {currentFolder.error}
+                        </div>
+                      );
+                    }
+
+                    if (currentFolder.loading && currentFolder.files.length === 0) {
+                      return (
+                        <div className="text-center py-4">
+                          <RefreshCw className="w-6 h-6 text-gray-400 mx-auto mb-2 animate-spin" />
+                          <p className="text-gray-500 dark:text-gray-400 text-sm">
+                            Loading files...
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    if (currentFolder.files.length === 0) {
+                      return (
+                        <div className="text-center py-8">
+                          <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-500 dark:text-gray-400 text-sm">
+                            No files in {selectedFolder}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            Upload files from Generated Content tab to see
+                            them here
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                        {currentFolder.files.map((file) => {
+                          const isVideo = file.isVideo || file.mimeType.startsWith("video/");
+                          const previewUrl = fileBlobUrls[file.id] || file.url;
+
+                          return (
+                            <div
+                              key={file.id}
+                              className="relative group cursor-pointer"
+                            >
+                              {isVideo ? (
+                                <video
+                                  src={previewUrl}
+                                  className="w-full aspect-square object-cover rounded-lg"
+                                  muted
+                                  playsInline
+                                  onMouseEnter={(e) =>
+                                    (e.target as HTMLVideoElement).play()
+                                  }
+                                  onMouseLeave={(e) => {
+                                    const video = e.target as HTMLVideoElement;
+                                    video.pause();
+                                    video.currentTime = 0;
+                                  }}
+                                />
+                              ) : (
+                                <img
+                                  src={previewUrl}
+                                  alt={file.name}
+                                  className="w-full aspect-square object-cover rounded-lg"
+                                  loading="lazy"
+                                />
+                              )}
+
+                              {isVideo && (
+                                <div className="absolute top-2 right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1">
+                                  <Video className="w-3 h-3" />
+                                  VIDEO
+                                </div>
+                              )}
+
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors rounded-lg flex items-center justify-center">
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const dbPost = await createInstagramPost({
+                                        driveFileId: null,
+                                        driveFileUrl: null,
+                                        awsS3Key: file.key,
+                                        awsS3Url: file.url,
+                                        fileName: file.name,
+                                        caption: "",
+                                        status: "DRAFT",
+                                        postType: isVideo ? "REEL" : "POST",
+                                        folder: selectedFolder,
+                                        mimeType: file.mimeType,
+                                      });
+
+                                      const newPost: Post = {
+                                        id: dbPost.id,
+                                        image: previewUrl,
+                                        caption: "",
+                                        status: "DRAFT",
+                                        type: isVideo ? "REEL" : "POST",
+                                        date: new Date()
+                                          .toISOString()
+                                          .split("T")[0],
+                                        driveFileId: null,
+                                        awsS3Key: file.key,
+                                        awsS3Url: file.url,
+                                        originalFolder: selectedFolder,
+                                        order: dbPost.order,
+                                        fileName: file.name,
+                                        mimeType: file.mimeType,
+                                      };
+
+                                      setPosts((prev) => [newPost, ...prev]);
+                                      toast.success("Added to Instagram queue");
+                                    } catch (error) {
+                                      console.error("Error adding file to queue:", error);
+                                      toast.error("Failed to add file to queue. Please try again.");
+                                    }
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
+                                >
+                                  Add to Queue
+                                </button>
+                              </div>
+                              <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                {file.name.length > 15
+                                  ? file.name.substring(0, 15) + "..."
+                                  : file.name}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -563,7 +563,8 @@ def handler(job):
     
     try:
         if action == 'transform_flux_kontext':
-            job_id = job.get('id', str(uuid.uuid4()))
+            # Use the database job ID from input, not the RunPod job ID
+            job_id = job_input.get('jobId', job.get('id', str(uuid.uuid4())))
             webhook_url = job_input.get('webhook_url', '')
             
             result = run_flux_kontext_generation(job_input, job_id, webhook_url)
