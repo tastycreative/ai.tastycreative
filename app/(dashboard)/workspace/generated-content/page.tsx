@@ -439,7 +439,13 @@ export default function GeneratedContentPage() {
   const [hasMoreVideos, setHasMoreVideos] = useState(false);
   const [totalImages, setTotalImages] = useState(0);
   const [totalVideos, setTotalVideos] = useState(0);
-  const ITEMS_PER_PAGE = 50; // Fetch 50 items at a time for good balance
+  const [itemsPerPage, setItemsPerPage] = useState(20); // User-configurable items per page
+  const isFetchingRef = useRef(false); // Prevent duplicate fetch calls
+  const lastFetchTimeRef = useRef(0); // Track last fetch time for cooldown
+  const [useInfiniteScroll, setUseInfiniteScroll] = useState(false); // Toggle between infinite scroll and pagination (default to pagination)
+  
+  // Calculate total pages
+  const totalPages = Math.ceil((totalImages + totalVideos) / itemsPerPage);
   
   // Infinite Scroll State (for display control)
   const [displayCount, setDisplayCount] = useState(20);
@@ -460,6 +466,8 @@ export default function GeneratedContentPage() {
       setHasMoreVideos(false);
       setTotalImages(0);
       setTotalVideos(0);
+      isFetchingRef.current = false; // Reset fetch ref
+      lastFetchTimeRef.current = 0; // Reset cooldown timer
       
       // First auto-process any completed serverless jobs
       autoProcessServerlessJobs().then(() => {
@@ -494,9 +502,22 @@ export default function GeneratedContentPage() {
         console.error("Failed to load filter presets:", error);
       }
     }
+
+    // Load saved items per page preference
+    const savedItemsPerPage = localStorage.getItem('itemsPerPage');
+    if (savedItemsPerPage) {
+      try {
+        const value = parseInt(savedItemsPerPage);
+        if ([20, 50, 100, 200].includes(value)) {
+          setItemsPerPage(value);
+        }
+      } catch (error) {
+        console.error("Failed to load items per page preference:", error);
+      }
+    }
   }, []);
 
-  const fetchContent = async (append: boolean = false) => {
+  const fetchContent = async (append: boolean = false, pageOverride?: number) => {
     if (!apiClient) {
       console.error("❌ API client not available");
       setError("Authentication not ready");
@@ -509,7 +530,7 @@ export default function GeneratedContentPage() {
         setIsLoadingMore(true);
       } else {
         setLoading(true);
-        setCurrentPage(1);
+        // Don't reset currentPage - it should be set by goToPage or stay at initial value
       }
       setError(null);
 
@@ -518,15 +539,18 @@ export default function GeneratedContentPage() {
       console.log("🔗 Origin:", window.location.origin);
       console.log("⏰ Timestamp:", new Date().toISOString());
       console.log("👤 Selected User ID:", selectedUserId || "current user");
-      console.log("📄 Page:", append ? currentPage + 1 : 1, "Append:", append);
+      
+      // Use pageOverride if provided, otherwise use currentPage
+      const effectivePage = pageOverride !== undefined ? pageOverride : currentPage;
+      console.log("📄 Page:", append ? effectivePage + 1 : effectivePage, "Append:", append);
 
       // Calculate offset for pagination
-      const offset = append ? currentPage * ITEMS_PER_PAGE : 0;
+      const offset = append ? effectivePage * itemsPerPage : (effectivePage - 1) * itemsPerPage;
 
       // Build query params
       const queryParams = new URLSearchParams({
         includeData: 'false',
-        limit: ITEMS_PER_PAGE.toString(),
+        limit: itemsPerPage.toString(),
         offset: offset.toString()
       });
       
@@ -663,7 +687,7 @@ export default function GeneratedContentPage() {
         if (imagesData.total !== undefined) {
           setTotalImages(imagesData.total);
           setHasMoreImages(imagesData.hasMore || false);
-          console.log("📊 Images pagination: total=", imagesData.total, "hasMore=", imagesData.hasMore);
+          console.log("📊 Images pagination: total=", imagesData.total, "hasMore=", imagesData.hasMore, "currentCount=", (append ? images.length + processedImages.length : processedImages.length));
         }
       } else {
         console.warn("⚠️ Images data invalid or empty:", imagesData);
@@ -696,7 +720,7 @@ export default function GeneratedContentPage() {
         if (videosData.total !== undefined) {
           setTotalVideos(videosData.total);
           setHasMoreVideos(videosData.hasMore || false);
-          console.log("📊 Videos pagination: total=", videosData.total, "hasMore=", videosData.hasMore);
+          console.log("📊 Videos pagination: total=", videosData.total, "hasMore=", videosData.hasMore, "currentCount=", (append ? videos.length + processedVideos.length : processedVideos.length));
         }
       } else {
         console.warn("⚠️ Videos data invalid or empty:", videosData);
@@ -826,6 +850,21 @@ export default function GeneratedContentPage() {
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
+  };
+
+  // Handle page change for traditional pagination
+  const goToPage = async (pageNumber: number) => {
+    if (pageNumber < 1 || pageNumber > totalPages || pageNumber === currentPage) {
+      console.log("🚫 goToPage blocked:", { pageNumber, currentPage, totalPages, reason: pageNumber === currentPage ? "already on page" : "out of bounds" });
+      return;
+    }
+    
+    console.log(`📄 goToPage: Navigating from page ${currentPage} to page ${pageNumber}`);
+    setCurrentPage(pageNumber);
+    
+    // Pass the page number directly to fetchContent to avoid state update race condition
+    await fetchContent(false, pageNumber);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Auto-process serverless jobs
@@ -1115,13 +1154,42 @@ export default function GeneratedContentPage() {
     setHasMore(hasMoreImages || hasMoreVideos);
   }, [debouncedSearchQuery, filterBy, sortBy, advancedFilters, hasMoreImages, hasMoreVideos]);
 
-  // Load more items when scrolling
+  // Load more items when scrolling (only in infinite scroll mode)
   useEffect(() => {
-    if (inView && !loading && !isLoadingMore && (hasMoreImages || hasMoreVideos)) {
-      console.log("🔄 Loading more content...");
-      fetchContent(true); // Fetch more data from API
+    if (!useInfiniteScroll) return; // Skip if using traditional pagination
+    
+    // Only trigger if:
+    // 1. Element is in view
+    // 2. Not currently loading initial content
+    // 3. Not currently loading more content
+    // 4. There's more content available (either images or videos)
+    // 5. Not already fetching (prevents duplicate calls)
+    // 6. Cooldown period has passed (at least 1 second since last fetch)
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastFetchTimeRef.current;
+    const cooldownPeriod = 1000; // 1 second cooldown
+    
+    const shouldLoadMore = 
+      inView && 
+      !loading && 
+      !isLoadingMore && 
+      (hasMoreImages || hasMoreVideos) && 
+      !isFetchingRef.current &&
+      timeSinceLastFetch > cooldownPeriod;
+    
+    if (shouldLoadMore) {
+      console.log("🔄 Loading more content... (hasMoreImages:", hasMoreImages, "hasMoreVideos:", hasMoreVideos, ")");
+      isFetchingRef.current = true;
+      lastFetchTimeRef.current = now;
+      
+      fetchContent(true).finally(() => {
+        // Reset the ref after a small delay to allow the intersection observer to update
+        setTimeout(() => {
+          isFetchingRef.current = false;
+        }, 500);
+      });
     }
-  }, [inView, loading, isLoadingMore, hasMoreImages, hasMoreVideos]);
+  }, [inView, loading, isLoadingMore, hasMoreImages, hasMoreVideos, useInfiniteScroll]);
 
   // Modal enhancement: Auto-hide controls when modal opens
   useEffect(() => {
@@ -3088,6 +3156,44 @@ export default function GeneratedContentPage() {
               </div>
             </div>
 
+            {/* Items Per Page Selector */}
+            <div className="relative">
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const newValue = parseInt(e.target.value);
+                  setItemsPerPage(newValue);
+                  // Save preference to localStorage
+                  localStorage.setItem('itemsPerPage', newValue.toString());
+                  // Reset and refetch with new items per page
+                  setCurrentPage(1);
+                  setHasMoreImages(false);
+                  setHasMoreVideos(false);
+                  fetchContent(false);
+                }}
+                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
+                title="Items per page"
+              >
+                <option value="20">📄 20 per page</option>
+                <option value="50">📄 50 per page</option>
+                <option value="100">📄 100 per page</option>
+                <option value="200">📄 200 per page</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                <svg
+                  className="h-4 w-4"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+            </div>
+
             {/* Admin User Filter */}
             {isAdmin && !adminLoading && (
               <div className="relative">
@@ -3885,14 +3991,18 @@ export default function GeneratedContentPage() {
               })}
             </div>
             
-            {/* Infinite Scroll Loading Trigger */}
-            {(hasMoreImages || hasMoreVideos) && !isLoadingMore && (
+            {/* Infinite Scroll Loading Trigger - Only show in infinite scroll mode */}
+            {useInfiniteScroll && (hasMoreImages || hasMoreVideos) && !isLoadingMore && !loading && (
               <div
                 ref={loadMoreRef}
-                className="flex items-center justify-center py-8"
+                className="flex flex-col items-center justify-center py-8 space-y-2"
               >
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-                <span className="ml-2 text-gray-600 dark:text-gray-400">Loading more...</span>
+                <div className="text-gray-400 dark:text-gray-500">
+                  <Loader2 className="w-6 h-6 animate-pulse mx-auto" />
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Scroll to load more...
+                </p>
               </div>
             )}
 
@@ -3904,10 +4014,74 @@ export default function GeneratedContentPage() {
               </div>
             )}
             
-            {/* Show when all items are loaded */}
-            {!hasMoreImages && !hasMoreVideos && displayedContent.length > 0 && (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <p>✓ All {displayedContent.length} items loaded ({totalImages} images, {totalVideos} videos)</p>
+            {/* Show when all items are loaded - Only in infinite scroll mode */}
+            {useInfiniteScroll && !hasMoreImages && !hasMoreVideos && displayedContent.length > 0 && !loading && !isLoadingMore && (
+              <div className="text-center py-8 border-t border-gray-200 dark:border-gray-700">
+                <div className="inline-flex items-center space-x-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-4 py-2 rounded-full">
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="font-medium">All {displayedContent.length} items loaded</span>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  {totalImages} images • {totalVideos} videos
+                </p>
+              </div>
+            )}
+
+            {/* Traditional Pagination Controls - Only show when not using infinite scroll */}
+            {!useInfiniteScroll && totalPages > 1 && !loading && (
+              <div className="flex items-center justify-center py-8 space-x-2 border-t border-gray-200 dark:border-gray-700">
+                {/* Previous Button */}
+                <button
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  Previous
+                </button>
+
+                {/* Page Numbers */}
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 7) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 4) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 3) {
+                      pageNum = totalPages - 6 + i;
+                    } else {
+                      pageNum = currentPage - 3 + i;
+                    }
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => goToPage(pageNum)}
+                        className={`w-10 h-10 rounded-lg font-medium transition-all duration-200 ${
+                          currentPage === pageNum
+                            ? 'bg-blue-600 text-white shadow-lg'
+                            : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Next Button */}
+                <button
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  Next
+                </button>
+
+                {/* Page Info */}
+                <span className="ml-4 text-sm text-gray-600 dark:text-gray-400">
+                  Page {currentPage} of {totalPages}
+                </span>
               </div>
             )}
             </>
@@ -4106,14 +4280,18 @@ export default function GeneratedContentPage() {
                 })}
               </div>
               
-              {/* Infinite Scroll Loading Trigger for List View */}
-              {(hasMoreImages || hasMoreVideos) && !isLoadingMore && (
+              {/* Infinite Scroll Loading Trigger for List View - Only in infinite scroll mode */}
+              {useInfiniteScroll && (hasMoreImages || hasMoreVideos) && !isLoadingMore && !loading && (
                 <div
                   ref={loadMoreRef}
-                  className="flex items-center justify-center py-6 border-t border-gray-200 dark:border-gray-700"
+                  className="flex flex-col items-center justify-center py-6 border-t border-gray-200 dark:border-gray-700 space-y-2"
                 >
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                  <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading more...</span>
+                  <div className="text-gray-400 dark:text-gray-500">
+                    <Loader2 className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Scroll to load more...
+                  </p>
                 </div>
               )}
 
@@ -4125,10 +4303,74 @@ export default function GeneratedContentPage() {
                 </div>
               )}
               
-              {/* Show when all items are loaded */}
-              {!hasMoreImages && !hasMoreVideos && displayedContent.length > 0 && (
-                <div className="text-center py-6 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
-                  <p>✓ All {displayedContent.length} items loaded ({totalImages} images, {totalVideos} videos)</p>
+              {/* Show when all items are loaded - Only in infinite scroll mode */}
+              {useInfiniteScroll && !hasMoreImages && !hasMoreVideos && displayedContent.length > 0 && !loading && !isLoadingMore && (
+                <div className="text-center py-6 border-t border-gray-200 dark:border-gray-700">
+                  <div className="inline-flex items-center space-x-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-full text-sm">
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="font-medium">All {displayedContent.length} items loaded</span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {totalImages} images • {totalVideos} videos
+                  </p>
+                </div>
+              )}
+
+              {/* Traditional Pagination Controls for List View - Only show when not using infinite scroll */}
+              {!useInfiniteScroll && totalPages > 1 && !loading && (
+                <div className="flex items-center justify-center py-6 space-x-2 border-t border-gray-200 dark:border-gray-700">
+                  {/* Previous Button */}
+                  <button
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    Previous
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 7) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 4) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 3) {
+                        pageNum = totalPages - 6 + i;
+                      } else {
+                        pageNum = currentPage - 3 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => goToPage(pageNum)}
+                          className={`w-8 h-8 rounded-lg font-medium text-sm transition-all duration-200 ${
+                            currentPage === pageNum
+                              ? 'bg-blue-600 text-white shadow-lg'
+                              : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Next Button */}
+                  <button
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  >
+                    Next
+                  </button>
+
+                  {/* Page Info */}
+                  <span className="ml-3 text-xs text-gray-600 dark:text-gray-400">
+                    Page {currentPage} of {totalPages}
+                  </span>
                 </div>
               )}
             </div>
