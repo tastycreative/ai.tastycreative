@@ -94,6 +94,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Get total count for pagination
+    const totalCount = await prisma.generatedImage.count({
+      where: { clerkId: targetUserId }
+    });
+
     // Get user images using the imageStorage function
     console.log('📡 Fetching user images with options:', { includeData, limit, offset });
     const images = await getUserImages(targetUserId, {
@@ -102,7 +107,7 @@ export async function GET(request: NextRequest) {
       offset
     });
 
-    console.log('✅ Found', images.length, 'images for user:', targetUserId);
+    console.log('✅ Found', images.length, 'images for user:', targetUserId, '(total:', totalCount, ')');
     if (images.length > 0) {
       console.log('📸 Sample image:', {
         id: images[0].id,
@@ -116,7 +121,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true,
-      images: images 
+      images: images,
+      total: totalCount,
+      hasMore: offset !== undefined && limit !== undefined ? (offset + limit < totalCount) : false
     });
 
   } catch (error) {

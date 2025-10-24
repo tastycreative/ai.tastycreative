@@ -432,10 +432,18 @@ export default function GeneratedContentPage() {
     return () => window.removeEventListener('resize', checkDevice);
   }, []);
 
-  // Infinite Scroll State (replacing pagination)
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreImages, setHasMoreImages] = useState(false);
+  const [hasMoreVideos, setHasMoreVideos] = useState(false);
+  const [totalImages, setTotalImages] = useState(0);
+  const [totalVideos, setTotalVideos] = useState(0);
+  const ITEMS_PER_PAGE = 50; // Fetch 50 items at a time for good balance
+  
+  // Infinite Scroll State (for display control)
   const [displayCount, setDisplayCount] = useState(20);
   const [hasMore, setHasMore] = useState(true);
-  const ITEMS_PER_PAGE = 20;
   
   // Intersection Observer for infinite scroll
   const { ref: loadMoreRef, inView } = useInView({
@@ -446,10 +454,17 @@ export default function GeneratedContentPage() {
   // Fetch images and stats
   useEffect(() => {
     if (apiClient && !adminLoading) {
+      // Reset pagination when user changes
+      setCurrentPage(1);
+      setHasMoreImages(false);
+      setHasMoreVideos(false);
+      setTotalImages(0);
+      setTotalVideos(0);
+      
       // First auto-process any completed serverless jobs
       autoProcessServerlessJobs().then(() => {
         // Then fetch the content
-        fetchContent();
+        fetchContent(false); // false = not appending, fresh fetch
         fetchStats();
       });
     }
@@ -481,7 +496,7 @@ export default function GeneratedContentPage() {
     }
   }, []);
 
-  const fetchContent = async () => {
+  const fetchContent = async (append: boolean = false) => {
     if (!apiClient) {
       console.error("❌ API client not available");
       setError("Authentication not ready");
@@ -490,7 +505,12 @@ export default function GeneratedContentPage() {
     }
 
     try {
-      setLoading(true);
+      if (append) {
+        setIsLoadingMore(true);
+      } else {
+        setLoading(true);
+        setCurrentPage(1);
+      }
       setError(null);
 
       console.log("🖼️ === FETCHING CONTENT FOR GALLERY ===");
@@ -498,11 +518,16 @@ export default function GeneratedContentPage() {
       console.log("🔗 Origin:", window.location.origin);
       console.log("⏰ Timestamp:", new Date().toISOString());
       console.log("👤 Selected User ID:", selectedUserId || "current user");
+      console.log("📄 Page:", append ? currentPage + 1 : 1, "Append:", append);
+
+      // Calculate offset for pagination
+      const offset = append ? currentPage * ITEMS_PER_PAGE : 0;
 
       // Build query params
       const queryParams = new URLSearchParams({
         includeData: 'false',
-        limit: '100'
+        limit: ITEMS_PER_PAGE.toString(),
+        offset: offset.toString()
       });
       
       // Add userId param if admin has selected a user
@@ -625,11 +650,24 @@ export default function GeneratedContentPage() {
             : null,
         }));
 
-        setImages(processedImages);
-        console.log("✅ Loaded", processedImages.length, "images");
+        // Append or replace images based on mode
+        if (append) {
+          setImages(prev => [...prev, ...processedImages]);
+          console.log("✅ Appended", processedImages.length, "images (total:", images.length + processedImages.length, ")");
+        } else {
+          setImages(processedImages);
+          console.log("✅ Loaded", processedImages.length, "images");
+        }
+
+        // Update pagination info from API response
+        if (imagesData.total !== undefined) {
+          setTotalImages(imagesData.total);
+          setHasMoreImages(imagesData.hasMore || false);
+          console.log("📊 Images pagination: total=", imagesData.total, "hasMore=", imagesData.hasMore);
+        }
       } else {
         console.warn("⚠️ Images data invalid or empty:", imagesData);
-        setImages([]);
+        if (!append) setImages([]);
       }
 
       if (videosData.success && videosData.videos) {
@@ -645,43 +683,68 @@ export default function GeneratedContentPage() {
             : null,
         }));
 
-        setVideos(processedVideos);
-        console.log("✅ Loaded", processedVideos.length, "videos");
+        // Append or replace videos based on mode
+        if (append) {
+          setVideos(prev => [...prev, ...processedVideos]);
+          console.log("✅ Appended", processedVideos.length, "videos (total:", videos.length + processedVideos.length, ")");
+        } else {
+          setVideos(processedVideos);
+          console.log("✅ Loaded", processedVideos.length, "videos");
+        }
+
+        // Update pagination info from API response
+        if (videosData.total !== undefined) {
+          setTotalVideos(videosData.total);
+          setHasMoreVideos(videosData.hasMore || false);
+          console.log("📊 Videos pagination: total=", videosData.total, "hasMore=", videosData.hasMore);
+        }
       } else {
         console.warn("⚠️ Videos data invalid or empty:", videosData);
-        setVideos([]);
+        if (!append) setVideos([]);
       }
 
-      // Combine all content
-      const allItems: ContentItem[] = [
-        ...(imagesData.success && imagesData.images
-          ? imagesData.images.map((img: any) => ({
-              ...img,
-              createdAt: new Date(img.createdAt),
-              itemType: "image" as const,
-              stagingStorageKey: img.googleDriveFileId || null,
-              stagingStorageFolder: img.googleDriveFolderName || null,
-              stagingStorageUploadedAt: img.googleDriveUploadedAt
-                ? new Date(img.googleDriveUploadedAt)
-                : null,
-            }))
-          : []),
-        ...(videosData.success && videosData.videos
-          ? videosData.videos.map((video: any) => ({
-              ...video,
-              createdAt: new Date(video.createdAt),
-              itemType: "video" as const,
-              stagingStorageKey: video.googleDriveFileId || null,
-              stagingStorageFolder: video.googleDriveFolderName || null,
-              stagingStorageUploadedAt: video.googleDriveUploadedAt
-                ? new Date(video.googleDriveUploadedAt)
-                : null,
-            }))
-          : []),
-      ];
+      // Combine all content (either from state or fresh data)
+      const currentImages = append ? [...images, ...(imagesData.success && imagesData.images ? imagesData.images.map((img: any) => ({
+        ...img,
+        createdAt: new Date(img.createdAt),
+        itemType: "image" as const,
+        stagingStorageKey: img.googleDriveFileId || null,
+        stagingStorageFolder: img.googleDriveFolderName || null,
+        stagingStorageUploadedAt: img.googleDriveUploadedAt ? new Date(img.googleDriveUploadedAt) : null,
+      })) : [])] : (imagesData.success && imagesData.images ? imagesData.images.map((img: any) => ({
+        ...img,
+        createdAt: new Date(img.createdAt),
+        itemType: "image" as const,
+        stagingStorageKey: img.googleDriveFileId || null,
+        stagingStorageFolder: img.googleDriveFolderName || null,
+        stagingStorageUploadedAt: img.googleDriveUploadedAt ? new Date(img.googleDriveUploadedAt) : null,
+      })) : []);
+
+      const currentVideos = append ? [...videos, ...(videosData.success && videosData.videos ? videosData.videos.map((video: any) => ({
+        ...video,
+        createdAt: new Date(video.createdAt),
+        itemType: "video" as const,
+        stagingStorageKey: video.googleDriveFileId || null,
+        stagingStorageFolder: video.googleDriveFolderName || null,
+        stagingStorageUploadedAt: video.googleDriveUploadedAt ? new Date(video.googleDriveUploadedAt) : null,
+      })) : [])] : (videosData.success && videosData.videos ? videosData.videos.map((video: any) => ({
+        ...video,
+        createdAt: new Date(video.createdAt),
+        itemType: "video" as const,
+        stagingStorageKey: video.googleDriveFileId || null,
+        stagingStorageFolder: video.googleDriveFolderName || null,
+        stagingStorageUploadedAt: video.googleDriveUploadedAt ? new Date(video.googleDriveUploadedAt) : null,
+      })) : []);
+
+      const allItems: ContentItem[] = [...currentImages, ...currentVideos];
 
       setAllContent(allItems);
       console.log("✅ Combined", allItems.length, "content items");
+
+      // Update page counter if appending
+      if (append) {
+        setCurrentPage(prev => prev + 1);
+      }
 
       if (allItems.length === 0) {
         console.warn("⚠️ No content items found after processing");
@@ -711,12 +774,18 @@ export default function GeneratedContentPage() {
         error instanceof Error ? error.message : "Failed to load content"
       );
 
-      // Set empty arrays on error
-      setImages([]);
-      setVideos([]);
-      setAllContent([]);
+      // Set empty arrays on error (only if not appending)
+      if (!append) {
+        setImages([]);
+        setVideos([]);
+        setAllContent([]);
+      }
     } finally {
-      setLoading(false);
+      if (append) {
+        setIsLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
       console.log("🏁 Fetch content finished");
     }
   };
@@ -1041,18 +1110,18 @@ export default function GeneratedContentPage() {
 
   // Reset display count when filters change
   useEffect(() => {
-    setDisplayCount(ITEMS_PER_PAGE);
-    setHasMore(filteredAndSortedContent.length > ITEMS_PER_PAGE);
-  }, [debouncedSearchQuery, filterBy, sortBy, advancedFilters, filteredAndSortedContent.length]);
+    setDisplayCount(20); // Initial display count
+    // hasMore is now determined by API pagination, not local filtering
+    setHasMore(hasMoreImages || hasMoreVideos);
+  }, [debouncedSearchQuery, filterBy, sortBy, advancedFilters, hasMoreImages, hasMoreVideos]);
 
   // Load more items when scrolling
   useEffect(() => {
-    if (inView && hasMore && !loading) {
-      const newDisplayCount = displayCount + ITEMS_PER_PAGE;
-      setDisplayCount(newDisplayCount);
-      setHasMore(filteredAndSortedContent.length > newDisplayCount);
+    if (inView && !loading && !isLoadingMore && (hasMoreImages || hasMoreVideos)) {
+      console.log("🔄 Loading more content...");
+      fetchContent(true); // Fetch more data from API
     }
-  }, [inView, hasMore, loading, displayCount, filteredAndSortedContent.length]);
+  }, [inView, loading, isLoadingMore, hasMoreImages, hasMoreVideos]);
 
   // Modal enhancement: Auto-hide controls when modal opens
   useEffect(() => {
@@ -1749,7 +1818,7 @@ export default function GeneratedContentPage() {
 
           <div className="space-y-3">
             <button
-              onClick={fetchContent}
+              onClick={() => fetchContent(false)}
               className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 flex items-center justify-center space-x-2"
             >
               <RefreshCw className="w-4 h-4" />
@@ -3817,7 +3886,7 @@ export default function GeneratedContentPage() {
             </div>
             
             {/* Infinite Scroll Loading Trigger */}
-            {hasMore && (
+            {(hasMoreImages || hasMoreVideos) && !isLoadingMore && (
               <div
                 ref={loadMoreRef}
                 className="flex items-center justify-center py-8"
@@ -3826,11 +3895,19 @@ export default function GeneratedContentPage() {
                 <span className="ml-2 text-gray-600 dark:text-gray-400">Loading more...</span>
               </div>
             )}
+
+            {/* Show loading indicator when fetching more data */}
+            {isLoadingMore && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <span className="ml-2 text-gray-600 dark:text-gray-400">Fetching more content...</span>
+              </div>
+            )}
             
             {/* Show when all items are loaded */}
-            {!hasMore && displayedContent.length > 0 && (
+            {!hasMoreImages && !hasMoreVideos && displayedContent.length > 0 && (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <p>✓ All {displayedContent.length} items loaded</p>
+                <p>✓ All {displayedContent.length} items loaded ({totalImages} images, {totalVideos} videos)</p>
               </div>
             )}
             </>
@@ -4030,7 +4107,7 @@ export default function GeneratedContentPage() {
               </div>
               
               {/* Infinite Scroll Loading Trigger for List View */}
-              {hasMore && (
+              {(hasMoreImages || hasMoreVideos) && !isLoadingMore && (
                 <div
                   ref={loadMoreRef}
                   className="flex items-center justify-center py-6 border-t border-gray-200 dark:border-gray-700"
@@ -4039,11 +4116,19 @@ export default function GeneratedContentPage() {
                   <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Loading more...</span>
                 </div>
               )}
+
+              {/* Show loading indicator when fetching more data */}
+              {isLoadingMore && (
+                <div className="flex items-center justify-center py-6 border-t border-gray-200 dark:border-gray-700">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                  <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Fetching more content...</span>
+                </div>
+              )}
               
               {/* Show when all items are loaded */}
-              {!hasMore && displayedContent.length > 0 && (
+              {!hasMoreImages && !hasMoreVideos && displayedContent.length > 0 && (
                 <div className="text-center py-6 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
-                  <p>✓ All {displayedContent.length} items loaded</p>
+                  <p>✓ All {displayedContent.length} items loaded ({totalImages} images, {totalVideos} videos)</p>
                 </div>
               )}
             </div>

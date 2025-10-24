@@ -56,6 +56,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, stats: videoStats });
     }
 
+    // Get total count for pagination
+    const { prisma: prismaClient } = await import('@/lib/database');
+    const totalCount = await prismaClient.generatedVideo.count({
+      where: { clerkId: targetUserId }
+    });
+
     // Get user videos
     const videos = await getUserVideos(targetUserId, {
       includeData,
@@ -66,7 +72,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       videos: videos,
-      count: videos.length
+      count: videos.length,
+      total: totalCount,
+      hasMore: offset !== undefined && limit !== undefined ? (offset + limit < totalCount) : false
     });
 
   } catch (error) {
