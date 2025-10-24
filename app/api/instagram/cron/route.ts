@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
           {
             postId: post.id,
             caption: post.caption || '',
-            imageUrl: post.driveFileUrl,
+            imageUrl: post.driveFileUrl || '',
             fileName: post.fileName,
             scheduledDate: post.scheduledDate!,
             userEmail,
