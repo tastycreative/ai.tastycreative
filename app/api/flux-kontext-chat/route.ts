@@ -174,7 +174,7 @@ Remember:
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, image, conversationHistory } = await request.json();
+    const { message, image, conversationHistory, currentPrompt } = await request.json();
 
     if (!message && !image) {
       return NextResponse.json(
@@ -190,6 +190,14 @@ export async function POST(request: NextRequest) {
         content: SYSTEM_PROMPT
       }
     ];
+
+    // Add current prompt context if available
+    if (currentPrompt) {
+      messages.push({
+        role: "system",
+        content: `CURRENT CONTEXT: The user is working on a Flux Kontext transformation with this prompt: "${currentPrompt}"\n\nConsider this context when providing suggestions or improvements.`
+      });
+    }
 
     // Add conversation history (simplified)
     if (conversationHistory && conversationHistory.length > 0) {
