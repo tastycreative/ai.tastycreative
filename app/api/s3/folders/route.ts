@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     // For "All Generations" (instagram/), we need to list files from ALL subfolders
     const isAllGenerations = folderPrefix === 'instagram/' || folderPrefix === 'instagram';
     
-    let allFiles: any[] = [];
+    const allFiles: any[] = [];
     
     if (isAllGenerations) {
       // List all Instagram subfolders and aggregate files
