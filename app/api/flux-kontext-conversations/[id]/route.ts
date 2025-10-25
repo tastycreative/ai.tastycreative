@@ -5,7 +5,7 @@ import { prisma } from "@/lib/database";
 // GET /api/flux-kontext-conversations/[id] - Get a specific conversation
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -13,6 +13,8 @@ export async function GET(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const params = await context.params;
 
     const conversation = await prisma.fluxKontextConversation.findFirst({
       where: {
@@ -46,7 +48,7 @@ export async function GET(
 // DELETE /api/flux-kontext-conversations/[id] - Delete a conversation
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -54,6 +56,8 @@ export async function DELETE(
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const params = await context.params;
 
     // Verify ownership
     const conversation = await prisma.fluxKontextConversation.findFirst({
@@ -88,7 +92,7 @@ export async function DELETE(
 // PATCH /api/flux-kontext-conversations/[id] - Update conversation title
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -97,6 +101,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const params = await context.params;
     const body = await request.json();
     const { title } = body;
 
