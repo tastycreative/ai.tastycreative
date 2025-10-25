@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Upload, X, Download, Wand2, Loader2, Image as ImageIcon, AlertCircle, Share2, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
+import { Upload, X, Download, Wand2, Loader2, Image as ImageIcon, AlertCircle, Share2, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Send, Sparkles, Brain, Copy, Check } from 'lucide-react';
 import { useApiClient } from '@/lib/apiClient';
 
 interface JobStatus {
@@ -82,9 +82,20 @@ export default function FluxKontextPage() {
   const [jobStartTime, setJobStartTime] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState<string>('Transform the scene into nighttime, adding a deep navy blue sky with stars. Illuminate the building with soft, aesthetic lighting, creating a warm glow from the windows and exterior lights.');
+  const [prompt, setPrompt] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
+
+  // Chat assistant states
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{id: string, role: 'user' | 'assistant', content: string, image?: string, timestamp: Date}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatUploadedImage, setChatUploadedImage] = useState<string | null>(null);
+  const [isChatGenerating, setIsChatGenerating] = useState(false);
+  const [chatLoadingStep, setChatLoadingStep] = useState('');
+  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
 
   // Fixed values from workflow
   const FIXED_VALUES = {
@@ -369,7 +380,7 @@ export default function FluxKontextPage() {
       "199": {
         "inputs": {
           "images": ["8", 0],
-          "filename_prefix": "FluxKontext"
+          "filename_prefix": `FluxKontext_${Date.now()}_${FIXED_VALUES.seed}`
         },
         "class_type": "SaveImage"
       }
@@ -514,35 +525,187 @@ export default function FluxKontextPage() {
     setLightboxTitle(title);
   }, []);
 
+  // Chat assistant functions
+  useEffect(() => {
+    if (isChatOpen) {
+      chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, isChatOpen]);
+
+  useEffect(() => {
+    if (isChatOpen && chatMessages.length === 0) {
+      setChatMessages([{
+        id: 'welcome',
+        role: 'assistant',
+        content: "👋 Hi! I'm your AI assistant for Flux Kontext. I can help you:\n\n• **Generate better prompts** for your image transformations\n• **Explain techniques** and best practices\n• **Troubleshoot issues** with your generations\n• **Suggest improvements** to your current prompt\n\nHow can I help you today?",
+        timestamp: new Date()
+      }]);
+    }
+  }, [isChatOpen, chatMessages.length]);
+
+  const generateChatResponse = async (userMessage: string): Promise<string> => {
+    try {
+      const response = await fetch("/api/flux-kontext-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+          conversationHistory: chatMessages.slice(-6),
+          currentPrompt: prompt || undefined
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Failed: ${response.statusText}`);
+      const data = await response.json();
+      return data.response || "I apologize, but I couldn't generate a response. Please try again.";
+    } catch (error) {
+      console.error("Chat error:", error);
+      throw new Error("Failed to generate response. Please try again.");
+    }
+  };
+
+  const generateChatResponseWithImage = async (userMessage: string, imageBase64?: string): Promise<string> => {
+    try {
+      const response = await fetch("/api/flux-kontext-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+          image: imageBase64,
+          conversationHistory: chatMessages.slice(-6),
+          currentPrompt: prompt || undefined
+        }),
+      });
+
+      if (!response.ok) throw new Error(`Failed: ${response.statusText}`);
+      const data = await response.json();
+      return data.response || "I apologize, but I couldn't generate a response. Please try again.";
+    } catch (error) {
+      console.error("Chat error:", error);
+      throw new Error("Failed to generate response. Please try again.");
+    }
+  };
+
+  const handleChatImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        setChatUploadedImage(result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveChatImage = () => {
+    setChatUploadedImage(null);
+    if (chatFileInputRef.current) {
+      chatFileInputRef.current.value = "";
+    }
+  };
+
+  const handleSendChat = async () => {
+    const messageText = chatInput.trim();
+    if (!messageText && !chatUploadedImage) return;
+
+    const userMessage = {
+      id: Date.now().toString(),
+      role: 'user' as const,
+      content: messageText || "Analyze this image and generate a Flux Kontext prompt",
+      image: chatUploadedImage || undefined,
+      timestamp: new Date()
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    const currentImage = chatUploadedImage;
+    setChatUploadedImage(null);
+    setIsChatGenerating(true);
+
+    try {
+      setChatLoadingStep("Thinking...");
+      
+      if (currentImage) {
+        setChatLoadingStep("Analyzing image...");
+        const imageBase64 = currentImage.split(",")[1];
+        const aiResponse = await generateChatResponseWithImage(userMessage.content, imageBase64);
+        
+        const assistantMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant' as const,
+          content: aiResponse,
+          timestamp: new Date()
+        };
+        
+        setChatMessages(prev => [...prev, assistantMessage]);
+      } else {
+        const aiResponse = await generateChatResponse(messageText);
+
+        const assistantMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant' as const,
+          content: aiResponse,
+          timestamp: new Date()
+        };
+
+        setChatMessages(prev => [...prev, assistantMessage]);
+      }
+    } catch (error: any) {
+      setChatMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant' as const,
+        content: "Sorry, I encountered an error. Please try again.",
+        timestamp: new Date()
+      }]);
+    } finally {
+      setIsChatGenerating(false);
+      setChatLoadingStep('');
+    }
+  };
+
+  const handleChatKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendChat();
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900/20 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg">
-              <Wand2 className="w-6 h-6 text-white" />
+        <div className="mb-8 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
+              <Wand2 className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Flux Kontext Image Editor
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+              Flux Kontext Studio
             </h1>
           </div>
-          <p className="text-gray-600 dark:text-gray-400">
-            Transform images with AI-powered scene modifications using Flux Kontext
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Transform your images with AI-powered magic ✨ Create stunning scene modifications with advanced Flux Kontext technology
           </p>
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-red-900 dark:text-red-100">Error</h3>
-              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+              <h3 className="font-bold text-red-900 dark:text-red-100 text-lg">Oops! Something went wrong</h3>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
             </div>
             <button
               onClick={() => setError(null)}
-              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200"
+              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
             >
               <X className="w-5 h-5" />
             </button>
@@ -553,29 +716,37 @@ export default function FluxKontextPage() {
           {/* Left Panel - Input */}
           <div className="space-y-6">
             {/* Image Upload Section */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-                Upload Image
-              </h2>
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-4">
+                <ImageIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Upload Your Image
+                </h2>
+              </div>
 
               {/* Single Image Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Source Image
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  Source Image to Transform ✨
                 </label>
                 {selectedImages[0] ? (
-                  <div className="relative">
-                    <img
-                      src={selectedImages[0].preview}
-                      alt="Image preview"
-                      className="w-full h-64 object-cover rounded-lg"
-                    />
+                  <div className="relative group">
+                    <div className="relative w-full h-80 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden border-2 border-purple-200 dark:border-purple-800 shadow-lg">
+                      <img
+                        src={selectedImages[0].preview}
+                        alt="Image preview"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                     <button
                       onClick={removeImage}
-                      className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors"
+                      className="absolute top-3 right-3 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg hover:scale-110 transform duration-200"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-5 h-5" />
                     </button>
+                    <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-sm text-white text-xs rounded-full">
+                      {selectedImages[0].file.name}
+                    </div>
                   </div>
                 ) : (
                   <div
@@ -584,19 +755,25 @@ export default function FluxKontextPage() {
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
+                    className={`border-2 border-dashed rounded-xl p-16 text-center cursor-pointer transition-all duration-300 ${
                       isDragging
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-105 shadow-xl'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/10'
                     }`}
                   >
-                    <Upload className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                    <p className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Click or drag image here
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      PNG, JPG up to 10MB
-                    </p>
+                    <div className="flex flex-col items-center gap-4">
+                      <div className={`p-4 rounded-full ${isDragging ? 'bg-purple-100 dark:bg-purple-900/40' : 'bg-gray-100 dark:bg-gray-800'} transition-colors`}>
+                        <Upload className={`w-12 h-12 ${isDragging ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'} transition-colors`} />
+                      </div>
+                      <div>
+                        <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                          {isDragging ? 'Drop it here! 🎯' : 'Click or drag image here'}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          PNG, JPG, WEBP up to 10MB
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
                 <input
@@ -610,34 +787,41 @@ export default function FluxKontextPage() {
             </div>
 
             {/* Prompt Section */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-                Transformation Prompt
-              </h2>
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-4">
+                <Wand2 className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Transformation Magic ✨
+                </h2>
+              </div>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white resize-none"
+                className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900/50 dark:text-white resize-none transition-all shadow-inner"
                 rows={6}
-                placeholder="Describe how you want to transform the scene..."
+                placeholder="Describe your vision... (e.g., 'Transform into a magical nighttime scene with stars and soft lighting')"
               />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                💡 Tip: Be specific and descriptive for best results!
+              </p>
             </div>
 
             {/* Generate Button */}
             <button
               onClick={handleGenerate}
               disabled={isProcessing || selectedImages.length === 0}
-              className="w-full py-4 bg-gradient-to-r from-purple-500 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-600 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+              className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
             >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Processing...
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span>Creating Magic...</span>
                 </>
               ) : (
                 <>
-                  <Wand2 className="w-5 h-5" />
-                  Transform Images
+                  <Wand2 className="w-6 h-6 group-hover:rotate-12 transition-transform duration-300" />
+                  <span>Transform Image ✨</span>
                 </>
               )}
             </button>
@@ -647,45 +831,71 @@ export default function FluxKontextPage() {
           <div className="space-y-6">
             {/* Progress Section */}
             {isProcessing && currentJob && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-                  Generation Progress
-                </h2>
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
+                <div className="flex items-center gap-2 mb-6">
+                  <div className="relative">
+                    <Loader2 className="w-6 h-6 text-purple-600 dark:text-purple-400 animate-spin" />
+                    <div className="absolute inset-0 bg-purple-500/20 rounded-full animate-ping"></div>
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    AI is Working Magic 🎨
+                  </h2>
+                </div>
                 
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {PROGRESS_STAGES.map((stage, index) => {
                     const isActive = index === activeStageIndex;
                     const isComplete = index < activeStageIndex;
                     
                     return (
-                      <div key={stage.key} className="flex items-start gap-3">
-                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                          isComplete ? 'bg-green-500' : isActive ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}>
-                          {isComplete ? (
-                            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          ) : (
-                            <span className="text-sm font-semibold text-white">{index + 1}</span>
-                          )}
+                      <div key={stage.key} className="relative">
+                        <div className="flex items-start gap-4">
+                          <div className={`relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 transform ${
+                            isComplete ? 'bg-gradient-to-br from-green-400 to-green-600 scale-110 shadow-lg' : 
+                            isActive ? 'bg-gradient-to-br from-purple-500 to-pink-600 scale-110 shadow-lg animate-pulse' : 
+                            'bg-gray-300 dark:bg-gray-600 scale-100'
+                          }`}>
+                            {isComplete ? (
+                              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : isActive ? (
+                              <Loader2 className="w-5 h-5 text-white animate-spin" />
+                            ) : (
+                              <span className="text-sm font-bold text-white">{index + 1}</span>
+                            )}
+                            {isActive && (
+                              <div className="absolute inset-0 rounded-full bg-purple-400 animate-ping opacity-75"></div>
+                            )}
+                          </div>
+                          <div className="flex-1 pt-1">
+                            <h3 className={`font-bold text-lg transition-colors ${
+                              isActive ? 'text-purple-600 dark:text-purple-400' : 
+                              isComplete ? 'text-green-600 dark:text-green-400' :
+                              'text-gray-500 dark:text-gray-400'
+                            }`}>
+                              {stage.label}
+                              {isActive && ' 🚀'}
+                              {isComplete && ' ✓'}
+                            </h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{stage.description}</p>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <h3 className={`font-semibold ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'}`}>
-                            {stage.label}
-                          </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{stage.description}</p>
-                        </div>
+                        {index < PROGRESS_STAGES.length - 1 && (
+                          <div className={`absolute left-5 top-12 w-0.5 h-6 transition-colors duration-500 ${
+                            isComplete ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
+                          }`}></div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
                 {jobStartTime && (
-                  <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Elapsed Time:</span>
-                      <span className="font-semibold text-gray-900 dark:text-white">{formattedElapsed}</span>
+                  <div className="mt-6 pt-6 border-t-2 border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">⏱️ Elapsed Time:</span>
+                      <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{formattedElapsed}</span>
                     </div>
                   </div>
                 )}
@@ -694,40 +904,65 @@ export default function FluxKontextPage() {
 
             {/* Results Section */}
             {(currentJob?.status === 'completed' || currentJob?.status === 'COMPLETED') && jobImages[currentJob.id] && (
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Result
-                  </h2>
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-gradient-to-br from-green-400 to-green-600 rounded-xl shadow-lg">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                      Your Masterpiece is Ready! 🎉
+                    </h2>
+                  </div>
                   {lastJobDuration && (
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Completed in {lastJobDuration}
-                    </span>
+                    <div className="px-4 py-2 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 rounded-full border border-green-200 dark:border-green-700">
+                      <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                        ⚡ {lastJobDuration}
+                      </span>
+                    </div>
                   )}
                 </div>
 
                 <div className="space-y-4">
                   {jobImages[currentJob.id].map((image) => (
                     <div key={image.id} className="relative group">
-                      <img
-                        src={image.awsS3Url || image.url || image.dataUrl || ''}
-                        alt={image.filename}
-                        className="w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => openLightbox(image.awsS3Url || image.url || image.dataUrl || '', image.filename)}
-                      />
-                      <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="relative overflow-hidden rounded-2xl border-2 border-purple-200 dark:border-purple-800 shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-2">
+                        <div className="relative w-full h-96 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden">
+                          <img
+                            src={image.awsS3Url || image.url || image.dataUrl || ''}
+                            alt={image.filename}
+                            className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform duration-500"
+                            onClick={() => openLightbox(image.awsS3Url || image.url || image.dataUrl || '', image.filename)}
+                          />
+                        </div>
+                      </div>
+                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
                         <button
                           onClick={() => downloadDatabaseImage(image)}
-                          className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          className="p-3 bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700"
+                          title="Download"
                         >
-                          <Download className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+                          <Download className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => shareImage(image)}
-                          className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          className="p-3 bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-purple-500 hover:to-pink-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700"
+                          title="Share"
                         >
-                          <Share2 className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+                          <Share2 className="w-5 h-5" />
                         </button>
+                        <button
+                          onClick={() => openLightbox(image.awsS3Url || image.url || image.dataUrl || '', image.filename)}
+                          className="p-3 bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-green-500 hover:to-green-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700"
+                          title="View Full Size"
+                        >
+                          <ZoomIn className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="absolute bottom-4 left-4 px-4 py-2 bg-black/70 backdrop-blur-md text-white text-sm rounded-xl border border-white/20 shadow-lg">
+                        <span className="font-semibold">📁 {image.filename}</span>
                       </div>
                     </div>
                   ))}
@@ -735,9 +970,11 @@ export default function FluxKontextPage() {
 
                 <button
                   onClick={resetForm}
-                  className="w-full mt-4 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  className="group w-full mt-6 py-4 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 dark:from-gray-600 dark:via-gray-700 dark:to-gray-800 text-white font-bold rounded-xl hover:from-purple-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 relative overflow-hidden"
                 >
-                  Start New Generation
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                  <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+                  <span>Create Another Masterpiece ✨</span>
                 </button>
               </div>
             )}
@@ -748,24 +985,209 @@ export default function FluxKontextPage() {
       {/* Lightbox */}
       {lightboxImage && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in duration-300"
           onClick={() => setLightboxImage(null)}
         >
-          <div className="relative max-w-7xl max-h-full">
-            <img
-              src={lightboxImage}
-              alt={lightboxTitle}
-              className="max-w-full max-h-[90vh] object-contain"
-            />
+          <div className="relative max-w-7xl max-h-full w-full">
+            <div className="relative bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 rounded-3xl p-4 border border-white/10 shadow-2xl">
+              <img
+                src={lightboxImage}
+                alt={lightboxTitle}
+                className="max-w-full max-h-[85vh] object-contain mx-auto rounded-2xl shadow-2xl"
+              />
+              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl">
+                <span className="font-semibold text-sm">📁 {lightboxTitle}</span>
+              </div>
+            </div>
             <button
               onClick={() => setLightboxImage(null)}
-              className="absolute top-4 right-4 p-2 bg-white dark:bg-gray-800 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="absolute top-8 right-8 p-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full hover:from-red-600 hover:to-red-700 transition-all shadow-xl hover:scale-110 transform duration-200"
+              title="Close (ESC)"
             >
-              <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              <X className="w-6 h-6" />
             </button>
+            <div className="absolute top-8 left-8 px-4 py-2 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl">
+              <span className="text-sm font-semibold">Press ESC to close</span>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Floating Chat Assistant */}
+      <div className="fixed bottom-6 right-6 z-50">
+        {/* Chat Bubble Button */}
+        {!isChatOpen && (
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="group relative p-4 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300 animate-bounce"
+          >
+            <MessageCircle className="w-7 h-7" />
+            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold animate-pulse">
+              AI
+            </div>
+            <div className="absolute bottom-full right-0 mb-2 px-3 py-1 bg-black/80 backdrop-blur-md text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              Ask AI Assistant ✨
+            </div>
+          </button>
+        )}
+
+        {/* Chat Window */}
+        {isChatOpen && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-96 h-[600px] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            {/* Chat Header */}
+            <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white">AI Assistant</h3>
+                  <p className="text-xs text-purple-100">Flux Kontext Helper</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsChatOpen(false)}
+                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900/50">
+              {chatMessages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
+                        : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                    }`}
+                  >
+                    {message.role === 'assistant' && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                        <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">AI Assistant</span>
+                      </div>
+                    )}
+                    {message.image && (
+                      <div className="mb-2">
+                        <img
+                          src={message.image}
+                          alt="Uploaded"
+                          className="max-w-full h-32 object-cover rounded-lg border-2 border-white/20"
+                        />
+                      </div>
+                    )}
+                    <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                      {message.content.split(/(\*\*.*?\*\*|```[\s\S]*?```)/g).map((part, idx) => {
+                        if (part.startsWith('**') && part.endsWith('**')) {
+                          return <strong key={idx} className="font-bold">{part.slice(2, -2)}</strong>;
+                        } else if (part.startsWith('```') && part.endsWith('```')) {
+                          const code = part.slice(3, -3).trim();
+                          return (
+                            <div key={idx} className="my-2 relative group">
+                              <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg text-xs overflow-x-auto">
+                                {code}
+                              </pre>
+                              <button
+                                onClick={() => copyToClipboard(code)}
+                                className="absolute top-2 right-2 p-1 bg-gray-700 hover:bg-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <Copy className="w-3 h-3 text-white" />
+                              </button>
+                            </div>
+                          );
+                        }
+                        return <span key={idx}>{part}</span>;
+                      })}
+                    </div>
+                    {message.role === 'user' && (
+                      <div className="text-xs text-purple-100 mt-1 text-right">
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              {isChatGenerating && (
+                <div className="flex justify-start">
+                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 max-w-[85%]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
+                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">{chatLoadingStep}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Generating response...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={chatMessagesEndRef} />
+            </div>
+
+            {/* Chat Input */}
+            <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+              {chatUploadedImage && (
+                <div className="mb-3 relative inline-block group">
+                  <img
+                    src={chatUploadedImage}
+                    alt="Preview"
+                    className="h-20 w-20 object-cover rounded-lg border-2 border-purple-300 dark:border-purple-600 shadow-md"
+                  />
+                  <button
+                    onClick={handleRemoveChatImage}
+                    className="absolute -top-2 -right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg opacity-100 group-hover:scale-110"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => chatFileInputRef.current?.click()}
+                  className="p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  title="Upload image"
+                >
+                  <ImageIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                </button>
+                <textarea
+                  ref={chatInputRef}
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={handleChatKeyPress}
+                  placeholder="Ask me anything about Flux Kontext..."
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900 dark:text-white resize-none text-sm"
+                  rows={2}
+                  disabled={isChatGenerating}
+                />
+                <button
+                  onClick={handleSendChat}
+                  disabled={(!chatInput.trim() && !chatUploadedImage) || isChatGenerating}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                💡 Press Enter to send, Shift+Enter for new line
+              </p>
+              <input
+                ref={chatFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleChatImageUpload}
+                className="hidden"
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

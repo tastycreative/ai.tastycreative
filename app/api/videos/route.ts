@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const includeData = searchParams.get('includeData') === 'true';
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
+    const sortBy = searchParams.get('sortBy') as 'newest' | 'oldest' | 'largest' | 'smallest' | 'name' | null;
     const stats = searchParams.get('stats') === 'true';
     const requestedUserId = searchParams.get('userId'); // Admin can request another user's content
 
@@ -47,6 +48,7 @@ export async function GET(request: NextRequest) {
       includeData,
       limit,
       offset,
+      sortBy,
       stats
     });
 
@@ -66,7 +68,8 @@ export async function GET(request: NextRequest) {
     const videos = await getUserVideos(targetUserId, {
       includeData,
       limit,
-      offset
+      offset,
+      sortBy: sortBy || undefined
     });
 
     return NextResponse.json({

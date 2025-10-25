@@ -77,12 +77,13 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     
-    // For Instagram staging folders, don't use userId subfolder (flat structure for easy browsing)
-    // For outputs folder, use userId subfolder (organized by user)
-    const isInstagramFolder = folder.startsWith('instagram/');
-    const s3Key = isInstagramFolder 
-      ? `${folder}${timestamp}_${sanitizedName}`  // instagram/posts/timestamp_filename.png
-      : `${folder}${userId}/${timestamp}_${sanitizedName}`; // outputs/userId/timestamp_filename.png
+    // Always use userId subfolder for proper user isolation
+    // This ensures each user can only see their own files
+    // Ensure folder ends with / before adding userId
+    const folderWithSlash = folder.endsWith('/') ? folder : folder + '/';
+    const s3Key = `${folderWithSlash}${userId}/${timestamp}_${sanitizedName}`;
+
+    console.log('📝 Generated S3 key:', s3Key);
 
     // Determine content type
     const contentType = file.type || 'application/octet-stream';

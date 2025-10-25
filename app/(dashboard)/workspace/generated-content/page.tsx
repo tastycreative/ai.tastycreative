@@ -230,10 +230,13 @@ interface LazyMediaProps {
 }
 
 const LazyMedia: React.FC<LazyMediaProps> = ({ item, onClick }) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  
   const { ref, inView } = useInView({
     triggerOnce: true,
-    threshold: 0.1,
-    rootMargin: '50px',
+    threshold: 0.01, // Reduced from 0.1 for earlier loading
+    rootMargin: '200px', // Increased from 50px to preload earlier
   });
 
   const mediaUrl = useMemo(() => getBestMediaUrl({
@@ -248,6 +251,16 @@ const LazyMedia: React.FC<LazyMediaProps> = ({ item, onClick }) => {
     type: item.itemType === "video" ? 'video' : 'image'
   }), [item]);
 
+  // Preload image when in view
+  useEffect(() => {
+    if (inView && item.itemType === "image" && mediaUrl) {
+      const img = new Image();
+      img.src = mediaUrl;
+      img.onload = () => setImageLoaded(true);
+      img.onerror = () => setImageError(true);
+    }
+  }, [inView, mediaUrl, item.itemType]);
+
   if (item.itemType === "video") {
     return (
       <div ref={ref} className="w-full h-full">
@@ -261,8 +274,8 @@ const LazyMedia: React.FC<LazyMediaProps> = ({ item, onClick }) => {
             playsInline
           />
         ) : (
-          <div className="w-full h-full bg-gray-200 dark:bg-gray-700 animate-pulse flex items-center justify-center">
-            <Video className="w-12 h-12 text-gray-400" />
+          <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse flex items-center justify-center">
+            <Video className="w-12 h-12 text-gray-400 animate-pulse" />
           </div>
         )}
       </div>
@@ -270,18 +283,40 @@ const LazyMedia: React.FC<LazyMediaProps> = ({ item, onClick }) => {
   }
 
   return (
-    <div ref={ref} className="w-full h-full">
+    <div ref={ref} className="w-full h-full relative">
       {inView ? (
-        <img
-          src={mediaUrl}
-          alt={item.filename}
-          className="w-full h-full object-cover cursor-pointer transition-transform duration-300 group-hover:scale-110"
-          onClick={onClick}
-          loading="lazy"
-        />
+        <>
+          {/* Show blur placeholder while loading */}
+          {!imageLoaded && !imageError && (
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse flex items-center justify-center backdrop-blur-xl">
+              <ImageIcon className="w-12 h-12 text-gray-400 animate-pulse" />
+            </div>
+          )}
+          
+          {/* Show error state */}
+          {imageError && (
+            <div className="absolute inset-0 bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+              <AlertCircle className="w-12 h-12 text-red-400" />
+            </div>
+          )}
+          
+          {/* Actual image with fade-in */}
+          <img
+            src={mediaUrl}
+            alt={item.filename}
+            className={`w-full h-full object-cover cursor-pointer transition-all duration-500 group-hover:scale-110 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
+            onClick={onClick}
+            loading="eager" // Changed from lazy to eager for faster loading
+            decoding="async" // Async decoding for better performance
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
+          />
+        </>
       ) : (
-        <div className="w-full h-full bg-gray-200 dark:bg-gray-700 animate-pulse flex items-center justify-center">
-          <ImageIcon className="w-12 h-12 text-gray-400" />
+        <div className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse flex items-center justify-center">
+          <ImageIcon className="w-12 h-12 text-gray-400 animate-pulse" />
         </div>
       )}
     </div>
@@ -303,6 +338,7 @@ export default function GeneratedContentPage() {
   const [imageStats, setImageStats] = useState<ImageStats | null>(null);
   const [videoStats, setVideoStats] = useState<VideoStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isChangingPage, setIsChangingPage] = useState(false); // Separate state for page changes
   const [error, setError] = useState<string | null>(null);
 
   // UI State
@@ -444,9 +480,6 @@ export default function GeneratedContentPage() {
   const lastFetchTimeRef = useRef(0); // Track last fetch time for cooldown
   const [useInfiniteScroll, setUseInfiniteScroll] = useState(false); // Toggle between infinite scroll and pagination (default to pagination)
   
-  // Calculate total pages
-  const totalPages = Math.ceil((totalImages + totalVideos) / itemsPerPage);
-  
   // Infinite Scroll State (for display control)
   const [displayCount, setDisplayCount] = useState(20);
   const [hasMore, setHasMore] = useState(true);
@@ -460,7 +493,7 @@ export default function GeneratedContentPage() {
   // Fetch images and stats
   useEffect(() => {
     if (apiClient && !adminLoading) {
-      // Reset pagination when user changes
+      // Reset pagination when user changes or items per page changes
       setCurrentPage(1);
       setHasMoreImages(false);
       setHasMoreVideos(false);
@@ -476,7 +509,7 @@ export default function GeneratedContentPage() {
         fetchStats();
       });
     }
-  }, [apiClient, adminLoading, selectedUserId]);
+  }, [apiClient, adminLoading, selectedUserId, itemsPerPage, filterBy, sortBy]);
 
   // Fetch available users when admin status is confirmed
   useEffect(() => {
@@ -529,8 +562,12 @@ export default function GeneratedContentPage() {
       if (append) {
         setIsLoadingMore(true);
       } else {
-        setLoading(true);
-        // Don't reset currentPage - it should be set by goToPage or stay at initial value
+        // Use isChangingPage for pagination, loading for initial load
+        if (pageOverride !== undefined) {
+          setIsChangingPage(true);
+        } else {
+          setLoading(true);
+        }
       }
       setError(null);
 
@@ -544,14 +581,31 @@ export default function GeneratedContentPage() {
       const effectivePage = pageOverride !== undefined ? pageOverride : currentPage;
       console.log("📄 Page:", append ? effectivePage + 1 : effectivePage, "Append:", append);
 
-      // Calculate offset for pagination
-      const offset = append ? effectivePage * itemsPerPage : (effectivePage - 1) * itemsPerPage;
+      // When filtering by content type, fetch only that type with proper pagination
+      // When showing all, fetch from both APIs and merge by date
+      const isFilteredByType = filterBy === "images" || filterBy === "videos";
+      
+      let fetchLimit: number;
+      let fetchOffset: number;
+      
+      if (isFilteredByType) {
+        // Direct pagination for single content type
+        fetchLimit = itemsPerPage;
+        fetchOffset = append ? effectivePage * itemsPerPage : (effectivePage - 1) * itemsPerPage;
+        console.log("📡 Filtered mode:", filterBy, "- limit:", fetchLimit, "offset:", fetchOffset);
+      } else {
+        // Merged pagination - fetch from beginning to current page for proper date sorting
+        fetchLimit = itemsPerPage * effectivePage;
+        fetchOffset = 0;
+        console.log("📡 Merged mode - limit:", fetchLimit, "offset:", fetchOffset);
+      }
 
       // Build query params
       const queryParams = new URLSearchParams({
         includeData: 'false',
-        limit: itemsPerPage.toString(),
-        offset: offset.toString()
+        limit: fetchLimit.toString(),
+        offset: fetchOffset.toString(),
+        sortBy: sortBy // Pass sort parameter to API
       });
       
       // Add userId param if admin has selected a user
@@ -559,73 +613,56 @@ export default function GeneratedContentPage() {
         queryParams.append('userId', selectedUserId);
       }
 
-      // Fetch images with more detailed parameters
-      console.log("📡 Fetching images from /api/images...");
-      const imagesResponse = await apiClient.get(
-        `/api/images?${queryParams.toString()}`
-      );
-      console.log("📡 Images response status:", imagesResponse.status);
-      console.log(
-        "📡 Images response headers:",
-        Object.fromEntries(imagesResponse.headers.entries())
-      );
+      console.log("📡 Fetching for page", effectivePage, "with sortBy:", sortBy);
 
-      // Fetch videos
-      console.log("📡 Fetching videos from /api/videos...");
-      const videosResponse = await apiClient.get(
-        `/api/videos?${queryParams.toString()}`
-      );
-      console.log("📡 Videos response status:", videosResponse.status);
-      console.log(
-        "📡 Videos response headers:",
-        Object.fromEntries(videosResponse.headers.entries())
-      );
+      // Conditionally fetch based on filter
+      let imagesResponse, videosResponse;
+      let imagesData = { success: true, images: [], total: 0, hasMore: false };
+      let videosData = { success: true, videos: [], total: 0, hasMore: false };
 
-      // Enhanced error logging
-      if (!imagesResponse.ok) {
-        console.error(
-          "❌ Images fetch failed:",
-          imagesResponse.status,
-          imagesResponse.statusText
+      // Fetch images (skip if filtering for videos only)
+      if (filterBy !== "videos") {
+        console.log("📡 Fetching images from /api/images...");
+        imagesResponse = await apiClient.get(
+          `/api/images?${queryParams.toString()}`
         );
-        const errorText = await imagesResponse.text();
-        console.error("❌ Images error details:", errorText);
+        console.log("📡 Images response status:", imagesResponse.status);
 
-        // Try to parse as JSON for structured error
-        try {
-          const errorJson = JSON.parse(errorText);
-          console.error("❌ Images structured error:", errorJson);
-        } catch {
-          // Not JSON, just log as text
+        if (!imagesResponse.ok) {
+          console.error("❌ Images fetch failed:", imagesResponse.status, imagesResponse.statusText);
+          const errorText = await imagesResponse.text();
+          console.error("❌ Images error details:", errorText);
+          throw new Error(`Failed to fetch images: ${imagesResponse.status}`);
         }
+
+        imagesData = await imagesResponse.json();
+        console.log("📊 Gallery images data:", imagesData);
+        console.log("📊 Raw images count:", imagesData.images?.length || 0);
+      } else {
+        console.log("⏭️ Skipping images fetch (videos only filter)");
       }
 
-      if (!videosResponse.ok) {
-        console.error(
-          "❌ Videos fetch failed:",
-          videosResponse.status,
-          videosResponse.statusText
+      // Fetch videos (skip if filtering for images only)
+      if (filterBy !== "images") {
+        console.log("📡 Fetching videos from /api/videos...");
+        videosResponse = await apiClient.get(
+          `/api/videos?${queryParams.toString()}`
         );
-        const errorText = await videosResponse.text();
-        console.error("❌ Videos error details:", errorText);
+        console.log("📡 Videos response status:", videosResponse.status);
 
-        // Try to parse as JSON for structured error
-        try {
-          const errorJson = JSON.parse(errorText);
-          console.error("❌ Videos structured error:", errorJson);
-        } catch {
-          // Not JSON, just log as text
+        if (!videosResponse.ok) {
+          console.error("❌ Videos fetch failed:", videosResponse.status, videosResponse.statusText);
+          const errorText = await videosResponse.text();
+          console.error("❌ Videos error details:", errorText);
+          throw new Error(`Failed to fetch videos: ${videosResponse.status}`);
         }
-      }
 
-      if (!imagesResponse.ok || !videosResponse.ok) {
-        const errorMessage = `Failed to fetch content: Images(${imagesResponse.status}) Videos(${videosResponse.status})`;
-        console.error("❌ Combined fetch error:", errorMessage);
-        throw new Error(errorMessage);
+        videosData = await videosResponse.json();
+        console.log("📊 Gallery videos data:", videosData);
+        console.log("📊 Raw videos count:", videosData.videos?.length || 0);
+      } else {
+        console.log("⏭️ Skipping videos fetch (images only filter)");
       }
-
-      const imagesData = await imagesResponse.json();
-      const videosData = await videosResponse.json();
 
       console.log("📊 Gallery images data:", imagesData);
       console.log("📊 Gallery videos data:", videosData);
@@ -634,10 +671,10 @@ export default function GeneratedContentPage() {
 
       // NEW: More detailed debugging
       if (imagesData.success === false) {
-        console.error("❌ Images API returned error:", imagesData.error);
+        console.error("❌ Images API returned error:", (imagesData as any).error);
       }
       if (videosData.success === false) {
-        console.error("❌ Videos API returned error:", videosData.error);
+        console.error("❌ Videos API returned error:", (videosData as any).error);
       }
 
       // Debug individual images
@@ -760,7 +797,27 @@ export default function GeneratedContentPage() {
         stagingStorageUploadedAt: video.googleDriveUploadedAt ? new Date(video.googleDriveUploadedAt) : null,
       })) : []);
 
-      const allItems: ContentItem[] = [...currentImages, ...currentVideos];
+      // Combine and sort by creation date (most recent first)
+      let allItems: ContentItem[] = [...currentImages, ...currentVideos];
+      allItems.sort((a, b) => {
+        const dateA = a.createdAt instanceof Date ? a.createdAt : new Date(a.createdAt);
+        const dateB = b.createdAt instanceof Date ? b.createdAt : new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      // When using traditional pagination, slice to get only the current page's items
+      if (!useInfiniteScroll && !append) {
+        if (isFilteredByType) {
+          // Already fetched the exact page from API, no need to slice
+          console.log("✅ Page", effectivePage, "- direct fetch (", allItems.length, "items)");
+        } else {
+          // Merged content - slice to get current page
+          const startIndex = (effectivePage - 1) * itemsPerPage;
+          const endIndex = startIndex + itemsPerPage;
+          allItems = allItems.slice(startIndex, endIndex);
+          console.log("✅ Page", effectivePage, "- showing items", startIndex, "to", endIndex, "(", allItems.length, "items)");
+        }
+      }
 
       setAllContent(allItems);
       console.log("✅ Combined", allItems.length, "content items");
@@ -808,7 +865,9 @@ export default function GeneratedContentPage() {
       if (append) {
         setIsLoadingMore(false);
       } else {
+        // Clear both loading states
         setLoading(false);
+        setIsChangingPage(false);
       }
       console.log("🏁 Fetch content finished");
     }
@@ -1029,10 +1088,64 @@ export default function GeneratedContentPage() {
     return filtered;
   }, [allContent, filterBy, debouncedSearchQuery, sortBy, advancedFilters, linkedContentMap]);
 
+  // Calculate total pages based on filtered content (not raw API counts)
+  // This ensures pagination adjusts when filters like "Images only" or "Videos only" are applied
+  const totalPages = useMemo(() => {
+    // When filters are active, use filtered content length
+    // When no filters, use API totals for accuracy
+    if (filterBy === "images") {
+      return Math.ceil(totalImages / itemsPerPage);
+    } else if (filterBy === "videos") {
+      return Math.ceil(totalVideos / itemsPerPage);
+    } else if (debouncedSearchQuery || advancedFilters.dateRange.start || advancedFilters.dateRange.end || 
+               advancedFilters.formats.length > 0 || advancedFilters.linkedStatus !== 'all') {
+      // If any filters are active, use filtered content length
+      return Math.ceil(filteredAndSortedContent.length / itemsPerPage);
+    } else {
+      // No filters - use API totals
+      return Math.ceil((totalImages + totalVideos) / itemsPerPage);
+    }
+  }, [filterBy, totalImages, totalVideos, itemsPerPage, filteredAndSortedContent.length, 
+      debouncedSearchQuery, advancedFilters]);
+
   // Infinite scroll content - only show items up to displayCount
   const displayedContent = useMemo(() => {
+    // When using traditional pagination, show all content (it's already paginated from API)
+    // When using infinite scroll, slice by displayCount
+    if (!useInfiniteScroll) {
+      return filteredAndSortedContent;
+    }
     return filteredAndSortedContent.slice(0, displayCount);
-  }, [filteredAndSortedContent, displayCount]);
+  }, [filteredAndSortedContent, displayCount, useInfiniteScroll]);
+
+  // Preload images for better performance
+  useEffect(() => {
+    if (allContent.length > 0 && !loading && !isChangingPage) {
+      // Preload first 10 images for instant display
+      const imagesToPreload = allContent
+        .filter(item => item.itemType === 'image')
+        .slice(0, 10);
+      
+      imagesToPreload.forEach(item => {
+        const url = getBestMediaUrl({
+          awsS3Key: item.awsS3Key,
+          awsS3Url: item.awsS3Url,
+          s3Key: item.s3Key,
+          networkVolumePath: item.networkVolumePath,
+          dataUrl: item.dataUrl,
+          url: item.url,
+          id: item.id,
+          filename: item.filename,
+          type: 'image'
+        });
+        
+        if (url) {
+          const img = new Image();
+          img.src = url;
+        }
+      });
+    }
+  }, [allContent, loading, isChangingPage]);
 
   // Keyboard Navigation Handler (must be after displayedContent, before useEffects)
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -1154,6 +1267,16 @@ export default function GeneratedContentPage() {
     setHasMore(hasMoreImages || hasMoreVideos);
   }, [debouncedSearchQuery, filterBy, sortBy, advancedFilters, hasMoreImages, hasMoreVideos]);
 
+  // Reset to page 1 when filters change (for traditional pagination)
+  useEffect(() => {
+    if (!useInfiniteScroll && currentPage > 1) {
+      console.log("🔄 Filter changed, resetting to page 1");
+      setCurrentPage(1);
+    }
+  }, [filterBy, debouncedSearchQuery, sortBy, advancedFilters.dateRange.start, 
+      advancedFilters.dateRange.end, advancedFilters.formats, advancedFilters.linkedStatus, 
+      advancedFilters.aspectRatio, useInfiniteScroll]);
+
   // Load more items when scrolling (only in infinite scroll mode)
   useEffect(() => {
     if (!useInfiniteScroll) return; // Skip if using traditional pagination
@@ -1162,9 +1285,10 @@ export default function GeneratedContentPage() {
     // 1. Element is in view
     // 2. Not currently loading initial content
     // 3. Not currently loading more content
-    // 4. There's more content available (either images or videos)
-    // 5. Not already fetching (prevents duplicate calls)
-    // 6. Cooldown period has passed (at least 1 second since last fetch)
+    // 4. Not changing pages
+    // 5. There's more content available (either images or videos)
+    // 6. Not already fetching (prevents duplicate calls)
+    // 7. Cooldown period has passed (at least 1 second since last fetch)
     const now = Date.now();
     const timeSinceLastFetch = now - lastFetchTimeRef.current;
     const cooldownPeriod = 1000; // 1 second cooldown
@@ -1173,6 +1297,7 @@ export default function GeneratedContentPage() {
       inView && 
       !loading && 
       !isLoadingMore && 
+      !isChangingPage &&
       (hasMoreImages || hasMoreVideos) && 
       !isFetchingRef.current &&
       timeSinceLastFetch > cooldownPeriod;
@@ -1189,7 +1314,7 @@ export default function GeneratedContentPage() {
         }, 500);
       });
     }
-  }, [inView, loading, isLoadingMore, hasMoreImages, hasMoreVideos, useInfiniteScroll]);
+  }, [inView, loading, isLoadingMore, isChangingPage, hasMoreImages, hasMoreVideos, useInfiniteScroll]);
 
   // Modal enhancement: Auto-hide controls when modal opens
   useEffect(() => {
@@ -1787,73 +1912,84 @@ export default function GeneratedContentPage() {
     return d.toLocaleDateString() + " " + d.toLocaleTimeString();
   };
 
-  if (!apiClient) {
+  // Show skeleton loading on initial load with blur/shimmer effect
+  if (loading && !isChangingPage) {
     return (
-      <div className="flex items-center justify-center min-h-[600px] bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-slate-800 dark:to-gray-900 rounded-2xl">
-        <div className="text-center space-y-8 p-8">
-          <div className="relative">
-            <div className="w-24 h-24 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mx-auto shadow-lg"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <ImageIcon className="w-10 h-10 text-blue-500 dark:text-blue-400 animate-pulse" />
+      <div className="space-y-6">
+        {/* Header Skeleton */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-blue-950 dark:to-indigo-950 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 p-8">
+          <div className="flex items-center space-x-6 animate-pulse">
+            <div className="p-4 bg-gray-300 dark:bg-gray-700 rounded-2xl w-20 h-20"></div>
+            <div className="flex-1 space-y-3">
+              <div className="h-8 bg-gray-300 dark:bg-gray-700 rounded-lg w-64"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-96"></div>
             </div>
           </div>
-          <div className="space-y-3">
-            <h3 className="text-3xl font-bold dark:text-white bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Loading Your Gallery
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md text-lg">
-              Setting up authentication to view your generated content...
-            </p>
-          </div>
-          <div className="flex items-center justify-center space-x-2">
-            <div className="w-3 h-3 bg-blue-500 rounded-full animate-bounce shadow-md"></div>
-            <div
-              className="w-3 h-3 bg-purple-500 rounded-full animate-bounce shadow-md"
-              style={{ animationDelay: "0.1s" }}
-            ></div>
-            <div
-              className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce shadow-md"
-              style={{ animationDelay: "0.2s" }}
-            ></div>
-          </div>
-          <div className="mt-8 p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-xl border border-blue-200/50 dark:border-gray-700/50">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              🔐 Securely connecting to your account...
-            </p>
-          </div>
         </div>
-      </div>
-    );
-  }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-96 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl">
-        <div className="text-center space-y-6 p-8">
-          <div className="relative">
-            <Loader2 className="w-12 h-12 animate-spin mx-auto text-blue-500 drop-shadow-lg" />
-            <div className="absolute inset-0 w-12 h-12 border-2 border-blue-200 dark:border-blue-800 rounded-full animate-pulse mx-auto"></div>
+        {/* Stats Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-32 mb-4"></div>
+            <div className="h-10 bg-gray-200 dark:bg-gray-600 rounded w-24"></div>
           </div>
-          <div className="space-y-2">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Loading Content
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Fetching your generated images and videos...
-            </p>
-          </div>
-          <div className="flex items-center justify-center space-x-1">
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-            <div
-              className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-              style={{ animationDelay: "0.2s" }}
-            ></div>
-            <div
-              className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"
-              style={{ animationDelay: "0.4s" }}
-            ></div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+            <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded w-32 mb-4"></div>
+            <div className="h-10 bg-gray-200 dark:bg-gray-600 rounded w-24"></div>
           </div>
         </div>
+
+        {/* Toolbar Skeleton */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center gap-4 animate-pulse">
+            <div className="h-10 bg-gray-200 dark:bg-gray-600 rounded-lg flex-1"></div>
+            <div className="h-10 bg-gray-200 dark:bg-gray-600 rounded-lg w-32"></div>
+            <div className="h-10 bg-gray-200 dark:bg-gray-600 rounded-lg w-32"></div>
+          </div>
+        </div>
+
+        {/* Grid Skeleton with Blur Effect */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+            {Array.from({ length: 20 }).map((_, i) => (
+              <div
+                key={i}
+                className="relative group overflow-hidden rounded-xl bg-gray-200 dark:bg-gray-700 aspect-square"
+              >
+                {/* Shimmer effect */}
+                <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/30 dark:via-white/10 to-transparent"></div>
+                
+                {/* Blur placeholder */}
+                <div className="absolute inset-0 backdrop-blur-xl bg-gradient-to-br from-blue-100/50 to-purple-100/50 dark:from-blue-900/30 dark:to-purple-900/30"></div>
+                
+                {/* Icon */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <ImageIcon className="w-12 h-12 text-gray-400 dark:text-gray-500 animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Loading text */}
+          <div className="mt-6 text-center">
+            <div className="inline-flex items-center space-x-3 text-gray-600 dark:text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+              <span className="text-sm font-medium">Loading your generated content...</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Add shimmer animation styles */}
+        <style jsx>{`
+          @keyframes shimmer {
+            100% {
+              transform: translateX(100%);
+            }
+          }
+          .animate-shimmer {
+            animation: shimmer 2s infinite;
+          }
+        `}</style>
       </div>
     );
   }
@@ -2772,7 +2908,34 @@ export default function GeneratedContentPage() {
     advancedFilters.linkedStatus !== 'all';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Lightweight Page Change Loading Banner */}
+      {isChangingPage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-slide-down">
+          <div className="bg-blue-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="font-semibold">Loading page {currentPage}...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Add animation for the banner */}
+      <style jsx>{`
+        @keyframes slide-down {
+          from {
+            transform: translate(-50%, -100%);
+            opacity: 0;
+          }
+          to {
+            transform: translate(-50%, 0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-down {
+          animation: slide-down 0.3s ease-out;
+        }
+      `}</style>
+      
       {/* Enhanced Header with Softer Gradient */}
       <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-blue-950 dark:to-indigo-950 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 p-8">
         {/* Subtle Background Pattern */}
@@ -3165,11 +3328,11 @@ export default function GeneratedContentPage() {
                   setItemsPerPage(newValue);
                   // Save preference to localStorage
                   localStorage.setItem('itemsPerPage', newValue.toString());
-                  // Reset and refetch with new items per page
+                  // Reset to page 1
                   setCurrentPage(1);
                   setHasMoreImages(false);
                   setHasMoreVideos(false);
-                  fetchContent(false);
+                  // The useEffect that watches itemsPerPage will trigger refetch
                 }}
                 className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
                 title="Items per page"
@@ -4027,20 +4190,30 @@ export default function GeneratedContentPage() {
               </div>
             )}
 
-            {/* Traditional Pagination Controls - Only show when not using infinite scroll */}
+            {/* Enhanced Animated Pagination Controls - Grid View */}
             {!useInfiniteScroll && totalPages > 1 && !loading && (
-              <div className="flex items-center justify-center py-8 space-x-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex flex-wrap items-center justify-center gap-3 py-8 px-4 border-t border-gray-200 dark:border-gray-700">
+                {/* First Page Button */}
+                <button
+                  onClick={() => goToPage(1)}
+                  disabled={currentPage === 1}
+                  className="group relative px-3 py-2 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-lg disabled:hover:scale-100 disabled:hover:shadow-none"
+                  title="First Page"
+                >
+                  <span className="text-sm font-medium">⏮</span>
+                </button>
+
                 {/* Previous Button */}
                 <button
                   onClick={() => goToPage(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  className="group relative px-4 py-2 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-lg disabled:hover:scale-100 disabled:hover:shadow-none"
                 >
-                  Previous
+                  <span className="text-sm font-medium">← Previous</span>
                 </button>
 
-                {/* Page Numbers */}
-                <div className="flex items-center space-x-1">
+                {/* Page Numbers with Animation */}
+                <div className="flex items-center gap-1.5">
                   {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                     let pageNum;
                     if (totalPages <= 7) {
@@ -4057,13 +4230,16 @@ export default function GeneratedContentPage() {
                       <button
                         key={pageNum}
                         onClick={() => goToPage(pageNum)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-all duration-200 ${
+                        className={`relative w-11 h-11 rounded-xl font-semibold transition-all duration-300 transform hover:scale-110 ${
                           currentPage === pageNum
-                            ? 'bg-blue-600 text-white shadow-lg'
-                            : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            ? 'bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 text-white shadow-xl shadow-blue-500/50 dark:shadow-blue-500/30 scale-110 ring-2 ring-blue-400 dark:ring-blue-500 ring-offset-2 dark:ring-offset-gray-900'
+                            : 'bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-lg'
                         }`}
                       >
-                        {pageNum}
+                        <span className="relative z-10">{pageNum}</span>
+                        {currentPage === pageNum && (
+                          <span className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-400 to-purple-500 opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-300"></span>
+                        )}
                       </button>
                     );
                   })}
@@ -4073,15 +4249,47 @@ export default function GeneratedContentPage() {
                 <button
                   onClick={() => goToPage(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                  className="group relative px-4 py-2 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-lg disabled:hover:scale-100 disabled:hover:shadow-none"
                 >
-                  Next
+                  <span className="text-sm font-medium">Next →</span>
                 </button>
 
-                {/* Page Info */}
-                <span className="ml-4 text-sm text-gray-600 dark:text-gray-400">
-                  Page {currentPage} of {totalPages}
-                </span>
+                {/* Last Page Button */}
+                <button
+                  onClick={() => goToPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="group relative px-3 py-2 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-lg disabled:hover:scale-100 disabled:hover:shadow-none"
+                  title="Last Page"
+                >
+                  <span className="text-sm font-medium">⏭</span>
+                </button>
+
+                {/* Quick Page Jump Dropdown */}
+                <div className="relative ml-2">
+                  <select
+                    value={currentPage}
+                    onChange={(e) => goToPage(parseInt(e.target.value))}
+                    className="appearance-none px-4 py-2 pr-10 rounded-xl bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-2 border-blue-300 dark:border-blue-600 text-gray-700 dark:text-gray-300 font-medium cursor-pointer hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <option key={page} value={page}>
+                        Page {page}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg className="w-4 h-4 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Enhanced Page Info */}
+                <div className="ml-2 px-4 py-2 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-700">
+                  <span className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    {currentPage} / {totalPages}
+                  </span>
+                </div>
               </div>
             )}
             </>
@@ -4316,20 +4524,30 @@ export default function GeneratedContentPage() {
                 </div>
               )}
 
-              {/* Traditional Pagination Controls for List View - Only show when not using infinite scroll */}
+              {/* Enhanced Animated Pagination Controls - List View */}
               {!useInfiniteScroll && totalPages > 1 && !loading && (
-                <div className="flex items-center justify-center py-6 space-x-2 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex flex-wrap items-center justify-center gap-2.5 py-6 px-4 border-t border-gray-200 dark:border-gray-700">
+                  {/* First Page Button */}
+                  <button
+                    onClick={() => goToPage(1)}
+                    disabled={currentPage === 1}
+                    className="group relative px-2.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-md disabled:hover:scale-100 disabled:hover:shadow-none"
+                    title="First Page"
+                  >
+                    <span className="text-xs font-medium">⏮</span>
+                  </button>
+
                   {/* Previous Button */}
                   <button
                     onClick={() => goToPage(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    className="group relative px-3 py-1.5 text-sm rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-md disabled:hover:scale-100 disabled:hover:shadow-none"
                   >
-                    Previous
+                    <span className="text-xs font-medium">← Prev</span>
                   </button>
 
-                  {/* Page Numbers */}
-                  <div className="flex items-center space-x-1">
+                  {/* Page Numbers with Animation */}
+                  <div className="flex items-center gap-1">
                     {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                       let pageNum;
                       if (totalPages <= 7) {
@@ -4346,13 +4564,16 @@ export default function GeneratedContentPage() {
                         <button
                           key={pageNum}
                           onClick={() => goToPage(pageNum)}
-                          className={`w-8 h-8 rounded-lg font-medium text-sm transition-all duration-200 ${
+                          className={`relative w-9 h-9 rounded-lg font-semibold text-sm transition-all duration-300 transform hover:scale-110 ${
                             currentPage === pageNum
-                              ? 'bg-blue-600 text-white shadow-lg'
-                              : 'bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                              ? 'bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/50 dark:shadow-blue-500/30 scale-110 ring-2 ring-blue-400 dark:ring-blue-500 ring-offset-1 dark:ring-offset-gray-900'
+                              : 'bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md'
                           }`}
                         >
-                          {pageNum}
+                          <span className="relative z-10">{pageNum}</span>
+                          {currentPage === pageNum && (
+                            <span className="absolute inset-0 rounded-lg bg-gradient-to-br from-blue-400 to-purple-500 opacity-0 group-hover:opacity-20 blur-lg transition-opacity duration-300"></span>
+                          )}
                         </button>
                       );
                     })}
@@ -4362,15 +4583,47 @@ export default function GeneratedContentPage() {
                   <button
                     onClick={() => goToPage(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                    className="group relative px-3 py-1.5 text-sm rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-md disabled:hover:scale-100 disabled:hover:shadow-none"
                   >
-                    Next
+                    <span className="text-xs font-medium">Next →</span>
                   </button>
 
-                  {/* Page Info */}
-                  <span className="ml-3 text-xs text-gray-600 dark:text-gray-400">
-                    Page {currentPage} of {totalPages}
-                  </span>
+                  {/* Last Page Button */}
+                  <button
+                    onClick={() => goToPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="group relative px-2.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 hover:border-blue-400 dark:hover:border-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 hover:shadow-md disabled:hover:scale-100 disabled:hover:shadow-none"
+                    title="Last Page"
+                  >
+                    <span className="text-xs font-medium">⏭</span>
+                  </button>
+
+                  {/* Quick Page Jump Dropdown */}
+                  <div className="relative ml-1.5">
+                    <select
+                      value={currentPage}
+                      onChange={(e) => goToPage(parseInt(e.target.value))}
+                      className="appearance-none px-3 py-1.5 pr-8 text-sm rounded-lg bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-2 border-blue-300 dark:border-blue-600 text-gray-700 dark:text-gray-300 font-medium cursor-pointer hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-md hover:shadow-lg transform hover:scale-105"
+                    >
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <option key={page} value={page}>
+                          Page {page}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Enhanced Page Info */}
+                  <div className="ml-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-700">
+                    <span className="text-xs font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      {currentPage} / {totalPages}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>

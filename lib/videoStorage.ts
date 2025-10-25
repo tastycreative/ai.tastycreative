@@ -305,11 +305,33 @@ export async function getUserVideos(
     jobId?: string;
     limit?: number;
     offset?: number;
+    sortBy?: 'newest' | 'oldest' | 'largest' | 'smallest' | 'name';
   } = {}
 ): Promise<GeneratedVideo[]> {
-  console.log('🎬 Getting videos for user:', clerkId);
+  console.log('🎬 Getting videos for user:', clerkId, 'sortBy:', options.sortBy);
   
   try {
+    // Determine orderBy based on sortBy parameter
+    let orderBy: any;
+    switch (options.sortBy) {
+      case 'oldest':
+        orderBy = { createdAt: 'asc' };
+        break;
+      case 'largest':
+        orderBy = { fileSize: 'desc' };
+        break;
+      case 'smallest':
+        orderBy = { fileSize: 'asc' };
+        break;
+      case 'name':
+        orderBy = { filename: 'asc' };
+        break;
+      case 'newest':
+      default:
+        orderBy = { createdAt: 'desc' };
+        break;
+    }
+
     const videos = await prisma.generatedVideo.findMany({
       where: {
         clerkId,
@@ -340,7 +362,7 @@ export async function getUserVideos(
         googleDriveFolderName: true,
         googleDriveUploadedAt: true,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: orderBy,
       take: options.limit,
       skip: options.offset
     });

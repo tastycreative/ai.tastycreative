@@ -142,12 +142,16 @@ function MessageContent({ content }: { content: string }) {
 
 export default function FluxKontextPrompts() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [showConversations, setShowConversations] = useState(false);
   const [inputMessage, setInputMessage] = useState("");
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadingStep, setLoadingStep] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [showTechniques, setShowTechniques] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -156,6 +160,141 @@ export default function FluxKontextPrompts() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Load or create conversation on mount
+  useEffect(() => {
+    const loadOrCreateConversation = async () => {
+      try {
+        setIsLoadingHistory(true);
+        
+        // Try to get existing conversations
+        const response = await fetch("/api/flux-kontext-conversations");
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.conversations && data.conversations.length > 0) {
+            // Store all conversations
+            setConversations(data.conversations);
+            
+            // Load the most recent conversation
+            const latestConversation = data.conversations[0];
+            setConversationId(latestConversation.id);
+            
+            // Convert database messages to UI format
+            const loadedMessages: Message[] = latestConversation.messages.map((msg: any) => ({
+              id: msg.id,
+              role: msg.role.toLowerCase() as "user" | "assistant",
+              content: msg.content,
+              image: msg.imageData || undefined,
+              timestamp: new Date(msg.createdAt),
+            }));
+            
+            setMessages(loadedMessages);
+            return;
+          }
+        }
+        
+        // No existing conversation, create a new one
+        const createResponse = await fetch("/api/flux-kontext-conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "New Conversation" }),
+        });
+        
+        if (createResponse.ok) {
+          const data = await createResponse.json();
+          setConversationId(data.conversation.id);
+          
+          // Add welcome message
+          const welcomeMessage: Message = {
+            id: "welcome",
+            role: "assistant",
+            content: "👋 Hello! I'm your Flux Kontext Dev prompt generator assistant. I can help you create optimized prompts for image generation and modification.\n\n**What I can do:**\n• Generate detailed Flux Kontext Dev prompts from your descriptions\n• Help you modify images with specific instructions\n• Work with ALL content types (SFW & NSFW)\n• Apply style transfers and character consistency\n• Provide step-by-step editing guidance\n\n**📝 How to use:**\n• **Describe what you want**: Just tell me in detail what you'd like to create\n• **Upload reference images**: Works best with objects, scenes, and architecture\n• **For people/portraits**: Describe them to me instead (better results!)\n\n📚 Click \"Prompt Techniques\" above to learn advanced strategies!\n\n**Let's create something amazing - describe your vision or upload a reference image!**",
+            timestamp: new Date(),
+          };
+          
+          setMessages([welcomeMessage]);
+          
+          // Save welcome message to database
+          await saveMessage(data.conversation.id, welcomeMessage);
+        }
+      } catch (error) {
+        console.error("Error loading conversation:", error);
+        // Fallback to local-only mode with welcome message
+        setMessages([{
+          id: "welcome",
+          role: "assistant",
+          content: "👋 Hello! I'm your Flux Kontext Dev prompt generator assistant. Upload an image or describe what you'd like to create!",
+          timestamp: new Date(),
+        }]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+    
+    loadOrCreateConversation();
+  }, []);
+
+  // Save a message to the database
+  const saveMessage = async (convId: string, message: Message) => {
+    try {
+      await fetch(`/api/flux-kontext-conversations/${convId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: message.role,
+          content: message.content,
+          imageData: message.image,
+        }),
+      });
+    } catch (error) {
+      console.error("Error saving message:", error);
+      // Don't block the UI if saving fails
+    }
+  };
+
+  // Load a specific conversation
+  const loadConversation = async (convId: string) => {
+    try {
+      setIsLoadingHistory(true);
+      const response = await fetch(`/api/flux-kontext-conversations/${convId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setConversationId(data.conversation.id);
+        
+        // Convert database messages to UI format
+        const loadedMessages: Message[] = data.conversation.messages.map((msg: any) => ({
+          id: msg.id,
+          role: msg.role.toLowerCase() as "user" | "assistant",
+          content: msg.content,
+          image: msg.imageData || undefined,
+          timestamp: new Date(msg.createdAt),
+        }));
+        
+        setMessages(loadedMessages);
+        setShowConversations(false);
+      }
+    } catch (error) {
+      console.error("Error loading conversation:", error);
+      setError("Failed to load conversation");
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Refresh conversations list
+  const refreshConversations = async () => {
+    try {
+      const response = await fetch("/api/flux-kontext-conversations");
+      if (response.ok) {
+        const data = await response.json();
+        setConversations(data.conversations || []);
+      }
+    } catch (error) {
+      console.error("Error refreshing conversations:", error);
+    }
+  };
 
   // Add welcome message on mount
   useEffect(() => {
@@ -216,6 +355,10 @@ export default function FluxKontextPrompts() {
     const imageContent = imageToSend !== undefined ? imageToSend : uploadedImage;
     
     if (!textContent && !imageContent) return;
+    if (!conversationId) {
+      setError("Conversation not initialized. Please refresh the page.");
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -231,6 +374,11 @@ export default function FluxKontextPrompts() {
     setUploadedImage(null);
     setIsGenerating(true);
     setError(null);
+
+    // Save user message to database
+    if (conversationId) {
+      await saveMessage(conversationId, userMessage);
+    }
 
     try {
       // Step 1: Initial processing
@@ -260,6 +408,11 @@ export default function FluxKontextPrompts() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      
+      // Save assistant message to database
+      if (conversationId) {
+        await saveMessage(conversationId, assistantMessage);
+      }
     } catch (error: any) {
       console.error("Message failed:", error);
       setError(error.message || "Failed to generate response. Please try again.");
@@ -332,17 +485,41 @@ export default function FluxKontextPrompts() {
     }
   };
 
-  const handleClearChat = () => {
-    setMessages([
-      {
-        id: "welcome",
-        role: "assistant",
-        content: "👋 Hello! I'm your Flux Kontext Dev prompt generator assistant. Upload an image or describe what you'd like to create!",
-        timestamp: new Date(),
-      },
-    ]);
-    setUploadedImage(null);
-    setError(null);
+  const handleClearChat = async () => {
+    try {
+      // Create a new conversation
+      const createResponse = await fetch("/api/flux-kontext-conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "New Conversation" }),
+      });
+      
+      if (createResponse.ok) {
+        const data = await createResponse.json();
+        setConversationId(data.conversation.id);
+        
+        // Add welcome message
+        const welcomeMessage: Message = {
+          id: "welcome",
+          role: "assistant",
+          content: "👋 Hello! I'm your Flux Kontext Dev prompt generator assistant. Upload an image or describe what you'd like to create!",
+          timestamp: new Date(),
+        };
+        
+        setMessages([welcomeMessage]);
+        setUploadedImage(null);
+        setError(null);
+        
+        // Save welcome message to database
+        await saveMessage(data.conversation.id, welcomeMessage);
+        
+        // Refresh conversations list
+        await refreshConversations();
+      }
+    } catch (error) {
+      console.error("Error creating new conversation:", error);
+      setError("Failed to create new conversation");
+    }
   };
 
   const handleExamplePrompt = (exampleText: string) => {
@@ -372,6 +549,13 @@ export default function FluxKontextPrompts() {
           </div>
           <div className="flex items-center space-x-2">
             <button
+              onClick={() => setShowConversations(!showConversations)}
+              className="flex items-center space-x-2 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors text-sm"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>Conversations ({conversations.length})</span>
+            </button>
+            <button
               onClick={() => setShowTechniques(!showTechniques)}
               className="flex items-center space-x-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-sm"
             >
@@ -383,11 +567,85 @@ export default function FluxKontextPrompts() {
               className="flex items-center space-x-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm"
             >
               <Trash2 className="w-4 h-4" />
-              <span>Clear Chat</span>
+              <span>New Chat</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* Conversations Sidebar */}
+      {showConversations && (
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-lg max-h-96 overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              Your Conversations
+            </h2>
+            <button
+              onClick={() => setShowConversations(false)}
+              className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="space-y-2">
+            {conversations.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                No conversations yet. Start chatting to create your first one!
+              </p>
+            ) : (
+              conversations.map((conv) => {
+                const isActive = conv.id === conversationId;
+                const firstUserMessage = conv.messages?.find((m: any) => m.role === 'USER');
+                const preview = firstUserMessage?.content.substring(0, 60) || 'New conversation';
+                const messageCount = conv.messages?.length || 0;
+                const lastUpdated = new Date(conv.updatedAt);
+                const isToday = lastUpdated.toDateString() === new Date().toDateString();
+                const timeStr = isToday 
+                  ? lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : lastUpdated.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => loadConversation(conv.id)}
+                    className={`w-full text-left p-3 rounded-lg transition-all ${
+                      isActive
+                        ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-2 border-purple-400 dark:border-purple-600'
+                        : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium truncate ${
+                          isActive ? 'text-purple-700 dark:text-purple-300' : 'text-gray-900 dark:text-white'
+                        }`}>
+                          {preview}...
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {messageCount} messages
+                          </span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">•</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {timeStr}
+                          </span>
+                        </div>
+                      </div>
+                      {isActive && (
+                        <div className="flex-shrink-0">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Techniques Panel */}
       {showTechniques && (
@@ -486,7 +744,16 @@ export default function FluxKontextPrompts() {
 
       {/* Chat Messages */}
       <div className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
+        {isLoadingHistory ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-2" />
+              <p className="text-gray-600 dark:text-gray-400">Loading conversation history...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
@@ -560,6 +827,8 @@ export default function FluxKontextPrompts() {
           </div>
         )}
         <div ref={messagesEndRef} />
+          </>
+        )}
       </div>
 
       {/* Error Display */}

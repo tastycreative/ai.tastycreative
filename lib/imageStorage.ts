@@ -289,11 +289,33 @@ export async function getUserImages(
     jobId?: string;
     limit?: number;
     offset?: number;
+    sortBy?: 'newest' | 'oldest' | 'largest' | 'smallest' | 'name';
   } = {}
 ): Promise<GeneratedImage[]> {
-  console.log('🖼️ Getting images for user:', clerkId);
+  console.log('🖼️ Getting images for user:', clerkId, 'sortBy:', options.sortBy);
   
   try {
+    // Determine orderBy based on sortBy parameter
+    let orderBy: any;
+    switch (options.sortBy) {
+      case 'oldest':
+        orderBy = { createdAt: 'asc' };
+        break;
+      case 'largest':
+        orderBy = { fileSize: 'desc' };
+        break;
+      case 'smallest':
+        orderBy = { fileSize: 'asc' };
+        break;
+      case 'name':
+        orderBy = { filename: 'asc' };
+        break;
+      case 'newest':
+      default:
+        orderBy = { createdAt: 'desc' };
+        break;
+    }
+
     const images = await prisma.generatedImage.findMany({
       where: {
         clerkId,
@@ -322,7 +344,7 @@ export async function getUserImages(
         createdAt: true,
         updatedAt: true
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: orderBy,
       take: options.limit,
       skip: options.offset
     });

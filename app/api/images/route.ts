@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const includeData = searchParams.get('includeData') === 'true';
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
+    const sortBy = searchParams.get('sortBy') as 'newest' | 'oldest' | 'largest' | 'smallest' | 'name' | null;
     const requestedUserId = searchParams.get('userId'); // Admin can request another user's content
 
     // Check if the requesting user is an admin
@@ -100,11 +101,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Get user images using the imageStorage function
-    console.log('📡 Fetching user images with options:', { includeData, limit, offset });
+    console.log('📡 Fetching user images with options:', { includeData, limit, offset, sortBy });
     const images = await getUserImages(targetUserId, {
       includeData,
       limit,
-      offset
+      offset,
+      sortBy: sortBy || undefined
     });
 
     console.log('✅ Found', images.length, 'images for user:', targetUserId, '(total:', totalCount, ')');

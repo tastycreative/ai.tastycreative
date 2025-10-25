@@ -22,24 +22,88 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const folderPrefix = searchParams.get('prefix') || 'instagram/';
 
-    console.log('📁 Listing S3 folder:', folderPrefix);
+    console.log('📁 Listing S3 folder for user:', userId, 'prefix:', folderPrefix);
 
-    // For "All Generations" (instagram/), show all files recursively
-    // For specific folders, show only files in that folder
+    // For "All Generations" (instagram/), we need to list files from ALL subfolders
     const isAllGenerations = folderPrefix === 'instagram/' || folderPrefix === 'instagram';
     
-    // List objects in S3 with the given prefix
+    let allFiles: any[] = [];
+    
+    if (isAllGenerations) {
+      // List all Instagram subfolders and aggregate files
+      const subfolders = ['instagram/posts/', 'instagram/reels/', 'instagram/misc/'];
+      
+      for (const subfolder of subfolders) {
+        const userSubfolderPrefix = `${subfolder}${userId}/`;
+        
+        const command = new ListObjectsV2Command({
+          Bucket: BUCKET_NAME,
+          Prefix: userSubfolderPrefix,
+          // No delimiter for recursive listing
+        });
+
+        const response = await s3Client.send(command);
+        
+        // Collect files from this subfolder
+        const subfolderFiles = (response.Contents || [])
+          .filter(item => {
+            const key = item.Key || '';
+            // Exclude the folder itself
+            if (key === userSubfolderPrefix || key.endsWith('/')) return false;
+            return true;
+          })
+          .map(item => {
+            const key = item.Key || '';
+            const fileName = key.split('/').pop() || '';
+            const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+            const isVideo = /\.(mp4|mov|avi|webm)$/i.test(fileName);
+
+            return {
+              id: key,
+              name: fileName,
+              key: key,
+              url: `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`,
+              size: item.Size || 0,
+              lastModified: item.LastModified?.toISOString() || '',
+              mimeType: isVideo ? 'video/mp4' : isImage ? 'image/jpeg' : 'application/octet-stream',
+              isImage,
+              isVideo,
+            };
+          });
+        
+        allFiles.push(...subfolderFiles);
+      }
+      
+      // Sort by last modified (newest first)
+      allFiles.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+      
+      console.log(`✅ Found ${allFiles.length} total files across all Instagram folders for user ${userId}`);
+
+      return NextResponse.json({
+        success: true,
+        prefix: folderPrefix,
+        folders: [],
+        files: allFiles,
+      });
+    }
+    
+    // For specific folders (not "All Generations")
+    // Always include userId in the path for user isolation
+    // This ensures users only see their own files
+    const userFolderPrefix = `${folderPrefix}${userId}/`;
+    
+    // List objects in S3 with the given prefix (user-specific)
     const command = new ListObjectsV2Command({
       Bucket: BUCKET_NAME,
-      Prefix: folderPrefix.endsWith('/') ? folderPrefix : folderPrefix + '/',
-      Delimiter: isAllGenerations ? undefined : '/', // No delimiter for recursive listing
+      Prefix: userFolderPrefix,
+      Delimiter: '/', // Use delimiter for folder structure
     });
 
     const response = await s3Client.send(command);
 
     // Get subfolders (common prefixes) - only for non-recursive listings
     const folders = isAllGenerations ? [] : (response.CommonPrefixes || []).map(prefix => ({
-      name: prefix.Prefix?.replace(folderPrefix, '').replace('/', '') || '',
+      name: prefix.Prefix?.replace(userFolderPrefix, '').replace('/', '') || '',
       prefix: prefix.Prefix || '',
     }));
 
@@ -48,7 +112,7 @@ export async function GET(request: NextRequest) {
       .filter(item => {
         const key = item.Key || '';
         // Exclude the folder itself
-        if (key === folderPrefix || key.endsWith('/')) return false;
+        if (key === userFolderPrefix || key.endsWith('/')) return false;
         return true;
       })
       .map(item => {
@@ -70,7 +134,7 @@ export async function GET(request: NextRequest) {
         };
       });
 
-    console.log(`✅ Found ${folders.length} folders and ${files.length} files`);
+    console.log(`✅ Found ${folders.length} folders and ${files.length} files for user ${userId}`);
 
     return NextResponse.json({
       success: true,

@@ -30,6 +30,7 @@ model User {
   trainingJobs           TrainingJob[]
   instagramPosts         InstagramPost[]
   notifications          Notification[]
+  fluxKontextConversations FluxKontextConversation[]
 
   @@map("users")
 }
@@ -443,4 +444,39 @@ model MultipartUploadSession {
   @@index([clerkId])
   @@index([expiresAt])
   @@map("multipart_upload_sessions")
+}
+
+// Flux Kontext conversation history
+model FluxKontextConversation {
+  id        String                    @id @default(cuid())
+  clerkId   String
+  title     String?                   // Optional title for the conversation
+  createdAt DateTime                  @default(now())
+  updatedAt DateTime                  @updatedAt
+  user      User                      @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  messages  FluxKontextMessage[]
+
+  @@index([clerkId])
+  @@index([clerkId, updatedAt])
+  @@map("flux_kontext_conversations")
+}
+
+model FluxKontextMessage {
+  id             String                  @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String                  @db.Text
+  imageData      String?                 @db.Text // Base64 image data if present
+  createdAt      DateTime                @default(now())
+  conversation   FluxKontextConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@map("flux_kontext_messages")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
 }

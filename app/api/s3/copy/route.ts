@@ -80,16 +80,14 @@ export async function POST(request: NextRequest) {
     const trimmedFolder = destinationFolder.replace(/^\/+/, "").replace(/\/+$/, "");
     const timestamp = Date.now();
     
-    // For Instagram staging folders, don't use userId subfolder (flat structure for easy browsing)
-    // For outputs folder, use userId subfolder (organized by user)
-    const isInstagramFolder = trimmedFolder.startsWith('instagram/');
-    const destinationKey = isInstagramFolder
-      ? `${trimmedFolder}/${timestamp}_${sanitizedFilename}`  // instagram/posts/timestamp_filename.png
-      : `${trimmedFolder}/${userId}/${timestamp}_${sanitizedFilename}`; // outputs/userId/timestamp_filename.png
+    // Always use userId subfolder for proper user isolation
+    // This ensures each user can only see their own files
+    const destinationKey = `${trimmedFolder}/${userId}/${timestamp}_${sanitizedFilename}`;
 
     console.log("📦 Copying object on S3", {
       sourceKey: record.awsS3Key,
       destinationKey,
+      userId,
     });
 
     const copyCommand = new CopyObjectCommand({
