@@ -24,12 +24,18 @@ export interface S3Folder {
   error?: string;
 }
 
-// Predefined S3 folder structure for Instagram
+// Predefined S3 folder structure for Instagram - mirrors workflow statuses
 export const S3_FOLDERS: { name: string; prefix: string }[] = [
   { name: "All Generations", prefix: "instagram/" }, // Shows all Instagram staging files
-  { name: "IG Posts", prefix: "instagram/posts/" },
-  { name: "IG Reels", prefix: "instagram/reels/" },
-  { name: "Misc", prefix: "instagram/misc/" },
+  { name: "IG Posts", prefix: "instagram/posts/" }, // Original upload folder
+  { name: "IG Reels", prefix: "instagram/reels/" }, // Original upload folder
+  { name: "Misc", prefix: "instagram/misc/" }, // Original upload folder
+  { name: "Draft", prefix: "instagram/draft/" }, // Initial status when added to queue
+  { name: "Review", prefix: "instagram/review/" }, // Submitted for review
+  { name: "Approved", prefix: "instagram/approved/" }, // Approved posts
+  { name: "Rejected", prefix: "instagram/rejected/" }, // Rejected posts
+  { name: "Scheduled", prefix: "instagram/scheduled/" }, // Scheduled for publishing
+  { name: "Published", prefix: "instagram/published/" }, // Published posts
 ];
 
 // Upload-only folders (excludes "All Generations" which is view-only)

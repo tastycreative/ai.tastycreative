@@ -276,7 +276,8 @@ model InstagramPost {
   scheduledDate   DateTime?
   status          InstagramPostStatus @default(DRAFT)
   postType        PostType            @default(POST)
-  folder          String
+  folder          String              // Current folder (status-based)
+  originalFolder  String?             // Original folder where image came from (IG Posts, IG Reels, Misc)
   order           Int                 @default(0)
   mimeType        String?
   createdAt       DateTime            @default(now())

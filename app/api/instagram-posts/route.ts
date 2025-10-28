@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
       status = 'DRAFT',
       postType = 'POST',
       folder,
+      originalFolder,
       mimeType,
     } = body;
 
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest) {
         status,
         postType,
         folder,
+        originalFolder: originalFolder || null,
         order: newOrder,
         mimeType,
       },

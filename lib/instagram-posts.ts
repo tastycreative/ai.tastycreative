@@ -13,6 +13,7 @@ export interface InstagramPost {
   status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SCHEDULED' | 'PENDING' | 'PUBLISHED';
   postType: 'POST' | 'REEL' | 'STORY';
   folder: string;
+  originalFolder: string | null;
   order: number;
   mimeType: string | null;
   rejectedAt: string | null;
@@ -35,6 +36,7 @@ export interface CreatePostData {
   status?: 'DRAFT' | 'REVIEW' | 'APPROVED';
   postType?: 'POST' | 'REEL';
   folder: string;
+  originalFolder?: string | null;
   mimeType?: string;
 }
 
@@ -45,6 +47,9 @@ export interface UpdatePostData {
   postType?: 'POST' | 'REEL' | 'STORY';
   instagramUrl?: string | null;
   publishedAt?: string | null;
+  awsS3Key?: string | null;
+  awsS3Url?: string | null;
+  rejectionReason?: string | null;
 }
 
 // Fetch all posts (optionally for a specific user if Admin/Manager)

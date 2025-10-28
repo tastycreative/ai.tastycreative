@@ -77,6 +77,33 @@ const getNextStatus = (
   }
 };
 
+// Map status to S3 folder
+const getS3FolderFromStatus = (
+  status: InstagramPost["status"]
+): string => {
+  switch (status) {
+    case "DRAFT":
+      return "instagram/draft";
+    case "REVIEW":
+      return "instagram/review";
+    case "APPROVED":
+      return "instagram/approved";
+    case "SCHEDULED":
+      return "instagram/scheduled";
+    case "PUBLISHED":
+      return "instagram/published";
+    case "PENDING":
+      return "instagram/scheduled"; // PENDING stays in scheduled folder
+    default:
+      return "instagram/draft";
+  }
+};
+
+// Special handling for rejected posts
+const getS3FolderForRejected = (): string => {
+  return "instagram/rejected";
+};
+
 interface Post {
   id: string;
   image: string;
@@ -242,7 +269,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           driveFileId: dbPost.driveFileId ?? undefined,
           awsS3Key: dbPost.awsS3Key ?? undefined,
           awsS3Url: dbPost.awsS3Url ?? undefined,
-          originalFolder: dbPost.folder,
+          originalFolder: dbPost.originalFolder || dbPost.folder, // Use originalFolder if available, fallback to folder
           order: dbPost.order,
           fileName: dbPost.fileName,
           mimeType: dbPost.mimeType || undefined,
@@ -336,7 +363,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                       driveFileId: post.driveFileId,
                       awsS3Key: post.awsS3Key,
                       awsS3Url: post.awsS3Url,
-                      originalFolder: post.folder,
+                      originalFolder: post.originalFolder || post.folder,
                       order: post.order,
                       fileName: post.fileName,
                       mimeType: post.mimeType,
@@ -409,7 +436,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 driveFileId: post.driveFileId,
                 awsS3Key: post.awsS3Key,
                 awsS3Url: post.awsS3Url,
-                originalFolder: post.folder,
+                originalFolder: post.originalFolder || post.folder,
                 order: post.order,
                 fileName: post.fileName,
                 mimeType: post.mimeType,
@@ -563,6 +590,8 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         scheduledDate: scheduledDateISO,
         status: updatedPost.status,
         postType: updatedPost.type,
+        awsS3Key: updatedPost.awsS3Key,
+        awsS3Url: updatedPost.awsS3Url,
       });
       console.log(`✅ Updated post ${updatedPost.id} in database`);
     } catch (error) {
@@ -576,8 +605,55 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     post: Post,
     newStatus: InstagramPost["status"]
   ) => {
-    const updatedPost = { ...post, status: newStatus };
-    await updatePost(updatedPost);
+    try {
+      // If post has S3 file, move it to the appropriate folder
+      if (post.awsS3Key) {
+        const destinationFolder = getS3FolderFromStatus(newStatus);
+        
+        console.log('🔄 Moving file for status change:', {
+          postId: post.id,
+          currentStatus: post.status,
+          newStatus,
+          sourceKey: post.awsS3Key,
+          destinationFolder
+        });
+
+        const moveResponse = await fetch('/api/s3/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceKey: post.awsS3Key,
+            destinationFolder,
+            keepOriginal: false,
+          }),
+        });
+
+        if (!moveResponse.ok) {
+          throw new Error('Failed to move file to new status folder');
+        }
+
+        const moveData = await moveResponse.json();
+        
+        // Update post with new S3 location
+        const updatedPost = { 
+          ...post, 
+          status: newStatus,
+          awsS3Key: moveData.destinationKey,
+          awsS3Url: moveData.url,
+          image: moveData.url,
+        };
+        
+        await updatePost(updatedPost);
+        toast.success(`Post moved to ${newStatus} folder`);
+      } else {
+        // No S3 file, just update status
+        const updatedPost = { ...post, status: newStatus };
+        await updatePost(updatedPost);
+      }
+    } catch (error) {
+      console.error('❌ Error changing status:', error);
+      toast.error('Failed to change status. Please try again.');
+    }
   };
 
   // Workflow action buttons
@@ -615,9 +691,35 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     }
 
     try {
+      // Move file to rejected folder if it has S3 file
+      let newS3Key = rejectingPost.awsS3Key;
+      let newS3Url = rejectingPost.awsS3Url;
+      
+      if (rejectingPost.awsS3Key) {
+        const moveResponse = await fetch('/api/s3/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceKey: rejectingPost.awsS3Key,
+            destinationFolder: getS3FolderForRejected(),
+            keepOriginal: false,
+          }),
+        });
+
+        if (!moveResponse.ok) {
+          throw new Error('Failed to move file to Rejected folder');
+        }
+
+        const moveData = await moveResponse.json();
+        newS3Key = moveData.destinationKey;
+        newS3Url = moveData.url;
+      }
+
       await updateInstagramPost(rejectingPost.id, {
         status: "DRAFT",
         rejectionReason: rejectionReason.trim(),
+        awsS3Key: newS3Key,
+        awsS3Url: newS3Url,
       } as any);
 
       // Update local state
@@ -629,6 +731,9 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 status: "DRAFT" as const,
                 rejectionReason: rejectionReason.trim(),
                 rejectedAt: new Date().toISOString(),
+                awsS3Key: newS3Key,
+                awsS3Url: newS3Url,
+                image: newS3Url || p.image,
               }
             : p
         )
@@ -640,6 +745,9 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           status: "DRAFT" as const,
           rejectionReason: rejectionReason.trim(),
           rejectedAt: new Date().toISOString(),
+          awsS3Key: newS3Key,
+          awsS3Url: newS3Url,
+          image: newS3Url || rejectingPost.image,
         });
       }
 
@@ -647,6 +755,8 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       setShowRejectDialog(false);
       setRejectingPost(null);
       setRejectionReason("");
+      
+      toast.success("Post rejected and moved to Rejected folder");
     } catch (error) {
       console.error("❌ Error rejecting post:", error);
       toast.error("Failed to reject post. Please try again.");
@@ -660,10 +770,36 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       const now = new Date().toISOString();
       const hasUrl = instagramUrl.trim().length > 0;
       
+      // Move file to published folder if it has S3 file
+      let newS3Key = publishingPost.awsS3Key;
+      let newS3Url = publishingPost.awsS3Url;
+      
+      if (publishingPost.awsS3Key) {
+        const moveResponse = await fetch('/api/s3/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sourceKey: publishingPost.awsS3Key,
+            destinationFolder: getS3FolderFromStatus("PUBLISHED"),
+            keepOriginal: false,
+          }),
+        });
+
+        if (!moveResponse.ok) {
+          throw new Error('Failed to move file to Published folder');
+        }
+
+        const moveData = await moveResponse.json();
+        newS3Key = moveData.destinationKey;
+        newS3Url = moveData.url;
+      }
+      
       await updateInstagramPost(publishingPost.id, {
         status: "PUBLISHED",
         instagramUrl: instagramUrl.trim() || null,
         publishedAt: now,
+        awsS3Key: newS3Key,
+        awsS3Url: newS3Url,
       } as any);
 
       // Notify admins/managers when content creator publishes
@@ -695,6 +831,9 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 status: "PUBLISHED" as const,
                 instagramUrl: instagramUrl.trim() || null,
                 publishedAt: now,
+                awsS3Key: newS3Key,
+                awsS3Url: newS3Url,
+                image: newS3Url || p.image,
               }
             : p
         )
@@ -706,6 +845,9 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           status: "PUBLISHED" as const,
           instagramUrl: instagramUrl.trim() || null,
           publishedAt: now,
+          awsS3Key: newS3Key,
+          awsS3Url: newS3Url,
+          image: newS3Url || publishingPost.image,
         });
       }
 
@@ -713,6 +855,8 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       setShowPublishDialog(false);
       setPublishingPost(null);
       setInstagramUrl("");
+      
+      toast.success("Post published and moved to Published folder");
     } catch (error) {
       console.error("❌ Error marking post as published:", error);
       toast.error("Failed to mark post as published. Please try again.");
@@ -743,20 +887,58 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         return;
       }
 
-      // Update all selected approved posts
+      // Update all selected approved posts and move files
+      const updatedPosts: Post[] = [];
+      
       for (const post of approvedSelected) {
+        let newS3Key = post.awsS3Key;
+        let newS3Url = post.awsS3Url;
+        
+        // Move file to scheduled folder if it has S3 file
+        if (post.awsS3Key) {
+          try {
+            const moveResponse = await fetch('/api/s3/move', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sourceKey: post.awsS3Key,
+                destinationFolder: getS3FolderFromStatus("SCHEDULED"),
+                keepOriginal: false,
+              }),
+            });
+
+            if (moveResponse.ok) {
+              const moveData = await moveResponse.json();
+              newS3Key = moveData.destinationKey;
+              newS3Url = moveData.url;
+            }
+          } catch (moveError) {
+            console.error('Failed to move file for post:', post.id, moveError);
+            // Continue with update even if move fails
+          }
+        }
+        
         await updateInstagramPost(post.id, {
           status: 'SCHEDULED',
           scheduledDate: scheduleDate.toISOString(),
+          awsS3Key: newS3Key,
+          awsS3Url: newS3Url,
         } as any);
+        
+        updatedPosts.push({
+          ...post,
+          status: 'SCHEDULED' as const,
+          date: scheduleDate.toISOString(),
+          awsS3Key: newS3Key,
+          awsS3Url: newS3Url,
+          image: newS3Url || post.image,
+        });
       }
 
       // Update local state
       setPosts(posts.map(p => {
-        if (selectedPostIds.includes(p.id) && p.status === 'APPROVED') {
-          return { ...p, status: 'SCHEDULED' as const, date: scheduleDate.toISOString() };
-        }
-        return p;
+        const updated = updatedPosts.find(up => up.id === p.id);
+        return updated || p;
       }));
 
       // Clear selection and close dialog
@@ -765,7 +947,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       setBulkScheduleDate("");
       setBulkScheduleTime("");
       
-      toast.success(`${approvedSelected.length} post(s) scheduled successfully!`);
+      toast.success(`${approvedSelected.length} post(s) scheduled and moved to Scheduled folder!`);
     } catch (error) {
       console.error("❌ Error bulk scheduling posts:", error);
       toast.error('Failed to schedule some posts. Please try again.');
@@ -959,16 +1141,51 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
 
   // Delete post function
   const handleDeletePost = async (post: Post) => {
-    const deleteFromStorage = confirm(
-      `Delete "${post.fileName}"?\n\nDo you also want to delete the original file from storage?\n\nClick OK to delete from both database and storage.\nClick Cancel to delete from database only.`
-    );
-
-    if (deleteFromStorage === null) return; // User cancelled
+    if (!confirm(`Remove "${post.fileName}" from feed preview?\n\nThe image will be moved back to its original folder.`)) {
+      return;
+    }
 
     try {
-      // Delete from database (and optionally from Google Drive)
+      // If post has S3 file and an original folder, move it back
+      if (post.awsS3Key && post.originalFolder) {
+        try {
+          // Get the S3 prefix for the original folder
+          const originalFolderData = s3Folders.find(f => f.name === post.originalFolder);
+          
+          if (originalFolderData) {
+            console.log('🔄 Moving file back to original folder:', {
+              postId: post.id,
+              currentKey: post.awsS3Key,
+              originalFolder: post.originalFolder,
+              destinationPrefix: originalFolderData.prefix
+            });
+
+            const moveResponse = await fetch('/api/s3/move', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sourceKey: post.awsS3Key,
+                destinationFolder: originalFolderData.prefix,
+                keepOriginal: false,
+              }),
+            });
+
+            if (moveResponse.ok) {
+              console.log('✅ File moved back to original folder successfully');
+              toast.success(`File moved back to ${post.originalFolder} folder`);
+            } else {
+              console.warn('⚠️ Failed to move file back, but will continue with deletion');
+            }
+          }
+        } catch (moveError) {
+          console.error('❌ Error moving file back to original folder:', moveError);
+          // Continue with deletion even if move fails
+        }
+      }
+
+      // Delete from database only (file has been restored to original location)
       await deleteInstagramPost(post.id, {
-        deleteFromStorage: deleteFromStorage,
+        deleteFromStorage: false, // Don't delete from storage, we moved it back
       });
 
       // Remove from local state
@@ -979,11 +1196,11 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         setSelectedPost(null);
       }
 
-      console.log(`✅ Deleted post ${post.id}`);
-  toast.success(`Successfully deleted from ${deleteFromStorage ? "database and storage" : "database only"}`);
+      console.log(`✅ Removed post ${post.id} from feed preview`);
+      toast.success("Removed from feed preview - file restored to original folder");
     } catch (error) {
-      console.error("❌ Error deleting post:", error);
-      toast.error("Failed to delete post. Please try again.");
+      console.error("❌ Error removing post:", error);
+      toast.error("Failed to remove post. Please try again.");
     }
   };
 
@@ -1476,22 +1693,24 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 })) && (
                   <button
                     onClick={async () => {
-                      if (!confirm(`⚠️ Delete ${selectedPostIds.length} posts permanently? This cannot be undone.`)) return;
+                      if (!confirm(`Remove ${selectedPostIds.length} posts from feed preview?\n\nFiles will be moved back to their original folders.`)) return;
                       try {
                         for (const postId of selectedPostIds) {
-                          await deleteInstagramPost(postId);
+                          const post = posts.find(p => p.id === postId);
+                          if (post) {
+                            await handleDeletePost(post);
+                          }
                         }
-                        setPosts(posts.filter(p => !selectedPostIds.includes(p.id)));
                         setSelectedPostIds([]);
-                        toast.success(`${selectedPostIds.length} posts deleted!`);
+                        toast.success(`${selectedPostIds.length} posts removed and files restored!`);
                       } catch (error) {
-                        toast.error('Failed to delete some posts');
+                        toast.error('Failed to remove some posts');
                       }
                     }}
                     className="flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Delete All
+                    Remove All
                   </button>
                 )}
               </div>
@@ -1618,7 +1837,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                           {getStatusText(post.status, !!post.rejectedAt)}
                         </div>
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1628,53 +1847,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                               title="Edit post"
                             >
                               <Edit3 size={18} />
-                            </button>
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (
-                                  !confirm(
-                                    `Delete "${post.fileName}" from the staging queue?\n\nThis will remove the post from your database but keep the original asset in storage.`
-                                  )
-                                ) {
-                                  return;
-                                }
-
-                                try {
-                                  // Delete from database (but keep in Google Drive)
-                                  await deleteInstagramPost(post.id, {
-                                    deleteFromStorage: false,
-                                  });
-
-                                  // Remove from local state
-                                  setPosts((prev) =>
-                                    prev.filter((p) => p.id !== post.id)
-                                  );
-
-                                  if (selectedPost?.id === post.id) {
-                                    setSelectedPost(null);
-                                  }
-
-                                  // Revoke blob URL to free memory
-                                  if (post.image) {
-                                    URL.revokeObjectURL(post.image);
-                                  }
-
-                                  console.log(
-                                    "✅ Deleted post from database (file remains in Drive)"
-                                  );
-                                } catch (error) {
-                                  console.error(
-                                    "❌ Failed to delete post:",
-                                    error
-                                  );
-                                  toast.error("Failed to delete post. Please try again.");
-                                }
-                              }}
-                              className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition-colors"
-                              title="Delete from feed"
-                            >
-                              <Trash2 size={18} />
                             </button>
                           </div>
                         </div>
@@ -1717,6 +1889,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                       status: p.status,
                       postType: p.type,
                       folder: p.originalFolder,
+                      originalFolder: p.originalFolder,
                       order: p.order,
                       mimeType: p.mimeType ?? null,
                       rejectedAt: p.rejectedAt ?? null,
@@ -2404,22 +2577,43 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                 <button
                                   onClick={async () => {
                                     try {
+                                      // Move file to Draft folder in S3 (initial status)
+                                      const moveResponse = await fetch('/api/s3/move', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                          sourceKey: file.key,
+                                          destinationFolder: 'instagram/draft',
+                                          keepOriginal: false, // Move (delete original)
+                                        }),
+                                      });
+
+                                      if (!moveResponse.ok) {
+                                        throw new Error('Failed to move file to Draft folder');
+                                      }
+
+                                      const moveData = await moveResponse.json();
+                                      const newS3Key = moveData.destinationKey;
+                                      const newS3Url = moveData.url;
+
+                                      // Create Instagram post with new S3 location and track original folder
                                       const dbPost = await createInstagramPost({
                                         driveFileId: null,
                                         driveFileUrl: null,
-                                        awsS3Key: file.key,
-                                        awsS3Url: file.url,
+                                        awsS3Key: newS3Key,
+                                        awsS3Url: newS3Url,
                                         fileName: file.name,
                                         caption: "",
                                         status: "DRAFT",
                                         postType: isVideo ? "REEL" : "POST",
-                                        folder: selectedFolder,
+                                        folder: "Draft",
+                                        originalFolder: selectedFolder, // Track where the image came from
                                         mimeType: file.mimeType,
                                       });
 
                                       const newPost: Post = {
                                         id: dbPost.id,
-                                        image: previewUrl,
+                                        image: newS3Url,
                                         caption: "",
                                         status: "DRAFT",
                                         type: isVideo ? "REEL" : "POST",
@@ -2427,8 +2621,8 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                           .toISOString()
                                           .split("T")[0],
                                         driveFileId: null,
-                                        awsS3Key: file.key,
-                                        awsS3Url: file.url,
+                                        awsS3Key: newS3Key,
+                                        awsS3Url: newS3Url,
                                         originalFolder: selectedFolder,
                                         order: dbPost.order,
                                         fileName: file.name,
@@ -2436,7 +2630,14 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                       };
 
                                       setPosts((prev) => [newPost, ...prev]);
-                                      toast.success("Added to Instagram queue");
+                                      
+                                      // Refresh the current folder to remove the moved file
+                                      await loadFolderContents(
+                                        s3Folders.find(f => f.name === selectedFolder)?.prefix || '',
+                                        selectedFolder
+                                      );
+                                      
+                                      toast.success("Added to Instagram queue and moved to Draft folder");
                                     } catch (error) {
                                       console.error("Error adding file to queue:", error);
                                       toast.error("Failed to add file to queue. Please try again.");
