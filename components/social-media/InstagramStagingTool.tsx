@@ -989,6 +989,58 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     }
   };
 
+  // Delete file from media library (and from queue if exists)
+  const handleDeleteFileFromLibrary = async (file: S3File) => {
+    const queuedPost = posts.find(p => p.awsS3Key === file.key);
+    
+    const confirmMessage = queuedPost
+      ? `Delete "${file.name}"?\n\nThis file is in your queue and will also be removed from there.`
+      : `Delete "${file.name}"?\n\nThis action cannot be undone.`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      // Delete from S3
+      const deleteResponse = await fetch('/api/s3/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: file.key,
+        }),
+      });
+
+      if (!deleteResponse.ok) {
+        throw new Error('Failed to delete file from S3');
+      }
+
+      // If file is queued, delete from database too
+      if (queuedPost) {
+        await deleteInstagramPost(queuedPost.id);
+        setPosts(posts.filter(p => p.id !== queuedPost.id));
+        
+        if (selectedPost?.id === queuedPost.id) {
+          setSelectedPost(null);
+        }
+      }
+
+      // Refresh the folder to update the file list
+      const folderToRefresh = selectedFolder === "All Folders" 
+        ? s3Folders 
+        : s3Folders.filter(f => f.name === selectedFolder);
+      
+      for (const folder of folderToRefresh) {
+        await loadFolderContents(folder.prefix, folder.name);
+      }
+
+      toast.success(queuedPost ? "File deleted from library and queue" : "File deleted from library");
+    } catch (error) {
+      console.error('❌ Error deleting file:', error);
+      toast.error('Failed to delete file. Please try again.');
+    }
+  };
+
   // Show loading state while checking role
   if (!isLoaded || roleLoading) {
     return (
@@ -2296,67 +2348,91 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                     
                                     if (queuedPost) {
                                       return (
-                                        <button
-                                          onClick={() => {
-                                            setSelectedPost(queuedPost);
-                                            setView("grid");
-                                          }}
-                                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
-                                        >
-                                          <Edit3 className="w-3 h-3" />
-                                          View Details
-                                        </button>
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={() => {
+                                              setSelectedPost(queuedPost);
+                                              setView("grid");
+                                            }}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
+                                          >
+                                            <Edit3 className="w-3 h-3" />
+                                            View Details
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDeleteFileFromLibrary(file);
+                                            }}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white p-2 rounded hover:bg-red-700"
+                                            title="Delete file"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                          </button>
+                                        </div>
                                       );
                                     }
                                     
                                     return (
-                                      <button
-                                        onClick={async () => {
-                                          try {
-                                            const dbPost = await createInstagramPost({
-                                              driveFileId: null,
-                                              driveFileUrl: null,
-                                              awsS3Key: file.key,
-                                              awsS3Url: file.url,
-                                              fileName: file.name,
-                                              caption: "",
-                                              status: "DRAFT",
-                                              postType: isVideo ? "REEL" : "POST",
-                                              folder: "All Folders",
-                                              originalFolder: "All Folders",
-                                              mimeType: file.mimeType,
-                                            });
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={async () => {
+                                            try {
+                                              const dbPost = await createInstagramPost({
+                                                driveFileId: null,
+                                                driveFileUrl: null,
+                                                awsS3Key: file.key,
+                                                awsS3Url: file.url,
+                                                fileName: file.name,
+                                                caption: "",
+                                                status: "DRAFT",
+                                                postType: isVideo ? "REEL" : "POST",
+                                                folder: "All Folders",
+                                                originalFolder: "All Folders",
+                                                mimeType: file.mimeType,
+                                              });
 
-                                            const newPost: Post = {
-                                              id: dbPost.id,
-                                              image: file.url,
-                                              caption: "",
-                                              status: "DRAFT",
-                                              type: isVideo ? "REEL" : "POST",
-                                              date: new Date()
-                                                .toISOString()
-                                                .split("T")[0],
-                                              driveFileId: null,
-                                              awsS3Key: file.key,
-                                              awsS3Url: file.url,
-                                              originalFolder: "All Folders",
-                                              order: dbPost.order,
-                                              fileName: file.name,
-                                              mimeType: file.mimeType,
-                                            };
+                                              const newPost: Post = {
+                                                id: dbPost.id,
+                                                image: file.url,
+                                                caption: "",
+                                                status: "DRAFT",
+                                                type: isVideo ? "REEL" : "POST",
+                                                date: new Date()
+                                                  .toISOString()
+                                                  .split("T")[0],
+                                                driveFileId: null,
+                                                awsS3Key: file.key,
+                                                awsS3Url: file.url,
+                                                originalFolder: "All Folders",
+                                                order: dbPost.order,
+                                                fileName: file.name,
+                                                mimeType: file.mimeType,
+                                              };
 
-                                            setPosts((prev) => [newPost, ...prev]);
-                                            
-                                            toast.success("Added to Instagram queue");
-                                          } catch (error) {
-                                            console.error("Error adding file to queue:", error);
-                                            toast.error("Failed to add file to queue. Please try again.");
-                                          }
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
-                                      >
-                                        Add to Queue
-                                      </button>
+                                              setPosts((prev) => [newPost, ...prev]);
+                                              
+                                              toast.success("Added to Instagram queue");
+                                            } catch (error) {
+                                              console.error("Error adding file to queue:", error);
+                                              toast.error("Failed to add file to queue. Please try again.");
+                                            }
+                                          }}
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
+                                        >
+                                          Add to Queue
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteFileFromLibrary(file);
+                                          }}
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white p-2 rounded hover:bg-red-700"
+                                          title="Delete file"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
                                     );
                                   })()}
                                 </div>
@@ -2519,77 +2595,101 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                 return null;
                               })()}
 
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors rounded-lg flex items-center justify-center">
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors rounded-lg flex items-center justify-center gap-2">
                                 {(() => {
                                   const queuedPost = posts.find(p => p.awsS3Key === file.key);
                                   
                                   if (queuedPost) {
-                                    // If already queued, show "View Details" button
+                                    // If already queued, show "View Details" button + delete button
                                     return (
-                                      <button
-                                        onClick={() => {
-                                          setSelectedPost(queuedPost);
-                                          setView("grid");
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
-                                      >
-                                        <Edit3 className="w-3 h-3" />
-                                        View Details
-                                      </button>
+                                      <>
+                                        <button
+                                          onClick={() => {
+                                            setSelectedPost(queuedPost);
+                                            setView("grid");
+                                          }}
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                          View Details
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteFileFromLibrary(file);
+                                          }}
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white p-2 rounded text-xs font-medium hover:bg-red-700"
+                                          title="Delete file"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </>
                                     );
                                   }
                                   
-                                  // Not queued yet, show "Add to Queue" button
+                                  // Not queued yet, show "Add to Queue" button + delete button
                                   return (
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          // Keep file in original location - no longer moving to status folders
-                                          // Create Instagram post with existing S3 location
-                                          const dbPost = await createInstagramPost({
-                                            driveFileId: null,
-                                            driveFileUrl: null,
-                                            awsS3Key: file.key,
-                                            awsS3Url: file.url,
-                                            fileName: file.name,
-                                            caption: "",
-                                            status: "DRAFT",
-                                            postType: isVideo ? "REEL" : "POST",
-                                            folder: selectedFolder,
-                                            originalFolder: selectedFolder,
-                                            mimeType: file.mimeType,
-                                          });
+                                    <>
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            // Keep file in original location - no longer moving to status folders
+                                            // Create Instagram post with existing S3 location
+                                            const dbPost = await createInstagramPost({
+                                              driveFileId: null,
+                                              driveFileUrl: null,
+                                              awsS3Key: file.key,
+                                              awsS3Url: file.url,
+                                              fileName: file.name,
+                                              caption: "",
+                                              status: "DRAFT",
+                                              postType: isVideo ? "REEL" : "POST",
+                                              folder: selectedFolder,
+                                              originalFolder: selectedFolder,
+                                              mimeType: file.mimeType,
+                                            });
 
-                                          const newPost: Post = {
-                                            id: dbPost.id,
-                                            image: file.url,
-                                            caption: "",
-                                            status: "DRAFT",
-                                            type: isVideo ? "REEL" : "POST",
-                                            date: new Date()
-                                              .toISOString()
-                                              .split("T")[0],
-                                            driveFileId: null,
-                                            awsS3Key: file.key,
-                                            awsS3Url: file.url,
-                                            originalFolder: selectedFolder,
-                                            order: dbPost.order,
-                                            fileName: file.name,
-                                            mimeType: file.mimeType,
-                                          };
+                                            const newPost: Post = {
+                                              id: dbPost.id,
+                                              image: file.url,
+                                              caption: "",
+                                              status: "DRAFT",
+                                              type: isVideo ? "REEL" : "POST",
+                                              date: new Date()
+                                                .toISOString()
+                                                .split("T")[0],
+                                              driveFileId: null,
+                                              awsS3Key: file.key,
+                                              awsS3Url: file.url,
+                                              originalFolder: selectedFolder,
+                                              order: dbPost.order,
+                                              fileName: file.name,
+                                              mimeType: file.mimeType,
+                                            };
 
-                                          setPosts((prev) => [newPost, ...prev]);
-                                          
-                                          toast.success("Added to Instagram queue");
-                                        } catch (error) {
-                                          console.error("Error adding file to queue:", error);
-                                          toast.error("Failed to add file to queue. Please try again.");
-                                        }
-                                      }}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
-                                    >
-                                      Add to Queue
-                                    </button>
+                                            setPosts((prev) => [newPost, ...prev]);
+                                            
+                                            toast.success("Added to Instagram queue");
+                                          } catch (error) {
+                                            console.error("Error adding file to queue:", error);
+                                            toast.error("Failed to add file to queue. Please try again.");
+                                          }
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
+                                      >
+                                        Add to Queue
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteFileFromLibrary(file);
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 text-white p-2 rounded text-xs font-medium hover:bg-red-700"
+                                        title="Delete file"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </>
                                   );
                                 })()}
                               </div>
