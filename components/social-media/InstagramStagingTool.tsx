@@ -77,33 +77,6 @@ const getNextStatus = (
   }
 };
 
-// Map status to S3 folder
-const getS3FolderFromStatus = (
-  status: InstagramPost["status"]
-): string => {
-  switch (status) {
-    case "DRAFT":
-      return "instagram/draft";
-    case "REVIEW":
-      return "instagram/review";
-    case "APPROVED":
-      return "instagram/approved";
-    case "SCHEDULED":
-      return "instagram/scheduled";
-    case "PUBLISHED":
-      return "instagram/published";
-    case "PENDING":
-      return "instagram/scheduled"; // PENDING stays in scheduled folder
-    default:
-      return "instagram/draft";
-  }
-};
-
-// Special handling for rejected posts
-const getS3FolderForRejected = (): string => {
-  return "instagram/rejected";
-};
-
 interface Post {
   id: string;
   image: string;
@@ -191,12 +164,9 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   const [showBulkScheduleDialog, setShowBulkScheduleDialog] = useState(false);
   const [bulkScheduleDate, setBulkScheduleDate] = useState("");
   const [bulkScheduleTime, setBulkScheduleTime] = useState("");
-
-  // Filter and search state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [postTypeFilter, setPostTypeFilter] = useState<string>("ALL");
-  const [dateRangeFilter, setDateRangeFilter] = useState<string>("ALL");
+  
+  // Media library filter state
+  const [mediaLibraryStatusFilter, setMediaLibraryStatusFilter] = useState<string>("ALL");
 
   // Fetch user role from database on mount
   useEffect(() => {
@@ -606,50 +576,10 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     newStatus: InstagramPost["status"]
   ) => {
     try {
-      // If post has S3 file, move it to the appropriate folder
-      if (post.awsS3Key) {
-        const destinationFolder = getS3FolderFromStatus(newStatus);
-        
-        console.log('🔄 Moving file for status change:', {
-          postId: post.id,
-          currentStatus: post.status,
-          newStatus,
-          sourceKey: post.awsS3Key,
-          destinationFolder
-        });
-
-        const moveResponse = await fetch('/api/s3/move', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourceKey: post.awsS3Key,
-            destinationFolder,
-            keepOriginal: false,
-          }),
-        });
-
-        if (!moveResponse.ok) {
-          throw new Error('Failed to move file to new status folder');
-        }
-
-        const moveData = await moveResponse.json();
-        
-        // Update post with new S3 location
-        const updatedPost = { 
-          ...post, 
-          status: newStatus,
-          awsS3Key: moveData.destinationKey,
-          awsS3Url: moveData.url,
-          image: moveData.url,
-        };
-        
-        await updatePost(updatedPost);
-        toast.success(`Post moved to ${newStatus} folder`);
-      } else {
-        // No S3 file, just update status
-        const updatedPost = { ...post, status: newStatus };
-        await updatePost(updatedPost);
-      }
+      // No longer moving files to status folders - just update the status
+      const updatedPost = { ...post, status: newStatus };
+      await updatePost(updatedPost);
+      toast.success(`Status updated to ${newStatus}`);
     } catch (error) {
       console.error('❌ Error changing status:', error);
       toast.error('Failed to change status. Please try again.');
@@ -691,35 +621,10 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     }
 
     try {
-      // Move file to rejected folder if it has S3 file
-      let newS3Key = rejectingPost.awsS3Key;
-      let newS3Url = rejectingPost.awsS3Url;
-      
-      if (rejectingPost.awsS3Key) {
-        const moveResponse = await fetch('/api/s3/move', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourceKey: rejectingPost.awsS3Key,
-            destinationFolder: getS3FolderForRejected(),
-            keepOriginal: false,
-          }),
-        });
-
-        if (!moveResponse.ok) {
-          throw new Error('Failed to move file to Rejected folder');
-        }
-
-        const moveData = await moveResponse.json();
-        newS3Key = moveData.destinationKey;
-        newS3Url = moveData.url;
-      }
-
+      // No longer moving files - just update status and rejection info
       await updateInstagramPost(rejectingPost.id, {
         status: "DRAFT",
         rejectionReason: rejectionReason.trim(),
-        awsS3Key: newS3Key,
-        awsS3Url: newS3Url,
       } as any);
 
       // Update local state
@@ -731,9 +636,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 status: "DRAFT" as const,
                 rejectionReason: rejectionReason.trim(),
                 rejectedAt: new Date().toISOString(),
-                awsS3Key: newS3Key,
-                awsS3Url: newS3Url,
-                image: newS3Url || p.image,
               }
             : p
         )
@@ -745,9 +647,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           status: "DRAFT" as const,
           rejectionReason: rejectionReason.trim(),
           rejectedAt: new Date().toISOString(),
-          awsS3Key: newS3Key,
-          awsS3Url: newS3Url,
-          image: newS3Url || rejectingPost.image,
         });
       }
 
@@ -756,7 +655,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       setRejectingPost(null);
       setRejectionReason("");
       
-      toast.success("Post rejected and moved to Rejected folder");
+      toast.success("Post rejected");
     } catch (error) {
       console.error("❌ Error rejecting post:", error);
       toast.error("Failed to reject post. Please try again.");
@@ -770,36 +669,11 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       const now = new Date().toISOString();
       const hasUrl = instagramUrl.trim().length > 0;
       
-      // Move file to published folder if it has S3 file
-      let newS3Key = publishingPost.awsS3Key;
-      let newS3Url = publishingPost.awsS3Url;
-      
-      if (publishingPost.awsS3Key) {
-        const moveResponse = await fetch('/api/s3/move', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourceKey: publishingPost.awsS3Key,
-            destinationFolder: getS3FolderFromStatus("PUBLISHED"),
-            keepOriginal: false,
-          }),
-        });
-
-        if (!moveResponse.ok) {
-          throw new Error('Failed to move file to Published folder');
-        }
-
-        const moveData = await moveResponse.json();
-        newS3Key = moveData.destinationKey;
-        newS3Url = moveData.url;
-      }
-      
+      // No longer moving files - just update status and publish info
       await updateInstagramPost(publishingPost.id, {
         status: "PUBLISHED",
         instagramUrl: instagramUrl.trim() || null,
         publishedAt: now,
-        awsS3Key: newS3Key,
-        awsS3Url: newS3Url,
       } as any);
 
       // Notify admins/managers when content creator publishes
@@ -831,9 +705,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 status: "PUBLISHED" as const,
                 instagramUrl: instagramUrl.trim() || null,
                 publishedAt: now,
-                awsS3Key: newS3Key,
-                awsS3Url: newS3Url,
-                image: newS3Url || p.image,
               }
             : p
         )
@@ -845,9 +716,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           status: "PUBLISHED" as const,
           instagramUrl: instagramUrl.trim() || null,
           publishedAt: now,
-          awsS3Key: newS3Key,
-          awsS3Url: newS3Url,
-          image: newS3Url || publishingPost.image,
         });
       }
 
@@ -856,7 +724,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       setPublishingPost(null);
       setInstagramUrl("");
       
-      toast.success("Post published and moved to Published folder");
+      toast.success("Post published");
     } catch (error) {
       console.error("❌ Error marking post as published:", error);
       toast.error("Failed to mark post as published. Please try again.");
@@ -887,51 +755,19 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         return;
       }
 
-      // Update all selected approved posts and move files
+      // Update all selected approved posts - no longer moving files
       const updatedPosts: Post[] = [];
       
       for (const post of approvedSelected) {
-        let newS3Key = post.awsS3Key;
-        let newS3Url = post.awsS3Url;
-        
-        // Move file to scheduled folder if it has S3 file
-        if (post.awsS3Key) {
-          try {
-            const moveResponse = await fetch('/api/s3/move', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                sourceKey: post.awsS3Key,
-                destinationFolder: getS3FolderFromStatus("SCHEDULED"),
-                keepOriginal: false,
-              }),
-            });
-
-            if (moveResponse.ok) {
-              const moveData = await moveResponse.json();
-              newS3Key = moveData.destinationKey;
-              newS3Url = moveData.url;
-            }
-          } catch (moveError) {
-            console.error('Failed to move file for post:', post.id, moveError);
-            // Continue with update even if move fails
-          }
-        }
-        
         await updateInstagramPost(post.id, {
           status: 'SCHEDULED',
           scheduledDate: scheduleDate.toISOString(),
-          awsS3Key: newS3Key,
-          awsS3Url: newS3Url,
         } as any);
         
         updatedPosts.push({
           ...post,
           status: 'SCHEDULED' as const,
           date: scheduleDate.toISOString(),
-          awsS3Key: newS3Key,
-          awsS3Url: newS3Url,
-          image: newS3Url || post.image,
         });
       }
 
@@ -947,67 +783,16 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
       setBulkScheduleDate("");
       setBulkScheduleTime("");
       
-      toast.success(`${approvedSelected.length} post(s) scheduled and moved to Scheduled folder!`);
+      toast.success(`${approvedSelected.length} post(s) scheduled!`);
     } catch (error) {
       console.error("❌ Error bulk scheduling posts:", error);
       toast.error('Failed to schedule some posts. Please try again.');
     }
   };
 
-  // Filter posts based on search query and filters
+  // Return all posts (filters removed)
   const getFilteredPosts = () => {
-    let filtered = [...posts];
-
-    // Search filter (filename or caption)
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(post =>
-        post.fileName?.toLowerCase().includes(query) ||
-        post.caption?.toLowerCase().includes(query)
-      );
-    }
-
-    // Status filter
-    if (statusFilter !== "ALL") {
-      filtered = filtered.filter(post => post.status === statusFilter);
-    }
-
-    // Post type filter
-    if (postTypeFilter !== "ALL") {
-      filtered = filtered.filter(post => post.type === postTypeFilter);
-    }
-
-    // Date range filter
-    if (dateRangeFilter !== "ALL") {
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      filtered = filtered.filter(post => {
-        if (!post.date) return false;
-        const postDate = new Date(post.date);
-        
-        switch (dateRangeFilter) {
-          case "TODAY":
-            return postDate >= today && postDate < new Date(today.getTime() + 24 * 60 * 60 * 1000);
-          case "THIS_WEEK":
-            const weekStart = new Date(today);
-            weekStart.setDate(today.getDate() - today.getDay());
-            const weekEnd = new Date(weekStart);
-            weekEnd.setDate(weekStart.getDate() + 7);
-            return postDate >= weekStart && postDate < weekEnd;
-          case "THIS_MONTH":
-            return postDate.getMonth() === now.getMonth() && postDate.getFullYear() === now.getFullYear();
-          case "PAST":
-            return postDate < today;
-          case "FUTURE":
-            return postDate >= today;
-          default:
-            return true;
-        }
-      });
-    }
-
-    return filtered;
+    return [...posts];
   };
 
   const handleSchedule = async (post: Post) => {
@@ -1292,9 +1077,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                   className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                 >
                   {getFilteredPosts().every(p => selectedPostIds.includes(p.id)) && getFilteredPosts().length > 0 ? '☐ Deselect All' : '☑ Select All'}
-                  {(statusFilter !== "ALL" || postTypeFilter !== "ALL" || dateRangeFilter !== "ALL" || searchQuery) && 
-                    ` (${getFilteredPosts().length})`
-                  }
                 </button>
               )}
               
@@ -1311,123 +1093,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 }}
               />
             </div>
-          </div>
-        </div>
-
-        {/* Smart Filters & Search Bar */}
-        <div className="mt-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          {/* Search Bar */}
-          <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by filename or caption..."
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-
-            {/* Active Filters Count */}
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                {[statusFilter, postTypeFilter, dateRangeFilter].filter(f => f !== "ALL").length} active
-              </span>
-              {(statusFilter !== "ALL" || postTypeFilter !== "ALL" || dateRangeFilter !== "ALL" || searchQuery) && (
-                <button
-                  onClick={() => {
-                    setStatusFilter("ALL");
-                    setPostTypeFilter("ALL");
-                    setDateRangeFilter("ALL");
-                    setSearchQuery("");
-                  }}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-                >
-                  Clear All
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Filter Pills */}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {/* Status Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status:</span>
-              {["ALL", "REVIEW", "APPROVED", "SCHEDULED", "PUBLISHED", "DRAFT"].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    statusFilter === status
-                      ? "bg-blue-600 text-white shadow-md"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  }`}
-                >
-                  {status === "ALL" ? "All" : status.charAt(0) + status.slice(1).toLowerCase()}
-                </button>
-              ))}
-            </div>
-
-            {/* Divider */}
-            <div className="w-px bg-gray-300 dark:bg-gray-600" />
-
-            {/* Post Type Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type:</span>
-              {["ALL", "POST", "REEL", "STORY"].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setPostTypeFilter(type)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    postTypeFilter === type
-                      ? "bg-purple-600 text-white shadow-md"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  }`}
-                >
-                  {type === "ALL" ? "All" : type.charAt(0) + type.slice(1).toLowerCase()}
-                </button>
-              ))}
-            </div>
-
-            {/* Divider */}
-            <div className="w-px bg-gray-300 dark:bg-gray-600" />
-
-            {/* Date Range Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date:</span>
-              {["ALL", "TODAY", "THIS_WEEK", "THIS_MONTH", "PAST", "FUTURE"].map((range) => (
-                <button
-                  key={range}
-                  onClick={() => setDateRangeFilter(range)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    dateRangeFilter === range
-                      ? "bg-green-600 text-white shadow-md"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  }`}
-                >
-                  {range === "ALL" ? "All" : range.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ")}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Results Count */}
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Showing <span className="font-semibold text-gray-900 dark:text-white">{getFilteredPosts().length}</span> of <span className="font-semibold">{posts.length}</span> posts
-              {searchQuery && <span className="text-blue-600 dark:text-blue-400"> matching "{searchQuery}"</span>}
-            </p>
           </div>
         </div>
 
@@ -1739,19 +1404,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                         ? "Add images from your Google Drive library to start building your Instagram feed."
                         : "Try adjusting your filters or search query to see more posts."}
                     </p>
-                    {posts.length > 0 && (
-                      <button
-                        onClick={() => {
-                          setStatusFilter("ALL");
-                          setPostTypeFilter("ALL");
-                          setDateRangeFilter("ALL");
-                          setSearchQuery("");
-                        }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Clear Filters
-                      </button>
-                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-1">
@@ -1821,13 +1473,14 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                             className="w-full h-full object-cover transition-transform group-hover:scale-105"
                           />
                         )}
-                        {/* REEL Indicator - Top Right Corner */}
+                        {/* VIDEO Indicator - Top Right Corner */}
                         {post.type === "REEL" && (
-                          <div className="absolute top-2 right-2 bg-black/70 rounded-full p-1 z-10">
-                            <div className="w-4 h-4 border-2 border-white border-l-transparent rounded-full" />
+                          <div className="absolute top-2 right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1 z-10">
+                            <Video className="w-3 h-3" />
+                            VIDEO
                           </div>
                         )}
-                        {/* Status Badge - Top Right, below REEL indicator if present */}
+                        {/* Status Badge - Top Right, below VIDEO indicator if present */}
                         <div
                           className={`absolute ${post.type === "REEL" ? "top-10" : "top-2"} right-2 ${getStatusColor(
                             post.status,
@@ -1849,15 +1502,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                               <Edit3 size={18} />
                             </button>
                           </div>
-                        </div>
-                        {/* Status Badge - Top Right */}
-                        <div
-                          className={`absolute top-2 right-2 ${getStatusColor(
-                            post.status,
-                            !!post.rejectedAt
-                          )} text-white text-xs px-2 py-1 rounded-full z-10`}
-                        >
-                          {getStatusText(post.status, !!post.rejectedAt)}
                         </div>
                       </div>
                     ))}
@@ -2448,6 +2092,27 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-4">
+                    {/* All Folders Option */}
+                    <button
+                      onClick={() => setSelectedFolder("All Folders")}
+                      className={`p-3 rounded-lg border text-left transition-colors ${
+                        selectedFolder === "All Folders"
+                          ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300"
+                          : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="w-4 h-4" />
+                        <div>
+                          <div className="text-xs font-medium">
+                            All Folders
+                          </div>
+                          <div className="text-xs opacity-60">
+                            {s3Folders.reduce((sum, folder) => sum + folder.files.length, 0)} files
+                          </div>
+                        </div>
+                      </div>
+                    </button>
                     {s3Folders.map((folder) => (
                       <button
                         key={folder.name}
@@ -2476,6 +2141,28 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                   </div>
                 </div>
 
+                {/* Status Filter for Media Library */}
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                    Filter by Status
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {["ALL", "NOT_QUEUED", "QUEUED", "DRAFT", "REVIEW", "APPROVED", "SCHEDULED", "PUBLISHED", "REJECTED"].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setMediaLibraryStatusFilter(status)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          mediaLibraryStatusFilter === status
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                        }`}
+                      >
+                        {status === "ALL" ? "All Files" : status === "NOT_QUEUED" ? "Not Queued" : status === "QUEUED" ? "Any Queued" : status.charAt(0) + status.slice(1).toLowerCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Selected Folder Contents */}
                 <div>
                   <div className="mb-2">
@@ -2485,6 +2172,207 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                   </div>
 
                   {(() => {
+                    // Handle "All Folders" option
+                    if (selectedFolder === "All Folders") {
+                      const allFiles = s3Folders.flatMap(folder => folder.files);
+                      
+                      if (allFiles.length === 0) {
+                        return (
+                          <div className="text-center py-8">
+                            <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-gray-500 dark:text-gray-400 text-sm">
+                              No files found in any folder
+                            </p>
+                            <p className="text-xs text-gray-400 mt-2">
+                              Upload files from Generated Content tab to see
+                              them here
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      // Filter files based on media library status filter
+                      const filteredFiles = allFiles.filter((file) => {
+                        if (mediaLibraryStatusFilter === "ALL") return true;
+                        
+                        const queuedPost = posts.find(p => p.awsS3Key === file.key);
+                        
+                        if (mediaLibraryStatusFilter === "NOT_QUEUED") {
+                          return !queuedPost;
+                        }
+                        
+                        if (mediaLibraryStatusFilter === "QUEUED") {
+                          return !!queuedPost;
+                        }
+                        
+                        if (!queuedPost) {
+                          return false;
+                        }
+                        
+                        if (mediaLibraryStatusFilter === "REJECTED") {
+                          return queuedPost.status === "DRAFT" && !!queuedPost.rejectedAt;
+                        }
+                        
+                        return queuedPost.status === mediaLibraryStatusFilter;
+                      });
+
+                      if (filteredFiles.length === 0) {
+                        return (
+                          <div className="text-center py-8">
+                            <Filter className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-gray-500 dark:text-gray-400 text-sm">
+                              No files match the selected filter
+                            </p>
+                            <p className="text-xs text-gray-400 mt-2">
+                              Try selecting a different status filter
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                          {filteredFiles.map((file) => {
+                            const isVideo = file.isVideo || file.mimeType.startsWith("video/");
+                            const previewUrl = fileBlobUrls[file.id] || file.url;
+
+                            return (
+                              <div
+                                key={file.id}
+                                className="relative group cursor-pointer"
+                              >
+                                {isVideo ? (
+                                  <video
+                                    src={previewUrl}
+                                    className="w-full aspect-square object-cover rounded-lg"
+                                    muted
+                                    playsInline
+                                    onMouseEnter={(e) =>
+                                      (e.target as HTMLVideoElement).play()
+                                    }
+                                    onMouseLeave={(e) => {
+                                      const video = e.target as HTMLVideoElement;
+                                      video.pause();
+                                      video.currentTime = 0;
+                                    }}
+                                  />
+                                ) : (
+                                  <img
+                                    src={previewUrl}
+                                    alt={file.name}
+                                    className="w-full aspect-square object-cover rounded-lg"
+                                    loading="lazy"
+                                  />
+                                )}
+
+                                {isVideo && (
+                                  <div className="absolute top-2 right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1">
+                                    <Video className="w-3 h-3" />
+                                    VIDEO
+                                  </div>
+                                )}
+
+                                {/* Status Badge - Small circle indicator if file is queued */}
+                                {(() => {
+                                  const queuedPost = posts.find(p => p.awsS3Key === file.key);
+                                  if (queuedPost) {
+                                    const isRejected = !!queuedPost.rejectedAt;
+                                    return (
+                                      <div
+                                        className={`absolute ${isVideo ? "top-10" : "top-2"} right-2 w-3 h-3 rounded-full ${getStatusColor(
+                                          queuedPost.status,
+                                          isRejected
+                                        )} border-2 border-white shadow-lg`}
+                                        title={getStatusText(queuedPost.status, isRejected)}
+                                      />
+                                    );
+                                  }
+                                  return null;
+                                })()}
+
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors rounded-lg flex items-center justify-center">
+                                  {(() => {
+                                    const queuedPost = posts.find(p => p.awsS3Key === file.key);
+                                    
+                                    if (queuedPost) {
+                                      return (
+                                        <button
+                                          onClick={() => {
+                                            setSelectedPost(queuedPost);
+                                            setView("grid");
+                                          }}
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                          View Details
+                                        </button>
+                                      );
+                                    }
+                                    
+                                    return (
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            const dbPost = await createInstagramPost({
+                                              driveFileId: null,
+                                              driveFileUrl: null,
+                                              awsS3Key: file.key,
+                                              awsS3Url: file.url,
+                                              fileName: file.name,
+                                              caption: "",
+                                              status: "DRAFT",
+                                              postType: isVideo ? "REEL" : "POST",
+                                              folder: "All Folders",
+                                              originalFolder: "All Folders",
+                                              mimeType: file.mimeType,
+                                            });
+
+                                            const newPost: Post = {
+                                              id: dbPost.id,
+                                              image: file.url,
+                                              caption: "",
+                                              status: "DRAFT",
+                                              type: isVideo ? "REEL" : "POST",
+                                              date: new Date()
+                                                .toISOString()
+                                                .split("T")[0],
+                                              driveFileId: null,
+                                              awsS3Key: file.key,
+                                              awsS3Url: file.url,
+                                              originalFolder: "All Folders",
+                                              order: dbPost.order,
+                                              fileName: file.name,
+                                              mimeType: file.mimeType,
+                                            };
+
+                                            setPosts((prev) => [newPost, ...prev]);
+                                            
+                                            toast.success("Added to Instagram queue");
+                                          } catch (error) {
+                                            console.error("Error adding file to queue:", error);
+                                            toast.error("Failed to add file to queue. Please try again.");
+                                          }
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
+                                      >
+                                        Add to Queue
+                                      </button>
+                                    );
+                                  })()}
+                                </div>
+                                <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                  {file.name.length > 15
+                                    ? file.name.substring(0, 15) + "..."
+                                    : file.name}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+
+                    // Handle individual folder selection
                     const currentFolder = s3Folders.find(
                       (f) => f.name === selectedFolder
                     );
@@ -2531,9 +2419,49 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                       );
                     }
 
+                    // Filter files based on media library status filter
+                    const filteredFiles = currentFolder.files.filter((file) => {
+                      if (mediaLibraryStatusFilter === "ALL") return true;
+                      
+                      const queuedPost = posts.find(p => p.awsS3Key === file.key);
+                      
+                      if (mediaLibraryStatusFilter === "NOT_QUEUED") {
+                        return !queuedPost; // Show only files that are NOT queued
+                      }
+                      
+                      if (mediaLibraryStatusFilter === "QUEUED") {
+                        return !!queuedPost; // Show any queued file
+                      }
+                      
+                      if (!queuedPost) {
+                        return false; // Not queued, so can't match specific statuses
+                      }
+                      
+                      // Check if post is rejected
+                      if (mediaLibraryStatusFilter === "REJECTED") {
+                        return queuedPost.status === "DRAFT" && !!queuedPost.rejectedAt;
+                      }
+                      
+                      return queuedPost.status === mediaLibraryStatusFilter;
+                    });
+
+                    if (filteredFiles.length === 0) {
+                      return (
+                        <div className="text-center py-8">
+                          <Filter className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-500 dark:text-gray-400 text-sm">
+                            No files match the selected filter
+                          </p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            Try selecting a different status filter
+                          </p>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
-                        {currentFolder.files.map((file) => {
+                        {filteredFiles.map((file) => {
                           const isVideo = file.isVideo || file.mimeType.startsWith("video/");
                           const previewUrl = fileBlobUrls[file.id] || file.url;
 
@@ -2573,80 +2501,97 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                 </div>
                               )}
 
+                              {/* Status Badge - Small circle indicator if file is queued */}
+                              {(() => {
+                                const queuedPost = posts.find(p => p.awsS3Key === file.key);
+                                if (queuedPost) {
+                                  const isRejected = !!queuedPost.rejectedAt;
+                                  return (
+                                    <div
+                                      className={`absolute ${isVideo ? "top-10" : "top-2"} right-2 w-3 h-3 rounded-full ${getStatusColor(
+                                        queuedPost.status,
+                                        isRejected
+                                      )} border-2 border-white shadow-lg`}
+                                      title={getStatusText(queuedPost.status, isRejected)}
+                                    />
+                                  );
+                                }
+                                return null;
+                              })()}
+
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-colors rounded-lg flex items-center justify-center">
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      // Move file to Draft folder in S3 (initial status)
-                                      const moveResponse = await fetch('/api/s3/move', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                          sourceKey: file.key,
-                                          destinationFolder: 'instagram/draft',
-                                          keepOriginal: false, // Move (delete original)
-                                        }),
-                                      });
+                                {(() => {
+                                  const queuedPost = posts.find(p => p.awsS3Key === file.key);
+                                  
+                                  if (queuedPost) {
+                                    // If already queued, show "View Details" button
+                                    return (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedPost(queuedPost);
+                                          setView("grid");
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-blue-700 flex items-center gap-1"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                        View Details
+                                      </button>
+                                    );
+                                  }
+                                  
+                                  // Not queued yet, show "Add to Queue" button
+                                  return (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          // Keep file in original location - no longer moving to status folders
+                                          // Create Instagram post with existing S3 location
+                                          const dbPost = await createInstagramPost({
+                                            driveFileId: null,
+                                            driveFileUrl: null,
+                                            awsS3Key: file.key,
+                                            awsS3Url: file.url,
+                                            fileName: file.name,
+                                            caption: "",
+                                            status: "DRAFT",
+                                            postType: isVideo ? "REEL" : "POST",
+                                            folder: selectedFolder,
+                                            originalFolder: selectedFolder,
+                                            mimeType: file.mimeType,
+                                          });
 
-                                      if (!moveResponse.ok) {
-                                        throw new Error('Failed to move file to Draft folder');
-                                      }
+                                          const newPost: Post = {
+                                            id: dbPost.id,
+                                            image: file.url,
+                                            caption: "",
+                                            status: "DRAFT",
+                                            type: isVideo ? "REEL" : "POST",
+                                            date: new Date()
+                                              .toISOString()
+                                              .split("T")[0],
+                                            driveFileId: null,
+                                            awsS3Key: file.key,
+                                            awsS3Url: file.url,
+                                            originalFolder: selectedFolder,
+                                            order: dbPost.order,
+                                            fileName: file.name,
+                                            mimeType: file.mimeType,
+                                          };
 
-                                      const moveData = await moveResponse.json();
-                                      const newS3Key = moveData.destinationKey;
-                                      const newS3Url = moveData.url;
-
-                                      // Create Instagram post with new S3 location and track original folder
-                                      const dbPost = await createInstagramPost({
-                                        driveFileId: null,
-                                        driveFileUrl: null,
-                                        awsS3Key: newS3Key,
-                                        awsS3Url: newS3Url,
-                                        fileName: file.name,
-                                        caption: "",
-                                        status: "DRAFT",
-                                        postType: isVideo ? "REEL" : "POST",
-                                        folder: "Draft",
-                                        originalFolder: selectedFolder, // Track where the image came from
-                                        mimeType: file.mimeType,
-                                      });
-
-                                      const newPost: Post = {
-                                        id: dbPost.id,
-                                        image: newS3Url,
-                                        caption: "",
-                                        status: "DRAFT",
-                                        type: isVideo ? "REEL" : "POST",
-                                        date: new Date()
-                                          .toISOString()
-                                          .split("T")[0],
-                                        driveFileId: null,
-                                        awsS3Key: newS3Key,
-                                        awsS3Url: newS3Url,
-                                        originalFolder: selectedFolder,
-                                        order: dbPost.order,
-                                        fileName: file.name,
-                                        mimeType: file.mimeType,
-                                      };
-
-                                      setPosts((prev) => [newPost, ...prev]);
-                                      
-                                      // Refresh the current folder to remove the moved file
-                                      await loadFolderContents(
-                                        s3Folders.find(f => f.name === selectedFolder)?.prefix || '',
-                                        selectedFolder
-                                      );
-                                      
-                                      toast.success("Added to Instagram queue and moved to Draft folder");
-                                    } catch (error) {
-                                      console.error("Error adding file to queue:", error);
-                                      toast.error("Failed to add file to queue. Please try again.");
-                                    }
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
-                                >
-                                  Add to Queue
-                                </button>
+                                          setPosts((prev) => [newPost, ...prev]);
+                                          
+                                          toast.success("Added to Instagram queue");
+                                        } catch (error) {
+                                          console.error("Error adding file to queue:", error);
+                                          toast.error("Failed to add file to queue. Please try again.");
+                                        }
+                                      }}
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-white text-gray-900 px-3 py-1 rounded text-xs font-medium hover:bg-gray-100"
+                                    >
+                                      Add to Queue
+                                    </button>
+                                  );
+                                })()}
                               </div>
                               <div className="absolute bottom-1 left-1 bg-black/70 text-white text-xs px-2 py-1 rounded">
                                 {file.name.length > 15
