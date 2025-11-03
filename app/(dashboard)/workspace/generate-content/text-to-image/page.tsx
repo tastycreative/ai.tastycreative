@@ -29,6 +29,7 @@ import {
   ChevronDown,
   X,
   Plus,
+  Folder,
 } from "lucide-react";
 
 // Types
@@ -217,6 +218,11 @@ export default function TextToImagePage() {
   const [imageStats, setImageStats] = useState<any>(null);
   const [refreshingImages, setRefreshingImages] = useState(false);
   const [lastImageFetch, setLastImageFetch] = useState<Record<string, number>>({});
+
+  // Folder selection states
+  const [targetFolder, setTargetFolder] = useState<string>("");
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   // Persistent generation state keys
   const STORAGE_KEYS = {
@@ -519,6 +525,40 @@ export default function TextToImagePage() {
       fetchImageStats();
     }
   }, [apiClient]);
+
+  // Load available folders on mount
+  useEffect(() => {
+    const loadFolders = async () => {
+      if (!apiClient || !user) return;
+      
+      setIsLoadingFolders(true);
+      try {
+        const response = await apiClient.get("/api/s3/folders/list-custom");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && Array.isArray(data.folders)) {
+            // Extract both slug and display name from folder objects
+            const folderObjects = data.folders.map((folder: any) => {
+              if (typeof folder === 'string') {
+                return { slug: folder, name: folder };
+              }
+              // Extract slug from prefix: "outputs/userId/folder-slug/" -> "folder-slug"
+              const parts = folder.prefix.split('/').filter(Boolean);
+              const slug = parts[2] || folder.name;
+              return { slug, name: folder.name };
+            });
+            setAvailableFolders(folderObjects);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading folders:", error);
+      } finally {
+        setIsLoadingFolders(false);
+      }
+    };
+
+    loadFolders();
+  }, [apiClient, user]);
 
   // Auto-refresh for jobs - OPTIMIZED for AWS S3 direct URLs
   useEffect(() => {
@@ -947,6 +987,11 @@ export default function TextToImagePage() {
       return;
     }
 
+    if (!targetFolder) {
+      alert("Please select a folder to save your generated images");
+      return;
+    }
+
     setIsGenerating(true);
     setCurrentJob(null);
     
@@ -980,7 +1025,7 @@ export default function TextToImagePage() {
         console.warn("⚠️ Prompt value may be incorrect:", params.prompt);
       }
 
-      const workflow = createWorkflowJson(params);
+      const workflow = createWorkflowJson(params, targetFolder);
       console.log("Created workflow for submission");
 
       const response = await apiClient.post(
@@ -1443,7 +1488,7 @@ export default function TextToImagePage() {
   };
 
   // Create workflow JSON
-  const createWorkflowJson = (params: GenerationParams) => {
+  const createWorkflowJson = (params: GenerationParams, targetFolder?: string) => {
     // Always generate a truly random seed to prevent caching issues
     const seed = params.seed || Math.floor(Math.random() * 2147483647);
     console.log(`🎲 Using seed: ${seed}`);
@@ -1536,7 +1581,7 @@ export default function TextToImagePage() {
       },
       "13": {
         inputs: {
-          filename_prefix: `ComfyUI_${Date.now()}_${seed}`,
+          filename_prefix: targetFolder ? `${targetFolder}/TextToImage_${Date.now()}_${seed}` : `ComfyUI_${Date.now()}_${seed}`,
           images: ["3", 0],
         },
         class_type: "SaveImage",
@@ -1889,6 +1934,61 @@ export default function TextToImagePage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Controls */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Folder Selection */}
+          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+              <Folder className="w-5 h-5 mr-2 text-purple-600" />
+              Save Location
+            </h3>
+
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select a folder to save your generated images
+              </label>
+
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    const select = document.getElementById('folder-select-text-to-image') as HTMLSelectElement;
+                    if (select) select.click();
+                  }}
+                  disabled={isLoadingFolders}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-left flex items-center justify-between hover:border-purple-400 dark:hover:border-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Folder className="w-4 h-4 text-purple-600" />
+                    <span className="text-gray-700 dark:text-gray-300">
+                      {isLoadingFolders ? "Loading folders..." : (availableFolders.find(f => f.slug === targetFolder)?.name || targetFolder || "Select a folder...")}
+                    </span>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                </button>
+
+                <select
+                  id="folder-select-text-to-image"
+                  value={targetFolder}
+                  onChange={(e) => setTargetFolder(e.target.value)}
+                  disabled={isLoadingFolders}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                >
+                  <option value="">Select a folder...</option>
+                  {availableFolders.map((folder) => (
+                    <option key={folder.slug} value={folder.slug}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {targetFolder && user && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-1">
+                  <span>📁</span>
+                  <span>outputs/{user.id}/{targetFolder}/</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Enhanced Prompt Input */}
           <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300">
             <div className="space-y-4">
@@ -2573,9 +2673,9 @@ export default function TextToImagePage() {
               {!isGenerating && (
                 <button
                   onClick={handleGenerate}
-                  disabled={!params.prompt.trim()}
+                  disabled={!params.prompt.trim() || !targetFolder}
                   className={`group relative w-full py-5 px-8 rounded-2xl transition-all duration-500 flex items-center justify-center space-x-4 font-bold text-xl overflow-hidden ${
-                    !params.prompt.trim()
+                    !params.prompt.trim() || !targetFolder
                       ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed text-white/80"
                       : "bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 hover:from-purple-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-2xl hover:shadow-purple-500/30 hover:scale-105 active:scale-95"
                   }`}
@@ -2583,7 +2683,7 @@ export default function TextToImagePage() {
                   {/* Animated background */}
                   <div
                     className={`absolute inset-0 rounded-2xl transition-opacity duration-500 ${
-                      !params.prompt.trim()
+                      !params.prompt.trim() || !targetFolder
                         ? "opacity-0"
                         : "opacity-100 bg-gradient-to-r from-purple-400/20 via-blue-400/20 to-indigo-400/20 animate-pulse"
                     }`}
@@ -2610,6 +2710,15 @@ export default function TextToImagePage() {
                     <AlertCircle className="w-4 h-4" />
                     <span className="text-sm font-medium">
                       Enter a creative prompt to begin
+                    </span>
+                  </div>
+                </div>
+              ) : !targetFolder ? (
+                <div className="text-center mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+                  <div className="flex items-center justify-center space-x-2 text-amber-700 dark:text-amber-300">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="text-sm font-medium">
+                      ⚠️ Please select a folder before generating
                     </span>
                   </div>
                 </div>

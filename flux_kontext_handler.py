@@ -53,15 +53,19 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str) -> Dict[str, str]:
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '') -> Dict[str, str]:
     """Upload image to AWS S3 and return S3 key and public URL"""
     try:
         s3_client = get_aws_s3_client()
         if not s3_client:
             return {"success": False, "error": "Failed to initialize S3 client"}
         
-        # Create S3 key: outputs/{user_id}/{filename}
-        s3_key = f"outputs/{user_id}/{filename}"
+        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
+        s3_key_parts = ['outputs', user_id]
+        if subfolder:
+            s3_key_parts.append(subfolder)
+        s3_key_parts.append(filename)
+        s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
@@ -449,13 +453,14 @@ def monitor_flux_kontext_progress(prompt_id: str, job_id: str, webhook_url: str,
                                 # Download image from ComfyUI
                                 image_bytes = get_image_bytes_from_comfyui(filename, subfolder, type_dir)
                                 
-                                # Upload to AWS S3
-                                s3_result = upload_image_to_aws_s3(image_bytes, user_id, filename)
+                                # Upload to AWS S3 using the subfolder from ComfyUI output
+                                # ComfyUI uses the folder from filename_prefix (e.g., "nov-2/FluxKontext_...")
+                                s3_result = upload_image_to_aws_s3(image_bytes, user_id, filename, subfolder)
                                 
                                 if s3_result.get("success"):
                                     result_images.append({
                                         "filename": filename,
-                                        "subfolder": subfolder,
+                                        "subfolder": subfolder,  # Use actual subfolder from ComfyUI
                                         "type": type_dir,
                                         "awsS3Url": s3_result.get("awsS3Url"),
                                         "awsS3Key": s3_result.get("awsS3Key"),

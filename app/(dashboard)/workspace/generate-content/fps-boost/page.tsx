@@ -26,6 +26,8 @@ import {
   Clock,
   XCircle,
   Sparkles,
+  Folder,
+  FolderPlus,
 } from "lucide-react";
 
 // Types
@@ -35,6 +37,7 @@ interface FPSBoostParams {
   fastMode: boolean; // Fast mode for quicker processing
   ensemble: boolean; // Ensemble mode for better quality
   uploadedVideo: string | null;
+  targetFolder: string; // Target folder for output
 }
 
 interface GenerationJob {
@@ -213,6 +216,7 @@ export default function FPSBoostPage() {
     fastMode: true,
     ensemble: true,
     uploadedVideo: null,
+    targetFolder: '', // No default - user must select
   });
 
   const [currentJob, setCurrentJob] = useState<GenerationJob | null>(null);
@@ -225,6 +229,8 @@ export default function FPSBoostPage() {
   const [videoStats, setVideoStats] = useState<any>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
@@ -243,6 +249,43 @@ export default function FPSBoostPage() {
     }
     clearGlobalProgress();
   };
+
+  // Load available folders
+  const loadFolders = async () => {
+    if (!apiClient || !user) return;
+
+    setIsLoadingFolders(true);
+    try {
+      const response = await apiClient.get('/api/s3/folders/list-custom');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.folders) {
+          // Create folder objects with both slug (for API) and name (for display)
+          const folders = data.folders.map((folder: any) => {
+            if (typeof folder === 'string') {
+              return { slug: folder, name: folder };
+            }
+            // Extract slug from prefix: outputs/{userId}/{slug}/
+            const parts = folder.prefix.split('/').filter(Boolean);
+            const slug = parts[2] || folder.name;
+            return { slug, name: folder.name };
+          });
+          setAvailableFolders(folders);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading folders:', error);
+    } finally {
+      setIsLoadingFolders(false);
+    }
+  };
+
+  // Load folders on mount
+  useEffect(() => {
+    if (apiClient && user) {
+      loadFolders();
+    }
+  }, [apiClient, user]);
 
   // Handle video upload
   const handleVideoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,7 +400,7 @@ export default function FPSBoostPage() {
           images: ["2", 0],
           frame_rate: params.targetFPS,
           loop_count: 0,
-          filename_prefix: "fps_boost/fps_boosted",
+          filename_prefix: `${params.targetFolder}/fps_boosted`,
           format: "video/h264-mp4",
           pix_fmt: "yuv420p",
           crf: 19,
@@ -383,12 +426,19 @@ export default function FPSBoostPage() {
       return;
     }
 
+    if (!params.targetFolder) {
+      alert("Please select a folder to save the output");
+      return;
+    }
+
     setIsGenerating(true);
     setCurrentJob(null);
 
     try {
       console.log("=== STARTING FPS BOOST GENERATION ===");
       console.log("Generation params:", params);
+      console.log("🎯 Target folder selected:", params.targetFolder);
+      console.log("🎯 Filename prefix will be:", `${params.targetFolder}/fps_boosted`);
 
       const workflow = createWorkflowJson(params);
       const videoBase64Data = (window as any).fpsBoostVideoBase64Data;
@@ -682,6 +732,45 @@ export default function FPSBoostPage() {
             <h3 className="text-xl font-bold mb-4">FPS Settings</h3>
 
             <div className="space-y-6">
+              {/* Output Folder Selection - Moved to top */}
+              <div>
+                <label className="text-sm font-medium mb-3 flex items-center space-x-2">
+                  <Folder className="w-4 h-4 text-purple-500" />
+                  <span>Save to Folder</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={params.targetFolder}
+                    onChange={(e) => {
+                      console.log("🔄 Folder selection changed to:", e.target.value);
+                      setParams((prev) => ({ ...prev, targetFolder: e.target.value }));
+                    }}
+                    disabled={isLoadingFolders}
+                    className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select a folder...</option>
+                    {availableFolders.map((folder) => (
+                      <option key={folder.slug} value={folder.slug}>
+                        📁 {folder.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    {isLoadingFolders ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                </div>
+                {params.targetFolder && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
+                    <span>💡</span>
+                    <span>Saving to: outputs/your-id/{params.targetFolder}/</span>
+                  </p>
+                )}
+              </div>
+
               {/* FPS Presets */}
               <div>
                 <label className="text-sm font-medium mb-3 block">Quick Presets</label>
@@ -832,7 +921,7 @@ export default function FPSBoostPage() {
           {/* Generate Button */}
           <button
             onClick={handleGenerate}
-            disabled={isGenerating || !params.uploadedVideo}
+            disabled={isGenerating || !params.uploadedVideo || !params.targetFolder}
             className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold rounded-xl shadow-lg transition-all hover:scale-105 disabled:hover:scale-100 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
@@ -852,9 +941,10 @@ export default function FPSBoostPage() {
             )}
           </button>
           
-          {!params.uploadedVideo && (
+          {(!params.uploadedVideo || !params.targetFolder) && (
             <p className="text-center text-sm text-gray-500 dark:text-gray-400 -mt-2">
-              Please upload a video first
+              {!params.uploadedVideo && "Please upload a video first"}
+              {params.uploadedVideo && !params.targetFolder && "Please select a folder"}
             </p>
           )}
         </div>

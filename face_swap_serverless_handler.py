@@ -49,7 +49,7 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str) -> Dict[str, str]:
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '') -> Dict[str, str]:
     """Upload image to AWS S3 and return S3 key and public URL"""
     try:
         s3_client = get_aws_s3_client()
@@ -57,8 +57,12 @@ def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str) -> Di
             logger.error("❌ AWS S3 client not available")
             return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{filename}
-        s3_key = f"outputs/{user_id}/{filename}"
+        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
+        s3_key_parts = ['outputs', user_id]
+        if subfolder:
+            s3_key_parts.append(subfolder)
+        s3_key_parts.append(filename)
+        s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
@@ -1151,7 +1155,7 @@ def get_image_from_comfyui(filename: str, subfolder: str = '', type_dir: str = '
         logger.error(f"❌ Error downloading image {filename}: {e}")
         return b""
 
-def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None) -> Dict:
+def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None, subfolder: str = '') -> Dict:
     """Monitor ComfyUI progress for face swap and return final result with detailed progress"""
     try:
         logger.info(f"👁️ Starting face swap progress monitoring for job: {job_id}")
@@ -1315,11 +1319,12 @@ def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, us
                                         if 'images' in node_output:
                                             for img_info in node_output['images']:
                                                 original_filename = img_info['filename']
-                                                subfolder = img_info.get('subfolder', '')
+                                                comfyui_subfolder = img_info.get('subfolder', '')  # ComfyUI's subfolder
                                                 type_dir = img_info.get('type', 'output')
                                                 
-                                                # Only process PureInpaint_FaceSwap files (skip comfyui_temp and other intermediate files)
-                                                if not original_filename.startswith('PureInpaint_FaceSwap'):
+                                                # Only process FaceSwap files (skip comfyui_temp and other intermediate files)
+                                                # Accept any filename containing "FaceSwap" to support all workflow variants
+                                                if 'FaceSwap' not in original_filename and not original_filename.startswith('face_swap_result'):
                                                     logger.info(f"⏭️ Skipping intermediate file: {original_filename}")
                                                     continue
                                                 
@@ -1328,12 +1333,12 @@ def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, us
                                                 name_part, ext = os.path.splitext(original_filename)
                                                 unique_filename = f"{name_part}_{timestamp}{ext}"
                                                 
-                                                # Download image data as bytes
-                                                image_data = get_image_from_comfyui(original_filename, subfolder, type_dir)
+                                                # Download image data as bytes (use ComfyUI's subfolder for retrieval)
+                                                image_data = get_image_from_comfyui(original_filename, comfyui_subfolder, type_dir)
                                                 if image_data:
                                                     try:
-                                                        # Upload to AWS S3 with unique filename
-                                                        s3_result = upload_image_to_aws_s3(image_data, user_id, unique_filename)
+                                                        # Upload to AWS S3 with user's selected subfolder (from workflow)
+                                                        s3_result = upload_image_to_aws_s3(image_data, user_id, unique_filename, subfolder)
                                                         
                                                         if s3_result.get("success"):
                                                             # Track image info for webhook (AWS S3 optimized structure)
@@ -1656,9 +1661,25 @@ def run_face_swap_generation(job_input, job_id, webhook_url):
         
         if not user_id:
             user_id = 'default_user'
+        
+        # Extract subfolder from workflow for S3 organization
+        # Look for SaveImage node filename_prefix like "nov-2/FaceSwap" or "PureInpaint_FaceSwap"
+        subfolder = ''
+        try:
+            for node_id, node_data in workflow.items():
+                if isinstance(node_data, dict) and node_data.get('class_type') == 'SaveImage':
+                    filename_prefix = node_data.get('inputs', {}).get('filename_prefix', '')
+                    if '/' in filename_prefix:
+                        # Extract user's folder from prefix like "nov-2/FaceSwap"
+                        folder_parts = filename_prefix.split('/')
+                        subfolder = '/'.join(folder_parts[:-1])  # Get everything before the last part
+                        logger.info(f"🔍 Extracted subfolder from workflow: '{subfolder}'")
+                        break
+        except Exception as e:
+            logger.warning(f"⚠️ Could not extract subfolder from workflow: {e}")
             
         logger.info(f"🔍 Using user_id: {user_id} for face swap job: {job_id}")
-        result = monitor_face_swap_progress(prompt_id, job_id, webhook_url, user_id)
+        result = monitor_face_swap_progress(prompt_id, job_id, webhook_url, user_id, subfolder)
         return result
         
     except Exception as e:

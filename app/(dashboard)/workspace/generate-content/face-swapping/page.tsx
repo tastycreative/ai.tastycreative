@@ -23,6 +23,8 @@ import {
   X,
   Image as ImageIconLucide,
   Layers,
+  Folder,
+  ChevronDown,
 } from "lucide-react";
 
 // Types
@@ -225,6 +227,11 @@ export default function FaceSwappingPage() {
     },
   ]);
   const [loadingLoRAs, setLoadingLoRAs] = useState(true);
+
+  // Folder selection states
+  const [targetFolder, setTargetFolder] = useState<string>("");
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(true);
 
   // Original image states (image with face to be replaced)
   const [originalImage, setOriginalImage] = useState<File | null>(null);
@@ -1090,6 +1097,55 @@ export default function FaceSwappingPage() {
     fetchLoRAModels();
   }, [apiClient]);
 
+  // Load folders for selection
+  useEffect(() => {
+    const loadFolders = async () => {
+      if (!apiClient || !user) {
+        console.log("⏳ Waiting for apiClient and user to load folders");
+        return;
+      }
+
+      try {
+        setIsLoadingFolders(true);
+        console.log("📁 Loading custom folders for face swapping...");
+
+        const response = await apiClient.get("/api/s3/folders/list-custom");
+
+        if (!response.ok) {
+          throw new Error(`Failed to load folders: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log("📊 Folders loaded:", data);
+
+        if (data.success && Array.isArray(data.folders)) {
+          // Create folder objects with both slug (for API) and name (for display)
+          const folders = data.folders.map((folder: any) => {
+            if (typeof folder === 'string') {
+              return { slug: folder, name: folder };
+            }
+            // Extract slug from prefix: outputs/{userId}/{slug}/
+            const parts = folder.prefix.split('/').filter(Boolean);
+            const slug = parts[2] || folder.name;
+            return { slug, name: folder.name };
+          });
+          setAvailableFolders(folders);
+          console.log("✅ Folders set:", folders);
+        } else {
+          console.error("⚠️ Invalid folders response:", data);
+          setAvailableFolders([]);
+        }
+      } catch (error) {
+        console.error("❌ Error loading folders:", error);
+        setAvailableFolders([]);
+      } finally {
+        setIsLoadingFolders(false);
+      }
+    };
+
+    loadFolders();
+  }, [apiClient, user]);
+
   const generateRandomSeed = () => {
     const seed = Math.floor(Math.random() * 1000000000);
     setParams((prev) => ({ ...prev, seed }));
@@ -1221,6 +1277,11 @@ export default function FaceSwappingPage() {
       return;
     }
 
+    if (!targetFolder) {
+      alert("Please select a folder to save your face swap results");
+      return;
+    }
+
     // Optional: Warn if no mask is applied
     if (!maskData) {
       const proceed = confirm(
@@ -1258,7 +1319,8 @@ export default function FaceSwappingPage() {
         params,
         uploadResult.originalFilename,
         uploadResult.newFaceFilename,
-        uploadResult.maskFilename
+        uploadResult.maskFilename,
+        targetFolder
       );
       console.log("Created face swap workflow for submission");
 
@@ -1277,6 +1339,7 @@ export default function FaceSwappingPage() {
           newFaceImageData: uploadResult.newFaceImageData,
           maskImageData: uploadResult.maskImageData,
           generationType: "face_swap",
+          user_id: user?.id,
         }
       );
 
@@ -1685,7 +1748,8 @@ export default function FaceSwappingPage() {
     params: FaceSwapParams,
     originalFilename: string,
     newFaceFilename: string,
-    maskFilename?: string
+    maskFilename?: string,
+    targetFolder?: string
   ) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
 
@@ -1825,7 +1889,7 @@ export default function FaceSwappingPage() {
       "413": {
         inputs: {
           images: ["415", 0],
-          filename_prefix: "PureInpaint_FaceSwap",
+          filename_prefix: targetFolder ? `${targetFolder}/FaceSwap` : "PureInpaint_FaceSwap",
         },
         class_type: "SaveImage",
       },
@@ -2002,6 +2066,48 @@ export default function FaceSwappingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Controls */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Folder Selection */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Save to Folder
+                </label>
+              </div>
+
+              <div className="relative">
+                <select
+                  value={targetFolder}
+                  onChange={(e) => setTargetFolder(e.target.value)}
+                  disabled={isLoadingFolders || isGenerating}
+                  className="w-full px-4 py-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select a folder...</option>
+                  {availableFolders.map((folder) => (
+                    <option key={folder.slug} value={folder.slug}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              </div>
+
+              {isLoadingFolders && (
+                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading folders...</span>
+                </div>
+              )}
+
+              {targetFolder && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  📁 Saving to: outputs/{user?.id}/{targetFolder}/
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Enhanced Image Uploads */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Enhanced Original Image Upload */}
@@ -2654,6 +2760,7 @@ export default function FaceSwappingPage() {
               !params.prompt.trim() ||
               !originalImage ||
               !newFaceImage ||
+              !targetFolder ||
               uploadingImage
             }
             className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
@@ -2675,6 +2782,13 @@ export default function FaceSwappingPage() {
               </>
             )}
           </button>
+
+          {/* Helper text */}
+          {!targetFolder && !isGenerating && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 text-center">
+              ⚠️ Please select a folder before swapping faces
+            </p>
+          )}
 
           {/* Cancel button is now available in the "Current Face Swap" section below */}
         </div>

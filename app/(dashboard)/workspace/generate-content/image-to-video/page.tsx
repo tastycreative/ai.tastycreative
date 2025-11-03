@@ -26,6 +26,8 @@ import {
   Layers,
   ImageIcon,
   Clock,
+  Folder,
+  ChevronDown,
 } from "lucide-react";
 
 // Types
@@ -392,6 +394,11 @@ export default function ImageToVideoPage() {
     string | null
   >(null);
 
+  // Folder selection states
+  const [targetFolder, setTargetFolder] = useState<string>("");
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(true);
+
   // Video-specific states
   const [jobVideos, setJobVideos] = useState<Record<string, DatabaseVideo[]>>(
     {}
@@ -528,6 +535,58 @@ export default function ImageToVideoPage() {
     }
     fetchVideoStats();
   }, []);
+
+  // Load folders for selection
+  useEffect(() => {
+    const loadFolders = async () => {
+      if (!apiClient || !user) {
+        console.log("⏳ Waiting for apiClient and user to load folders");
+        return;
+      }
+
+      try {
+        setIsLoadingFolders(true);
+        console.log("📁 Loading custom folders for image-to-video...");
+
+        const response = await apiClient.get("/api/s3/folders/list-custom");
+
+        if (!response.ok) {
+          throw new Error(`Failed to load folders: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log("📊 Folders loaded:", data);
+
+        if (data.success && Array.isArray(data.folders)) {
+          // Extract both slug and display name from folder objects
+          const foldersWithSlugs = data.folders.map((folder: any) => {
+            if (typeof folder === 'string') {
+              // Legacy: if it's just a string, use it as both slug and name
+              return { slug: folder, name: folder };
+            }
+            // Extract slug from prefix: outputs/userId/folder-slug/ -> folder-slug
+            const slug = folder.prefix?.split('/').filter(Boolean)[2] || folder.name;
+            return {
+              slug: slug,
+              name: folder.name
+            };
+          });
+          setAvailableFolders(foldersWithSlugs);
+          console.log("✅ Folders set with slugs:", foldersWithSlugs);
+        } else {
+          console.error("⚠️ Invalid folders response:", data);
+          setAvailableFolders([]);
+        }
+      } catch (error) {
+        console.error("❌ Error loading folders:", error);
+        setAvailableFolders([]);
+      } finally {
+        setIsLoadingFolders(false);
+      }
+    };
+
+    loadFolders();
+  }, [apiClient, user]);
 
   // Progress tracking with browser integration
   useEffect(() => {
@@ -917,7 +976,7 @@ export default function ImageToVideoPage() {
   };
 
   // Create workflow JSON based on the provided ComfyUI workflow with fixed values
-  const createWorkflowJson = (params: GenerationParams) => {
+  const createWorkflowJson = (params: GenerationParams, targetFolder?: string) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
 
     const workflow: any = {
@@ -1080,7 +1139,7 @@ export default function ImageToVideoPage() {
       "131": {
         inputs: {
           video: ["57", 0],
-          filename_prefix: "video/ComfyUI/wan2.2",
+          filename_prefix: targetFolder ? `${targetFolder}/ImageToVideo` : "video/ComfyUI/wan2.2",
           format: "auto",
           codec: "auto",
         },
@@ -1108,6 +1167,11 @@ export default function ImageToVideoPage() {
       return;
     }
 
+    if (!targetFolder) {
+      alert("Please select a folder to save your video");
+      return;
+    }
+
     setIsGenerating(true);
     setCurrentJob(null);
 
@@ -1124,7 +1188,7 @@ export default function ImageToVideoPage() {
       console.log("=== STARTING I2V SERVERLESS GENERATION ===");
       console.log("Generation params:", params);
 
-      const workflow = createWorkflowJson(params);
+      const workflow = createWorkflowJson(params, targetFolder);
       console.log("Created I2V workflow for serverless submission");
 
       // Get base64 data from stored window object
@@ -1150,6 +1214,7 @@ export default function ImageToVideoPage() {
         {
           workflow,
           params,
+          user_id: user?.id, // Include user_id for proper S3 folder organization
           imageData: imageBase64Data, // Include base64 image data
         }
       );
@@ -1666,6 +1731,53 @@ export default function ImageToVideoPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Controls */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Folder Selection */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Save to Folder
+                </label>
+              </div>
+
+              <div className="relative">
+                <select
+                  value={targetFolder}
+                  onChange={(e) => setTargetFolder(e.target.value)}
+                  disabled={isLoadingFolders || isGenerating}
+                  className="w-full px-4 py-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="">Select a folder...</option>
+                  {availableFolders.map((folder) => (
+                    <option key={folder.slug} value={folder.slug}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+              </div>
+
+              {isLoadingFolders && (
+                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading folders...</span>
+                </div>
+              )}
+
+              {targetFolder && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  📁 Saving to: outputs/{user?.id}/{targetFolder}/
+                  {availableFolders.find(f => f.slug === targetFolder) && (
+                    <span className="ml-1 text-purple-600 dark:text-purple-400">
+                      ({availableFolders.find(f => f.slug === targetFolder)?.name})
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Enhanced Image Upload */}
           <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300">
             <div className="flex items-center justify-between mb-6">
@@ -2071,7 +2183,7 @@ export default function ImageToVideoPage() {
           <button
             onClick={handleGenerate}
             disabled={
-              isGenerating || !params.prompt.trim() || !params.uploadedImage
+              isGenerating || !params.prompt.trim() || !params.uploadedImage || !targetFolder
             }
             className="w-full py-4 px-6 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
           >
@@ -2087,6 +2199,13 @@ export default function ImageToVideoPage() {
               </>
             )}
           </button>
+
+          {/* Helper text */}
+          {!targetFolder && !isGenerating && (
+            <p className="text-sm text-amber-600 dark:text-amber-400 text-center">
+              ⚠️ Please select a folder before generating video
+            </p>
+          )}
         </div>
 
         {/* Right Panel - Results */}

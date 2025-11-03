@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Upload, X, Download, Wand2, Loader2, Image as ImageIcon, AlertCircle, Share2, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Send, Sparkles, Brain, Copy, Check } from 'lucide-react';
+import { Upload, X, Download, Wand2, Loader2, Image as ImageIcon, AlertCircle, Share2, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Send, Sparkles, Brain, Copy, Check, Folder, ChevronDown } from 'lucide-react';
 import { useApiClient } from '@/lib/apiClient';
 
 interface JobStatus {
@@ -83,6 +83,9 @@ export default function FluxKontextPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string>('');
+  const [targetFolder, setTargetFolder] = useState<string>('');
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
 
@@ -111,6 +114,43 @@ export default function FluxKontextPage() {
     denoise: 1.0,
     seed: Math.floor(Math.random() * 1000000000000)
   };
+
+  // Load available folders
+  const loadFolders = useCallback(async () => {
+    if (!apiClient || !user) return;
+
+    setIsLoadingFolders(true);
+    try {
+      const response = await apiClient.get('/api/s3/folders/list-custom');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.folders) {
+          // Create folder objects with both slug (for API) and name (for display)
+          const folders = data.folders.map((folder: any) => {
+            if (typeof folder === 'string') {
+              return { slug: folder, name: folder };
+            }
+            // Extract slug from prefix: outputs/{userId}/{slug}/
+            const parts = folder.prefix.split('/').filter(Boolean);
+            const slug = parts[2] || folder.name;
+            return { slug, name: folder.name };
+          });
+          setAvailableFolders(folders);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading folders:', error);
+    } finally {
+      setIsLoadingFolders(false);
+    }
+  }, [apiClient, user]);
+
+  // Load folders on mount
+  useEffect(() => {
+    if (apiClient && user) {
+      loadFolders();
+    }
+  }, [apiClient, user, loadFolders]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -380,12 +420,12 @@ export default function FluxKontextPage() {
       "199": {
         "inputs": {
           "images": ["8", 0],
-          "filename_prefix": `FluxKontext_${Date.now()}_${FIXED_VALUES.seed}`
+          "filename_prefix": `${targetFolder}/FluxKontext_${Date.now()}_${FIXED_VALUES.seed}`
         },
         "class_type": "SaveImage"
       }
     };
-  }, [prompt, FIXED_VALUES]);
+  }, [prompt, targetFolder, FIXED_VALUES]);
 
   const convertImageToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -414,6 +454,11 @@ export default function FluxKontextPage() {
 
     if (!image) {
       setError('Please upload an image to transform');
+      return;
+    }
+
+    if (!targetFolder) {
+      setError('Please select a folder to save the output');
       return;
     }
 
@@ -786,6 +831,44 @@ export default function FluxKontextPage() {
               </div>
             </div>
 
+            {/* Folder Selection */}
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-4">
+                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Save to Folder
+                </h2>
+              </div>
+              <div className="relative">
+                <select
+                  value={targetFolder}
+                  onChange={(e) => setTargetFolder(e.target.value)}
+                  disabled={isLoadingFolders}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
+                >
+                  <option value="">Select a folder...</option>
+                  {availableFolders.map((folder) => (
+                    <option key={folder.slug} value={folder.slug}>
+                      📁 {folder.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  {isLoadingFolders ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                  )}
+                </div>
+              </div>
+              {targetFolder && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
+                  <span>💡</span>
+                  <span>Saving to: outputs/your-id/{targetFolder}/</span>
+                </p>
+              )}
+            </div>
+
             {/* Prompt Section */}
             <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center gap-2 mb-4">
@@ -809,7 +892,7 @@ export default function FluxKontextPage() {
             {/* Generate Button */}
             <button
               onClick={handleGenerate}
-              disabled={isProcessing || selectedImages.length === 0}
+              disabled={isProcessing || selectedImages.length === 0 || !targetFolder}
               className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
@@ -825,6 +908,13 @@ export default function FluxKontextPage() {
                 </>
               )}
             </button>
+            
+            {(selectedImages.length === 0 || !targetFolder) && (
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400 -mt-2">
+                {selectedImages.length === 0 && "Please upload an image first"}
+                {selectedImages.length > 0 && !targetFolder && "Please select a folder"}
+              </p>
+            )}
           </div>
 
           {/* Right Panel - Progress & Results */}

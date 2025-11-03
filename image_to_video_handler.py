@@ -54,7 +54,7 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_video_to_aws_s3(video_data: bytes, user_id: str, filename: str) -> Dict[str, str]:
+def upload_video_to_aws_s3(video_data: bytes, user_id: str, filename: str, subfolder: str = '') -> Dict[str, str]:
     """Upload video to AWS S3 and return S3 key and public URL"""
     try:
         s3_client = get_aws_s3_client()
@@ -62,8 +62,12 @@ def upload_video_to_aws_s3(video_data: bytes, user_id: str, filename: str) -> Di
             logger.error("❌ AWS S3 client not available")
             return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{filename}
-        s3_key = f"outputs/{user_id}/{filename}"
+        # Create S3 key with subfolder support: outputs/{user_id}/{subfolder}/{filename}
+        s3_key_parts = ['outputs', user_id]
+        if subfolder:
+            s3_key_parts.append(subfolder)
+        s3_key_parts.append(filename)
+        s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading video to AWS S3: {s3_key}")
         
@@ -542,7 +546,7 @@ def download_image_with_unique_name(image_filename: str, job_input: dict) -> tup
         logger.error(f"❌ Error creating unique image filename: {e}")
         return False, image_filename
 
-def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = "default_user") -> Dict:
+def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = "default_user", subfolder: str = '') -> Dict:
     """Monitor ComfyUI progress for video generation with detailed progress tracking"""
     try:
         logger.info(f"👁️ Starting video generation progress monitoring for job: {job_id}")
@@ -669,7 +673,8 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                                 aws_s3_result = upload_video_to_aws_s3(
                                                                     video_bytes,
                                                                     user_id,
-                                                                    vid_info['filename']
+                                                                    vid_info['filename'],
+                                                                    subfolder
                                                                 )
                                                                 
                                                                 if aws_s3_result["success"]:
@@ -711,7 +716,8 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                                     aws_s3_result = upload_video_to_aws_s3(
                                                                         video_bytes,
                                                                         user_id,
-                                                                        filename
+                                                                        filename,
+                                                                        subfolder
                                                                     )
                                                                     
                                                                     if aws_s3_result["success"]:
@@ -753,7 +759,8 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                             aws_s3_result = upload_video_to_aws_s3(
                                                                 video_bytes,
                                                                 user_id,
-                                                                filename
+                                                                filename,
+                                                                subfolder
                                                             )
                                                             
                                                             if aws_s3_result["success"]:
@@ -941,8 +948,23 @@ def run_image_to_video_generation(job_input, job_id, webhook_url):
         if "131" in workflow:
             import time
             timestamp = int(time.time() * 1000)
-            # Keep the video/ComfyUI subfolder structure but make the filename unique
-            unique_video_prefix = f"video/ComfyUI/wan2_video_{job_id}_{timestamp}"
+            
+            # Preserve user's selected folder from the workflow
+            current_prefix = workflow["131"]["inputs"].get("filename_prefix", "")
+            logger.info(f"🔍 Current filename_prefix: {current_prefix}")
+            
+            # Extract the user's folder (everything before the last '/')
+            # For "nov-2/ImageToVideo", we want to keep "nov-2"
+            if '/' in current_prefix:
+                folder_parts = current_prefix.split('/')
+                user_folder = '/'.join(folder_parts[:-1])  # Everything except the last part
+                unique_video_prefix = f"{user_folder}/wan2_video_{job_id}_{timestamp}"
+                logger.info(f"🔄 Preserving user's folder '{user_folder}' in filename prefix")
+            else:
+                # No folder selected, use default
+                unique_video_prefix = f"wan2_video_{job_id}_{timestamp}"
+                logger.info(f"🔄 No folder selected, using default filename prefix")
+            
             logger.info(f"🔄 Updating workflow node 131 with unique video filename: {unique_video_prefix}")
             workflow["131"]["inputs"]["filename_prefix"] = unique_video_prefix
             logger.info(f"✅ Updated workflow node 131 inputs: {workflow['131']['inputs']}")
@@ -1030,7 +1052,27 @@ def run_image_to_video_generation(job_input, job_id, webhook_url):
             "message": "Video generation started, monitoring progress..."
         })
         
-        result = monitor_video_generation_progress(prompt_id, job_id, webhook_url, job_input.get('user_id', 'default_user'))
+        # Extract subfolder from workflow's filename_prefix (node 131)
+        subfolder = ''
+        if "131" in workflow and "inputs" in workflow["131"]:
+            filename_prefix = workflow["131"]["inputs"].get("filename_prefix", "")
+            # Extract subfolder from prefix like "folder-slug/ImageToVideo" or "video/ComfyUI/wan2_video"
+            # Take everything before the last '/' as the subfolder
+            if '/' in filename_prefix:
+                parts = filename_prefix.split('/')
+                if len(parts) > 1:
+                    # For "nov-2/ImageToVideo", subfolder is "nov-2"
+                    # For "video/ComfyUI/wan2_video", subfolder is "video/ComfyUI"
+                    subfolder = '/'.join(parts[:-1])
+                    logger.info(f"📁 Extracted subfolder from filename_prefix: {subfolder}")
+        
+        result = monitor_video_generation_progress(
+            prompt_id, 
+            job_id, 
+            webhook_url, 
+            job_input.get('user_id', 'default_user'),
+            subfolder
+        )
         return result
         
     except Exception as e:

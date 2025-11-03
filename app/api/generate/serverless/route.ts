@@ -9,6 +9,7 @@ const textToImageSchema = z.object({
   action: z.literal('generate_text_to_image'),
   workflow: z.any().optional(), // ComfyUI workflow JSON
   params: z.any().optional(), // Generation parameters
+  user_id: z.string().optional(), // User ID for S3 folder organization
   prompt: z.string().optional(),
   aspect_ratio: z.string().optional(),
   model: z.string().optional(),
@@ -22,6 +23,7 @@ const styleTransferSchema = z.object({
   workflow: z.any().optional(), // ComfyUI workflow JSON
   params: z.any().optional(), // Generation parameters
   generation_type: z.string().optional(),
+  user_id: z.string().optional(), // User ID for S3 folder organization
   referenceImage: z.string().min(1), // Uploaded reference image filename
   maskImage: z.string().optional(), // Optional mask filename
   referenceImageData: z.string().optional(), // Base64 image data
@@ -38,6 +40,7 @@ const imageToVideoSchema = z.object({
   action: z.literal('generate_image_to_video'),
   workflow: z.any().optional(), // ComfyUI workflow JSON
   params: z.any().optional(), // Generation parameters
+  user_id: z.string().optional(), // User ID for S3 folder organization
   image_url: z.string().optional(),
   prompt: z.string().optional(),
   model: z.string().optional(),

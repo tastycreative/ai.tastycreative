@@ -24,7 +24,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def upload_image_to_aws_s3(image_data: str, filename: str, user_id: str) -> Optional[tuple]:
+def upload_image_to_aws_s3(image_data: str, filename: str, user_id: str, subfolder: str = '') -> Optional[tuple]:
     """Upload base64 image data to AWS S3 and return the S3 key and public URL"""
     try:
         # Get AWS S3 credentials from environment
@@ -53,9 +53,13 @@ def upload_image_to_aws_s3(image_data: str, filename: str, user_id: str) -> Opti
         
         image_bytes = base64.b64decode(image_data)
         
-        # Generate S3 key with organized structure (matching text-to-image pattern)
+        # Generate S3 key with organized structure: outputs/{user_id}/{subfolder}/{filename}
         file_extension = filename.split('.')[-1] if '.' in filename else 'png'
-        s3_key = f"outputs/{user_id}/{filename}"  # Match text-to-image pattern using user_id
+        s3_key_parts = ['outputs', user_id]
+        if subfolder:
+            s3_key_parts.append(subfolder)
+        s3_key_parts.append(filename)
+        s3_key = '/'.join(s3_key_parts)
         
         # Upload to S3 with proper content type and public access
         content_type = f"image/{file_extension.lower()}"
@@ -222,7 +226,7 @@ def start_comfyui():
         
         # Wait for ComfyUI to start up
         print("⏳ Waiting for ComfyUI to start...")
-        max_wait = 300  # 5 minutes - increased timeout for dependency installation
+        max_wait = 600  # 10 minutes - increased timeout for dependency installation and GPU initialization
         for i in range(max_wait):
             try:
                 response = requests.get("http://localhost:8188/system_stats", timeout=5)
@@ -668,8 +672,8 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                     # Download image and convert to base64
                                                     image_base64 = get_image_from_comfyui(original_filename, subfolder)
                                                     if image_base64:
-                                                        # Upload to AWS S3 with unique filename and get S3 key + public URL
-                                                        aws_result = upload_image_to_aws_s3(image_base64, unique_filename, user_id)
+                                                        # Upload to AWS S3 with unique filename and subfolder, get S3 key + public URL
+                                                        aws_result = upload_image_to_aws_s3(image_base64, unique_filename, user_id, subfolder)
                                                         s3_key = None
                                                         public_url = None
                                                         

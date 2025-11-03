@@ -8,6 +8,7 @@ import BandwidthStats from "@/components/BandwidthStats";
 import { useInView } from "react-intersection-observer";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { uploadToS3, S3_FOLDERS, S3_UPLOAD_FOLDERS, type S3File } from "@/lib/s3-helpers";
+import { FolderList } from "@/components/generated-content";
 import { Users } from "lucide-react";
 import {
   ImageIcon,
@@ -332,6 +333,9 @@ export default function GeneratedContentPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
+  // Folder Management State
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
   const [allContent, setAllContent] = useState<ContentItem[]>([]);
@@ -384,6 +388,11 @@ export default function GeneratedContentPage() {
   // S3 Upload State
   const [uploadStates, setUploadStates] = useState<UploadState>({});
   const [showUploadModal, setShowUploadModal] = useState<ContentItem | null>(null);
+  const [availableFoldersForUpload, setAvailableFoldersForUpload] = useState<Array<{name: string, prefix: string}>>([]);
+  
+  // Move to Folder State
+  const [showMoveModal, setShowMoveModal] = useState<ContentItem | null>(null);
+  const [availableFoldersForMove, setAvailableFoldersForMove] = useState<Array<{name: string, prefix: string, fileCount?: number}>>([]);
 
   // S3 Upload Queue State
   const [uploadQueue, setUploadQueue] = useState<Array<{
@@ -998,6 +1007,22 @@ export default function GeneratedContentPage() {
   const filteredAndSortedContent = useMemo(() => {
     let filtered = [...allContent];
 
+    // Apply folder filter first (if selected)
+    if (selectedFolder && selectedFolder !== 'outputs/') {
+      filtered = filtered.filter((item) => {
+        if (item.awsS3Key) {
+          // For new structure: outputs/{userId}/{folderName}/ 
+          // Extract folder prefix from S3 key: "outputs/user123/my-folder/file.jpg" -> "outputs/user123/my-folder/"
+          const parts = item.awsS3Key.split('/');
+          if (parts.length >= 3) {
+            const itemFolder = parts.slice(0, 3).join('/') + '/';
+            return itemFolder === selectedFolder;
+          }
+        }
+        return false;
+      });
+    }
+
     // Apply content type filter
     if (filterBy === "images") {
       filtered = filtered.filter((item) => item.itemType === "image");
@@ -1086,27 +1111,42 @@ export default function GeneratedContentPage() {
     });
 
     return filtered;
-  }, [allContent, filterBy, debouncedSearchQuery, sortBy, advancedFilters, linkedContentMap]);
+  }, [allContent, filterBy, debouncedSearchQuery, sortBy, advancedFilters, linkedContentMap, selectedFolder]);
 
   // Calculate total pages based on filtered content (not raw API counts)
   // This ensures pagination adjusts when filters like "Images only" or "Videos only" are applied
   const totalPages = useMemo(() => {
-    // When filters are active, use filtered content length
-    // When no filters, use API totals for accuracy
-    if (filterBy === "images") {
-      return Math.ceil(totalImages / itemsPerPage);
-    } else if (filterBy === "videos") {
-      return Math.ceil(totalVideos / itemsPerPage);
-    } else if (debouncedSearchQuery || advancedFilters.dateRange.start || advancedFilters.dateRange.end || 
-               advancedFilters.formats.length > 0 || advancedFilters.linkedStatus !== 'all') {
-      // If any filters are active, use filtered content length
+    // Check if ANY filter is active
+    const hasActiveFilters = 
+      (selectedFolder && selectedFolder !== 'outputs/') ||  // Folder filter
+      filterBy !== 'all' ||                                  // Content type filter (images/videos)
+      debouncedSearchQuery ||                                // Search filter
+      advancedFilters.dateRange.start ||                     // Date range start
+      advancedFilters.dateRange.end ||                       // Date range end
+      advancedFilters.formats.length > 0 ||                  // Format filter
+      advancedFilters.linkedStatus !== 'all' ||              // Linked status filter
+      advancedFilters.aspectRatio !== 'all' ||               // Aspect ratio filter
+      advancedFilters.fileSize.min !== 0 ||                  // File size min
+      advancedFilters.fileSize.max !== Infinity;             // File size max
+    
+    if (hasActiveFilters) {
+      // When ANY filter is active, use the actual filtered content length
+      // This ensures pagination matches what's actually displayed
       return Math.ceil(filteredAndSortedContent.length / itemsPerPage);
     } else {
-      // No filters - use API totals
+      // No filters active - use API totals for efficiency
       return Math.ceil((totalImages + totalVideos) / itemsPerPage);
     }
   }, [filterBy, totalImages, totalVideos, itemsPerPage, filteredAndSortedContent.length, 
-      debouncedSearchQuery, advancedFilters]);
+      debouncedSearchQuery, advancedFilters, selectedFolder]);
+
+  // Auto-reset to page 1 if current page exceeds total pages (handles folder switching with fewer items)
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      console.log(`📄 Auto-resetting page: currentPage ${currentPage} > totalPages ${totalPages}`);
+      setCurrentPage(1);
+    }
+  }, [currentPage, totalPages]);
 
   // Infinite scroll content - only show items up to displayCount
   const displayedContent = useMemo(() => {
@@ -1743,6 +1783,85 @@ export default function GeneratedContentPage() {
       console.error('Modal upload error:', error);
     } finally {
       setShowUploadModal(null);
+    }
+  };
+
+  // Load available folders for upload
+  const loadFoldersForUpload = async () => {
+    if (!apiClient) return;
+    try {
+      const response = await apiClient.get("/api/s3/folders/list-custom");
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableFoldersForUpload(data.folders || []);
+      }
+    } catch (error) {
+      console.error("Error loading folders for upload:", error);
+    }
+  };
+
+  // Load folders when upload modal opens
+  useEffect(() => {
+    if (showUploadModal && apiClient) {
+      loadFoldersForUpload();
+    }
+  }, [showUploadModal, apiClient]);
+
+  // Load available folders for moving
+  const loadFoldersForMove = async () => {
+    if (!apiClient) return;
+    try {
+      const response = await apiClient.get("/api/s3/folders/list-custom");
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableFoldersForMove(data.folders || []);
+      }
+    } catch (error) {
+      console.error("Error loading folders for move:", error);
+    }
+  };
+
+  // Load folders when move modal opens
+  useEffect(() => {
+    if (showMoveModal && apiClient) {
+      loadFoldersForMove();
+    }
+  }, [showMoveModal, apiClient]);
+
+  // Move item to folder
+  const moveItemToFolder = async (item: ContentItem, targetFolderPrefix: string) => {
+    if (!apiClient) return;
+
+    try {
+      showToast("info", `Moving ${item.filename} to folder...`);
+
+      // Extract folder name from prefix for display
+      const folderName = targetFolderPrefix.split('/')[2]?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'folder';
+
+      const response = await apiClient.post("/api/s3/move-to-folder", {
+        itemId: item.id,
+        itemType: item.itemType,
+        currentS3Key: item.awsS3Key || item.s3Key,
+        targetFolderPrefix,
+        filename: item.filename,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to move item" }));
+        throw new Error(errorData.error || "Failed to move item");
+      }
+
+      const result = await response.json();
+      
+      showToast("success", `Successfully moved to ${folderName}!`);
+      
+      // Refresh content to show updated location
+      await fetchContent();
+      
+      setShowMoveModal(null);
+    } catch (error) {
+      console.error("Error moving item:", error);
+      showToast("error", error instanceof Error ? error.message : "Failed to move item");
     }
   };
 
@@ -2663,9 +2782,9 @@ export default function GeneratedContentPage() {
 
     return {
       title: 'Your gallery is empty',
-      description: 'Start creating amazing AI-generated content or upload existing files!',
+      description: 'Start creating amazing AI-generated content!',
       showFilters: false,
-      showUpload: true
+      showUpload: false
     };
   };
 
@@ -3685,6 +3804,64 @@ export default function GeneratedContentPage() {
         )}
       </div>
 
+      {/* Main Content Layout with Folder Sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Folder Management Sidebar */}
+        <aside className="lg:col-span-1">
+          <div className="lg:sticky lg:top-6 space-y-4">
+            <FolderList 
+              onFolderSelect={(folderPrefix) => {
+                console.log('📁 Selected folder:', folderPrefix);
+                setSelectedFolder(folderPrefix);
+                // Reset to page 1 when folder changes
+                setCurrentPage(1);
+              }}
+              selectedFolder={selectedFolder || undefined}
+            />
+            
+            {/* Clear Folder Filter Button */}
+            {selectedFolder && selectedFolder !== 'outputs/' && (
+              <button
+                onClick={() => {
+                  setSelectedFolder(null);
+                  setCurrentPage(1);
+                }}
+                className="w-full text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 py-2 px-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <X className="w-4 h-4" />
+                  Clear folder filter
+                </span>
+              </button>
+            )}
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <main className="lg:col-span-3">
+          {/* Active Folder Filter Badge */}
+          {selectedFolder && selectedFolder !== 'outputs/' && (
+            <div className="mb-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Folder className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Showing content from: <strong>{selectedFolder.split('/').slice(0, 3).join('/').split('/')[2]?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</strong>
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedFolder(null);
+                    setCurrentPage(1);
+                  }}
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
       {/* Enhanced Empty State with Drag & Drop */}
       {filteredAndSortedContent.length === 0 ? (
         <div className="text-center py-16">
@@ -4011,115 +4188,105 @@ export default function GeneratedContentPage() {
                       ></div>
                     </div>
 
-                    {/* Action Buttons - Moved from hover overlay */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                    {/* Action Buttons - 2x2 Grid Layout */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Download Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadItem(item);
+                        }}
+                        className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200 flex items-center justify-center`}
+                        title="Download"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                      
+                      {/* Quick Upload to S3 with Folder Dropdown */}
+                      <div className="relative">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedItem(item);
+                            setQuickUploadItem(quickUploadItem === item.id ? null : item.id);
                           }}
-                          className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200`}
-                          title="View full size"
+                          className={`w-full p-2.5 ${isMobile ? 'min-h-[44px]' : ''} ${isItemStagedToS3(item.id) ? 'bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400'} rounded-lg transition-all duration-200 flex items-center justify-center`}
+                          title={isItemStagedToS3(item.id) ? "Already staged on S3 - Upload again" : "Upload to S3 staging"}
                         >
-                          <Eye className="w-4 h-4" />
+                          {isItemStagedToS3(item.id) ? (
+                            <CheckCircle className="w-4 h-4" />
+                          ) : (
+                            <Cloud className="w-4 h-4" />
+                          )}
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadItem(item);
-                          }}
-                          className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200`}
-                          title="Download"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                        
-                        {/* Quick Upload to S3 with Folder Dropdown */}
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setQuickUploadItem(quickUploadItem === item.id ? null : item.id);
-                            }}
-                            className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} ${isItemStagedToS3(item.id) ? 'bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400'} rounded-lg transition-all duration-200`}
-                            title={isItemStagedToS3(item.id) ? "Already staged on S3 - Upload again" : "Upload to S3 staging"}
+
+                        {/* Folder Dropdown Menu */}
+                        {quickUploadItem === item.id && (
+                          <div 
+                            className="absolute bottom-full mb-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {isItemStagedToS3(item.id) ? (
-                              <CheckCircle className="w-4 h-4" />
-                            ) : (
-                              <Cloud className="w-4 h-4" />
-                            )}
-                          </button>
-
-                          {/* Folder Dropdown Menu */}
-                          {quickUploadItem === item.id && (
-                            <div 
-                              className="absolute bottom-full mb-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[9999] overflow-hidden"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="p-2">
-                                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 py-2">
-                                  Upload to folder:
-                                </div>
-                                
-                                {/* Predefined Folders */}
-                                {S3_UPLOAD_FOLDERS.map((folder) => (
-                                  <button
-                                    key={folder.prefix}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      quickUploadToS3(item, folder.name);
-                                      setQuickUploadItem(null);
-                                    }}
-                                    className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150"
-                                  >
-                                    <Folder className="w-4 h-4 text-blue-500" />
-                                    <span>{folder.name}</span>
-                                  </button>
-                                ))}
-
-                                {/* Full Upload Modal Option */}
-                                <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
+                            <div className="p-2">
+                              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 py-2">
+                                Upload to folder:
+                              </div>
+                              
+                              {/* Predefined Folders */}
+                              {S3_UPLOAD_FOLDERS.map((folder) => (
                                 <button
+                                  key={folder.prefix}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setShowUploadModal(item);
+                                    quickUploadToS3(item, folder.name);
                                     setQuickUploadItem(null);
                                   }}
-                                  className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150"
+                                  className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150"
                                 >
-                                  <Upload className="w-4 h-4" />
-                                  <span>More Options...</span>
+                                  <Folder className="w-4 h-4 text-blue-500" />
+                                  <span>{folder.name}</span>
                                 </button>
-                              </div>
+                              ))}
+
+                              {/* Full Upload Modal Option */}
+                              <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowUploadModal(item);
+                                  setQuickUploadItem(null);
+                                }}
+                                className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150"
+                              >
+                                <Upload className="w-4 h-4" />
+                                <span>More Options...</span>
+                              </button>
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            shareItem(item);
-                          }}
-                          className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200`}
-                          title="Share"
-                        >
-                          <Share2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteItem(item);
-                          }}
-                          className={`p-2 ${isMobile ? 'min-h-[44px] min-w-[44px]' : ''} bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200`}
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      {/* Move to Folder Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMoveModal(item);
+                        }}
+                        className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded-lg transition-all duration-200 flex items-center justify-center`}
+                        title="Move to folder"
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                      </button>
+
+                      {/* Delete Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteItem(item);
+                        }}
+                        className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200 flex items-center justify-center`}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
 
                     {/* Status Indicators Below Buttons */}
@@ -4630,6 +4797,11 @@ export default function GeneratedContentPage() {
           )}
         </>
       )}
+
+      {/* Close Main Content Area */}
+      </main>
+      </div>
+      {/* End of Grid Layout with Folder Sidebar */}
 
       {/* Context Menu */}
       {contextMenu && (
@@ -5143,30 +5315,139 @@ export default function GeneratedContentPage() {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                 Choose an S3 folder:
               </label>
-              <div className="grid grid-cols-1 gap-2">
-                {S3_UPLOAD_FOLDERS.map((folder) => (
-                  <button
-                    key={folder.prefix}
-                    onClick={() => handleModalUpload(folder.name)}
-                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 group"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <FolderOpen className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
-                      <span className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                        {folder.name}
-                      </span>
-                    </div>
-                    <div className="text-gray-400 group-hover:text-blue-500">
-                      <Upload className="w-4 h-4" />
-                    </div>
-                  </button>
-                ))}
-              </div>
+              {availableFoldersForUpload.length === 0 ? (
+                <div className="text-center py-8 border border-gray-200 dark:border-gray-600 rounded-lg">
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">No folders available. Create a folder first to upload content.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2">
+                  {availableFoldersForUpload.map((folder) => (
+                    <button
+                      key={folder.prefix}
+                      onClick={() => handleModalUpload(folder.name as S3FolderName)}
+                      className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 group"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <FolderOpen className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                        <span className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                          {folder.name}
+                        </span>
+                      </div>
+                      <div className="text-gray-400 group-hover:text-blue-500">
+                        <Upload className="w-4 h-4" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowUploadModal(null)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move to Folder Modal */}
+      {showMoveModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowMoveModal(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-200 dark:border-gray-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+                <FolderOpen className="w-5 h-5 text-purple-500" />
+                <span>Move to Folder</span>
+              </h3>
+              <button
+                onClick={() => setShowMoveModal(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                {showMoveModal.itemType === "video" ? (
+                  <Video className="w-8 h-8 text-purple-500" />
+                ) : (
+                  <ImageIcon className="w-8 h-8 text-blue-500" />
+                )}
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white truncate">
+                    {showMoveModal.filename}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {formatFileSize(showMoveModal.fileSize)} • {showMoveModal.itemType}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex items-center space-x-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                <FolderOpen className="w-5 h-5 text-purple-600" />
+                <div>
+                  <p className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                    Move to a different folder
+                  </p>
+                  <p className="text-xs text-purple-600 dark:text-purple-300 mt-1">
+                    This will update the file location in your S3 storage.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                Choose destination folder:
+              </label>
+              {availableFoldersForMove.length === 0 ? (
+                <div className="text-center py-8 border border-gray-200 dark:border-gray-600 rounded-lg">
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">No folders available. Create a folder first.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2">
+                  {availableFoldersForMove.map((folder) => (
+                    <button
+                      key={folder.prefix}
+                      onClick={() => moveItemToFolder(showMoveModal, folder.prefix)}
+                      className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-200 group"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Folder className="w-5 h-5 text-gray-400 group-hover:text-purple-500" />
+                        <span className="font-medium text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                          {folder.name}
+                        </span>
+                        {folder.fileCount !== undefined && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            ({folder.fileCount} files)
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-gray-400 group-hover:text-purple-500">
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowMoveModal(null)}
                 className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
               >
                 Cancel

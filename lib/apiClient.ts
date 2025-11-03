@@ -186,9 +186,18 @@ class AuthenticatedApiClient {
     return this.makeRequest(url, { method: 'PATCH', body });
   }
 
-  async delete(url: string): Promise<Response> {
+  async delete(url: string, data?: any): Promise<Response> {
     console.log('🗑️ API Client DELETE:', url);
-    return this.makeRequest(url, { method: 'DELETE' });
+    
+    // Handle different data types
+    let body: BodyInit | undefined;
+    if (data instanceof FormData) {
+      body = data; // Send FormData directly
+    } else if (data) {
+      body = JSON.stringify(data); // Stringify other data
+    }
+    
+    return this.makeRequest(url, { method: 'DELETE', body });
   }
 
   // For form data uploads (with authentication)

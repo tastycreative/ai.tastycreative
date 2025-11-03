@@ -354,7 +354,7 @@ def start_comfyui():
         
         # Wait for ComfyUI to start up
         print("⏳ Waiting for ComfyUI to start...")
-        max_wait = 300  # 5 minutes - increased timeout for dependency installation
+        max_wait = 600  # 10 minutes - increased timeout for dependency installation and GPU initialization
         for i in range(max_wait):
             try:
                 response = requests.get("http://localhost:8188/system_stats", timeout=5)

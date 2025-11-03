@@ -14,7 +14,9 @@ import {
   XCircle,
   Star,
   Settings,
-  Share2
+  Share2,
+  Folder,
+  ChevronDown
 } from 'lucide-react';
 import Image from 'next/image';
 import { useApiClient } from '@/lib/apiClient';
@@ -94,6 +96,9 @@ export default function ImageToImageSkinEnhancerPage() {
   const [jobStartTime, setJobStartTime] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
+  const [targetFolder, setTargetFolder] = useState<string>('');
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
   const adjustSlider = useCallback((delta: number) => {
@@ -116,6 +121,43 @@ export default function ImageToImageSkinEnhancerPage() {
     sampler: 'dpmpp_2m',
     scheduler: 'karras'
   };
+
+  // Load available folders
+  const loadFolders = useCallback(async () => {
+    if (!apiClient || !user) return;
+
+    setIsLoadingFolders(true);
+    try {
+      const response = await apiClient.get('/api/s3/folders/list-custom');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.folders) {
+          // Create folder objects with both slug (for API) and name (for display)
+          const folders = data.folders.map((folder: any) => {
+            if (typeof folder === 'string') {
+              return { slug: folder, name: folder };
+            }
+            // Extract slug from prefix: outputs/{userId}/{slug}/
+            const parts = folder.prefix.split('/').filter(Boolean);
+            const slug = parts[2] || folder.name;
+            return { slug, name: folder.name };
+          });
+          setAvailableFolders(folders);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading folders:', error);
+    } finally {
+      setIsLoadingFolders(false);
+    }
+  }, [apiClient, user]);
+
+  // Load folders on mount
+  useEffect(() => {
+    if (apiClient && user) {
+      loadFolders();
+    }
+  }, [apiClient, user, loadFolders]);
 
   useEffect(() => {
     document.title = 'TastyCreative AI - Image-to-Image Skin Enhancer';
@@ -793,7 +835,7 @@ export default function ImageToImageSkinEnhancerPage() {
       "38": {
         "inputs": {
           "images": ["13", 0],
-          "filename_prefix": "ComfyUI"
+          "filename_prefix": `${targetFolder}/SkinEnhancer`
         },
         "class_type": "SaveImage",
         "_meta": {
@@ -842,7 +884,7 @@ export default function ImageToImageSkinEnhancerPage() {
     console.log("📋 Image-to-Image Skin Enhancer workflow created with fixed settings:", FIXED_VALUES);
 
     return workflow;
-  }, []);
+  }, [targetFolder]);
 
   const convertImageToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -866,6 +908,11 @@ export default function ImageToImageSkinEnhancerPage() {
 
     if (!selectedImage) {
       setError('Please select an image to enhance');
+      return;
+    }
+
+    if (!targetFolder) {
+      setError('Please select a folder to save the output');
       return;
     }
 
@@ -1243,6 +1290,49 @@ export default function ImageToImageSkinEnhancerPage() {
             </div>
           </div>
 
+          {/* Folder Selection */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2 mb-2">
+                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <h3 className="text-lg font-semibold">Save to Folder</h3>
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Choose where to save your enhanced image
+              </p>
+            </div>
+            <div className="p-6">
+              <div className="relative">
+                <select
+                  value={targetFolder}
+                  onChange={(e) => setTargetFolder(e.target.value)}
+                  disabled={isLoadingFolders}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-sm"
+                >
+                  <option value="">Select a folder...</option>
+                  {availableFolders.map((folder) => (
+                    <option key={folder.slug} value={folder.slug}>
+                      📁 {folder.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  {isLoadingFolders ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                  )}
+                </div>
+              </div>
+              {targetFolder && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 flex items-center space-x-1">
+                  <span>💡</span>
+                  <span>Saving to: outputs/your-id/{targetFolder}/</span>
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Generation Parameters Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
@@ -1294,7 +1384,7 @@ export default function ImageToImageSkinEnhancerPage() {
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
               <button
                 onClick={handleGenerate}
-                disabled={isProcessing || !selectedImage}
+                disabled={isProcessing || !selectedImage || !targetFolder}
                 className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? (
@@ -1319,6 +1409,15 @@ export default function ImageToImageSkinEnhancerPage() {
                 Reset
               </button>
             </div>
+            
+            {(!selectedImage || !targetFolder) && (
+              <div className="px-6 pb-4">
+                <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                  {!selectedImage && "Please upload an image first"}
+                  {selectedImage && !targetFolder && "Please select a folder"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

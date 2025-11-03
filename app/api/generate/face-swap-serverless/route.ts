@@ -17,6 +17,7 @@ const faceSwapServerlessSchema = z.object({
   originalImageData: z.string().optional(),
   newFaceImageData: z.string().optional(),
   maskImageData: z.string().optional(),
+  user_id: z.string().optional(), // For S3 folder organization
 });
 
 export async function POST(req: NextRequest) {

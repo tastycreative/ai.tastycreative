@@ -29,6 +29,8 @@ import {
   Eye,
   Users,
   XCircle,
+  Folder,
+  ChevronDown,
 } from "lucide-react";
 
 // Types
@@ -232,6 +234,11 @@ export default function StyleTransferPage() {
   const [uploadedImageFilename, setUploadedImageFilename] = useState<
     string | null
   >(null);
+
+  // Folder selection states
+  const [targetFolder, setTargetFolder] = useState<string>("");
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   // Database image states
   const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
@@ -688,6 +695,40 @@ export default function StyleTransferPage() {
     }
   }, [apiClient]);
 
+  // Load available folders on mount
+  useEffect(() => {
+    const loadFolders = async () => {
+      if (!apiClient || !user) return;
+      
+      setIsLoadingFolders(true);
+      try {
+        const response = await apiClient.get("/api/s3/folders/list-custom");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && Array.isArray(data.folders)) {
+            // Extract both slug and display name from folder objects
+            const folderObjects = data.folders.map((folder: any) => {
+              if (typeof folder === 'string') {
+                return { slug: folder, name: folder };
+              }
+              // Extract slug from prefix: "outputs/userId/folder-slug/" -> "folder-slug"
+              const parts = folder.prefix.split('/').filter(Boolean);
+              const slug = parts[2] || folder.name;
+              return { slug, name: folder.name };
+            });
+            setAvailableFolders(folderObjects);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading folders:", error);
+      } finally {
+        setIsLoadingFolders(false);
+      }
+    };
+
+    loadFolders();
+  }, [apiClient, user]);
+
   // Auto-refresh for ALL jobs - check every 3 seconds for faster loading
   useEffect(() => {
     if (!apiClient || !currentJob) {
@@ -1128,6 +1169,11 @@ export default function StyleTransferPage() {
       return;
     }
 
+    if (!targetFolder) {
+      alert("Please select a folder to save your stylized images");
+      return;
+    }
+
     setIsGenerating(true);
     setCurrentJob(null);
 
@@ -1160,7 +1206,8 @@ export default function StyleTransferPage() {
       const workflow = createWorkflowJson(
         params,
         uploadResult.filename,
-        uploadResult.maskFilename
+        uploadResult.maskFilename,
+        targetFolder
       );
       console.log("Created style transfer workflow for serverless submission");
 
@@ -1170,6 +1217,7 @@ export default function StyleTransferPage() {
         params,
         action: "generate_style_transfer",
         generation_type: "style_transfer",
+        user_id: user?.id, // Include user_id for proper S3 folder organization
         referenceImage: uploadResult.filename,
         maskImage: uploadResult.maskFilename,
         // Include base64 data for direct use by RunPod
@@ -1570,7 +1618,8 @@ export default function StyleTransferPage() {
   const createWorkflowJson = (
     params: StyleTransferParams,
     imageFilename: string,
-    maskFilename?: string
+    maskFilename?: string,
+    targetFolder?: string
   ) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
 
@@ -1588,7 +1637,7 @@ export default function StyleTransferPage() {
       },
       "154": {
         inputs: {
-          filename_prefix: "ComfyUI",
+          filename_prefix: targetFolder ? `${targetFolder}/StyleTransfer` : "ComfyUI",
           images: ["8", 0],
         },
         class_type: "SaveImage",
@@ -1812,6 +1861,61 @@ export default function StyleTransferPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Panel - Controls */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Folder Selection */}
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
+                <Folder className="w-5 h-5 mr-2 text-purple-600" />
+                Save Location
+              </h3>
+
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Select a folder to save your stylized images
+                </label>
+
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      const select = document.getElementById('folder-select-style-transfer') as HTMLSelectElement;
+                      if (select) select.click();
+                    }}
+                    disabled={isLoadingFolders}
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-left flex items-center justify-between hover:border-purple-400 dark:hover:border-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Folder className="w-4 h-4 text-purple-600" />
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {isLoadingFolders ? "Loading folders..." : (availableFolders.find(f => f.slug === targetFolder)?.name || targetFolder || "Select a folder...")}
+                      </span>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  </button>
+
+                  <select
+                    id="folder-select-style-transfer"
+                    value={targetFolder}
+                    onChange={(e) => setTargetFolder(e.target.value)}
+                    disabled={isLoadingFolders}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  >
+                    <option value="">Select a folder...</option>
+                    {availableFolders.map((folder) => (
+                      <option key={folder.slug} value={folder.slug}>
+                        {folder.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {targetFolder && user && (
+                  <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1">
+                    <span>📁</span>
+                    <span>outputs/{user.id}/{targetFolder}/</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Reference Image Upload */}
             <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
@@ -2446,7 +2550,8 @@ export default function StyleTransferPage() {
                   isGenerating ||
                   !params.prompt.trim() ||
                   !referenceImage ||
-                  uploadingImage
+                  uploadingImage ||
+                  !targetFolder
                 }
                 className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
               >
@@ -2467,6 +2572,12 @@ export default function StyleTransferPage() {
                   </>
                 )}
               </button>
+              
+              {!targetFolder && !isGenerating && (
+                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400 text-center">
+                  ⚠️ Please select a folder before applying style transfer
+                </p>
+              )}
             </div>
           </div>
 

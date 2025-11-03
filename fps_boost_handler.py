@@ -206,10 +206,11 @@ def queue_workflow_with_comfyui(workflow: Dict, job_id: str, video_path: str) ->
         if "1" in workflow and "inputs" in workflow["1"]:
             workflow["1"]["inputs"]["video"] = video_path
         
-        # Update workflow with unique filename prefix (includes job_id for uniqueness)
+        # Don't override filename_prefix - it's already set correctly in the frontend with targetFolder
+        # The frontend sets it as: `${targetFolder}/fps_boosted_${timestamp}_${seed}`
         if "3" in workflow and "inputs" in workflow["3"]:
-            workflow["3"]["inputs"]["filename_prefix"] = f"fps_boost/fps_boosted_{job_id}"
-            logger.info(f"✅ Set unique filename prefix: fps_boost/fps_boosted_{job_id}")
+            existing_prefix = workflow["3"]["inputs"].get("filename_prefix", "fps_boost/fps_boosted")
+            logger.info(f"✅ Using filename prefix from frontend: {existing_prefix}")
         
         # Send to ComfyUI
         response = requests.post(
@@ -298,18 +299,19 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                     )
                                     
                                     if video_data:
-                                        # Upload to AWS S3
+                                        # Upload to AWS S3 using the subfolder from ComfyUI output
+                                        # ComfyUI uses the folder from filename_prefix (e.g., "nov-2/fps_boosted")
                                         upload_result = upload_to_aws_s3(
                                             video["filename"],
                                             video_data,
                                             user_id or "unknown",
-                                            subfolder="fps_boost"
+                                            subfolder=video["subfolder"]  # Use the actual subfolder from ComfyUI
                                         )
                                         
                                         if upload_result["success"]:
                                             uploaded_videos.append({
                                                 "filename": video["filename"],
-                                                "subfolder": "fps_boost",
+                                                "subfolder": video["subfolder"],  # Use actual subfolder
                                                 "type": "output",
                                                 "awsS3Key": upload_result["s3_key"],
                                                 "awsS3Url": upload_result["public_url"],

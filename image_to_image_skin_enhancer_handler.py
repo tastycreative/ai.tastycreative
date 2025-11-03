@@ -53,7 +53,7 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str) -> Dict[str, str]:
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '') -> Dict[str, str]:
     """Upload image to AWS S3 and return S3 key and public URL"""
     try:
         s3_client = get_aws_s3_client()
@@ -61,8 +61,12 @@ def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str) -> Di
             logger.error("❌ AWS S3 client not available")
             return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{filename}
-        s3_key = f"outputs/{user_id}/{filename}"
+        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
+        s3_key_parts = ['outputs', user_id]
+        if subfolder:
+            s3_key_parts.append(subfolder)
+        s3_key_parts.append(filename)
+        s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
@@ -638,7 +642,8 @@ def monitor_image_to_image_skin_enhancement_progress(prompt_id: str, job_id: str
                                                     aws_s3_result = upload_image_to_aws_s3(
                                                         image_data_bytes, 
                                                         user_id, 
-                                                        unique_filename
+                                                        unique_filename,
+                                                        subfolder
                                                     )
                                                     if aws_s3_result.get('success'):
                                                         aws_s3_paths.append({
