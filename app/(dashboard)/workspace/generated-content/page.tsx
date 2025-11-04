@@ -10,6 +10,7 @@ import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { uploadToS3, S3_FOLDERS, S3_UPLOAD_FOLDERS, type S3File } from "@/lib/s3-helpers";
 import { FolderList } from "@/components/generated-content";
 import { Users } from "lucide-react";
+import JSZip from "jszip";
 import {
   ImageIcon,
   Download,
@@ -65,6 +66,7 @@ import {
   XCircle,
   AlertTriangle,
   Folder,
+  FolderInput,
 } from "lucide-react";
 
 // Types
@@ -335,6 +337,12 @@ export default function GeneratedContentPage() {
 
   // Folder Management State
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [selectedFolderInfo, setSelectedFolderInfo] = useState<{
+    name: string;
+    isShared: boolean;
+    sharedBy?: string;
+    permission?: 'VIEW' | 'EDIT';
+  } | null>(null);
 
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
@@ -392,6 +400,7 @@ export default function GeneratedContentPage() {
   
   // Move to Folder State
   const [showMoveModal, setShowMoveModal] = useState<ContentItem | null>(null);
+  const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
   const [availableFoldersForMove, setAvailableFoldersForMove] = useState<Array<{name: string, prefix: string, fileCount?: number}>>([]);
 
   // S3 Upload Queue State
@@ -518,7 +527,7 @@ export default function GeneratedContentPage() {
         fetchStats();
       });
     }
-  }, [apiClient, adminLoading, selectedUserId, itemsPerPage, filterBy, sortBy]);
+  }, [apiClient, adminLoading, selectedUserId, itemsPerPage, filterBy, sortBy, selectedFolder]);
 
   // Fetch available users when admin status is confirmed
   useEffect(() => {
@@ -558,6 +567,28 @@ export default function GeneratedContentPage() {
       }
     }
   }, []);
+
+  const fetchFolderInfo = async (folderPrefix: string) => {
+    if (!apiClient) return;
+    
+    try {
+      const response = await apiClient.get("/api/s3/folders/list-custom");
+      if (response.ok) {
+        const data = await response.json();
+        const folder = data.folders?.find((f: any) => f.prefix === folderPrefix);
+        if (folder) {
+          setSelectedFolderInfo({
+            name: folder.name,
+            isShared: folder.isShared || false,
+            sharedBy: folder.sharedBy,
+            permission: folder.permission,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching folder info:", error);
+    }
+  };
 
   const fetchContent = async (append: boolean = false, pageOverride?: number) => {
     if (!apiClient) {
@@ -616,6 +647,11 @@ export default function GeneratedContentPage() {
         offset: fetchOffset.toString(),
         sortBy: sortBy // Pass sort parameter to API
       });
+      
+      // Add folder parameter if a folder is selected
+      if (selectedFolder && selectedFolder !== 'all') {
+        queryParams.append('folder', selectedFolder);
+      }
       
       // Add userId param if admin has selected a user
       if (selectedUserId) {
@@ -1315,7 +1351,7 @@ export default function GeneratedContentPage() {
     }
   }, [filterBy, debouncedSearchQuery, sortBy, advancedFilters.dateRange.start, 
       advancedFilters.dateRange.end, advancedFilters.formats, advancedFilters.linkedStatus, 
-      advancedFilters.aspectRatio, useInfiniteScroll]);
+      advancedFilters.aspectRatio, selectedFolder, useInfiniteScroll]);
 
   // Load more items when scrolling (only in infinite scroll mode)
   useEffect(() => {
@@ -1828,12 +1864,21 @@ export default function GeneratedContentPage() {
     }
   }, [showMoveModal, apiClient]);
 
+  // Load folders when bulk move modal opens
+  useEffect(() => {
+    if (showBulkMoveModal && apiClient) {
+      loadFoldersForMove();
+    }
+  }, [showBulkMoveModal, apiClient]);
+
   // Move item to folder
-  const moveItemToFolder = async (item: ContentItem, targetFolderPrefix: string) => {
-    if (!apiClient) return;
+  const moveItemToFolder = async (item: ContentItem, targetFolderPrefix: string, skipConfirm: boolean = false) => {
+    if (!apiClient) return { success: false, error: "API client not available" };
 
     try {
-      showToast("info", `Moving ${item.filename} to folder...`);
+      if (!skipConfirm) {
+        showToast("info", `Moving ${item.filename} to folder...`);
+      }
 
       // Extract folder name from prefix for display
       const folderName = targetFolderPrefix.split('/')[2]?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'folder';
@@ -1853,15 +1898,22 @@ export default function GeneratedContentPage() {
 
       const result = await response.json();
       
-      showToast("success", `Successfully moved to ${folderName}!`);
-      
-      // Refresh content to show updated location
-      await fetchContent();
-      
-      setShowMoveModal(null);
+      if (!skipConfirm) {
+        showToast("success", `Successfully moved to ${folderName}!`);
+        await fetchContent();
+        setShowMoveModal(null);
+      }
+
+      return { success: true };
     } catch (error) {
       console.error("Error moving item:", error);
-      showToast("error", error instanceof Error ? error.message : "Failed to move item");
+      const errorMessage = error instanceof Error ? error.message : "Failed to move item";
+      
+      if (!skipConfirm) {
+        showToast("error", errorMessage);
+      }
+      
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -2235,13 +2287,13 @@ export default function GeneratedContentPage() {
     }
   };
 
-  const deleteItem = async (item: ContentItem) => {
+  const deleteItem = async (item: ContentItem, skipConfirm = false) => {
     if (!apiClient) {
       alert("API client not available");
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to delete ${item.filename}?\n\nThis will permanently delete:\n• The file from AWS S3 storage\n• The database record\n\nThis action cannot be undone.`)) {
+    if (!skipConfirm && !window.confirm(`Are you sure you want to delete ${item.filename}?\n\nThis will permanently delete:\n• The file from AWS S3 storage\n• The database record\n\nThis action cannot be undone.`)) {
       return;
     }
 
@@ -2276,10 +2328,14 @@ export default function GeneratedContentPage() {
           } deleted successfully from database and AWS S3`
         );
         
-        alert(`✅ ${item.filename} deleted successfully!`);
+        if (!skipConfirm) {
+          alert(`✅ ${item.filename} deleted successfully!`);
+        }
         
-        // Refresh stats
-        await fetchStats();
+        // Refresh stats only if not in bulk mode
+        if (!skipConfirm) {
+          await fetchStats();
+        }
       } else {
         const errorData = await response.json().catch(() => ({ error: response.statusText }));
         console.error("Delete failed:", response.status, errorData);
@@ -2303,18 +2359,91 @@ export default function GeneratedContentPage() {
     try {
       const items = allContent.filter(item => selectedItems.has(item.id));
       
-      // For now, download individually
-      // TODO: Implement ZIP download on backend
-      for (const item of items) {
-        await downloadItem(item);
-        await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between downloads
+      // If only one item, download directly
+      if (items.length === 1) {
+        await downloadItem(items[0]);
+        alert(`✅ Downloaded ${items[0].filename} successfully!`);
+      } else {
+        // Multiple items - create ZIP
+        const zip = new JSZip();
+        let successCount = 0;
+        let failCount = 0;
+        
+        // Show progress
+        console.log(`📦 Creating ZIP with ${items.length} items...`);
+        
+        for (const item of items) {
+          try {
+            // Get the best URL for the item
+            const url = getBestMediaUrl(item);
+            
+            if (!url) {
+              console.warn(`No URL available for ${item.filename}`);
+              failCount++;
+              continue;
+            }
+            
+            // Fetch the file as blob
+            const response = await fetch(url);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch: ${response.status}`);
+            }
+            
+            const blob = await response.blob();
+            
+            // Add to ZIP with original filename
+            zip.file(item.filename, blob);
+            successCount++;
+            
+            console.log(`✅ Added ${item.filename} to ZIP (${successCount}/${items.length})`);
+          } catch (error) {
+            console.error(`Failed to add ${item.filename} to ZIP:`, error);
+            failCount++;
+          }
+        }
+        
+        if (successCount === 0) {
+          throw new Error("Failed to add any files to ZIP");
+        }
+        
+        // Generate ZIP file
+        console.log("🔄 Generating ZIP file...");
+        const zipBlob = await zip.generateAsync({ 
+          type: "blob",
+          compression: "DEFLATE",
+          compressionOptions: { level: 6 }
+        });
+        
+        // Create download link
+        const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const folderName = selectedFolder && selectedFolder !== 'all' 
+          ? selectedFolder.split('/').filter(Boolean).pop() 
+          : 'content';
+        const zipFilename = `${folderName}_${timestamp}_${successCount}files.zip`;
+        
+        const url = URL.createObjectURL(zipBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = zipFilename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        console.log(`✅ ZIP download started: ${zipFilename}`);
+        
+        // Show result
+        let message = `✅ Downloaded ${successCount} item${successCount !== 1 ? 's' : ''} as ZIP file!`;
+        if (failCount > 0) {
+          message += `\n\n⚠️ ${failCount} item${failCount !== 1 ? 's' : ''} failed to download`;
+        }
+        alert(message);
       }
       
-      alert(`✅ Downloaded ${items.length} items successfully!`);
       clearSelection();
     } catch (error) {
       console.error("Bulk download error:", error);
-      alert("Failed to download some items. Please try again.");
+      alert("Failed to download items. Please try again.");
     } finally {
       setBulkActionLoading(false);
       setShowBulkMenu(false);
@@ -2326,30 +2455,106 @@ export default function GeneratedContentPage() {
     
     const items = allContent.filter(item => selectedItems.has(item.id));
     
-    if (!confirm(`Are you sure you want to delete ${items.length} items?\n\nThis will permanently delete all selected files and cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete ${items.length} item${items.length > 1 ? 's' : ''}?\n\nThis will permanently delete:\n• ${items.length} file${items.length > 1 ? 's' : ''} from AWS S3 storage\n• ${items.length} database record${items.length > 1 ? 's' : ''}\n\nThis action cannot be undone.`)) {
       return;
     }
     
     setBulkActionLoading(true);
     let successCount = 0;
     let failCount = 0;
+    const failedItems: string[] = [];
     
     try {
       for (const item of items) {
         try {
-          await deleteItem(item);
+          await deleteItem(item, true); // Skip individual confirmations and alerts
           successCount++;
         } catch (error) {
           failCount++;
+          failedItems.push(item.filename);
           console.error(`Failed to delete ${item.filename}:`, error);
         }
       }
       
-      alert(`Bulk delete complete!\n\n✅ Deleted: ${successCount}\n❌ Failed: ${failCount}`);
+      // Refresh stats once at the end
+      await fetchStats();
+      
+      // Show comprehensive result
+      let message = `Bulk delete complete!\n\n✅ Successfully deleted: ${successCount} item${successCount !== 1 ? 's' : ''}`;
+      
+      if (failCount > 0) {
+        message += `\n\n❌ Failed to delete: ${failCount} item${failCount !== 1 ? 's' : ''}`;
+        if (failedItems.length > 0) {
+          message += `\n\nFailed items:\n${failedItems.slice(0, 5).join('\n')}`;
+          if (failedItems.length > 5) {
+            message += `\n... and ${failedItems.length - 5} more`;
+          }
+        }
+      }
+      
+      alert(message);
       clearSelection();
     } finally {
       setBulkActionLoading(false);
       setShowBulkMenu(false);
+    }
+  };
+
+  const bulkMoveToFolder = async (targetFolderPrefix: string) => {
+    if (selectedItems.size === 0) return;
+    
+    const items = allContent.filter(item => selectedItems.has(item.id));
+    const folderName = targetFolderPrefix.split('/')[2]?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'folder';
+    
+    if (!confirm(`Move ${items.length} item${items.length > 1 ? 's' : ''} to "${folderName}"?\n\n${items.map(i => `• ${i.filename}`).slice(0, 5).join('\n')}${items.length > 5 ? `\n... and ${items.length - 5} more` : ''}`)) {
+      return;
+    }
+    
+    setBulkActionLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+    const failedItems: string[] = [];
+    
+    showToast("info", `Moving ${items.length} item${items.length > 1 ? 's' : ''} to ${folderName}...`);
+    
+    try {
+      for (const item of items) {
+        try {
+          const result = await moveItemToFolder(item, targetFolderPrefix, true);
+          if (result.success) {
+            successCount++;
+          } else {
+            failCount++;
+            failedItems.push(item.filename);
+          }
+        } catch (error) {
+          failCount++;
+          failedItems.push(item.filename);
+          console.error(`Failed to move ${item.filename}:`, error);
+        }
+      }
+      
+      // Refresh content once at the end
+      await fetchContent();
+      
+      // Show comprehensive result
+      let message = `Bulk move complete!\n\n✅ Successfully moved: ${successCount} item${successCount !== 1 ? 's' : ''} to ${folderName}`;
+      
+      if (failCount > 0) {
+        message += `\n\n❌ Failed to move: ${failCount} item${failCount !== 1 ? 's' : ''}`;
+        if (failedItems.length > 0) {
+          message += `\n\nFailed items:\n${failedItems.slice(0, 5).join('\n')}`;
+          if (failedItems.length > 5) {
+            message += `\n... and ${failedItems.length - 5} more`;
+          }
+        }
+      }
+      
+      showToast("success", message);
+      clearSelection();
+      setShowBulkMoveModal(false);
+    } finally {
+      setBulkActionLoading(false);
     }
   };
 
@@ -3160,6 +3365,41 @@ export default function GeneratedContentPage() {
         </div>
       )}
 
+      {/* Shared Folder Banner */}
+      {selectedFolderInfo?.isShared && (
+        <div className="bg-gradient-to-r from-purple-100 via-indigo-100 to-blue-100 dark:from-purple-900/30 dark:via-indigo-900/30 dark:to-blue-900/30 border-2 border-purple-300 dark:border-purple-600 rounded-2xl p-6 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-purple-500 rounded-xl shadow-md">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Shared Folder
+                </h3>
+                <p className="text-gray-700 dark:text-gray-300">
+                  <strong>{selectedFolderInfo.name}</strong> shared by {selectedFolderInfo.sharedBy}
+                  <span className="ml-3 px-2 py-1 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 text-xs rounded-full font-semibold">
+                    {selectedFolderInfo.permission === 'VIEW' ? 'View Only' : 'Can Edit'}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedFolder(null);
+                setSelectedFolderInfo(null);
+                setCurrentPage(1);
+              }}
+              className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl border border-gray-300 dark:border-gray-600 transition-all duration-200 font-medium"
+            >
+              <X className="w-4 h-4" />
+              <span>Clear Filter</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Collapsible Enhanced Stats */}
       {(imageStats || videoStats) && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -3320,36 +3560,62 @@ export default function GeneratedContentPage() {
               </button>
             </div>
             <div className="flex items-center space-x-3 flex-wrap">
-              {/* Bulk Actions */}
-              <button
-                onClick={bulkDownload}
-                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download</span>
-              </button>
-              <button
-                onClick={bulkUploadToS3}
-                className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
-              >
-                <Cloud className="w-4 h-4" />
-                <span>Upload to S3</span>
-              </button>
-              <button
-                onClick={bulkDelete}
-                className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete</span>
-              </button>
-              <button
-                onClick={openTaskModal}
-                disabled={linkingContent}
-                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200 disabled:cursor-not-allowed"
-              >
-                <ClipboardCheck className="w-4 h-4" />
-                <span>{linkingContent ? "Linking..." : "Add to Task"}</span>
-              </button>
+              {/* Bulk Actions - Hidden for shared folders */}
+              {!selectedFolderInfo?.isShared && (
+                <>
+                  <button
+                    onClick={bulkDownload}
+                    className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download</span>
+                  </button>
+                  <button
+                    onClick={bulkUploadToS3}
+                    className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+                  >
+                    <Cloud className="w-4 h-4" />
+                    <span>Upload to S3</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      // Load available folders
+                      await loadFoldersForMove();
+                      setShowBulkMoveModal(true);
+                    }}
+                    className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+                  >
+                    <FolderInput className="w-4 h-4" />
+                    <span>Move to Folder</span>
+                  </button>
+                  <button
+                    onClick={bulkDelete}
+                    className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </button>
+                  <button
+                    onClick={openTaskModal}
+                    disabled={linkingContent}
+                    className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200 disabled:cursor-not-allowed"
+                  >
+                    <ClipboardCheck className="w-4 h-4" />
+                    <span>{linkingContent ? "Linking..." : "Add to Task"}</span>
+                  </button>
+                </>
+              )}
+              
+              {/* Download only for shared folders */}
+              {selectedFolderInfo?.isShared && (
+                <button
+                  onClick={bulkDownload}
+                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Selected</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -3813,6 +4079,7 @@ export default function GeneratedContentPage() {
               onFolderSelect={(folderPrefix) => {
                 console.log('📁 Selected folder:', folderPrefix);
                 setSelectedFolder(folderPrefix);
+                fetchFolderInfo(folderPrefix);
                 // Reset to page 1 when folder changes
                 setCurrentPage(1);
               }}
@@ -3824,6 +4091,7 @@ export default function GeneratedContentPage() {
               <button
                 onClick={() => {
                   setSelectedFolder(null);
+                  setSelectedFolderInfo(null);
                   setCurrentPage(1);
                 }}
                 className="w-full text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 py-2 px-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -3852,6 +4120,7 @@ export default function GeneratedContentPage() {
                 <button
                   onClick={() => {
                     setSelectedFolder(null);
+                    setSelectedFolderInfo(null);
                     setCurrentPage(1);
                   }}
                   className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
@@ -4188,106 +4457,124 @@ export default function GeneratedContentPage() {
                       ></div>
                     </div>
 
-                    {/* Action Buttons - 2x2 Grid Layout */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {/* Download Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadItem(item);
-                        }}
-                        className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200 flex items-center justify-center`}
-                        title="Download"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      
-                      {/* Quick Upload to S3 with Folder Dropdown */}
-                      <div className="relative">
+                    {/* Action Buttons - Conditional based on folder ownership */}
+                    {selectedFolderInfo?.isShared ? (
+                      // Shared folder - Download only
+                      <div className="flex justify-center p-3">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setQuickUploadItem(quickUploadItem === item.id ? null : item.id);
+                            downloadItem(item);
                           }}
-                          className={`w-full p-2.5 ${isMobile ? 'min-h-[44px]' : ''} ${isItemStagedToS3(item.id) ? 'bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400'} rounded-lg transition-all duration-200 flex items-center justify-center`}
-                          title={isItemStagedToS3(item.id) ? "Already staged on S3 - Upload again" : "Upload to S3 staging"}
+                          className={`flex-1 p-3 ${isMobile ? 'min-h-[44px]' : ''} bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-md hover:shadow-lg`}
+                          title="Download"
                         >
-                          {isItemStagedToS3(item.id) ? (
-                            <CheckCircle className="w-4 h-4" />
-                          ) : (
-                            <Cloud className="w-4 h-4" />
-                          )}
+                          <Download className="w-5 h-5" />
+                          <span>Download</span>
                         </button>
-
-                        {/* Folder Dropdown Menu */}
-                        {quickUploadItem === item.id && (
-                          <div 
-                            className="absolute bottom-full mb-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
-                            onClick={(e) => e.stopPropagation()}
+                      </div>
+                    ) : (
+                      // Own folder - All actions
+                      <div className="grid grid-cols-2 gap-2">
+                        {/* Download Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadItem(item);
+                          }}
+                          className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200 flex items-center justify-center`}
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        
+                        {/* Quick Upload to S3 with Folder Dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setQuickUploadItem(quickUploadItem === item.id ? null : item.id);
+                            }}
+                            className={`w-full p-2.5 ${isMobile ? 'min-h-[44px]' : ''} ${isItemStagedToS3(item.id) ? 'bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400'} rounded-lg transition-all duration-200 flex items-center justify-center`}
+                            title={isItemStagedToS3(item.id) ? "Already staged on S3 - Upload again" : "Upload to S3 staging"}
                           >
-                            <div className="p-2">
-                              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 py-2">
-                                Upload to folder:
-                              </div>
-                              
-                              {/* Predefined Folders */}
-                              {S3_UPLOAD_FOLDERS.map((folder) => (
+                            {isItemStagedToS3(item.id) ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : (
+                              <Cloud className="w-4 h-4" />
+                            )}
+                          </button>
+
+                          {/* Folder Dropdown Menu */}
+                          {quickUploadItem === item.id && (
+                            <div 
+                              className="absolute bottom-full mb-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="p-2">
+                                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 px-3 py-2">
+                                  Upload to folder:
+                                </div>
+                                
+                                {/* Predefined Folders */}
+                                {S3_UPLOAD_FOLDERS.map((folder) => (
+                                  <button
+                                    key={folder.prefix}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      quickUploadToS3(item, folder.name);
+                                      setQuickUploadItem(null);
+                                    }}
+                                    className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150"
+                                  >
+                                    <Folder className="w-4 h-4 text-blue-500" />
+                                    <span>{folder.name}</span>
+                                  </button>
+                                ))}
+
+                                {/* Full Upload Modal Option */}
+                                <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
                                 <button
-                                  key={folder.prefix}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    quickUploadToS3(item, folder.name);
+                                    setShowUploadModal(item);
                                     setQuickUploadItem(null);
                                   }}
-                                  className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-150"
+                                  className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150"
                                 >
-                                  <Folder className="w-4 h-4 text-blue-500" />
-                                  <span>{folder.name}</span>
+                                  <Upload className="w-4 h-4" />
+                                  <span>More Options...</span>
                                 </button>
-                              ))}
-
-                              {/* Full Upload Modal Option */}
-                              <div className="h-px bg-gray-200 dark:bg-gray-700 my-2" />
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowUploadModal(item);
-                                  setQuickUploadItem(null);
-                                }}
-                                className="w-full flex items-center space-x-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150"
-                              >
-                                <Upload className="w-4 h-4" />
-                                <span>More Options...</span>
-                              </button>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+
+                        {/* Move to Folder Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMoveModal(item);
+                          }}
+                          className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded-lg transition-all duration-200 flex items-center justify-center`}
+                          title="Move to folder"
+                        >
+                          <FolderOpen className="w-4 h-4" />
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteItem(item);
+                          }}
+                          className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200 flex items-center justify-center`}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-
-                      {/* Move to Folder Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowMoveModal(item);
-                        }}
-                        className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded-lg transition-all duration-200 flex items-center justify-center`}
-                        title="Move to folder"
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                      </button>
-
-                      {/* Delete Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteItem(item);
-                        }}
-                        className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200 flex items-center justify-center`}
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    )}
 
                     {/* Status Indicators Below Buttons */}
                     {(isLinked || isItemStagedToS3(item.id)) && (
@@ -5219,7 +5506,7 @@ export default function GeneratedContentPage() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
+              {/* Action Buttons - Conditional based on folder ownership */}
               <div className="p-6 border-t border-gray-200 dark:border-gray-700 space-y-3">
                 <button
                   onClick={() => downloadItem(selectedItem)}
@@ -5229,26 +5516,36 @@ export default function GeneratedContentPage() {
                   <span>Download</span>
                 </button>
 
-                <button
-                  onClick={() => shareItem(selectedItem)}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
-                >
-                  <Share2 className="w-5 h-5" />
-                  <span>Share</span>
-                </button>
+                {!selectedFolderInfo?.isShared && (
+                  <>
+                    <button
+                      onClick={() => shareItem(selectedItem)}
+                      className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                    >
+                      <Share2 className="w-5 h-5" />
+                      <span>Share</span>
+                    </button>
 
-                <button
-                  onClick={() => {
-                    if (confirm(`Are you sure you want to delete "${selectedItem.filename}"? This action cannot be undone.`)) {
-                      deleteItem(selectedItem);
-                      setSelectedItem(null);
-                    }
-                  }}
-                  className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span>Delete</span>
-                </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete "${selectedItem.filename}"? This action cannot be undone.`)) {
+                          deleteItem(selectedItem);
+                          setSelectedItem(null);
+                        }
+                      }}
+                      className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span>Delete</span>
+                    </button>
+                  </>
+                )}
+                
+                {selectedFolderInfo?.isShared && (
+                  <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-2">
+                    View-only access • You can download files only
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -5449,6 +5746,97 @@ export default function GeneratedContentPage() {
               <button
                 onClick={() => setShowMoveModal(null)}
                 className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Move to Folder Modal */}
+      {showBulkMoveModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowBulkMoveModal(false)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <FolderInput className="w-8 h-8" />
+                  <div>
+                    <h2 className="text-2xl font-bold">Move to Folder</h2>
+                    <p className="text-indigo-100 text-sm mt-1">
+                      Moving {selectedItems.size} item{selectedItems.size !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBulkMoveModal(false)}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-140px)]">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Select a destination folder:
+              </p>
+              
+              {availableFoldersForMove.length === 0 ? (
+                <div className="text-center py-12">
+                  <Folder className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    No Folders Available
+                  </p>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Create a folder first to organize your content.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-2" style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#a855f7 transparent'
+                }}>
+                  {availableFoldersForMove.map((folder) => (
+                    <button
+                      key={folder.prefix}
+                      onClick={() => bulkMoveToFolder(folder.prefix)}
+                      disabled={bulkActionLoading}
+                      className="w-full p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-xl hover:from-indigo-50 hover:to-purple-50 dark:hover:from-indigo-900/20 dark:hover:to-purple-900/20 border-2 border-transparent hover:border-indigo-300 dark:hover:border-indigo-600 transition-all duration-200 group disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-gray-900 dark:text-white text-left group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                          {folder.name}
+                        </span>
+                        {folder.fileCount !== undefined && (
+                          <span className="text-xs px-2 py-1 bg-white/50 dark:bg-gray-600/50 rounded-full text-gray-600 dark:text-gray-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-800/50 transition-colors">
+                            {folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-gray-400 group-hover:text-indigo-500 mt-2">
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowBulkMoveModal(false)}
+                disabled={bulkActionLoading}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>

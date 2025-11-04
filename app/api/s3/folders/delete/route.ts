@@ -6,6 +6,7 @@ import {
   DeleteObjectsCommand,
   DeleteObjectCommand 
 } from '@aws-sdk/client-s3';
+import { prisma } from '@/lib/database';
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -48,6 +49,19 @@ export async function DELETE(request: NextRequest) {
         { error: 'Unauthorized: Cannot delete folders outside your directory' },
         { status: 403 }
       );
+    }
+
+    // Delete all folder shares associated with this folder first
+    try {
+      const deletedShares = await prisma.folderShare.deleteMany({
+        where: {
+          folderPrefix: folderPrefix,
+        },
+      });
+      console.log(`🗑️ Deleted ${deletedShares.count} folder share(s)`);
+    } catch (error) {
+      console.error('Error deleting folder shares:', error);
+      // Continue with folder deletion even if share deletion fails
     }
 
     // List all objects in the folder

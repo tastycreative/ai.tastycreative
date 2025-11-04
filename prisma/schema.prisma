@@ -476,6 +476,29 @@ model FluxKontextMessage {
   @@map("flux_kontext_messages")
 }
 
+model FolderShare {
+  id            String   @id @default(cuid())
+  folderPrefix  String   // S3 folder prefix (e.g., "outputs/user123/nov-2/")
+  ownerClerkId  String   // Owner of the folder
+  sharedWithClerkId String // User it's shared with
+  permission    SharePermission @default(VIEW) // View or Edit
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  sharedBy      String?  // Name/email of person who shared (for display)
+  note          String?  // Optional note from the person sharing
+
+  @@unique([folderPrefix, sharedWithClerkId])
+  @@index([ownerClerkId])
+  @@index([sharedWithClerkId])
+  @@index([folderPrefix])
+  @@map("folder_shares")
+}
+
+enum SharePermission {
+  VIEW   // Can only view content
+  EDIT   // Can view and upload to folder
+}
+
 enum MessageRole {
   USER
   ASSISTANT

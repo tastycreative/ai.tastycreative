@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
     const sortBy = searchParams.get('sortBy') as 'newest' | 'oldest' | 'largest' | 'smallest' | 'name' | null;
     const requestedUserId = searchParams.get('userId'); // Admin can request another user's content
+    const folder = searchParams.get('folder'); // Check if viewing a specific folder
 
     // Check if the requesting user is an admin
     let targetUserId = userId; // Default to current user
@@ -38,23 +39,57 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log('🔍 API /images called by user:', userId, 'targetUserId:', targetUserId, 'stats:', stats, 'includeData:', includeData);
+    console.log('🔍 API /images called by user:', userId, 'targetUserId:', targetUserId, 'stats:', stats, 'includeData:', includeData, 'folder:', folder);
+
+    // Check if user is viewing a shared folder
+    let whereClause: any = { clerkId: targetUserId };
+    let isSharedFolder = false;
+    
+    if (folder && folder !== 'all') {
+      // Check if this folder is shared with the current user
+      const folderShare = await prisma.folderShare.findFirst({
+        where: {
+          folderPrefix: folder,
+          sharedWithClerkId: userId
+        }
+      });
+
+      if (folderShare) {
+        // User has access to this shared folder, filter by folder prefix
+        console.log('📂 User viewing shared folder:', folder);
+        isSharedFolder = true;
+        whereClause = {
+          awsS3Key: {
+            startsWith: folder
+          }
+        };
+      } else if (userId === targetUserId) {
+        // User viewing their own folder
+        console.log('📂 User viewing own folder:', folder);
+        whereClause = {
+          clerkId: targetUserId,
+          awsS3Key: {
+            startsWith: folder
+          }
+        };
+      }
+    }
 
     if (stats === 'true') {
       // Get actual image statistics from database
       try {
         const [totalImages, imagesWithData, totalSize] = await Promise.all([
           prisma.generatedImage.count({
-            where: { clerkId: targetUserId }
+            where: whereClause
           }),
           prisma.generatedImage.count({
             where: { 
-              clerkId: targetUserId,
+              ...whereClause,
               data: { not: null }
             }
           }),
           prisma.generatedImage.aggregate({
-            where: { clerkId: targetUserId },
+            where: whereClause,
             _sum: { fileSize: true }
           })
         ]);
@@ -62,7 +97,7 @@ export async function GET(request: NextRequest) {
         // Get format breakdown
         const formatBreakdown = await prisma.generatedImage.groupBy({
           by: ['format'],
-          where: { clerkId: targetUserId },
+          where: whereClause,
           _count: { format: true }
         });
 
@@ -97,17 +132,53 @@ export async function GET(request: NextRequest) {
 
     // Get total count for pagination
     const totalCount = await prisma.generatedImage.count({
-      where: { clerkId: targetUserId }
+      where: whereClause
     });
 
-    // Get user images using the imageStorage function
-    console.log('📡 Fetching user images with options:', { includeData, limit, offset, sortBy });
-    const images = await getUserImages(targetUserId, {
-      includeData,
-      limit,
-      offset,
-      sortBy: sortBy || undefined
-    });
+    // Get images - use custom query for shared folders
+    let images;
+    if (isSharedFolder && folder) {
+      console.log('📡 Fetching shared folder images with where clause:', whereClause);
+      images = await prisma.generatedImage.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          filename: true,
+          awsS3Key: true,
+          fileSize: true,
+          createdAt: true,
+          format: true,
+          data: includeData ? true : false
+        },
+        orderBy: sortBy === 'oldest' ? { createdAt: 'asc' } : 
+                 sortBy === 'largest' ? { fileSize: 'desc' } : 
+                 sortBy === 'smallest' ? { fileSize: 'asc' } : 
+                 { createdAt: 'desc' },
+        take: limit,
+        skip: offset
+      });
+
+      // Format images to match getUserImages output
+      images = images.map((img: any) => ({
+        id: img.id,
+        filename: img.filename || 'Untitled',
+        dataUrl: img.data || null,
+        url: null,
+        awsS3Key: img.awsS3Key,
+        fileSize: img.fileSize,
+        format: img.format,
+        createdAt: img.createdAt
+      }));
+    } else {
+      // Get user images using the imageStorage function
+      console.log('📡 Fetching user images with options:', { includeData, limit, offset, sortBy });
+      images = await getUserImages(targetUserId, {
+        includeData,
+        limit,
+        offset,
+        sortBy: sortBy || undefined
+      });
+    }
 
     console.log('✅ Found', images.length, 'images for user:', targetUserId, '(total:', totalCount, ')');
     if (images.length > 0) {

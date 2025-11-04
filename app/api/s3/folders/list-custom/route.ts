@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { prisma } from '@/lib/database';
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -58,9 +59,77 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ Found ${customFolders.length} custom folders for user ${userId}`);
 
+    // Get folders shared with this user
+    const sharedFolders = await prisma.folderShare.findMany({
+      where: {
+        sharedWithClerkId: userId,
+      },
+    });
+
+    console.log(`✅ Found ${sharedFolders.length} shared folders for user ${userId}`);
+    if (sharedFolders.length > 0) {
+      console.log('Shared folders:', sharedFolders.map(f => ({ 
+        prefix: f.folderPrefix, 
+        owner: f.ownerClerkId,
+        permission: f.permission 
+      })));
+    }
+
+    // Get folders this user has shared with others (to mark them)
+    const foldersSharedByUser = await prisma.folderShare.findMany({
+      where: {
+        ownerClerkId: userId,
+      },
+      select: {
+        folderPrefix: true,
+      },
+    });
+
+    const sharedFolderPrefixes = new Set(foldersSharedByUser.map(f => f.folderPrefix));
+
+    // Get owner info and format shared folders
+    const sharedFoldersFormatted = await Promise.all(
+      sharedFolders.map(async (share) => {
+        const owner = await prisma.user.findUnique({
+          where: { clerkId: share.ownerClerkId },
+          select: { firstName: true, lastName: true, email: true },
+        });
+
+        const ownerName = owner?.firstName && owner?.lastName 
+          ? `${owner.firstName} ${owner.lastName}`
+          : owner?.firstName || owner?.lastName || owner?.email || 'Unknown';
+
+        // Extract folder name from prefix (e.g., "outputs/user_123/nov-2/" -> "nov-2")
+        const parts = share.folderPrefix.split('/').filter(Boolean);
+        const folderSlug = parts[2] || 'unknown';
+        const folderName = folderSlug
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+
+        return {
+          name: folderName,
+          prefix: share.folderPrefix,
+          isShared: true,
+          sharedBy: ownerName,
+          permission: share.permission,
+        };
+      })
+    );
+
+    // Combine owned and shared folders
+    const allFolders = [
+      ...customFolders.map(f => ({ 
+        ...f, 
+        isShared: false,
+        hasShares: sharedFolderPrefixes.has(f.prefix), // Mark if this folder is shared with others
+      })),
+      ...sharedFoldersFormatted,
+    ];
+
     // Get file count for each folder
     const foldersWithCounts = await Promise.all(
-      customFolders.map(async (folder) => {
+      allFolders.map(async (folder) => {
         try {
           const countCommand = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
