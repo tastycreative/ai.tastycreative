@@ -165,11 +165,35 @@ export async function POST(req: NextRequest) {
         generationType = 'TEXT_TO_IMAGE';
     }
 
+    // 🔓 SHARED FOLDER SUPPORT: Extract owner clerkId from workflow if it's a shared folder
+    let targetClerkId = userId; // Default to current user
+    
+    if (validatedData.workflow) {
+      // Check SaveImage node (node "13" for text-to-image, "8" for style transfer)
+      const saveImageNode = validatedData.workflow["13"] || validatedData.workflow["8"];
+      
+      if (saveImageNode && saveImageNode.inputs && saveImageNode.inputs.filename_prefix) {
+        const filenamePrefix = saveImageNode.inputs.filename_prefix;
+        console.log('🔍 DEBUG: Checking filename_prefix:', filenamePrefix);
+        
+        // Pattern for text-to-image: TextToImage_{timestamp}_{seed}_{userId}/{folderName}
+        // Pattern for style transfer: StyleTransfer_{timestamp}_{seed}_{userId}/{folderName}
+        const sharedFolderMatch = filenamePrefix.match(/(?:TextToImage|StyleTransfer)_\d+_\d+_(user_[a-zA-Z0-9]+)\//);
+        if (sharedFolderMatch) {
+          const ownerClerkId = sharedFolderMatch[1];
+          console.log('🔓 Detected shared folder - Owner:', ownerClerkId, 'Generator:', userId);
+          targetClerkId = ownerClerkId;
+        }
+      }
+    }
+
+    console.log('✅ Using clerkId for job:', targetClerkId);
+
     // Store job in database
     await prisma.generationJob.create({
       data: {
         id: jobId,
-        clerkId: userId,
+        clerkId: targetClerkId,
         type: generationType as any,
         status: 'PROCESSING',
         params: {

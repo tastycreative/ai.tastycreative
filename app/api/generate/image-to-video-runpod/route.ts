@@ -91,11 +91,30 @@ export async function POST(request: NextRequest) {
     // Generate unique job ID
     const jobId = `img2vid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // 🔓 SHARED FOLDER SUPPORT: Extract owner clerkId from workflow if it's a shared folder
+    let targetClerkId = userId; // Default to current user
+    
+    // Check SaveVideo node (node "7") for shared folder prefix
+    if (workflow["7"] && workflow["7"].inputs && workflow["7"].inputs.filename_prefix) {
+      const filenamePrefix = workflow["7"].inputs.filename_prefix;
+      console.log('🔍 DEBUG: Checking filename_prefix:', filenamePrefix);
+      
+      // Pattern: ImageToVideo_{timestamp}_{seed}_{userId}/{folderName}
+      const sharedFolderMatch = filenamePrefix.match(/ImageToVideo_\d+_\d+_(user_[a-zA-Z0-9]+)\//);
+      if (sharedFolderMatch) {
+        const ownerClerkId = sharedFolderMatch[1];
+        console.log('🔓 Detected shared folder - Owner:', ownerClerkId, 'Generator:', userId);
+        targetClerkId = ownerClerkId;
+      }
+    }
+
+    console.log('✅ Using clerkId for job:', targetClerkId);
+
     // Create job in database
     const job: StoredGenerationJob = {
       id: jobId,
-      clerkId: userId,
-      userId: userId,
+      clerkId: targetClerkId,
+      userId: targetClerkId,
       status: "pending",
       createdAt: new Date(),
       params,

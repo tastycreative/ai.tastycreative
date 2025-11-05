@@ -26,10 +26,29 @@ export async function POST(req: NextRequest) {
     console.log("FPS Multiplier:", params?.fpsMultiplier);
     console.log("Target FPS:", params?.targetFPS);
 
+    // 🔓 SHARED FOLDER SUPPORT: Extract owner clerkId from workflow if it's a shared folder
+    let targetClerkId = userId; // Default to current user
+    
+    // Check SaveVideo node (node "6") for shared folder prefix
+    if (workflow["6"] && workflow["6"].inputs && workflow["6"].inputs.filename_prefix) {
+      const filenamePrefix = workflow["6"].inputs.filename_prefix;
+      console.log('🔍 DEBUG: Checking filename_prefix:', filenamePrefix);
+      
+      // Pattern: FPSBoost_{timestamp}_{seed}_{userId}/{folderName}
+      const sharedFolderMatch = filenamePrefix.match(/FPSBoost_\d+_\d+_(user_[a-zA-Z0-9]+)\//);
+      if (sharedFolderMatch) {
+        const ownerClerkId = sharedFolderMatch[1];
+        console.log('🔓 Detected shared folder - Owner:', ownerClerkId, 'Generator:', userId);
+        targetClerkId = ownerClerkId;
+      }
+    }
+
+    console.log('✅ Using clerkId for job:', targetClerkId);
+
     // Create job in database
     const job = await prisma.generationJob.create({
       data: {
-        clerkId: userId,
+        clerkId: targetClerkId,
         type: "VIDEO_FPS_BOOST",
         status: "PENDING",
         progress: 0,

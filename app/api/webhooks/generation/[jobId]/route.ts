@@ -287,15 +287,24 @@ export async function POST(
           // Determine the correct clerkId based on shared folder (same logic as aws_s3_paths)
           let targetClerkId = existingJob.clerkId;
           
+          console.log('🔍 DEBUG: Checking network_volume_paths for shared folder');
+          console.log('🔍 DEBUG: network_volume_paths:', JSON.stringify(body.network_volume_paths, null, 2));
+          
           // Check if this is a shared folder by examining the first S3 key
           if (body.network_volume_paths.length > 0) {
-            const firstKey = body.network_volume_paths[0].s3_key;
+            const firstKey = body.network_volume_paths[0].s3_key || body.network_volume_paths[0].aws_s3_key;
+            
+            console.log('🔍 DEBUG: First S3 key found:', firstKey);
+            console.log('🔍 DEBUG: Job creator clerkId:', existingJob.clerkId);
             
             if (firstKey && firstKey.startsWith('outputs/')) {
               // Extract user ID from S3 path: outputs/{userId}/folder/file
               const parts = firstKey.split('/');
+              console.log('🔍 DEBUG: S3 path parts:', parts);
+              
               if (parts.length >= 2) {
                 const ownerUserId = parts[1];
+                console.log('🔍 DEBUG: Extracted owner userId:', ownerUserId);
                 
                 // If owner is different from job creator, this is a shared folder
                 if (ownerUserId !== existingJob.clerkId) {
@@ -330,6 +339,7 @@ export async function POST(
             const { filename, subfolder, type, s3_key, file_size } = pathData;
             
             console.log(`💾 Saving S3 network volume image: ${filename} with S3 key: ${s3_key}`);
+            console.log(`🔍 DEBUG: About to save image with clerkId: ${targetClerkId}`);
             
             // Save to database with S3 key (no image data stored)
             const savedImage = await saveImageToDatabase(
@@ -346,7 +356,7 @@ export async function POST(
             
             if (savedImage) {
               savedImages.push(savedImage);
-              console.log(`✅ S3 network volume image saved to database: ${savedImage.id}`);
+              console.log(`✅ S3 network volume image saved to database: ${savedImage.id} with clerkId: ${targetClerkId}`);
             } else {
               console.error(`❌ Failed to save S3 network volume image: ${filename}`);
             }
@@ -507,7 +517,7 @@ export async function POST(
       // Check if this is a shared folder by examining the first image's S3 key
       if (imagesToProcess.length > 0) {
         const firstImage = imagesToProcess[0];
-        const s3Key = firstImage.s3Key;
+        const s3Key = firstImage.s3Key || firstImage.s3_key || firstImage.aws_s3_key;
         
         if (s3Key && s3Key.startsWith('outputs/')) {
           // Extract user ID from S3 path: outputs/{userId}/folder/file
@@ -671,7 +681,7 @@ export async function POST(
         // Check if this is a shared folder by examining the first video's S3 key
         if (network_volume_paths.length > 0) {
           const firstVideo = network_volume_paths[0];
-          const s3Key = firstVideo.s3Key;
+          const s3Key = firstVideo.s3Key || firstVideo.s3_key || firstVideo.aws_s3_key;
           
           if (s3Key && s3Key.startsWith('outputs/')) {
             // Extract user ID from S3 path: outputs/{userId}/folder/file

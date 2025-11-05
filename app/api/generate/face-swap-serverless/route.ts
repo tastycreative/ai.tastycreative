@@ -56,11 +56,30 @@ export async function POST(req: NextRequest) {
     const newFaceImageUrl = `${baseUrl}/uploads/${validatedData.newFaceFilename}`;
     const maskImageUrl = validatedData.maskFilename ? `${baseUrl}/uploads/${validatedData.maskFilename}` : undefined;
     
+    // 🔓 SHARED FOLDER SUPPORT: Extract owner clerkId from workflow if it's a shared folder
+    let targetClerkId = userId; // Default to current user
+    
+    // Check SaveImage node (node "4") for shared folder prefix
+    if (validatedData.workflow && validatedData.workflow["4"] && validatedData.workflow["4"].inputs && validatedData.workflow["4"].inputs.filename_prefix) {
+      const filenamePrefix = validatedData.workflow["4"].inputs.filename_prefix;
+      console.log('🔍 DEBUG: Checking filename_prefix:', filenamePrefix);
+      
+      // Pattern: FaceSwap_{timestamp}_{seed}_{userId}/{folderName}
+      const sharedFolderMatch = filenamePrefix.match(/FaceSwap_\d+_\d+_(user_[a-zA-Z0-9]+)\//);
+      if (sharedFolderMatch) {
+        const ownerClerkId = sharedFolderMatch[1];
+        console.log('🔓 Detected shared folder - Owner:', ownerClerkId, 'Generator:', userId);
+        targetClerkId = ownerClerkId;
+      }
+    }
+
+    console.log('✅ Using clerkId for job:', targetClerkId);
+    
     // Create generation job record in database
     const generationJob = await prisma.generationJob.create({
       data: {
         id: jobId,
-        clerkId: userId,
+        clerkId: targetClerkId,
         status: 'PENDING',
         type: 'FACE_SWAP',
         params: validatedData.params || {},

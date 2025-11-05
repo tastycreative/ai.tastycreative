@@ -98,10 +98,29 @@ export async function POST(request: NextRequest) {
       const { PrismaClient } = await import('@/lib/generated/prisma');
       const prisma = new PrismaClient();
 
+      // 🔓 SHARED FOLDER SUPPORT: Extract owner clerkId from workflow if it's a shared folder
+      let targetClerkId = userId; // Default to current user
+      
+      // Check SaveImage node (node "8") for shared folder prefix
+      if (validatedData.workflow["8"] && validatedData.workflow["8"].inputs && validatedData.workflow["8"].inputs.filename_prefix) {
+        const filenamePrefix = validatedData.workflow["8"].inputs.filename_prefix;
+        console.log('🔍 DEBUG: Checking filename_prefix:', filenamePrefix);
+        
+        // Pattern: ImageToImageSkinEnhancer_{timestamp}_{seed}_{userId}/{folderName}
+        const sharedFolderMatch = filenamePrefix.match(/ImageToImageSkinEnhancer_\d+_\d+_(user_[a-zA-Z0-9]+)\//);
+        if (sharedFolderMatch) {
+          const ownerClerkId = sharedFolderMatch[1];
+          console.log('🔓 Detected shared folder - Owner:', ownerClerkId, 'Generator:', userId);
+          targetClerkId = ownerClerkId;
+        }
+      }
+
+      console.log('✅ Using clerkId for job:', targetClerkId);
+
       await prisma.generationJob.create({
         data: {
           id: jobId,
-          clerkId: userId,
+          clerkId: targetClerkId,
           type: 'IMAGE_TO_IMAGE',
           status: 'PENDING',
           progress: 0,

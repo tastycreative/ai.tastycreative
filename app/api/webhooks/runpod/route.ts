@@ -103,15 +103,54 @@ export async function POST(request: NextRequest) {
         const savedImages = [];
         const resultUrls = [];
         
+        // 🔓 SHARED FOLDER SUPPORT: Extract owner clerkId from S3 path if it's a shared folder
+        let targetClerkId = existingJob.clerkId; // Default to job creator
+        
+        // Check the first S3 key to determine if it's a shared folder
+        if (body.aws_s3_paths.length > 0) {
+          const firstPathData = body.aws_s3_paths[0];
+          const s3Key = firstPathData.awsS3Key || firstPathData.s3_key || firstPathData.s3Key;
+          
+          if (s3Key && s3Key.startsWith('outputs/')) {
+            console.log('🔍 DEBUG (runpod): Checking S3 key for shared folder:', s3Key);
+            
+            // Extract owner from S3 path: outputs/{ownerId}/folderName/filename
+            const pathParts = s3Key.split('/');
+            if (pathParts.length >= 3 && pathParts[0] === 'outputs' && pathParts[1].startsWith('user_')) {
+              const ownerUserId = pathParts[1];
+              console.log('🔍 DEBUG (runpod): Extracted owner from S3 path:', ownerUserId);
+              
+              // Verify owner exists in database
+              const { PrismaClient } = await import('@/lib/generated/prisma');
+              const prisma = new PrismaClient();
+              
+              const ownerUser = await prisma.user.findUnique({
+                where: { clerkId: ownerUserId }
+              });
+              
+              await prisma.$disconnect();
+              
+              if (ownerUser) {
+                console.log('🔓 Detected shared folder (runpod) - Owner:', ownerUserId, 'Generator:', existingJob.clerkId);
+                targetClerkId = ownerUserId;
+              } else {
+                console.warn('⚠️ Owner not found in database, using job creator:', ownerUserId);
+              }
+            }
+          }
+        }
+        
+        console.log('✅ Using clerkId for image save (runpod):', targetClerkId);
+        
         for (const pathData of body.aws_s3_paths) {
           const { filename, subfolder, type, awsS3Key, awsS3Url, file_size } = pathData;
           
           console.log(`💾 Saving AWS S3 image: ${filename} at ${awsS3Key}`);
           console.log(`☁️ AWS S3 URL: ${awsS3Url}`);
           
-          // Save to database with AWS S3 data
+          // Save to database with AWS S3 data using the correct clerkId
           const savedImage = await saveImageToDatabase(
-            existingJob.clerkId,
+            targetClerkId,
             jobId,
             { filename, subfolder, type },
             {
@@ -162,6 +201,45 @@ export async function POST(request: NextRequest) {
         const savedImages = [];
         const resultUrls = [];
         
+        // 🔓 SHARED FOLDER SUPPORT: Extract owner clerkId from S3 path if it's a shared folder
+        let targetClerkId = existingJob.clerkId; // Default to job creator
+        
+        // Check the first S3 key to determine if it's a shared folder
+        if (body.network_volume_paths.length > 0) {
+          const firstPathData = body.network_volume_paths[0];
+          const s3Key = firstPathData.s3_key || firstPathData.aws_s3_key || firstPathData.awsS3Key;
+          
+          if (s3Key && s3Key.startsWith('outputs/')) {
+            console.log('🔍 DEBUG (network_volume): Checking S3 key for shared folder:', s3Key);
+            
+            // Extract owner from S3 path: outputs/{ownerId}/folderName/filename
+            const pathParts = s3Key.split('/');
+            if (pathParts.length >= 3 && pathParts[0] === 'outputs' && pathParts[1].startsWith('user_')) {
+              const ownerUserId = pathParts[1];
+              console.log('🔍 DEBUG (network_volume): Extracted owner from S3 path:', ownerUserId);
+              
+              // Verify owner exists in database
+              const { PrismaClient } = await import('@/lib/generated/prisma');
+              const prisma = new PrismaClient();
+              
+              const ownerUser = await prisma.user.findUnique({
+                where: { clerkId: ownerUserId }
+              });
+              
+              await prisma.$disconnect();
+              
+              if (ownerUser) {
+                console.log('🔓 Detected shared folder (network_volume) - Owner:', ownerUserId, 'Generator:', existingJob.clerkId);
+                targetClerkId = ownerUserId;
+              } else {
+                console.warn('⚠️ Owner not found in database, using job creator:', ownerUserId);
+              }
+            }
+          }
+        }
+        
+        console.log('✅ Using clerkId for image save (network_volume):', targetClerkId);
+        
         for (const pathData of body.network_volume_paths) {
           const { filename, subfolder, type, s3_key, network_volume_path, file_size, aws_s3_key, aws_s3_url } = pathData;
           
@@ -170,9 +248,9 @@ export async function POST(request: NextRequest) {
             console.log(`☁️ AWS S3 URL: ${aws_s3_url}`);
           }
           
-          // Save to database with both RunPod S3 and AWS S3 data
+          // Save to database with both RunPod S3 and AWS S3 data using the correct clerkId
           const savedImage = await saveImageToDatabase(
-            existingJob.clerkId,
+            targetClerkId,
             jobId,
             { filename, subfolder, type },
             {
@@ -226,6 +304,9 @@ export async function POST(request: NextRequest) {
       try {
         const savedImages = [];
         
+        // Use job creator's clerkId for legacy base64 images (unlikely to be shared folder)
+        const targetClerkId = existingJob.userId || existingJob.clerkId;
+        
         for (const imageData of images) {
           const { filename, subfolder, type, data } = imageData;
           
@@ -250,7 +331,7 @@ export async function POST(request: NextRequest) {
           
           // Save to database with provided image data
           const savedImage = await saveImageToDatabase(
-            existingJob.userId,
+            targetClerkId,
             jobId,
             pathInfo,
             {
@@ -286,6 +367,9 @@ export async function POST(request: NextRequest) {
       try {
         const savedImages = [];
         
+        // Use job creator's clerkId for legacy completion images (unlikely to be shared folder)
+        const targetClerkId = existingJob.clerkId;
+        
         for (const imageData of allImages) {
           const { filename, subfolder, type, data } = imageData;
           
@@ -310,7 +394,7 @@ export async function POST(request: NextRequest) {
           
           // Save to database (check if not already saved to avoid duplicates)
           const savedImage = await saveImageToDatabase(
-            existingJob.clerkId,
+            targetClerkId,
             jobId,
             pathInfo,
             {
@@ -348,6 +432,9 @@ export async function POST(request: NextRequest) {
       try {
         const savedVideos = [];
         
+        // Use job creator's clerkId for legacy video data (unlikely to be shared folder)
+        const targetClerkId = existingJob.userId || existingJob.clerkId;
+        
         for (const videoData of videos) {
           const { filename, subfolder, type } = videoData;
           
@@ -358,7 +445,7 @@ export async function POST(request: NextRequest) {
           
           // Save to database and get the result
           const savedVideo = await saveVideoToDatabase(
-            existingJob.userId,
+            targetClerkId,
             jobId,
             pathInfo
           );
