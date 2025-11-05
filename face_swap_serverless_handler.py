@@ -49,20 +49,34 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '') -> Dict[str, str]:
-    """Upload image to AWS S3 and return S3 key and public URL"""
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '', is_full_prefix: bool = False) -> Dict[str, str]:
+    """Upload image to AWS S3 and return S3 key and public URL
+    
+    Args:
+        image_data: Image file bytes
+        user_id: User ID for folder structure
+        filename: Image filename
+        subfolder: Subfolder path (can be full prefix if is_full_prefix=True)
+        is_full_prefix: If True, subfolder is treated as full S3 prefix path
+    """
     try:
         s3_client = get_aws_s3_client()
         if not s3_client:
             logger.error("❌ AWS S3 client not available")
             return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        # Generate S3 key with organized structure OR use full prefix for shared folders
+        if is_full_prefix and subfolder:
+            # For shared folders: subfolder is already the full path like "outputs/owner_id/folder_name"
+            s3_key = f"{subfolder.rstrip('/')}/{filename}"
+            logger.info(f"📂 Using shared folder full prefix: {subfolder}")
+        else:
+            # Normal flow: build path from parts
+            s3_key_parts = ['outputs', user_id]
+            if subfolder:
+                s3_key_parts.append(subfolder)
+            s3_key_parts.append(filename)
+            s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
@@ -1155,10 +1169,41 @@ def get_image_from_comfyui(filename: str, subfolder: str = '', type_dir: str = '
         logger.error(f"❌ Error downloading image {filename}: {e}")
         return b""
 
-def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None, subfolder: str = '') -> Dict:
-    """Monitor ComfyUI progress for face swap and return final result with detailed progress"""
+def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None, subfolder: str = '', workflow: Dict = None) -> Dict:
+    """Monitor ComfyUI progress for face swap and return final result with detailed progress
+    
+    Args:
+        prompt_id: ComfyUI prompt ID
+        job_id: Job ID
+        webhook_url: URL for status updates
+        user_id: User ID
+        subfolder: Subfolder or full prefix path
+        workflow: Full workflow JSON for shared folder detection
+    """
     try:
         logger.info(f"👁️ Starting face swap progress monitoring for job: {job_id}")
+        
+        # Detect if this is a shared folder workflow by checking SaveImage node
+        is_shared_folder = False
+        if workflow:
+            try:
+                for node_id, node_data in workflow.items():
+                    if isinstance(node_data, dict) and node_data.get('class_type') == 'SaveImage':
+                        inputs = node_data.get('inputs', {})
+                        filename_prefix = inputs.get('filename_prefix', '')
+                        
+                        # Check if this is a shared folder pattern
+                        if filename_prefix.startswith('outputs/'):
+                            parts = filename_prefix.split('/')
+                            if len(parts) >= 3:
+                                # Pattern: outputs/{ownerId}/{folderName}
+                                is_shared_folder = True
+                                # Extract the full prefix (first 3 parts)
+                                subfolder = '/'.join(parts[:3])
+                                logger.info(f"📂 Detected shared folder: {subfolder}")
+                                break
+            except Exception as e:
+                logger.error(f"⚠️ Error checking for shared folder: {e}")
         
         max_wait_time = 1800  # 30 minutes for face swap
         start_time = time.time()
@@ -1338,7 +1383,7 @@ def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, us
                                                 if image_data:
                                                     try:
                                                         # Upload to AWS S3 with user's selected subfolder (from workflow)
-                                                        s3_result = upload_image_to_aws_s3(image_data, user_id, unique_filename, subfolder)
+                                                        s3_result = upload_image_to_aws_s3(image_data, user_id, unique_filename, subfolder, is_full_prefix=is_shared_folder)
                                                         
                                                         if s3_result.get("success"):
                                                             # Track image info for webhook (AWS S3 optimized structure)
@@ -1679,7 +1724,7 @@ def run_face_swap_generation(job_input, job_id, webhook_url):
             logger.warning(f"⚠️ Could not extract subfolder from workflow: {e}")
             
         logger.info(f"🔍 Using user_id: {user_id} for face swap job: {job_id}")
-        result = monitor_face_swap_progress(prompt_id, job_id, webhook_url, user_id, subfolder)
+        result = monitor_face_swap_progress(prompt_id, job_id, webhook_url, user_id, subfolder, workflow=workflow)
         return result
         
     except Exception as e:

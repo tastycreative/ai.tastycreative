@@ -539,19 +539,57 @@ export async function deleteImage(
   console.log('🗑️ Deleting image:', imageId, 'for user:', clerkId);
   
   try {
-    // First, get the image to find its AWS S3 key
+    // First, get the image to check ownership or permissions
     const image = await prisma.generatedImage.findUnique({
       where: {
         id: imageId,
-        clerkId // Ensure user can only delete their own images
       },
       select: {
-        awsS3Key: true
+        clerkId: true,
+        awsS3Key: true,
       }
     });
 
     if (!image) {
-      console.warn('⚠️ Image not found or user not authorized');
+      console.warn('⚠️ Image not found');
+      return false;
+    }
+
+    // Check if user owns the image
+    const isOwner = image.clerkId === clerkId;
+    
+    // If not owner, check if user has EDIT permission on the folder
+    let hasEditPermission = false;
+    if (!isOwner && image.awsS3Key) {
+      // Extract folder prefix from awsS3Key
+      // Format: "outputs/owner_id/folder-name/filename.ext"
+      const s3KeyParts = image.awsS3Key.split('/');
+      if (s3KeyParts.length >= 3 && s3KeyParts[0] === 'outputs') {
+        const folderPrefix = `${s3KeyParts[0]}/${s3KeyParts[1]}/${s3KeyParts[2]}/`;
+        
+        // Check if current user has EDIT permission on this folder
+        const folderShare = await prisma.folderShare.findUnique({
+          where: {
+            folderPrefix_sharedWithClerkId: {
+              folderPrefix: folderPrefix,
+              sharedWithClerkId: clerkId,
+            },
+          },
+          select: {
+            permission: true,
+          },
+        });
+        
+        if (folderShare && folderShare.permission === 'EDIT') {
+          hasEditPermission = true;
+          console.log(`✅ User has EDIT permission on folder: ${folderPrefix}`);
+        }
+      }
+    }
+
+    // User must either own the image or have EDIT permission
+    if (!isOwner && !hasEditPermission) {
+      console.warn('⚠️ User not authorized to delete this image');
       return false;
     }
 
@@ -576,7 +614,6 @@ export async function deleteImage(
     await prisma.generatedImage.delete({
       where: {
         id: imageId,
-        clerkId
       }
     });
     

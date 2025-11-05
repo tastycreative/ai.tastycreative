@@ -75,10 +75,42 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
+          // Determine the correct clerkId to use
+          // If the image is in a shared folder, we need to use the folder owner's clerkId
+          let ownerClerkId = job.clerkId; // Default to job creator
+          
+          if (imageData.awsS3Key) {
+            // Extract the folder prefix from awsS3Key
+            // Format: "outputs/user_id/folder-name/filename.png"
+            const s3KeyParts = imageData.awsS3Key.split('/');
+            if (s3KeyParts.length >= 3 && s3KeyParts[0] === 'outputs') {
+              const potentialOwnerClerkId = s3KeyParts[1]; // User ID from S3 path
+              const folderName = s3KeyParts[2]; // Folder name
+              
+              // Check if this is different from the job creator (indicating a shared folder)
+              if (potentialOwnerClerkId !== job.clerkId) {
+                console.log(`📁 Detected shared folder: ${imageData.awsS3Key}`);
+                console.log(`🔄 Switching from ${job.clerkId} to ${potentialOwnerClerkId}`);
+                
+                // Verify the folder owner exists in the database
+                const folderOwner = await prisma.user.findUnique({
+                  where: { clerkId: potentialOwnerClerkId },
+                });
+                
+                if (folderOwner) {
+                  ownerClerkId = potentialOwnerClerkId;
+                  console.log(`✅ Using folder owner's clerkId: ${ownerClerkId}`);
+                } else {
+                  console.warn(`⚠️ Folder owner not found, using job creator: ${job.clerkId}`);
+                }
+              }
+            }
+          }
+
           // Save image to database
           await prisma.generatedImage.create({
             data: {
-              clerkId: job.clerkId,
+              clerkId: ownerClerkId, // Use the determined owner's clerkId
               jobId: jobId,
               filename: imageData.filename,
               subfolder: imageData.subfolder || '',
@@ -90,7 +122,7 @@ export async function POST(request: NextRequest) {
             }
           });
 
-          console.log(`✅ Saved image to database: ${imageData.filename}`);
+          console.log(`✅ Saved image to database: ${imageData.filename} (owner: ${ownerClerkId})`);
         } catch (imageError) {
           console.error(`❌ Error saving image ${imageData.filename}:`, imageError);
         }

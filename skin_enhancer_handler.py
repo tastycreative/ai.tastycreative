@@ -58,20 +58,34 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '') -> Dict[str, str]:
-    """Upload image to AWS S3 and return S3 key and public URL"""
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '', is_full_prefix: bool = False) -> Dict[str, str]:
+    """Upload image to AWS S3 and return S3 key and public URL
+    
+    Args:
+        image_data: Raw image bytes
+        user_id: User ID for folder structure
+        filename: Image filename
+        subfolder: Subfolder path (can be full prefix if is_full_prefix=True)
+        is_full_prefix: If True, subfolder is treated as full S3 prefix path
+    """
     try:
         s3_client = get_aws_s3_client()
         if not s3_client:
             logger.error("❌ AWS S3 client not available")
             return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        # Create S3 key: outputs/{user_id}/{subfolder}/{filename} OR {full_prefix}/{filename}
+        if is_full_prefix and subfolder:
+            # For shared folders: subfolder is already the full path like "outputs/owner_id/folder_name"
+            s3_key = f"{subfolder.rstrip('/')}/{filename}"
+            logger.info(f"📂 Using shared folder full prefix: {subfolder}")
+        else:
+            # Normal flow: build path from parts
+            s3_key_parts = ['outputs', user_id]
+            if subfolder:
+                s3_key_parts.append(subfolder)
+            s3_key_parts.append(filename)
+            s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
@@ -794,7 +808,7 @@ def get_comfyui_history_status(comfyui_url: str, prompt_id: str) -> Optional[Dic
         pass
     return None
 
-def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = 'unknown') -> Dict:
+def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = 'unknown', workflow: Dict = None) -> Dict:
     """Monitor ComfyUI progress for skin enhancement with real-time updates and ComfyUI integration"""
     try:
         logger.info(f"👀 Starting enhanced real-time progress monitoring for prompt {prompt_id}")
@@ -982,6 +996,25 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                             extension = os.path.splitext(filename)[1]
                                             unique_filename = f"{base_name}_{timestamp}_{job_id.split('_')[-1]}{extension}"
                                             
+                                            # Detect shared folder from workflow
+                                            is_shared_folder = False
+                                            folder_prefix = subfolder
+                                            
+                                            if workflow:
+                                                # Check SaveImage node (114) for filename_prefix
+                                                save_image_node = workflow.get('114', {})
+                                                if save_image_node.get('class_type') == 'SaveImage':
+                                                    filename_prefix = save_image_node.get('inputs', {}).get('filename_prefix', '')
+                                                    
+                                                    # If filename_prefix starts with "outputs/", it's a shared folder with full path
+                                                    if filename_prefix.startswith('outputs/'):
+                                                        is_shared_folder = True
+                                                        # Extract the folder path: "outputs/user_xyz/My Folder" -> "outputs/user_xyz/My Folder"
+                                                        folder_prefix = filename_prefix
+                                                        logger.info(f"🔓 Detected shared folder: {folder_prefix}")
+                                                    else:
+                                                        logger.info(f"📁 Using user's own folder: {filename_prefix}")
+                                            
                                             # Upload to AWS S3 if user_id is provided
                                             aws_s3_result = {}
                                             if user_id and user_id != 'unknown':
@@ -989,7 +1022,8 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                                     image_data_bytes, 
                                                     user_id, 
                                                     unique_filename,
-                                                    subfolder
+                                                    folder_prefix,
+                                                    is_full_prefix=is_shared_folder
                                                 )
                                                 if aws_s3_result.get('success'):
                                                     aws_s3_paths.append({
@@ -1349,7 +1383,8 @@ def run_skin_enhancement_generation(job_input, job_id, webhook_url):
         # Extract user_id for S3 storage
         user_id = job_input.get('user_id', 'unknown')
         
-        result = monitor_skin_enhancement_progress(prompt_id, job_id, webhook_url, user_id)
+        # Monitor progress and get results (pass workflow for shared folder detection)
+        result = monitor_skin_enhancement_progress(prompt_id, job_id, webhook_url, user_id, workflow)
         
         if result['success']:
             logger.info(f"✅ Skin enhancement completed successfully for job: {job_id}")

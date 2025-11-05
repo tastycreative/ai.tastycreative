@@ -84,7 +84,7 @@ export default function FluxKontextPage() {
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string>('');
   const [targetFolder, setTargetFolder] = useState<string>('');
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string, prefix: string, isShared?: boolean, permission?: 'VIEW' | 'EDIT'}>>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
@@ -125,17 +125,28 @@ export default function FluxKontextPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.folders) {
-          // Create folder objects with both slug (for API) and name (for display)
+          // Create folder objects with slug, name, prefix, shared status, and permission
           const folders = data.folders.map((folder: any) => {
             if (typeof folder === 'string') {
-              return { slug: folder, name: folder };
+              return { slug: folder, name: folder, prefix: `outputs/${user.id}/${folder}/`, isShared: false, permission: 'EDIT' as const };
             }
             // Extract slug from prefix: outputs/{userId}/{slug}/
             const parts = folder.prefix.split('/').filter(Boolean);
             const slug = parts[2] || folder.name;
-            return { slug, name: folder.name };
+            return { 
+              slug, 
+              name: folder.name, 
+              prefix: folder.prefix,
+              isShared: folder.isShared || false,
+              permission: folder.permission || 'EDIT' as 'VIEW' | 'EDIT'
+            };
           });
-          setAvailableFolders(folders);
+          
+          // Filter to only show folders with EDIT permission
+          const editableFolders = folders.filter((f: any) => !f.isShared || f.permission === 'EDIT');
+          
+          setAvailableFolders(editableFolders);
+          console.log('📁 Loaded editable folders with prefixes:', editableFolders);
         }
       }
     } catch (error) {
@@ -420,7 +431,7 @@ export default function FluxKontextPage() {
       "199": {
         "inputs": {
           "images": ["8", 0],
-          "filename_prefix": `${targetFolder}/FluxKontext_${Date.now()}_${FIXED_VALUES.seed}`
+          "filename_prefix": `${targetFolder}FluxKontext_${Date.now()}_${FIXED_VALUES.seed}`
         },
         "class_type": "SaveImage"
       }
@@ -848,8 +859,8 @@ export default function FluxKontextPage() {
                 >
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
-                    <option key={folder.slug} value={folder.slug}>
-                      📁 {folder.name}
+                    <option key={folder.prefix} value={folder.prefix}>
+                      {folder.isShared ? '� ' : '📁 '}{folder.name}
                     </option>
                   ))}
                 </select>
@@ -864,7 +875,7 @@ export default function FluxKontextPage() {
               {targetFolder && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
                   <span>💡</span>
-                  <span>Saving to: outputs/your-id/{targetFolder}/</span>
+                  <span>Saving to: {targetFolder}</span>
                 </p>
               )}
             </div>

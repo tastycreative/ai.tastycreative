@@ -221,7 +221,13 @@ export default function TextToImagePage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<Array<{
+    slug: string;
+    name: string;
+    prefix: string;
+    permission?: 'VIEW' | 'EDIT';
+    isShared?: boolean;
+  }>>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   // Persistent generation state keys
@@ -537,17 +543,35 @@ export default function TextToImagePage() {
         if (response.ok) {
           const data = await response.json();
           if (data.success && Array.isArray(data.folders)) {
-            // Extract both slug and display name from folder objects
-            const folderObjects = data.folders.map((folder: any) => {
-              if (typeof folder === 'string') {
-                return { slug: folder, name: folder };
-              }
-              // Extract slug from prefix: "outputs/userId/folder-slug/" -> "folder-slug"
-              const parts = folder.prefix.split('/').filter(Boolean);
-              const slug = parts[2] || folder.name;
-              return { slug, name: folder.name };
-            });
+            // Filter to only show folders with EDIT permission (own folders + shared with edit)
+            const folderObjects = data.folders
+              .filter((folder: any) => {
+                // Show own folders and shared folders with EDIT permission
+                return !folder.permission || folder.permission === 'EDIT';
+              })
+              .map((folder: any) => {
+                if (typeof folder === 'string') {
+                  return { 
+                    slug: folder, 
+                    name: folder, 
+                    prefix: `outputs/${user.id}/${folder}`, 
+                    permission: undefined,
+                    isShared: false
+                  };
+                }
+                // Extract slug from prefix: outputs/{userId}/{slug}/
+                const parts = folder.prefix.split('/').filter(Boolean);
+                const slug = parts[2] || folder.name;
+                return { 
+                  slug, 
+                  name: folder.name,
+                  prefix: folder.prefix?.replace(/\/$/, ''), // Store full prefix without trailing slash
+                  permission: folder.permission,
+                  isShared: folder.isShared || false
+                };
+              });
             setAvailableFolders(folderObjects);
+            console.log("✅ Folders set (EDIT only):", folderObjects);
           }
         }
       } catch (error) {
@@ -1493,6 +1517,21 @@ export default function TextToImagePage() {
     const seed = params.seed || Math.floor(Math.random() * 2147483647);
     console.log(`🎲 Using seed: ${seed}`);
 
+    // Determine the filename prefix based on whether it's a shared folder
+    let filenamePrefix = `ComfyUI_${Date.now()}_${seed}`;
+    if (targetFolder) {
+      // Check if this is a shared folder (contains full prefix like "outputs/userId/folderName")
+      const selectedFolder = availableFolders.find(f => f.slug === targetFolder);
+      if (selectedFolder?.isShared && selectedFolder.prefix) {
+        // For shared folders, use the full prefix
+        filenamePrefix = `${selectedFolder.prefix}/TextToImage_${Date.now()}_${seed}`;
+        console.log("🔓 Using shared folder full prefix:", filenamePrefix);
+      } else {
+        // For own folders, use the slug
+        filenamePrefix = `${targetFolder}/TextToImage_${Date.now()}_${seed}`;
+      }
+    }
+
     // Check if we have any LoRAs to apply
     const activeLoRAs = params.loras.filter(lora => lora.modelName !== "None");
     const useLoRA = activeLoRAs.length > 0;
@@ -1581,7 +1620,7 @@ export default function TextToImagePage() {
       },
       "13": {
         inputs: {
-          filename_prefix: targetFolder ? `${targetFolder}/TextToImage_${Date.now()}_${seed}` : `ComfyUI_${Date.now()}_${seed}`,
+          filename_prefix: filenamePrefix,
           images: ["3", 0],
         },
         class_type: "SaveImage",
@@ -1972,18 +2011,31 @@ export default function TextToImagePage() {
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 >
                   <option value="">Select a folder...</option>
-                  {availableFolders.map((folder) => (
-                    <option key={folder.slug} value={folder.slug}>
-                      {folder.name}
-                    </option>
-                  ))}
+                  {availableFolders.map((folder) => {
+                    const icon = folder.isShared ? '🔓' : '📁';
+                    
+                    return (
+                      <option key={folder.slug} value={folder.slug}>
+                        {icon} {folder.name}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
               {targetFolder && user && (
                 <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-1">
-                  <span>📁</span>
-                  <span>outputs/{user.id}/{targetFolder}/</span>
+                  {availableFolders.find(f => f.slug === targetFolder)?.isShared ? (
+                    <>
+                      <span>�</span>
+                      <span>Shared folder: {availableFolders.find(f => f.slug === targetFolder)?.prefix}/</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>📁</span>
+                      <span>Saving to: outputs/{user.id}/{targetFolder}/</span>
+                    </>
+                  )}
                 </div>
               )}
             </div>

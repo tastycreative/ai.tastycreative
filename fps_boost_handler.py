@@ -55,19 +55,33 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_to_aws_s3(filename: str, video_data: bytes, user_id: str, subfolder: str = '') -> dict:
-    """Upload video to AWS S3 and return details"""
+def upload_to_aws_s3(filename: str, video_data: bytes, user_id: str, subfolder: str = '', is_full_prefix: bool = False) -> dict:
+    """Upload video to AWS S3 and return details
+    
+    Args:
+        filename: Name of the file
+        video_data: Binary video data
+        user_id: User ID (used if is_full_prefix is False)
+        subfolder: Either a subfolder name or a full S3 prefix path
+        is_full_prefix: If True, subfolder is treated as a complete S3 prefix (for shared folders)
+    """
     try:
         s3_client = get_aws_s3_client()
         if not s3_client:
             return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        # Create S3 key
+        if is_full_prefix and subfolder:
+            # subfolder is actually a full prefix like "outputs/owner_id/folder-name/"
+            # Just append the filename
+            s3_key = f"{subfolder.rstrip('/')}/{filename}"
+        else:
+            # Traditional path construction: outputs/{user_id}/{subfolder}/{filename}
+            s3_key_parts = ['outputs', user_id]
+            if subfolder:
+                s3_key_parts.append(subfolder)
+            s3_key_parts.append(filename)
+            s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading video to AWS S3: {s3_key}")
         
@@ -237,7 +251,7 @@ def queue_workflow_with_comfyui(workflow: Dict, job_id: str, video_path: str) ->
         logger.error(f"❌ Error queuing workflow: {e}")
         return None
 
-def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None) -> Dict:
+def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None, workflow: Dict = None) -> Dict:
     """Monitor ComfyUI progress and return final result"""
     try:
         logger.info(f"👀 Monitoring progress for prompt: {prompt_id}")
@@ -299,13 +313,33 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                     )
                                     
                                     if video_data:
-                                        # Upload to AWS S3 using the subfolder from ComfyUI output
-                                        # ComfyUI uses the folder from filename_prefix (e.g., "nov-2/fps_boosted")
+                                        # Extract folder info from the workflow's filename_prefix
+                                        # The prefix might be like "outputs/user_123/nov-5/fps_boosted" for shared folders
+                                        # or just "nov-5/fps_boosted" for regular folders
+                                        is_full_prefix = False
+                                        folder_prefix = video["subfolder"]
+                                        
+                                        if workflow and "3" in workflow:
+                                            filename_prefix = workflow.get("3", {}).get("inputs", {}).get("filename_prefix", "")
+                                            
+                                            # Check if this is a full S3 prefix path (starts with "outputs/")
+                                            if filename_prefix.startswith("outputs/"):
+                                                is_full_prefix = True
+                                                # Extract the folder path from the prefix (remove the filename_prefix part after last meaningful folder)
+                                                # "outputs/user_123/nov-5/fps_boosted" -> "outputs/user_123/nov-5/"
+                                                prefix_parts = filename_prefix.split('/')
+                                                if len(prefix_parts) >= 3:
+                                                    # Take outputs/user_id/folder-name
+                                                    folder_prefix = '/'.join(prefix_parts[:3]) + '/'
+                                                    logger.info(f"🔗 Using shared folder prefix: {folder_prefix}")
+                                        
+                                        # Upload to AWS S3
                                         upload_result = upload_to_aws_s3(
                                             video["filename"],
                                             video_data,
                                             user_id or "unknown",
-                                            subfolder=video["subfolder"]  # Use the actual subfolder from ComfyUI
+                                            subfolder=folder_prefix,
+                                            is_full_prefix=is_full_prefix
                                         )
                                         
                                         if upload_result["success"]:
@@ -463,7 +497,7 @@ def run_fps_boost_generation(job_input, job_id, webhook_url):
             return {"error": "Failed to queue workflow", "status": "failed"}
         
         # Monitor progress
-        result = monitor_comfyui_progress(prompt_id, job_id, webhook_url, user_id)
+        result = monitor_comfyui_progress(prompt_id, job_id, webhook_url, user_id, workflow)
         
         return result
     

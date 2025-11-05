@@ -384,6 +384,73 @@ export default function ShareFolderModal({
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Permission Level
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPermission('VIEW')}
+                  disabled={isLoading}
+                  className={`relative flex items-start gap-3 p-4 border-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    permission === 'VIEW'
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
+                  }`}
+                >
+                  <div className="shrink-0">
+                    <Eye className={`w-5 h-5 ${permission === 'VIEW' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`} />
+                  </div>
+                  <div className="text-left">
+                    <div className={`font-medium text-sm ${permission === 'VIEW' ? 'text-blue-900 dark:text-blue-100' : 'text-gray-900 dark:text-white'}`}>
+                      Viewer
+                    </div>
+                    <div className={`text-xs mt-0.5 ${permission === 'VIEW' ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                      Can view and download files only
+                    </div>
+                  </div>
+                  {permission === 'VIEW' && (
+                    <div className="absolute top-2 right-2">
+                      <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPermission('EDIT')}
+                  disabled={isLoading}
+                  className={`relative flex items-start gap-3 p-4 border-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    permission === 'EDIT'
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
+                  }`}
+                >
+                  <div className="shrink-0">
+                    <Edit3 className={`w-5 h-5 ${permission === 'EDIT' ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'}`} />
+                  </div>
+                  <div className="text-left">
+                    <div className={`font-medium text-sm ${permission === 'EDIT' ? 'text-purple-900 dark:text-purple-100' : 'text-gray-900 dark:text-white'}`}>
+                      Editor
+                    </div>
+                    <div className={`text-xs mt-0.5 ${permission === 'EDIT' ? 'text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                      Can view, download, and upload files
+                    </div>
+                  </div>
+                  {permission === 'EDIT' && (
+                    <div className="absolute top-2 right-2">
+                      <div className="w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
+                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Note (Optional)
               </label>
@@ -541,10 +608,16 @@ export default function ShareFolderModal({
           <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
             <div className="text-sm text-blue-800 dark:text-blue-200">
-              <p className="font-medium mb-1">View-Only Access</p>
-              <div className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
-                <Eye className="w-3 h-3 shrink-0 mt-0.5" />
-                <span>Shared users can <strong>view and download</strong> all files in this folder, but cannot upload, delete, or modify any content.</span>
+              <p className="font-medium mb-2">Permission Levels</p>
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
+                  <Eye className="w-3 h-3 shrink-0 mt-0.5" />
+                  <span><strong>Viewer:</strong> Can view and download files only. Cannot upload or generate new content to this folder.</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-blue-700 dark:text-blue-300">
+                  <Edit3 className="w-3 h-3 shrink-0 mt-0.5" />
+                  <span><strong>Editor:</strong> Can view, download, and generate new content directly into this folder.</span>
+                </div>
               </div>
             </div>
           </div>

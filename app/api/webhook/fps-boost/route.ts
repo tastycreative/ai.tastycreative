@@ -59,9 +59,41 @@ export async function POST(req: NextRequest) {
 
       for (const video of videos) {
         try {
+          // Determine the correct clerkId to use
+          // If the video is in a shared folder, we need to use the folder owner's clerkId
+          let ownerClerkId = job.clerkId; // Default to job creator
+          
+          if (video.awsS3Key) {
+            // Extract the folder prefix from awsS3Key
+            // Format: "outputs/user_id/folder-name/filename.mp4"
+            const s3KeyParts = video.awsS3Key.split('/');
+            if (s3KeyParts.length >= 3 && s3KeyParts[0] === 'outputs') {
+              const potentialOwnerClerkId = s3KeyParts[1]; // User ID from S3 path
+              const folderName = s3KeyParts[2]; // Folder name
+              
+              // Check if this is different from the job creator (indicating a shared folder)
+              if (potentialOwnerClerkId !== job.clerkId) {
+                console.log(`📁 Detected shared folder: ${video.awsS3Key}`);
+                console.log(`🔄 Switching from ${job.clerkId} to ${potentialOwnerClerkId}`);
+                
+                // Verify the folder owner exists in the database
+                const folderOwner = await prisma.user.findUnique({
+                  where: { clerkId: potentialOwnerClerkId },
+                });
+                
+                if (folderOwner) {
+                  ownerClerkId = potentialOwnerClerkId;
+                  console.log(`✅ Using folder owner's clerkId: ${ownerClerkId}`);
+                } else {
+                  console.warn(`⚠️ Folder owner not found, using job creator: ${job.clerkId}`);
+                }
+              }
+            }
+          }
+
           await prisma.generatedVideo.create({
             data: {
-              clerkId: job.clerkId,
+              clerkId: ownerClerkId, // Use the determined owner's clerkId
               jobId: job.id,
               filename: video.filename,
               subfolder: video.subfolder || "fps_boost",
@@ -73,7 +105,7 @@ export async function POST(req: NextRequest) {
             },
           });
 
-          console.log(`✅ Video saved: ${video.filename}`);
+          console.log(`✅ Video saved: ${video.filename} (owner: ${ownerClerkId})`);
         } catch (error) {
           console.error(`❌ Error saving video ${video.filename}:`, error);
         }

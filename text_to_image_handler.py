@@ -56,19 +56,33 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_to_aws_s3(filename: str, image_data: bytes, user_id: str, subfolder: str = '') -> dict:
-    """Upload image to AWS S3 and return details"""
+def upload_to_aws_s3(filename: str, image_data: bytes, user_id: str, subfolder: str = '', is_full_prefix: bool = False) -> dict:
+    """Upload image to AWS S3 and return details
+    
+    Args:
+        filename: Image filename
+        image_data: Raw image bytes
+        user_id: User ID for folder structure
+        subfolder: Subfolder path (can be full prefix if is_full_prefix=True)
+        is_full_prefix: If True, subfolder is treated as full S3 prefix path
+    """
     try:
         s3_client = get_aws_s3_client()
         if not s3_client:
-            return {"success": False, "error": "AWS S3 client not available"}
+            return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        # Create S3 key: outputs/{user_id}/{subfolder}/{filename} OR {full_prefix}/{filename}
+        if is_full_prefix and subfolder:
+            # For shared folders: subfolder is already the full path like "outputs/owner_id/folder_name"
+            s3_key = f"{subfolder.rstrip('/')}/{filename}"
+            logger.info(f"📂 Using shared folder full prefix: {subfolder}")
+        else:
+            # Normal flow: build path from parts
+            s3_key_parts = ['outputs', user_id]
+            if subfolder:
+                s3_key_parts.append(subfolder)
+            s3_key_parts.append(filename)
+            s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
@@ -527,7 +541,7 @@ def get_image_from_comfyui(filename: str, subfolder: str = '', type_dir: str = '
         logger.error(f"❌ Error downloading image {filename}: {str(e)}")
         return ""
 
-def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None) -> Dict:
+def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None, workflow: Dict = None) -> Dict:
     """Monitor ComfyUI progress and return final result with detailed progress"""
     try:
         logger.info(f"👁️ Starting progress monitoring for job: {job_id}, user: {user_id}")
@@ -656,6 +670,29 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                 if response.status_code == 200:
                                                     image_data_bytes = response.content
                                                     
+                                                    # Detect shared folder from workflow
+                                                    is_shared_folder = False
+                                                    folder_prefix = subfolder
+                                                    
+                                                    if workflow:
+                                                        # Check SaveImage node (13) for filename_prefix
+                                                        save_image_node = workflow.get('13', {})
+                                                        if save_image_node.get('class_type') == 'SaveImage':
+                                                            filename_prefix = save_image_node.get('inputs', {}).get('filename_prefix', '')
+                                                            
+                                                            # If filename_prefix starts with "outputs/", it's a shared folder with full path
+                                                            if filename_prefix.startswith('outputs/'):
+                                                                is_shared_folder = True
+                                                                # Extract the folder path: "outputs/user_xyz/My Folder" -> "outputs/user_xyz/My Folder"
+                                                                # Remove the filename part (everything after the last /)
+                                                                path_parts = filename_prefix.split('/')
+                                                                if len(path_parts) >= 3:
+                                                                    # Keep outputs/user_id/folder_name
+                                                                    folder_prefix = '/'.join(path_parts[:3])
+                                                                    logger.info(f"🔓 Detected shared folder: {folder_prefix}")
+                                                            else:
+                                                                logger.info(f"📁 Using user's own folder: {filename_prefix}")
+                                                    
                                                     # Save to AWS S3 (primary and only storage)
                                                     aws_s3_result = None
                                                     if user_id and AWS_S3_BUCKET:
@@ -663,7 +700,8 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                             filename, 
                                                             image_data_bytes, 
                                                             user_id, 
-                                                            subfolder
+                                                            folder_prefix,
+                                                            is_full_prefix=is_shared_folder
                                                         )
                                                         if aws_s3_result.get('success'):
                                                             logger.info(f"✅ Image uploaded to AWS S3: {aws_s3_result['public_url']}")
@@ -853,8 +891,8 @@ def run_text_to_image_generation(job_input, job_id, webhook_url):
         if not prompt_id:
             raise Exception("Failed to queue workflow with ComfyUI")
         
-        # Monitor progress and get results (pass user_id for network volume storage)
-        result = monitor_comfyui_progress(prompt_id, job_id, webhook_url, user_id)
+        # Monitor progress and get results (pass workflow for shared folder detection)
+        result = monitor_comfyui_progress(prompt_id, job_id, webhook_url, user_id, workflow)
         
         if result['status'] == 'success':
             logger.info(f"✅ Text-to-image generation completed for job: {job_id}")

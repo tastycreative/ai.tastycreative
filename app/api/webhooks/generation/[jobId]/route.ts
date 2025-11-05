@@ -132,6 +132,48 @@ export async function POST(
       try {
         const savedItems = [];
         
+        // Determine the correct clerkId based on shared folder
+        let targetClerkId = existingJob.clerkId;
+        
+        // Check if this is a shared folder by examining the first S3 key
+        if (body.aws_s3_paths.length > 0) {
+          const firstKey = body.aws_s3_paths[0].awsS3Key;
+          
+          if (firstKey && firstKey.startsWith('outputs/')) {
+            // Extract user ID from S3 path: outputs/{userId}/folder/file
+            const parts = firstKey.split('/');
+            if (parts.length >= 2) {
+              const ownerUserId = parts[1];
+              
+              // If owner is different from job creator, this is a shared folder
+              if (ownerUserId !== existingJob.clerkId) {
+                console.log(`🔓 Detected shared folder - Owner: ${ownerUserId}, Job creator: ${existingJob.clerkId}`);
+                
+                // Verify owner exists in database
+                try {
+                  const { PrismaClient } = await import('@/lib/generated/prisma');
+                  const prisma = new PrismaClient();
+                  
+                  const owner = await prisma.user.findUnique({
+                    where: { clerkId: ownerUserId }
+                  });
+                  
+                  await prisma.$disconnect();
+                  
+                  if (owner) {
+                    targetClerkId = ownerUserId;
+                    console.log(`✅ Using folder owner's clerkId: ${targetClerkId}`);
+                  } else {
+                    console.warn(`⚠️ Owner ${ownerUserId} not found in database, using job creator's clerkId`);
+                  }
+                } catch (dbError) {
+                  console.error('❌ Error validating folder owner:', dbError);
+                }
+              }
+            }
+          }
+        }
+        
         for (const pathData of body.aws_s3_paths) {
           const { filename, awsS3Key, awsS3Url, fileSize } = pathData;
           
@@ -143,7 +185,7 @@ export async function POST(
             
             // Save video to database with AWS S3 key and URL (no video data stored)
             const savedVideo = await saveVideoToDatabase(
-              existingJob.clerkId,
+              targetClerkId,  // Use folder owner's clerkId
               jobId,
               { 
                 filename, 
@@ -172,7 +214,7 @@ export async function POST(
             
             // Save image to database with AWS S3 key and URL (no image data stored)
             const savedImage = await saveImageToDatabase(
-              existingJob.clerkId,
+              targetClerkId,  // Use folder owner's clerkId
               jobId,
               { 
                 filename, 
@@ -242,6 +284,48 @@ export async function POST(
         try {
           const savedImages = [];
           
+          // Determine the correct clerkId based on shared folder (same logic as aws_s3_paths)
+          let targetClerkId = existingJob.clerkId;
+          
+          // Check if this is a shared folder by examining the first S3 key
+          if (body.network_volume_paths.length > 0) {
+            const firstKey = body.network_volume_paths[0].s3_key;
+            
+            if (firstKey && firstKey.startsWith('outputs/')) {
+              // Extract user ID from S3 path: outputs/{userId}/folder/file
+              const parts = firstKey.split('/');
+              if (parts.length >= 2) {
+                const ownerUserId = parts[1];
+                
+                // If owner is different from job creator, this is a shared folder
+                if (ownerUserId !== existingJob.clerkId) {
+                  console.log(`🔓 Detected shared folder in network_volume_paths - Owner: ${ownerUserId}, Job creator: ${existingJob.clerkId}`);
+                  
+                  // Verify owner exists in database
+                  try {
+                    const { PrismaClient } = await import('@/lib/generated/prisma');
+                    const prisma = new PrismaClient();
+                    
+                    const owner = await prisma.user.findUnique({
+                      where: { clerkId: ownerUserId }
+                    });
+                    
+                    await prisma.$disconnect();
+                    
+                    if (owner) {
+                      targetClerkId = ownerUserId;
+                      console.log(`✅ Using folder owner's clerkId for network_volume_paths: ${targetClerkId}`);
+                    } else {
+                      console.warn(`⚠️ Owner ${ownerUserId} not found in database, using job creator's clerkId`);
+                    }
+                  } catch (dbError) {
+                    console.error('❌ Error validating folder owner:', dbError);
+                  }
+                }
+              }
+            }
+          }
+          
           for (const pathData of body.network_volume_paths) {
             const { filename, subfolder, type, s3_key, file_size } = pathData;
             
@@ -249,7 +333,7 @@ export async function POST(
             
             // Save to database with S3 key (no image data stored)
             const savedImage = await saveImageToDatabase(
-              existingJob.clerkId,
+              targetClerkId,  // Use folder owner's clerkId
               jobId,
               { filename, subfolder, type },
               {
@@ -292,6 +376,48 @@ export async function POST(
         const networkVolumePaths = body.networkVolumePaths || [];
         const resultUrls = body.resultUrls || [];
         
+        // Determine the correct clerkId based on shared folder
+        let targetClerkId = existingJob.clerkId;
+        
+        // Check if this is a shared folder by examining the first S3 key
+        if (s3Keys.length > 0) {
+          const firstKey = s3Keys[0];
+          
+          if (firstKey && firstKey.startsWith('outputs/')) {
+            // Extract user ID from S3 path: outputs/{userId}/folder/file
+            const parts = firstKey.split('/');
+            if (parts.length >= 2) {
+              const ownerUserId = parts[1];
+              
+              // If owner is different from job creator, this is a shared folder
+              if (ownerUserId !== existingJob.clerkId) {
+                console.log(`🔓 Detected shared folder in s3Keys - Owner: ${ownerUserId}, Job creator: ${existingJob.clerkId}`);
+                
+                // Verify owner exists in database
+                try {
+                  const { PrismaClient } = await import('@/lib/generated/prisma');
+                  const prisma = new PrismaClient();
+                  
+                  const owner = await prisma.user.findUnique({
+                    where: { clerkId: ownerUserId }
+                  });
+                  
+                  await prisma.$disconnect();
+                  
+                  if (owner) {
+                    targetClerkId = ownerUserId;
+                    console.log(`✅ Using folder owner's clerkId for s3Keys: ${targetClerkId}`);
+                  } else {
+                    console.warn(`⚠️ Owner ${ownerUserId} not found in database, using job creator's clerkId`);
+                  }
+                } catch (dbError) {
+                  console.error('❌ Error validating folder owner:', dbError);
+                }
+              }
+            }
+          }
+        }
+        
         for (let i = 0; i < s3Keys.length; i++) {
           const s3Key = s3Keys[i];
           const networkVolumePath = networkVolumePaths[i];
@@ -323,7 +449,7 @@ export async function POST(
           
           // Save to database with S3 key and network volume path
           const savedImage = await saveImageToDatabase(
-            existingJob.clerkId,
+            targetClerkId,  // Use folder owner's clerkId
             jobId,
             { filename, subfolder, type },
             {
@@ -375,6 +501,49 @@ export async function POST(
       const isChunkDelivery = status === 'IMAGE_CHUNK' || status === 'IMAGE_READY';
       console.log(`🖼️ Processing ${imagesToProcess.length} generated images for job ${jobId}${isChunkDelivery ? ' (chunk delivery)' : ''}`);
       
+      // Determine the correct clerkId based on shared folder
+      let targetClerkId = existingJob.clerkId;
+      
+      // Check if this is a shared folder by examining the first image's S3 key
+      if (imagesToProcess.length > 0) {
+        const firstImage = imagesToProcess[0];
+        const s3Key = firstImage.s3Key;
+        
+        if (s3Key && s3Key.startsWith('outputs/')) {
+          // Extract user ID from S3 path: outputs/{userId}/folder/file
+          const parts = s3Key.split('/');
+          if (parts.length >= 2) {
+            const ownerUserId = parts[1];
+            
+            // If owner is different from job creator, this is a shared folder
+            if (ownerUserId !== existingJob.clerkId) {
+              console.log(`🔓 Detected shared folder in imagesToProcess - Owner: ${ownerUserId}, Job creator: ${existingJob.clerkId}`);
+              
+              // Verify owner exists in database
+              try {
+                const { PrismaClient } = await import('@/lib/generated/prisma');
+                const prisma = new PrismaClient();
+                
+                const owner = await prisma.user.findUnique({
+                  where: { clerkId: ownerUserId }
+                });
+                
+                await prisma.$disconnect();
+                
+                if (owner) {
+                  targetClerkId = ownerUserId;
+                  console.log(`✅ Using folder owner's clerkId for imagesToProcess: ${targetClerkId}`);
+                } else {
+                  console.warn(`⚠️ Owner ${ownerUserId} not found in database, using job creator's clerkId`);
+                }
+              } catch (dbError) {
+                console.error('❌ Error validating folder owner:', dbError);
+              }
+            }
+          }
+        }
+      }
+      
       // Store images in database and get URLs
       const imageUrls: string[] = [];
       
@@ -422,7 +591,7 @@ export async function POST(
             
             // Save directly to database with provided data and S3/network volume info
             const imageRecord = await saveImageToDatabase(
-              existingJob.clerkId,
+              targetClerkId,  // Use folder owner's clerkId
               jobId,
               {
                 filename: imageInfo.filename,
@@ -443,7 +612,7 @@ export async function POST(
             
             // Store image info AND binary data in database (download from ComfyUI)
             const imageRecord = await saveImageToDatabase(
-              existingJob.clerkId,
+              targetClerkId,  // Use folder owner's clerkId
               jobId,
               {
                 filename: imageInfo.filename,
@@ -496,6 +665,49 @@ export async function POST(
       if (hasVideoFiles || isVideoGenerationJob) {
         console.log(`🎬 Processing ${network_volume_paths.length} S3-optimized videos for job ${jobId}`);
         
+        // Determine the correct clerkId based on shared folder
+        let targetClerkId = existingJob.clerkId;
+        
+        // Check if this is a shared folder by examining the first video's S3 key
+        if (network_volume_paths.length > 0) {
+          const firstVideo = network_volume_paths[0];
+          const s3Key = firstVideo.s3Key;
+          
+          if (s3Key && s3Key.startsWith('outputs/')) {
+            // Extract user ID from S3 path: outputs/{userId}/folder/file
+            const parts = s3Key.split('/');
+            if (parts.length >= 2) {
+              const ownerUserId = parts[1];
+              
+              // If owner is different from job creator, this is a shared folder
+              if (ownerUserId !== existingJob.clerkId) {
+                console.log(`🔓 Detected shared folder in network_volume_paths videos - Owner: ${ownerUserId}, Job creator: ${existingJob.clerkId}`);
+                
+                // Verify owner exists in database
+                try {
+                  const { PrismaClient } = await import('@/lib/generated/prisma');
+                  const prisma = new PrismaClient();
+                  
+                  const owner = await prisma.user.findUnique({
+                    where: { clerkId: ownerUserId }
+                  });
+                  
+                  await prisma.$disconnect();
+                  
+                  if (owner) {
+                    targetClerkId = ownerUserId;
+                    console.log(`✅ Using folder owner's clerkId for videos: ${targetClerkId}`);
+                  } else {
+                    console.warn(`⚠️ Owner ${ownerUserId} not found in database, using job creator's clerkId`);
+                  }
+                } catch (dbError) {
+                  console.error('❌ Error validating folder owner:', dbError);
+                }
+              }
+            }
+          }
+        }
+        
         // Store video metadata in database (no blob data)
         const videoUrls: string[] = [];
         
@@ -505,7 +717,7 @@ export async function POST(
             
             // Save video metadata to database without blob data
             const videoRecord = await saveVideoToDatabase(
-              existingJob.clerkId,
+              targetClerkId,  // Use folder owner's clerkId
               jobId,
               {
                 filename: videoInfo.filename,
@@ -548,6 +760,49 @@ export async function POST(
     else if (status === 'COMPLETED' && videos && Array.isArray(videos)) {
       console.log(`🎬 Processing ${videos.length} generated videos for job ${jobId}`);
       
+      // Determine the correct clerkId based on shared folder (same as images)
+      let targetClerkId = existingJob.clerkId;
+      
+      // Check if this is a shared folder by examining the first video's S3 key or path
+      if (videos.length > 0) {
+        const firstVideo = videos[0];
+        
+        // Check subfolder path for shared folder pattern
+        if (firstVideo.subfolder && firstVideo.subfolder.startsWith('outputs/')) {
+          // Extract user ID from path: outputs/{userId}/folder
+          const parts = firstVideo.subfolder.split('/');
+          if (parts.length >= 2) {
+            const ownerUserId = parts[1];
+            
+            // If owner is different from job creator, this is a shared folder
+            if (ownerUserId !== existingJob.clerkId) {
+              console.log(`🔓 Detected shared folder in videos - Owner: ${ownerUserId}, Job creator: ${existingJob.clerkId}`);
+              
+              // Verify owner exists in database
+              try {
+                const { PrismaClient } = await import('@/lib/generated/prisma');
+                const prisma = new PrismaClient();
+                
+                const owner = await prisma.user.findUnique({
+                  where: { clerkId: ownerUserId }
+                });
+                
+                await prisma.$disconnect();
+                
+                if (owner) {
+                  targetClerkId = ownerUserId;
+                  console.log(`✅ Using folder owner's clerkId for video blobs: ${targetClerkId}`);
+                } else {
+                  console.warn(`⚠️ Owner ${ownerUserId} not found in database, using job creator's clerkId`);
+                }
+              } catch (dbError) {
+                console.error('❌ Error validating folder owner:', dbError);
+              }
+            }
+          }
+        }
+      }
+      
       // Store videos in database and get URLs
       const videoUrls: string[] = [];
       
@@ -567,7 +822,7 @@ export async function POST(
             
             // Save directly to database with provided data
             const videoRecord = await saveVideoToDatabase(
-              existingJob.clerkId,
+              targetClerkId,  // Use folder owner's clerkId
               jobId,
               {
                 filename: videoInfo.filename,

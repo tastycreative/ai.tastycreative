@@ -24,8 +24,16 @@ from botocore.exceptions import ClientError, NoCredentialsError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def upload_image_to_aws_s3(image_data: str, filename: str, user_id: str, subfolder: str = '') -> Optional[tuple]:
-    """Upload base64 image data to AWS S3 and return the S3 key and public URL"""
+def upload_image_to_aws_s3(image_data: str, filename: str, user_id: str, subfolder: str = '', is_full_prefix: bool = False) -> Optional[tuple]:
+    """Upload base64 image data to AWS S3 and return the S3 key and public URL
+    
+    Args:
+        image_data: Base64 encoded image data
+        filename: Image filename
+        user_id: User ID for folder structure
+        subfolder: Subfolder path (can be full prefix if is_full_prefix=True)
+        is_full_prefix: If True, subfolder is treated as full S3 prefix path
+    """
     try:
         # Get AWS S3 credentials from environment
         aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
@@ -53,13 +61,20 @@ def upload_image_to_aws_s3(image_data: str, filename: str, user_id: str, subfold
         
         image_bytes = base64.b64decode(image_data)
         
-        # Generate S3 key with organized structure: outputs/{user_id}/{subfolder}/{filename}
+        # Generate S3 key with organized structure OR use full prefix for shared folders
         file_extension = filename.split('.')[-1] if '.' in filename else 'png'
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        
+        if is_full_prefix and subfolder:
+            # For shared folders: subfolder is already the full path like "outputs/owner_id/folder_name"
+            s3_key = f"{subfolder.rstrip('/')}/{filename}"
+            logger.info(f"📂 Using shared folder full prefix: {subfolder}")
+        else:
+            # Normal flow: build path from parts
+            s3_key_parts = ['outputs', user_id]
+            if subfolder:
+                s3_key_parts.append(subfolder)
+            s3_key_parts.append(filename)
+            s3_key = '/'.join(s3_key_parts)
         
         # Upload to S3 with proper content type and public access
         content_type = f"image/{file_extension.lower()}"
@@ -469,7 +484,7 @@ def get_image_from_comfyui(filename: str, subfolder: str = '', type_dir: str = '
         logger.error(f"Error downloading image {filename}: {e}")
         return None
 
-def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None) -> Dict:
+def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = None, workflow: Dict = None) -> Dict:
     """Monitor ComfyUI progress and return final result with comprehensive progress tracking"""
     try:
         logger.info(f"🔍 Starting progress monitoring for job: {job_id}")
@@ -669,11 +684,42 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                     image_count += 1
                                                     logger.info(f"🎨 Processing style transfer image {image_count} of {total_images}: {original_filename} -> {unique_filename}")
                                                     
+                                                    # Detect shared folder by checking workflow for filename_prefix in SaveImage node
+                                                    folder_prefix = None
+                                                    is_shared_folder = False
+                                                    
+                                                    if workflow:
+                                                        # Style transfer uses node "154" for SaveImage
+                                                        save_image_node = workflow.get("154")
+                                                        
+                                                        if save_image_node and "inputs" in save_image_node:
+                                                            filename_prefix = save_image_node["inputs"].get("filename_prefix", "")
+                                                            
+                                                            # Check if this is a shared folder (starts with "outputs/")
+                                                            if filename_prefix.startswith("outputs/"):
+                                                                logger.info(f"🔍 Detected shared folder pattern: {filename_prefix}")
+                                                                
+                                                                # Extract the full folder path (e.g., "outputs/user_xyz/FolderName")
+                                                                # Split by "/" and take first 3 parts
+                                                                path_parts = filename_prefix.split("/")
+                                                                if len(path_parts) >= 3:
+                                                                    folder_prefix = "/".join(path_parts[:3])
+                                                                    is_shared_folder = True
+                                                                    logger.info(f"📂 Using shared folder prefix: {folder_prefix}")
+                                                                    logger.info(f"👤 Image will be saved to folder owner's account")
+                                                                else:
+                                                                    logger.warning(f"⚠️ Invalid shared folder path format: {filename_prefix}")
+                                                            else:
+                                                                logger.info(f"📁 Using personal folder: {filename_prefix}")
+                                                    
                                                     # Download image and convert to base64
                                                     image_base64 = get_image_from_comfyui(original_filename, subfolder)
                                                     if image_base64:
-                                                        # Upload to AWS S3 with unique filename and subfolder, get S3 key + public URL
-                                                        aws_result = upload_image_to_aws_s3(image_base64, unique_filename, user_id, subfolder)
+                                                        # Upload to AWS S3 - use full prefix for shared folders
+                                                        if is_shared_folder and folder_prefix:
+                                                            aws_result = upload_image_to_aws_s3(image_base64, unique_filename, user_id, folder_prefix, is_full_prefix=True)
+                                                        else:
+                                                            aws_result = upload_image_to_aws_s3(image_base64, unique_filename, user_id, subfolder)
                                                         s3_key = None
                                                         public_url = None
                                                         
@@ -1173,7 +1219,7 @@ def run_style_transfer_generation(job_input, job_id, webhook_url):
             })
         
         # Monitor progress and get results
-        result = monitor_comfyui_progress(prompt_id, job_id, webhook_url, user_id)
+        result = monitor_comfyui_progress(prompt_id, job_id, webhook_url, user_id, workflow)
         
         if result['success']:
             logger.info(f"✅ Style transfer generation completed for job: {job_id}")

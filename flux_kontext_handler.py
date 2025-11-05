@@ -53,19 +53,33 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '') -> Dict[str, str]:
-    """Upload image to AWS S3 and return S3 key and public URL"""
+def upload_image_to_aws_s3(image_data: bytes, user_id: str, filename: str, subfolder: str = '', is_full_prefix: bool = False) -> Dict[str, str]:
+    """Upload image to AWS S3 and return S3 key and public URL
+    
+    Args:
+        image_data: Binary image data
+        user_id: User ID (used if is_full_prefix is False)
+        filename: Name of the file
+        subfolder: Either a subfolder name or a full S3 prefix path
+        is_full_prefix: If True, subfolder is treated as a complete S3 prefix (for shared folders)
+    """
     try:
         s3_client = get_aws_s3_client()
         if not s3_client:
             return {"success": False, "error": "Failed to initialize S3 client"}
         
-        # Create S3 key: outputs/{user_id}/{subfolder}/{filename}
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        # Create S3 key
+        if is_full_prefix and subfolder:
+            # subfolder is actually a full prefix like "outputs/owner_id/folder-name/"
+            # Just append the filename
+            s3_key = f"{subfolder.rstrip('/')}/{filename}"
+        else:
+            # Traditional path construction: outputs/{user_id}/{subfolder}/{filename}
+            s3_key_parts = ['outputs', user_id]
+            if subfolder:
+                s3_key_parts.append(subfolder)
+            s3_key_parts.append(filename)
+            s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading image to AWS S3: {s3_key}")
         
@@ -381,7 +395,7 @@ def start_comfyui():
         logger.error(f"❌ Error starting ComfyUI: {e}")
         raise
 
-def monitor_flux_kontext_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = 'unknown') -> Dict:
+def monitor_flux_kontext_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = 'unknown', workflow: Dict = None) -> Dict:
     """Monitor ComfyUI progress for Flux Kontext with real-time updates"""
     try:
         comfyui_url = "http://127.0.0.1:8188"
@@ -453,9 +467,34 @@ def monitor_flux_kontext_progress(prompt_id: str, job_id: str, webhook_url: str,
                                 # Download image from ComfyUI
                                 image_bytes = get_image_bytes_from_comfyui(filename, subfolder, type_dir)
                                 
-                                # Upload to AWS S3 using the subfolder from ComfyUI output
-                                # ComfyUI uses the folder from filename_prefix (e.g., "nov-2/FluxKontext_...")
-                                s3_result = upload_image_to_aws_s3(image_bytes, user_id, filename, subfolder)
+                                # Extract folder info from the workflow's filename_prefix
+                                # The prefix might be like "outputs/user_123/nov-5/FluxKontext_..." for shared folders
+                                # or just "nov-5/FluxKontext_..." for regular folders
+                                is_full_prefix = False
+                                folder_prefix = subfolder
+                                
+                                if workflow and "199" in workflow:
+                                    filename_prefix = workflow.get("199", {}).get("inputs", {}).get("filename_prefix", "")
+                                    
+                                    # Check if this is a full S3 prefix path (starts with "outputs/")
+                                    if filename_prefix.startswith("outputs/"):
+                                        is_full_prefix = True
+                                        # Extract the folder path from the prefix (remove the filename part after last meaningful folder)
+                                        # "outputs/user_123/nov-5/FluxKontext_..." -> "outputs/user_123/nov-5/"
+                                        prefix_parts = filename_prefix.split('/')
+                                        if len(prefix_parts) >= 3:
+                                            # Take outputs/user_id/folder-name
+                                            folder_prefix = '/'.join(prefix_parts[:3]) + '/'
+                                            logger.info(f"🔗 Using shared folder prefix: {folder_prefix}")
+                                
+                                # Upload to AWS S3
+                                s3_result = upload_image_to_aws_s3(
+                                    image_bytes, 
+                                    user_id, 
+                                    filename, 
+                                    folder_prefix,
+                                    is_full_prefix=is_full_prefix
+                                )
                                 
                                 if s3_result.get("success"):
                                     result_images.append({
@@ -541,8 +580,8 @@ def run_flux_kontext_generation(job_input, job_id, webhook_url):
         # Queue workflow
         prompt_id = queue_flux_kontext_workflow(workflow, job_id)
         
-        # Monitor progress and get results
-        result = monitor_flux_kontext_progress(prompt_id, job_id, webhook_url, user_id)
+        # Monitor progress and get results (pass workflow for shared folder detection)
+        result = monitor_flux_kontext_progress(prompt_id, job_id, webhook_url, user_id, workflow)
         
         return result
     

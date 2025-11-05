@@ -396,7 +396,13 @@ export default function ImageToVideoPage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<Array<{
+    slug: string;
+    name: string;
+    prefix: string;
+    permission: string;
+    isShared: boolean;
+  }>>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
 
   // Video-specific states
@@ -558,19 +564,34 @@ export default function ImageToVideoPage() {
         console.log("📊 Folders loaded:", data);
 
         if (data.success && Array.isArray(data.folders)) {
-          // Extract both slug and display name from folder objects
-          const foldersWithSlugs = data.folders.map((folder: any) => {
-            if (typeof folder === 'string') {
-              // Legacy: if it's just a string, use it as both slug and name
-              return { slug: folder, name: folder };
-            }
-            // Extract slug from prefix: outputs/userId/folder-slug/ -> folder-slug
-            const slug = folder.prefix?.split('/').filter(Boolean)[2] || folder.name;
-            return {
-              slug: slug,
-              name: folder.name
-            };
-          });
+          // Filter to only EDIT permission folders and extract slug, name, prefix, permission
+          const foldersWithSlugs = data.folders
+            .filter((folder: any) => {
+              // Only show folders with EDIT permission (or no permission field for owned folders)
+              return !folder.permission || folder.permission === 'EDIT';
+            })
+            .map((folder: any) => {
+              if (typeof folder === 'string') {
+                // Legacy: if it's just a string, use it as both slug and name
+                return { 
+                  slug: folder, 
+                  name: folder,
+                  prefix: `outputs/${user.id}/${folder}`,
+                  permission: 'EDIT',
+                  isShared: false
+                };
+              }
+              // Extract slug from prefix: outputs/userId/folder-slug/ -> folder-slug
+              const slug = folder.prefix?.split('/').filter(Boolean)[2] || folder.name;
+              const isShared = folder.permission === 'EDIT' && folder.ownerId !== user.id;
+              return {
+                slug: slug,
+                name: folder.name,
+                prefix: folder.prefix.replace(/\/$/, ''), // Remove trailing slash
+                permission: folder.permission || 'EDIT',
+                isShared
+              };
+            });
           setAvailableFolders(foldersWithSlugs);
           console.log("✅ Folders set with slugs:", foldersWithSlugs);
         } else {
@@ -978,6 +999,20 @@ export default function ImageToVideoPage() {
   // Create workflow JSON based on the provided ComfyUI workflow with fixed values
   const createWorkflowJson = (params: GenerationParams, targetFolder?: string) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
+    
+    // Find the folder object to check if it's a shared folder
+    const folderObj = availableFolders.find(f => f.slug === targetFolder);
+    const isSharedFolder = folderObj?.isShared || false;
+    
+    // Use full prefix for shared folders, otherwise build normal path
+    let filenamePrefix: string;
+    if (isSharedFolder && folderObj?.prefix) {
+      filenamePrefix = `${folderObj.prefix}/ImageToVideo`;
+    } else if (targetFolder) {
+      filenamePrefix = `${targetFolder}/ImageToVideo`;
+    } else {
+      filenamePrefix = "video/ComfyUI/wan2.2";
+    }
 
     const workflow: any = {
       "6": {
@@ -1139,7 +1174,7 @@ export default function ImageToVideoPage() {
       "131": {
         inputs: {
           video: ["57", 0],
-          filename_prefix: targetFolder ? `${targetFolder}/ImageToVideo` : "video/ComfyUI/wan2.2",
+          filename_prefix: filenamePrefix,
           format: "auto",
           codec: "auto",
         },
@@ -1751,7 +1786,7 @@ export default function ImageToVideoPage() {
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
                     <option key={folder.slug} value={folder.slug}>
-                      {folder.name}
+                      {folder.isShared ? '🔓 ' : '📁 '}{folder.name}
                     </option>
                   ))}
                 </select>
@@ -1767,7 +1802,11 @@ export default function ImageToVideoPage() {
 
               {targetFolder && (
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  📁 Saving to: outputs/{user?.id}/{targetFolder}/
+                  {availableFolders.find(f => f.slug === targetFolder)?.isShared ? '🔓' : '📁'} Saving to: {
+                    availableFolders.find(f => f.slug === targetFolder)?.isShared 
+                      ? availableFolders.find(f => f.slug === targetFolder)?.prefix + '/'
+                      : `outputs/${user?.id}/${targetFolder}/`
+                  }
                   {availableFolders.find(f => f.slug === targetFolder) && (
                     <span className="ml-1 text-purple-600 dark:text-purple-400">
                       ({availableFolders.find(f => f.slug === targetFolder)?.name})

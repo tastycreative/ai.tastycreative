@@ -229,7 +229,7 @@ export default function FPSBoostPage() {
   const [videoStats, setVideoStats] = useState<any>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string, prefix: string, isShared?: boolean, permission?: 'VIEW' | 'EDIT'}>>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -260,17 +260,28 @@ export default function FPSBoostPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.folders) {
-          // Create folder objects with both slug (for API) and name (for display)
+          // Create folder objects with slug, name, prefix, shared status, and permission
           const folders = data.folders.map((folder: any) => {
             if (typeof folder === 'string') {
-              return { slug: folder, name: folder };
+              return { slug: folder, name: folder, prefix: `outputs/${user.id}/${folder}/`, isShared: false, permission: 'EDIT' as const };
             }
             // Extract slug from prefix: outputs/{userId}/{slug}/
             const parts = folder.prefix.split('/').filter(Boolean);
             const slug = parts[2] || folder.name;
-            return { slug, name: folder.name };
+            return { 
+              slug, 
+              name: folder.name, 
+              prefix: folder.prefix,
+              isShared: folder.isShared || false,
+              permission: folder.permission || 'EDIT' as 'VIEW' | 'EDIT'
+            };
           });
-          setAvailableFolders(folders);
+          
+          // Filter to only show folders with EDIT permission
+          const editableFolders = folders.filter((f: any) => !f.isShared || f.permission === 'EDIT');
+          
+          setAvailableFolders(editableFolders);
+          console.log('📁 Loaded editable folders with prefixes:', editableFolders);
         }
       }
     } catch (error) {
@@ -400,7 +411,7 @@ export default function FPSBoostPage() {
           images: ["2", 0],
           frame_rate: params.targetFPS,
           loop_count: 0,
-          filename_prefix: `${params.targetFolder}/fps_boosted`,
+          filename_prefix: `${params.targetFolder}fps_boosted`,
           format: "video/h264-mp4",
           pix_fmt: "yuv420p",
           crf: 19,
@@ -742,16 +753,17 @@ export default function FPSBoostPage() {
                   <select
                     value={params.targetFolder}
                     onChange={(e) => {
-                      console.log("🔄 Folder selection changed to:", e.target.value);
-                      setParams((prev) => ({ ...prev, targetFolder: e.target.value }));
+                      const selectedPrefix = e.target.value;
+                      console.log("🔄 Folder selection changed to:", selectedPrefix);
+                      setParams((prev) => ({ ...prev, targetFolder: selectedPrefix }));
                     }}
                     disabled={isLoadingFolders}
                     className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="">Select a folder...</option>
                     {availableFolders.map((folder) => (
-                      <option key={folder.slug} value={folder.slug}>
-                        📁 {folder.name}
+                      <option key={folder.prefix} value={folder.prefix}>
+                        {folder.isShared ? '� ' : '📁 '}{folder.name}
                       </option>
                     ))}
                   </select>
@@ -766,7 +778,7 @@ export default function FPSBoostPage() {
                 {params.targetFolder && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
                     <span>💡</span>
-                    <span>Saving to: outputs/your-id/{params.targetFolder}/</span>
+                    <span>Saving to: {params.targetFolder}</span>
                   </p>
                 )}
               </div>

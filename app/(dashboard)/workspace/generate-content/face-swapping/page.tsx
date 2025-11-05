@@ -230,7 +230,13 @@ export default function FaceSwappingPage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<Array<{
+    slug: string;
+    name: string;
+    prefix: string;
+    permission?: 'VIEW' | 'EDIT';
+    isShared?: boolean;
+  }>>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
 
   // Original image states (image with face to be replaced)
@@ -1119,18 +1125,35 @@ export default function FaceSwappingPage() {
         console.log("📊 Folders loaded:", data);
 
         if (data.success && Array.isArray(data.folders)) {
-          // Create folder objects with both slug (for API) and name (for display)
-          const folders = data.folders.map((folder: any) => {
-            if (typeof folder === 'string') {
-              return { slug: folder, name: folder };
-            }
-            // Extract slug from prefix: outputs/{userId}/{slug}/
-            const parts = folder.prefix.split('/').filter(Boolean);
-            const slug = parts[2] || folder.name;
-            return { slug, name: folder.name };
-          });
+          // Filter to only show folders with EDIT permission (own folders + shared with edit)
+          const folders = data.folders
+            .filter((folder: any) => {
+              // Show own folders and shared folders with EDIT permission
+              return !folder.permission || folder.permission === 'EDIT';
+            })
+            .map((folder: any) => {
+              if (typeof folder === 'string') {
+                return { 
+                  slug: folder, 
+                  name: folder,
+                  prefix: `outputs/${user.id}/${folder}`,
+                  permission: undefined,
+                  isShared: false
+                };
+              }
+              // Extract slug from prefix: outputs/{userId}/{slug}/
+              const parts = folder.prefix.split('/').filter(Boolean);
+              const slug = parts[2] || folder.name;
+              return { 
+                slug, 
+                name: folder.name,
+                prefix: folder.prefix,
+                permission: folder.permission,
+                isShared: folder.isShared || false
+              };
+            });
           setAvailableFolders(folders);
-          console.log("✅ Folders set:", folders);
+          console.log("✅ Folders set (EDIT only):", folders);
         } else {
           console.error("⚠️ Invalid folders response:", data);
           setAvailableFolders([]);
@@ -1753,6 +1776,21 @@ export default function FaceSwappingPage() {
   ) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
 
+    // Determine the filename prefix based on whether it's a shared folder
+    let filenamePrefix = "PureInpaint_FaceSwap";
+    if (targetFolder) {
+      // Check if this is a shared folder (contains full prefix like "outputs/userId/folderName")
+      const selectedFolder = availableFolders.find(f => f.slug === targetFolder);
+      if (selectedFolder?.isShared && selectedFolder.prefix) {
+        // For shared folders, use the full prefix
+        filenamePrefix = `${selectedFolder.prefix}/FaceSwap`;
+        console.log("🔓 Using shared folder full prefix:", filenamePrefix);
+      } else {
+        // For own folders, use the slug
+        filenamePrefix = `${targetFolder}/FaceSwap`;
+      }
+    }
+
     // Simplified pure inpainting workflow - with face reference
     const workflow: any = {
       // Load models
@@ -1889,7 +1927,7 @@ export default function FaceSwappingPage() {
       "413": {
         inputs: {
           images: ["415", 0],
-          filename_prefix: targetFolder ? `${targetFolder}/FaceSwap` : "PureInpaint_FaceSwap",
+          filename_prefix: filenamePrefix,
         },
         class_type: "SaveImage",
       },
@@ -2086,7 +2124,7 @@ export default function FaceSwappingPage() {
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
                     <option key={folder.slug} value={folder.slug}>
-                      {folder.name}
+                      {folder.isShared ? '🔓 ' : '📁 '}{folder.name}
                     </option>
                   ))}
                 </select>
@@ -2102,7 +2140,10 @@ export default function FaceSwappingPage() {
 
               {targetFolder && (
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  📁 Saving to: outputs/{user?.id}/{targetFolder}/
+                  {availableFolders.find(f => f.slug === targetFolder)?.isShared 
+                    ? `🔓 Shared folder: ${availableFolders.find(f => f.slug === targetFolder)?.prefix}/`
+                    : `📁 Saving to: outputs/${user?.id}/${targetFolder}/`
+                  }
                 </div>
               )}
             </div>

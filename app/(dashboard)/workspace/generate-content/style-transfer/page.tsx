@@ -237,7 +237,13 @@ export default function StyleTransferPage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<Array<{
+    slug: string;
+    name: string;
+    prefix: string;
+    permission: string;
+    isShared: boolean;
+  }>>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   // Database image states
@@ -706,16 +712,34 @@ export default function StyleTransferPage() {
         if (response.ok) {
           const data = await response.json();
           if (data.success && Array.isArray(data.folders)) {
-            // Extract both slug and display name from folder objects
-            const folderObjects = data.folders.map((folder: any) => {
-              if (typeof folder === 'string') {
-                return { slug: folder, name: folder };
-              }
-              // Extract slug from prefix: "outputs/userId/folder-slug/" -> "folder-slug"
-              const parts = folder.prefix.split('/').filter(Boolean);
-              const slug = parts[2] || folder.name;
-              return { slug, name: folder.name };
-            });
+            // Filter to only EDIT permission folders and extract slug, name, prefix, permission
+            const folderObjects = data.folders
+              .filter((folder: any) => {
+                // Only show folders with EDIT permission (or no permission field for owned folders)
+                return !folder.permission || folder.permission === 'EDIT';
+              })
+              .map((folder: any) => {
+                if (typeof folder === 'string') {
+                  return { 
+                    slug: folder, 
+                    name: folder,
+                    prefix: `outputs/${user.id}/${folder}`,
+                    permission: 'EDIT',
+                    isShared: false
+                  };
+                }
+                // Extract slug from prefix: "outputs/userId/folder-slug/" -> "folder-slug"
+                const parts = folder.prefix.split('/').filter(Boolean);
+                const slug = parts[2] || folder.name;
+                const isShared = folder.permission === 'EDIT' && folder.ownerId !== user.id;
+                return { 
+                  slug, 
+                  name: folder.name,
+                  prefix: folder.prefix.replace(/\/$/, ''), // Remove trailing slash
+                  permission: folder.permission || 'EDIT',
+                  isShared
+                };
+              });
             setAvailableFolders(folderObjects);
           }
         }
@@ -1626,6 +1650,20 @@ export default function StyleTransferPage() {
     // Determine the last LoRA node ID for chaining
     const loraCount = params.loras.length;
     const lastLoraNodeId = loraCount > 1 ? `5${loraCount}` : "51";
+    
+    // Find the folder object to check if it's a shared folder
+    const folderObj = availableFolders.find(f => f.slug === targetFolder);
+    const isSharedFolder = folderObj?.isShared || false;
+    
+    // Use full prefix for shared folders, otherwise build normal path
+    let filenamePrefix: string;
+    if (isSharedFolder && folderObj?.prefix) {
+      filenamePrefix = `${folderObj.prefix}/StyleTransfer`;
+    } else if (targetFolder) {
+      filenamePrefix = `${targetFolder}/StyleTransfer`;
+    } else {
+      filenamePrefix = "ComfyUI";
+    }
 
     const workflow: any = {
       "8": {
@@ -1637,7 +1675,7 @@ export default function StyleTransferPage() {
       },
       "154": {
         inputs: {
-          filename_prefix: targetFolder ? `${targetFolder}/StyleTransfer` : "ComfyUI",
+          filename_prefix: filenamePrefix,
           images: ["8", 0],
         },
         class_type: "SaveImage",
@@ -1883,7 +1921,11 @@ export default function StyleTransferPage() {
                     className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-left flex items-center justify-between hover:border-purple-400 dark:hover:border-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center space-x-2">
-                      <Folder className="w-4 h-4 text-purple-600" />
+                      {availableFolders.find(f => f.slug === targetFolder)?.isShared ? (
+                        <span>🔓</span>
+                      ) : (
+                        <Folder className="w-4 h-4 text-purple-600" />
+                      )}
                       <span className="text-slate-700 dark:text-slate-300">
                         {isLoadingFolders ? "Loading folders..." : (availableFolders.find(f => f.slug === targetFolder)?.name || targetFolder || "Select a folder...")}
                       </span>
@@ -1901,7 +1943,7 @@ export default function StyleTransferPage() {
                     <option value="">Select a folder...</option>
                     {availableFolders.map((folder) => (
                       <option key={folder.slug} value={folder.slug}>
-                        {folder.name}
+                        {folder.isShared ? '🔓 ' : '📁 '}{folder.name}
                       </option>
                     ))}
                   </select>
@@ -1909,8 +1951,13 @@ export default function StyleTransferPage() {
 
                 {targetFolder && user && (
                   <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1">
-                    <span>📁</span>
-                    <span>outputs/{user.id}/{targetFolder}/</span>
+                    <span>{availableFolders.find(f => f.slug === targetFolder)?.isShared ? '🔓' : '📁'}</span>
+                    <span>
+                      {availableFolders.find(f => f.slug === targetFolder)?.isShared 
+                        ? availableFolders.find(f => f.slug === targetFolder)?.prefix + '/'
+                        : `outputs/${user.id}/${targetFolder}/`
+                      }
+                    </span>
                   </div>
                 )}
               </div>

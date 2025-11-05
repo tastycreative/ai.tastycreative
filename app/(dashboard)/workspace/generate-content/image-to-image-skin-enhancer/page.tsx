@@ -97,7 +97,7 @@ export default function ImageToImageSkinEnhancerPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
   const [targetFolder, setTargetFolder] = useState<string>('');
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string, prefix?: string, permission?: 'VIEW' | 'EDIT'}>>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
@@ -132,16 +132,24 @@ export default function ImageToImageSkinEnhancerPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.folders) {
-          // Create folder objects with both slug (for API) and name (for display)
-          const folders = data.folders.map((folder: any) => {
-            if (typeof folder === 'string') {
-              return { slug: folder, name: folder };
-            }
-            // Extract slug from prefix: outputs/{userId}/{slug}/
-            const parts = folder.prefix.split('/').filter(Boolean);
-            const slug = parts[2] || folder.name;
-            return { slug, name: folder.name };
-          });
+          // Create folder objects with full prefix, permission, and display name
+          const folders = data.folders
+            .map((folder: any) => {
+              if (typeof folder === 'string') {
+                return { slug: folder, name: folder, prefix: `outputs/${user.id}/${folder}`, permission: 'EDIT' as const };
+              }
+              // Extract slug from prefix: outputs/{userId}/{slug}/
+              const parts = folder.prefix.split('/').filter(Boolean);
+              const slug = parts[2] || folder.name;
+              return { 
+                slug, 
+                name: folder.name,
+                prefix: folder.prefix?.replace(/\/$/, ''), // Store full prefix without trailing slash
+                permission: folder.permission || 'EDIT' as const
+              };
+            })
+            // Filter to only show folders with EDIT permission
+            .filter((folder: any) => folder.permission === 'EDIT');
           setAvailableFolders(folders);
         }
       }
@@ -835,7 +843,7 @@ export default function ImageToImageSkinEnhancerPage() {
       "38": {
         "inputs": {
           "images": ["13", 0],
-          "filename_prefix": `${targetFolder}/SkinEnhancer`
+          "filename_prefix": targetFolder ? `${targetFolder}/SkinEnhancer` : "SkinEnhancer"
         },
         "class_type": "SaveImage",
         "_meta": {
@@ -1310,11 +1318,17 @@ export default function ImageToImageSkinEnhancerPage() {
                   className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-sm"
                 >
                   <option value="">Select a folder...</option>
-                  {availableFolders.map((folder) => (
-                    <option key={folder.slug} value={folder.slug}>
-                      📁 {folder.name}
-                    </option>
-                  ))}
+                  {availableFolders.map((folder) => {
+                    // Check if this is a shared folder by looking at the prefix
+                    const isSharedFolder = folder.prefix && !folder.prefix.startsWith(`outputs/${user?.id}/`);
+                    const icon = isSharedFolder ? '🔓' : '📁';
+                    
+                    return (
+                      <option key={folder.slug} value={folder.prefix || folder.slug}>
+                        {icon} {folder.name}
+                      </option>
+                    );
+                  })}
                 </select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   {isLoadingFolders ? (
@@ -1327,7 +1341,7 @@ export default function ImageToImageSkinEnhancerPage() {
               {targetFolder && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 flex items-center space-x-1">
                   <span>💡</span>
-                  <span>Saving to: outputs/your-id/{targetFolder}/</span>
+                  <span>Saving to: {targetFolder.startsWith('outputs/') ? targetFolder : `outputs/${user?.id}/${targetFolder}`}/</span>
                 </p>
               )}
             </div>

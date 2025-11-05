@@ -140,7 +140,60 @@ export async function DELETE(request: NextRequest) {
       console.log('No placeholder to delete');
     }
 
-    console.log(`✅ Deleted ${deletedCount} objects from folder`);
+    console.log(`✅ Deleted ${deletedCount} objects from S3 folder`);
+
+    // Delete database records for images and videos in this folder
+    try {
+      console.log('🗑️ Deleting database records for folder content...');
+      
+      // Delete images where awsS3Key starts with the folder prefix
+      const deletedImages = await prisma.generatedImage.deleteMany({
+        where: {
+          awsS3Key: {
+            startsWith: folderPrefix,
+          },
+        },
+      });
+      console.log(`✅ Deleted ${deletedImages.count} image record(s) from database`);
+
+      // Delete videos where awsS3Key starts with the folder prefix
+      const deletedVideos = await prisma.generatedVideo.deleteMany({
+        where: {
+          awsS3Key: {
+            startsWith: folderPrefix,
+          },
+        },
+      });
+      console.log(`✅ Deleted ${deletedVideos.count} video record(s) from database`);
+
+      // Also delete records that might be stored with the old s3Key format
+      const deletedImagesOld = await prisma.generatedImage.deleteMany({
+        where: {
+          s3Key: {
+            startsWith: folderPrefix,
+          },
+        },
+      });
+      
+      const deletedVideosOld = await prisma.generatedVideo.deleteMany({
+        where: {
+          s3Key: {
+            startsWith: folderPrefix,
+          },
+        },
+      });
+
+      if (deletedImagesOld.count > 0 || deletedVideosOld.count > 0) {
+        console.log(`✅ Deleted ${deletedImagesOld.count} old image record(s) and ${deletedVideosOld.count} old video record(s)`);
+      }
+
+    } catch (dbError) {
+      console.error('❌ Error deleting database records:', dbError);
+      // Continue even if database deletion fails
+      // The S3 files are already deleted, which is the primary concern
+    }
+
+    console.log(`✅ Folder deletion complete: ${deletedCount} S3 objects deleted`);
 
     return NextResponse.json({
       success: true,

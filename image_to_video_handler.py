@@ -54,20 +54,34 @@ def get_aws_s3_client():
         logger.error(f"❌ Failed to initialize AWS S3 client: {e}")
         return None
 
-def upload_video_to_aws_s3(video_data: bytes, user_id: str, filename: str, subfolder: str = '') -> Dict[str, str]:
-    """Upload video to AWS S3 and return S3 key and public URL"""
+def upload_video_to_aws_s3(video_data: bytes, user_id: str, filename: str, subfolder: str = '', is_full_prefix: bool = False) -> Dict[str, str]:
+    """Upload video to AWS S3 and return S3 key and public URL
+    
+    Args:
+        video_data: Video file bytes
+        user_id: User ID for folder structure
+        filename: Video filename
+        subfolder: Subfolder path (can be full prefix if is_full_prefix=True)
+        is_full_prefix: If True, subfolder is treated as full S3 prefix path
+    """
     try:
         s3_client = get_aws_s3_client()
         if not s3_client:
             logger.error("❌ AWS S3 client not available")
             return {"success": False, "error": "S3 client not available"}
         
-        # Create S3 key with subfolder support: outputs/{user_id}/{subfolder}/{filename}
-        s3_key_parts = ['outputs', user_id]
-        if subfolder:
-            s3_key_parts.append(subfolder)
-        s3_key_parts.append(filename)
-        s3_key = '/'.join(s3_key_parts)
+        # Generate S3 key with organized structure OR use full prefix for shared folders
+        if is_full_prefix and subfolder:
+            # For shared folders: subfolder is already the full path like "outputs/owner_id/folder_name"
+            s3_key = f"{subfolder.rstrip('/')}/{filename}"
+            logger.info(f"📂 Using shared folder full prefix: {subfolder}")
+        else:
+            # Normal flow: build path from parts
+            s3_key_parts = ['outputs', user_id]
+            if subfolder:
+                s3_key_parts.append(subfolder)
+            s3_key_parts.append(filename)
+            s3_key = '/'.join(s3_key_parts)
         
         logger.info(f"📤 Uploading video to AWS S3: {s3_key}")
         
@@ -546,7 +560,7 @@ def download_image_with_unique_name(image_filename: str, job_input: dict) -> tup
         logger.error(f"❌ Error creating unique image filename: {e}")
         return False, image_filename
 
-def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = "default_user", subfolder: str = '') -> Dict:
+def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: str, user_id: str = "default_user", subfolder: str = '', workflow: Dict = None) -> Dict:
     """Monitor ComfyUI progress for video generation with detailed progress tracking"""
     try:
         logger.info(f"👁️ Starting video generation progress monitoring for job: {job_id}")
@@ -645,6 +659,34 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                             webhook_videos = []
                                             outputs = job_data.get('outputs', {})
                                             
+                                            # Detect shared folder by checking workflow for filename_prefix in SaveVideo node
+                                            folder_prefix = None
+                                            is_shared_folder = False
+                                            
+                                            if workflow:
+                                                # Image-to-video uses node "131" for SaveVideo
+                                                save_video_node = workflow.get("131")
+                                                
+                                                if save_video_node and "inputs" in save_video_node:
+                                                    filename_prefix = save_video_node["inputs"].get("filename_prefix", "")
+                                                    
+                                                    # Check if this is a shared folder (starts with "outputs/")
+                                                    if filename_prefix.startswith("outputs/"):
+                                                        logger.info(f"🔍 Detected shared folder pattern: {filename_prefix}")
+                                                        
+                                                        # Extract the full folder path (e.g., "outputs/user_xyz/FolderName")
+                                                        # Split by "/" and take first 3 parts
+                                                        path_parts = filename_prefix.split("/")
+                                                        if len(path_parts) >= 3:
+                                                            folder_prefix = "/".join(path_parts[:3])
+                                                            is_shared_folder = True
+                                                            logger.info(f"📂 Using shared folder prefix: {folder_prefix}")
+                                                            logger.info(f"👤 Video will be saved to folder owner's account")
+                                                        else:
+                                                            logger.warning(f"⚠️ Invalid shared folder path format: {filename_prefix}")
+                                                    else:
+                                                        logger.info(f"📁 Using personal folder: {filename_prefix}")
+                                            
                                             # Debug: log the actual output structure
                                             logger.info(f"🔍 ComfyUI outputs structure: {list(outputs.keys())}")
                                             for node_id, output in outputs.items():
@@ -669,13 +711,22 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                             )
                                                             
                                                             if video_bytes:
-                                                                # Save to AWS S3 (primary storage)
-                                                                aws_s3_result = upload_video_to_aws_s3(
-                                                                    video_bytes,
-                                                                    user_id,
-                                                                    vid_info['filename'],
-                                                                    subfolder
-                                                                )
+                                                                # Save to AWS S3 - use full prefix for shared folders
+                                                                if is_shared_folder and folder_prefix:
+                                                                    aws_s3_result = upload_video_to_aws_s3(
+                                                                        video_bytes,
+                                                                        user_id,
+                                                                        vid_info['filename'],
+                                                                        folder_prefix,
+                                                                        is_full_prefix=True
+                                                                    )
+                                                                else:
+                                                                    aws_s3_result = upload_video_to_aws_s3(
+                                                                        video_bytes,
+                                                                        user_id,
+                                                                        vid_info['filename'],
+                                                                        subfolder
+                                                                    )
                                                                 
                                                                 if aws_s3_result["success"]:
                                                                     webhook_videos.append({
@@ -712,13 +763,22 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                                 )
                                                                 
                                                                 if video_bytes:
-                                                                    # Save to AWS S3 (primary storage)
-                                                                    aws_s3_result = upload_video_to_aws_s3(
-                                                                        video_bytes,
-                                                                        user_id,
-                                                                        filename,
-                                                                        subfolder
-                                                                    )
+                                                                    # Save to AWS S3 - use full prefix for shared folders
+                                                                    if is_shared_folder and folder_prefix:
+                                                                        aws_s3_result = upload_video_to_aws_s3(
+                                                                            video_bytes,
+                                                                            user_id,
+                                                                            filename,
+                                                                            folder_prefix,
+                                                                            is_full_prefix=True
+                                                                        )
+                                                                    else:
+                                                                        aws_s3_result = upload_video_to_aws_s3(
+                                                                            video_bytes,
+                                                                            user_id,
+                                                                            filename,
+                                                                            subfolder
+                                                                        )
                                                                     
                                                                     if aws_s3_result["success"]:
                                                                         webhook_videos.append({
@@ -755,13 +815,22 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                         )
                                                         
                                                         if video_bytes:
-                                                            # Save to AWS S3 (primary storage)
-                                                            aws_s3_result = upload_video_to_aws_s3(
-                                                                video_bytes,
-                                                                user_id,
-                                                                filename,
-                                                                subfolder
-                                                            )
+                                                            # Save to AWS S3 - use full prefix for shared folders
+                                                            if is_shared_folder and folder_prefix:
+                                                                aws_s3_result = upload_video_to_aws_s3(
+                                                                    video_bytes,
+                                                                    user_id,
+                                                                    filename,
+                                                                    folder_prefix,
+                                                                    is_full_prefix=True
+                                                                )
+                                                            else:
+                                                                aws_s3_result = upload_video_to_aws_s3(
+                                                                    video_bytes,
+                                                                    user_id,
+                                                                    filename,
+                                                                    subfolder
+                                                                )
                                                             
                                                             if aws_s3_result["success"]:
                                                                 webhook_videos.append({
@@ -1071,7 +1140,8 @@ def run_image_to_video_generation(job_input, job_id, webhook_url):
             job_id, 
             webhook_url, 
             job_input.get('user_id', 'default_user'),
-            subfolder
+            subfolder,
+            workflow
         )
         return result
         
