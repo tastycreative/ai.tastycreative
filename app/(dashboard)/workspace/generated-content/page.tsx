@@ -3588,16 +3588,13 @@ export default function GeneratedContentPage() {
                     <FolderInput className="w-4 h-4" />
                     <span>Move to Folder</span>
                   </button>
-                  {/* Only show bulk delete if: not in a folder, in own folder, or in shared folder with EDIT permission */}
-                  {(!selectedFolderInfo || !selectedFolderInfo.isShared || selectedFolderInfo.permission === 'EDIT') && (
-                    <button
-                      onClick={bulkDelete}
-                      className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={bulkDelete}
+                    className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete</span>
+                  </button>
                   <button
                     onClick={openTaskModal}
                     disabled={linkingContent}
@@ -4565,19 +4562,17 @@ export default function GeneratedContentPage() {
                           <FolderOpen className="w-4 h-4" />
                         </button>
 
-                        {/* Delete Button - Only show if: not in a folder, in own folder, or in shared folder with EDIT permission */}
-                        {(!selectedFolderInfo || !selectedFolderInfo.isShared || selectedFolderInfo.permission === 'EDIT') && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteItem(item);
-                            }}
-                            className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200 flex items-center justify-center`}
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        {/* Delete Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteItem(item);
+                          }}
+                          className={`p-2.5 ${isMobile ? 'min-h-[44px]' : ''} bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200 flex items-center justify-center`}
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
 
@@ -4933,16 +4928,13 @@ export default function GeneratedContentPage() {
                         >
                           <Share2 className="w-4 h-4" />
                         </button>
-                        {/* Only show delete button if: not in a folder, in own folder, or in shared folder with EDIT permission */}
-                        {(!selectedFolderInfo || !selectedFolderInfo.isShared || selectedFolderInfo.permission === 'EDIT') && (
-                          <button
-                            onClick={() => deleteItem(item)}
-                            className="p-2 text-red-400 hover:text-red-600 dark:hover:text-red-300 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
-                            title="Delete item"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => deleteItem(item)}
+                          className="p-2 text-red-400 hover:text-red-600 dark:hover:text-red-300 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20"
+                          title="Delete item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -5148,20 +5140,15 @@ export default function GeneratedContentPage() {
             <span>Add to Task</span>
           </button>
           
-          {/* Only show delete option if: not in a folder, in own folder, or in shared folder with EDIT permission */}
-          {(!selectedFolderInfo || !selectedFolderInfo.isShared || selectedFolderInfo.permission === 'EDIT') && (
-            <>
-              <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-              
-              <button
-                onClick={contextMenuDelete}
-                className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center space-x-2 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete</span>
-              </button>
-            </>
-          )}
+          <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+          
+          <button
+            onClick={contextMenuDelete}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center space-x-2 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Delete</span>
+          </button>
         </div>
       )}
 

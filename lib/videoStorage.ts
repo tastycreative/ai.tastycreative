@@ -527,57 +527,19 @@ export async function deleteVideo(
   console.log('🗑️ Deleting video:', videoId, 'for user:', clerkId);
   
   try {
-    // First, get the video to check ownership or permissions
+    // First, get the video to find its AWS S3 key
     const video = await prisma.generatedVideo.findUnique({
       where: {
         id: videoId,
+        clerkId // Ensure user can only delete their own videos
       },
       select: {
-        clerkId: true,
-        awsS3Key: true,
+        awsS3Key: true
       }
     });
 
     if (!video) {
-      console.warn('⚠️ Video not found');
-      return false;
-    }
-
-    // Check if user owns the video
-    const isOwner = video.clerkId === clerkId;
-    
-    // If not owner, check if user has EDIT permission on the folder
-    let hasEditPermission = false;
-    if (!isOwner && video.awsS3Key) {
-      // Extract folder prefix from awsS3Key
-      // Format: "outputs/owner_id/folder-name/filename.ext"
-      const s3KeyParts = video.awsS3Key.split('/');
-      if (s3KeyParts.length >= 3 && s3KeyParts[0] === 'outputs') {
-        const folderPrefix = `${s3KeyParts[0]}/${s3KeyParts[1]}/${s3KeyParts[2]}/`;
-        
-        // Check if current user has EDIT permission on this folder
-        const folderShare = await prisma.folderShare.findUnique({
-          where: {
-            folderPrefix_sharedWithClerkId: {
-              folderPrefix: folderPrefix,
-              sharedWithClerkId: clerkId,
-            },
-          },
-          select: {
-            permission: true,
-          },
-        });
-        
-        if (folderShare && folderShare.permission === 'EDIT') {
-          hasEditPermission = true;
-          console.log(`✅ User has EDIT permission on folder: ${folderPrefix}`);
-        }
-      }
-    }
-
-    // User must either own the video or have EDIT permission
-    if (!isOwner && !hasEditPermission) {
-      console.warn('⚠️ User not authorized to delete this video');
+      console.warn('⚠️ Video not found or user not authorized');
       return false;
     }
 
@@ -602,6 +564,7 @@ export async function deleteVideo(
     await prisma.generatedVideo.delete({
       where: {
         id: videoId,
+        clerkId
       }
     });
     

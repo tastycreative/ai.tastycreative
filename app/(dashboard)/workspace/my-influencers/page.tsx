@@ -28,8 +28,10 @@ import {
   HardDrive,
   BarChart3,
   Sparkles,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
+import ShareLoRAModal from "@/components/ShareLoRAModal";
 
 // Types
 interface InfluencerLoRA {
@@ -48,6 +50,10 @@ interface InfluencerLoRA {
   syncStatus?: "pending" | "synced" | "missing" | "error";
   lastUsedAt?: string;
   comfyUIPath?: string;
+  isShared?: boolean;
+  sharedBy?: string;
+  ownerClerkId?: string;
+  hasShares?: boolean;
 }
 
 interface UploadProgress {
@@ -90,6 +96,8 @@ export default function MyInfluencersPage() {
     null
   );
   const [isDeleting, setIsDeleting] = useState(false);
+  const [shareLoRAModalOpen, setShareLoRAModalOpen] = useState(false);
+  const [loraToShare, setLoraToShare] = useState<InfluencerLoRA | null>(null);
 
   // ✅ Get the authenticated API client and user
   const apiClient = useApiClient();
@@ -872,6 +880,12 @@ export default function MyInfluencersPage() {
     }
   };
 
+  // Handle share button click
+  const handleShareLoRA = (influencer: InfluencerLoRA) => {
+    setLoraToShare(influencer);
+    setShareLoRAModalOpen(true);
+  };
+
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -994,6 +1008,10 @@ export default function MyInfluencersPage() {
   const missingCount = influencers.filter(
     (inf) => inf.syncStatus === "missing"
   ).length;
+
+  // Separate owned and shared LoRAs
+  const ownedInfluencers = influencers.filter((inf) => !inf.isShared);
+  const sharedInfluencers = influencers.filter((inf) => inf.isShared);
 
   return (
     <div className="space-y-6">
@@ -1205,8 +1223,20 @@ export default function MyInfluencersPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {influencers.map((influencer) => {
+        <>
+          {/* My Own LoRAs */}
+          {ownedInfluencers.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  My LoRA Models
+                </h2>
+                <span className="px-2 py-1 text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">
+                  {ownedInfluencers.length}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {ownedInfluencers.map((influencer) => {
             const isThumbnailUploading =
               thumbnailUploadingId === influencer.id;
             const statusClass =
@@ -1344,20 +1374,161 @@ export default function MyInfluencersPage() {
                       </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setDeleteCandidate(influencer)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDeleteCandidate(influencer)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+
+                      {/* Share button - only for owned LoRAs */}
+                      {!influencer.isShared && (
+                        <button
+                          type="button"
+                          onClick={() => handleShareLoRA(influencer)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white shadow-md transition-all"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>{influencer.hasShares ? 'Shared' : 'Share'}</span>
+                        </button>
+                      )}
+
+                      {/* Shared badge - only for shared LoRAs */}
+                      {influencer.isShared && (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold rounded-full">
+                          <Users className="w-3 h-3" />
+                          <span>Shared by {influencer.sharedBy}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
+              </div>
+            )}
+
+          {/* Shared With Me LoRAs */}
+          {sharedInfluencers.length > 0 && (
+            <div className="space-y-4 mt-8">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-purple-300 dark:via-purple-700 to-transparent" />
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Shared With Me
+                  </h2>
+                  <span className="px-2 py-1 text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">
+                    {sharedInfluencers.length}
+                  </span>
+                </div>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-purple-300 dark:via-purple-700 to-transparent" />
+              </div>
+
+              <div className="bg-purple-50/50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                <p className="text-sm text-purple-700 dark:text-purple-300 flex items-center gap-2">
+                  <Info className="w-4 h-4" />
+                  These LoRA models have been shared with you by other users. You can use them in your generations.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {sharedInfluencers.map((influencer) => {
+                  const statusClass =
+                    influencer.syncStatus === "synced"
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      : influencer.syncStatus === "pending"
+                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+                      : influencer.syncStatus === "missing" ||
+                        influencer.syncStatus === "error"
+                      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                      : "bg-gray-200 text-gray-700 dark:bg-gray-700/40 dark:text-gray-200";
+
+                  return (
+                    <div
+                      key={influencer.id}
+                      className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 shadow-lg rounded-xl border-2 border-purple-300 dark:border-purple-700 p-3 sm:p-4 backdrop-blur-sm hover:shadow-xl transition-all duration-300 relative"
+                    >
+                      {/* Shared badge */}
+                      <div className="absolute top-2 right-2 z-10">
+                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs font-semibold rounded-full shadow-sm">
+                          <Users className="w-3 h-3" />
+                          <span>Shared</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-purple-100/40 dark:from-gray-700/40 dark:to-purple-900/30 flex items-center justify-center">
+                          {influencer.thumbnailUrl ? (
+                            <img
+                              src={influencer.thumbnailUrl}
+                              alt={influencer.displayName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="w-14 h-14 text-purple-400" />
+                          )}
+
+                          {influencer.usageCount > 0 && (
+                            <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-full shadow-sm">
+                              {influencer.usageCount} uses
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-center space-y-2">
+                          <div className="space-y-1">
+                            <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white line-clamp-1">
+                              {influencer.displayName}
+                            </h3>
+                            <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                              Shared by {influencer.sharedBy}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {influencer.fileName}
+                            </p>
+                          </div>
+
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[32px]">
+                            {influencer.description || "No description provided"}
+                          </p>
+
+                          <div className="flex flex-wrap items-center justify-center gap-2">
+                            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}>
+                              {getSyncStatusText(influencer.syncStatus)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                            <span>{formatFileSize(influencer.fileSize)}</span>
+                            <span>•</span>
+                            <span>{new Date(influencer.uploadedAt).toLocaleDateString()}</span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => showInfluencerDetails(influencer)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View Details</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Influencer Details Modal */}
@@ -1887,6 +2058,22 @@ export default function MyInfluencersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Share LoRA Modal */}
+      {loraToShare && (
+        <ShareLoRAModal
+          isOpen={shareLoRAModalOpen}
+          onClose={() => {
+            setShareLoRAModalOpen(false);
+            setLoraToShare(null);
+          }}
+          loraId={loraToShare.id}
+          loraName={loraToShare.displayName}
+          onShareComplete={() => {
+            fetchInfluencers(); // Refresh the list to show share status
+          }}
+        />
       )}
     </div>
   );

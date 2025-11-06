@@ -1,7 +1,7 @@
 // app/(dashboard)/workspace/generate-content/face-swapping/page.tsx
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
@@ -238,6 +238,10 @@ export default function FaceSwappingPage() {
     isShared?: boolean;
   }>>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
+  const selectedFolder = useMemo(
+    () => availableFolders.find((folder) => folder.slug === targetFolder) || null,
+    [availableFolders, targetFolder]
+  );
 
   // Original image states (image with face to be replaced)
   const [originalImage, setOriginalImage] = useState<File | null>(null);
@@ -2020,16 +2024,18 @@ export default function FaceSwappingPage() {
 
   if (!apiClient) {
     return (
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-center min-h-96">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Initializing...
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              Setting up authentication for face swapping
-            </p>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-center min-h-[24rem]">
+            <div className="text-center bg-white dark:bg-gray-800/70 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/40 dark:border-gray-700 px-10 py-12">
+              <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-purple-500" />
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                Initializing Face Swapping Studio...
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300">
+                Setting up authentication for face swapping. Hang tight!
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -2037,81 +2043,50 @@ export default function FaceSwappingPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-700 rounded-3xl shadow-2xl border border-indigo-200 dark:border-indigo-800 p-8 text-white">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
-        </div>
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="flex items-center space-x-6">
-            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
-              <div className="relative">
-                <Users className="w-10 h-10 text-white drop-shadow-sm" />
-                <div className="absolute -top-1 -right-1 w-6 h-6 bg-pink-400 rounded-full flex items-center justify-center">
-                  <Wand2 className="w-3 h-3 text-pink-800" />
-                </div>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
+              <Users className="w-8 h-8 text-white" />
             </div>
-            <div>
-              <h1 className="text-4xl font-bold mb-2 drop-shadow-sm flex items-center space-x-3">
-                <span>Face Swapping</span>
-                <span className="text-2xl">🎭</span>
-              </h1>
-              <p className="text-indigo-100 text-lg font-medium opacity-90 mb-2">
-                Transform portraits with AI-powered face replacement technology
-              </p>
-              <div className="flex items-center space-x-4 text-sm text-indigo-100">
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span>FLUX Fill AI</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-purple-300 rounded-full"></div>
-                  <span>Precise Masking</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-pink-300 rounded-full"></div>
-                  <span>Natural Results</span>
-                </div>
-              </div>
-            </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+              Face Swapping Studio
+            </h1>
           </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
-              <div className="text-center">
-                <div className="flex items-center justify-center space-x-1 mb-1">
-                  <Users className="w-4 h-4 text-pink-300" />
-                  <span className="text-sm font-semibold text-white">
-                    Face Swap
-                  </span>
-                </div>
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-green-200 font-medium">
-                    Ready
-                  </span>
-                </div>
-              </div>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Replace faces with cinematic realism using Flux-powered inpainting, intelligent masking, and precision blending tools.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3 text-sm">
+            <div className="px-4 py-2 bg-white/80 dark:bg-gray-800/60 text-gray-800 dark:text-gray-100 rounded-full shadow-md border border-white/40 dark:border-gray-700 backdrop-blur-sm font-semibold">
+              Precise Masking Toolkit
+            </div>
+            <div className="px-4 py-2 bg-white/80 dark:bg-gray-800/60 text-gray-800 dark:text-gray-100 rounded-full shadow-md border border-white/40 dark:border-gray-700 backdrop-blur-sm font-semibold">
+              Flux Fill Inpainting
+            </div>
+            <div className="px-4 py-2 bg-white/80 dark:bg-gray-800/60 text-gray-800 dark:text-gray-100 rounded-full shadow-md border border-white/40 dark:border-gray-700 backdrop-blur-sm font-semibold">
+              Natural Blending Results
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Controls */}
         <div className="lg:col-span-2 space-y-6">
           {/* Folder Selection */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Save to Folder
-                </label>
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+            <div>
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl text-white shadow-lg">
+                  <Folder className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Save Location</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Choose where your swapped portraits will land.
+                  </p>
+                </div>
               </div>
 
               <div className="relative">
@@ -2119,7 +2094,7 @@ export default function FaceSwappingPage() {
                   value={targetFolder}
                   onChange={(e) => setTargetFolder(e.target.value)}
                   disabled={isLoadingFolders || isGenerating}
-                  className="w-full px-4 py-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 pr-10 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-900/40 text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed shadow-inner"
                 >
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
@@ -2128,22 +2103,30 @@ export default function FaceSwappingPage() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  {isLoadingFolders ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                  )}
+                </div>
               </div>
 
               {isLoadingFolders && (
-                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-gray-500 mt-3">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Loading folders...</span>
                 </div>
               )}
 
-              {targetFolder && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {availableFolders.find(f => f.slug === targetFolder)?.isShared 
-                    ? `🔓 Shared folder: ${availableFolders.find(f => f.slug === targetFolder)?.prefix}/`
-                    : `📁 Saving to: outputs/${user?.id}/${targetFolder}/`
-                  }
+              {targetFolder && selectedFolder && (
+                <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 bg-gray-100/70 dark:bg-gray-900/40 border border-gray-200/70 dark:border-gray-700 rounded-lg px-3 py-2 flex items-center gap-2">
+                  <span className="text-purple-500 dark:text-purple-300">💾</span>
+                  <span>
+                    {selectedFolder.isShared
+                      ? `Shared folder: ${selectedFolder.prefix}`
+                      : `Saving to: outputs/${user?.id}/${selectedFolder.slug}/`}
+                  </span>
                 </div>
               )}
             </div>
@@ -2152,7 +2135,7 @@ export default function FaceSwappingPage() {
           {/* Enhanced Image Uploads */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Enhanced Original Image Upload */}
-            <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300">
+            <div className="group bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-300">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
@@ -2397,7 +2380,7 @@ export default function FaceSwappingPage() {
             </div>
 
             {/* Enhanced New Face Image Upload */}
-            <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-pink-300 dark:hover:border-pink-600 transition-all duration-300">
+            <div className="group bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl hover:border-pink-400 dark:hover:border-pink-500 transition-all duration-300">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
@@ -2479,7 +2462,7 @@ export default function FaceSwappingPage() {
           </div>
 
           {/* Prompt Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2510,7 +2493,7 @@ export default function FaceSwappingPage() {
           </div>
 
           {/* Basic Settings */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Face Swap Settings
             </h3>
@@ -2804,21 +2787,22 @@ export default function FaceSwappingPage() {
               !targetFolder ||
               uploadingImage
             }
-            className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
+            className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
           >
+            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
             {isGenerating ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" />
                 <span>Swapping Faces...</span>
               </>
             ) : uploadingImage ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-6 h-6 animate-spin" />
                 <span>Uploading Images...</span>
               </>
             ) : (
               <>
-                <Users className="w-5 h-5" />
+                <Users className="w-6 h-6 group-hover:rotate-12 transition-transform duration-300" />
                 <span>Swap Faces</span>
               </>
             )}
@@ -2826,7 +2810,7 @@ export default function FaceSwappingPage() {
 
           {/* Helper text */}
           {!targetFolder && !isGenerating && (
-            <p className="text-sm text-amber-600 dark:text-amber-400 text-center">
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400 -mt-2">
               ⚠️ Please select a folder before swapping faces
             </p>
           )}
@@ -2838,10 +2822,20 @@ export default function FaceSwappingPage() {
         <div className="space-y-6">
           {/* Image Statistics */}
           {imageStats && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Your Image Library
-              </h3>
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl text-white shadow-lg">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Your Image Library
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Quick stats on your stored swaps.
+                  </p>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600 dark:text-gray-400">
@@ -2867,11 +2861,21 @@ export default function FaceSwappingPage() {
 
           {/* Current Generation */}
           {currentJob && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Current Face Swap
-                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl text-white shadow-lg">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Current Face Swap
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Track progress and manage the active job.
+                    </p>
+                  </div>
+                </div>
                 {currentJob.status === "completed" && (
                   <button
                     onClick={() => fetchJobImages(currentJob.id)}
@@ -2945,9 +2949,10 @@ export default function FaceSwappingPage() {
                 {(currentJob.status === "pending" || currentJob.status === "processing") && (
                   <button
                     onClick={cancelGeneration}
-                    className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2"
+                    className="group w-full py-3 bg-gradient-to-r from-red-500 via-pink-600 to-purple-600 text-white font-semibold rounded-xl hover:from-red-600 hover:via-pink-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 relative overflow-hidden"
                   >
-                    <XCircle className="w-4 h-4" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/15 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+                    <XCircle className="w-5 h-5" />
                     <span>Cancel Face Swap</span>
                   </button>
                 )}
@@ -2971,7 +2976,7 @@ export default function FaceSwappingPage() {
                         </div>
                         <button
                           onClick={() => fetchJobImages(currentJob.id)}
-                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
+                          className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 transition-all duration-300 shadow-md"
                         >
                           Refresh Images
                         </button>
@@ -3193,10 +3198,18 @@ export default function FaceSwappingPage() {
                 )}
 
                 {currentJob.error && (
-                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <p className="text-sm text-red-600 dark:text-red-400">
-                      {currentJob.error}
-                    </p>
+                  <div className="p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3 shadow-lg">
+                    <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-xl">
+                      <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                        {currentJob.error}
+                      </p>
+                      <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
+                        Try adjusting your mask or prompt before running again.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -3205,11 +3218,21 @@ export default function FaceSwappingPage() {
 
           {/* Recent Face Swaps - Persistent History */}
           {jobHistory.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Recent Face Swaps
-                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl text-white shadow-lg">
+                    <RefreshCw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Recent Face Swaps
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Last five jobs with quick access to results.
+                    </p>
+                  </div>
+                </div>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {jobHistory.length}/5 jobs
                 </span>
@@ -3221,7 +3244,7 @@ export default function FaceSwappingPage() {
                   .map((job, index) => (
                     <div
                       key={job.id || `job-${index}`}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                      className="flex items-center justify-between p-3 bg-white/80 dark:bg-gray-800/60 border border-gray-200/70 dark:border-gray-600 rounded-xl hover:border-purple-200 dark:hover:border-purple-500 hover:shadow-md transition-all duration-300"
                     >
                       <div className="flex items-center space-x-3 flex-1">
                         {job.status === "completed" && (
@@ -3285,5 +3308,6 @@ export default function FaceSwappingPage() {
         </div>
       </div>
     </div>
+  </div>
   );
 }

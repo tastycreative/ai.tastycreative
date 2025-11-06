@@ -10,17 +10,77 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch user's influencer LoRAs
-    const influencers = await prisma.influencerLoRA.findMany({
+    // Fetch user's own influencer LoRAs
+    const ownInfluencers = await prisma.influencerLoRA.findMany({
       where: {
         clerkId: userId,
       },
       orderBy: {
         updatedAt: "desc",
       },
+      include: {
+        shares: {
+          select: {
+            id: true,
+            sharedWithClerkId: true,
+          },
+        },
+      },
     });
 
-    return NextResponse.json(influencers);
+    // Fetch LoRAs shared with this user
+    const sharedLoRAs = await prisma.loRAShare.findMany({
+      where: {
+        sharedWithClerkId: userId,
+      },
+      include: {
+        lora: {
+          include: {
+            user: {
+              select: {
+                email: true,
+                firstName: true,
+                lastName: true,
+                imageUrl: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
+
+    // Format own influencers
+    const formattedOwnInfluencers = ownInfluencers.map((inf) => ({
+      ...inf,
+      isShared: false,
+      hasShares: inf.shares.length > 0, // This LoRA is shared with others
+      shares: undefined, // Remove shares from response
+    }));
+
+    // Format shared influencers
+    const formattedSharedInfluencers = sharedLoRAs.map((share) => {
+      const owner = share.lora.user;
+      const ownerName = owner?.firstName && owner?.lastName 
+        ? `${owner.firstName} ${owner.lastName}`
+        : owner?.firstName || owner?.lastName || '';
+      
+      return {
+        ...share.lora,
+        isShared: true,
+        sharedBy: share.sharedBy || ownerName || owner?.email || 'Unknown',
+        shareNote: share.note,
+        ownerClerkId: share.ownerClerkId,
+        hasShares: false,
+      };
+    });
+
+    // Combine both lists
+    const allInfluencers = [...formattedOwnInfluencers, ...formattedSharedInfluencers];
+
+    return NextResponse.json(allInfluencers);
   } catch (error) {
     console.error("Error fetching influencers:", error);
     return NextResponse.json(

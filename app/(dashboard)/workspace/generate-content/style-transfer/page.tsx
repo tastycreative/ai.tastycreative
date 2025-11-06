@@ -1044,16 +1044,17 @@ export default function StyleTransferPage() {
     link.click();
   };
 
-  // Fetch available LoRA models on component mount
+  // Fetch available LoRA models on component mount (includes owned + shared LoRAs)
   useEffect(() => {
     const fetchLoRAModels = async () => {
       if (!apiClient) return;
 
       try {
         setLoadingLoRAs(true);
-        console.log("=== FETCHING LORA MODELS ===");
+        console.log("=== FETCHING LORA MODELS (including shared) ===");
 
-        const response = await apiClient.get("/api/models/loras");
+        // Use /api/user/influencers to get both owned and shared LoRAs
+        const response = await apiClient.get("/api/user/influencers");
         console.log("LoRA API response status:", response.status);
 
         if (!response.ok) {
@@ -1063,12 +1064,22 @@ export default function StyleTransferPage() {
         const data = await response.json();
         console.log("LoRA API response data:", data);
 
-        if (data.success && data.models && Array.isArray(data.models)) {
-          console.log("Available LoRA models:", data.models);
-          setAvailableLoRAs(data.models);
+        // Backend returns array of influencers directly
+        if (Array.isArray(data)) {
+          // Transform influencer format to LoRAModel format
+          const loraModels: LoRAModel[] = data.map((inf: any) => ({
+            fileName: inf.fileName,
+            displayName: inf.isShared 
+              ? `${inf.displayName} (Shared by ${inf.sharedBy})` 
+              : inf.displayName,
+            name: inf.name,
+          }));
+          
+          console.log("Available LoRA models (owned + shared):", loraModels);
+          setAvailableLoRAs(loraModels);
 
           // Set default LoRA for style transfer (AI MODEL 3)
-          const aiModel3 = data.models.find(
+          const aiModel3 = loraModels.find(
             (lora: LoRAModel) => lora.fileName === "AI MODEL 3.safetensors"
           );
           if (aiModel3) {
@@ -1076,8 +1087,8 @@ export default function StyleTransferPage() {
               ...prev,
               selectedLora: aiModel3.fileName,
             }));
-          } else {
-            const defaultLora = data.models[0]?.fileName || "None";
+          } else if (loraModels.length > 0) {
+            const defaultLora = loraModels[0].fileName;
             setParams((prev) => ({
               ...prev,
               selectedLora: defaultLora,
@@ -1853,126 +1864,95 @@ export default function StyleTransferPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="container mx-auto px-4 py-8">
-        {/* Enhanced Header */}
-        <div className="mb-8 relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 p-1">
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="p-3 bg-white/20 rounded-xl">
-                  <Palette className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-white mb-2">
-                    AI Style Transfer
-                  </h1>
-                  <p className="text-purple-100 text-lg">
-                    Transform your images with artistic styles using FLUX Redux
-                  </p>
-                </div>
-              </div>
-
-              {/* Status Indicators */}
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-3 py-2">
-                  <Monitor className="w-4 h-4 text-white" />
-                  <span className="text-white text-sm font-medium">
-                    FLUX Redux
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-3 py-2">
-                  <Eye className="w-4 h-4 text-white" />
-                  <span className="text-white text-sm font-medium">
-                    {isGenerating ? "Generating..." : "Ready"}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2 bg-white/20 rounded-lg px-3 py-2">
-                  <Users className="w-4 h-4 text-white" />
-                  <span className="text-white text-sm font-medium">Pro</span>
-                </div>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
+              <Palette className="w-8 h-8 text-white" />
             </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+              Style Transfer Studio
+            </h1>
           </div>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Transform your images with artistic styles using AI-powered magic ✨ Create stunning style transfers with advanced FLUX Redux technology
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Panel - Controls */}
-          <div className="lg:col-span-2 space-y-6">
+        {/* Error Display */}
+        {currentJob?.error && !isJobCancelled(currentJob) && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-red-900 dark:text-red-100 text-lg">Oops! Something went wrong</h3>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{currentJob.error}</p>
+            </div>
+            <button
+              onClick={() => setCurrentJob(prev => prev ? {...prev, error: undefined} : null)}
+              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Panel - Input */}
+          <div className="space-y-6">
             {/* Folder Selection */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
-                <Folder className="w-5 h-5 mr-2 text-purple-600" />
-                Save Location
-              </h3>
-
-              <div className="space-y-3">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Select a folder to save your stylized images
-                </label>
-
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      const select = document.getElementById('folder-select-style-transfer') as HTMLSelectElement;
-                      if (select) select.click();
-                    }}
-                    disabled={isLoadingFolders}
-                    className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-left flex items-center justify-between hover:border-purple-400 dark:hover:border-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex items-center space-x-2">
-                      {availableFolders.find(f => f.slug === targetFolder)?.isShared ? (
-                        <span>🔓</span>
-                      ) : (
-                        <Folder className="w-4 h-4 text-purple-600" />
-                      )}
-                      <span className="text-slate-700 dark:text-slate-300">
-                        {isLoadingFolders ? "Loading folders..." : (availableFolders.find(f => f.slug === targetFolder)?.name || targetFolder || "Select a folder...")}
-                      </span>
-                    </div>
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                  </button>
-
-                  <select
-                    id="folder-select-style-transfer"
-                    value={targetFolder}
-                    onChange={(e) => setTargetFolder(e.target.value)}
-                    disabled={isLoadingFolders}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  >
-                    <option value="">Select a folder...</option>
-                    {availableFolders.map((folder) => (
-                      <option key={folder.slug} value={folder.slug}>
-                        {folder.isShared ? '🔓 ' : '📁 '}{folder.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {targetFolder && user && (
-                  <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-1">
-                    <span>{availableFolders.find(f => f.slug === targetFolder)?.isShared ? '🔓' : '📁'}</span>
-                    <span>
-                      {availableFolders.find(f => f.slug === targetFolder)?.isShared 
-                        ? availableFolders.find(f => f.slug === targetFolder)?.prefix + '/'
-                        : `outputs/${user.id}/${targetFolder}/`
-                      }
-                    </span>
-                  </div>
-                )}
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-4">
+                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Save to Folder
+                </h2>
               </div>
+              <div className="relative">
+                <select
+                  value={targetFolder}
+                  onChange={(e) => setTargetFolder(e.target.value)}
+                  disabled={isLoadingFolders}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
+                >
+                  <option value="">Select a folder...</option>
+                  {availableFolders.map((folder) => (
+                    <option key={folder.prefix} value={folder.slug}>
+                      {folder.isShared ? '🔓 ' : '📁 '}{folder.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  {isLoadingFolders ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                  )}
+                </div>
+              </div>
+              {targetFolder && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
+                  <span>�</span>
+                  <span>Saving to: {targetFolder}</span>
+                </p>
+              )}
             </div>
 
             {/* Reference Image Upload */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
-                <Palette className="w-5 h-5 mr-2 text-pink-600" />
-                Style Reference Image
-              </h3>
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-4">
+                <ImageIcon className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Style Reference Image
+                </h2>
+              </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Upload your reference image for style transfer
                   </label>
                   {referenceImage && (

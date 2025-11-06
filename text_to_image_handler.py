@@ -882,6 +882,59 @@ def run_text_to_image_generation(job_input, job_id, webhook_url):
         if not validate_workflow(workflow):
             raise ValueError("Invalid workflow structure")
         
+        # Fix LoRA paths - transform user LoRA names to include subdirectory structure
+        try:
+            for node_id, node in workflow.items():
+                # Handle both LoraLoader and LoraLoaderModelOnly nodes
+                if node.get('class_type') in ['LoraLoader', 'LoraLoaderModelOnly'] and 'inputs' in node:
+                    if 'lora_name' in node.get('inputs', {}):
+                        lora_name = node['inputs']['lora_name']
+                        logger.info(f"🎯 Found LoRA node {node_id} ({node.get('class_type')}): {lora_name}")
+                        
+                        if lora_name.startswith('user_'):
+                            lora_parts = lora_name.split('_')
+                            if len(lora_parts) >= 3:
+                                lora_base_name = lora_parts[0] + '_' + lora_parts[1]  # user_USERID
+                                # Extract the display name from the filename
+                                display_name = '_'.join(lora_parts[3:]).replace('.safetensors', '')
+                                logger.info(f"🔍 Looking for LoRA: user={lora_base_name}, display_name={display_name}")
+                                
+                                # Check if user subdirectory exists
+                                user_dir_path = f"/runpod-volume/loras/{lora_base_name}"
+                                if os.path.isdir(user_dir_path):
+                                    user_dir_files = os.listdir(user_dir_path)
+                                    logger.info(f"📁 Files in user directory {user_dir_path}: {user_dir_files}")
+                                    
+                                    # Look for exact match first
+                                    if lora_name in user_dir_files:
+                                        actual_lora_name = f"{lora_base_name}/{lora_name}"
+                                        logger.info(f"🎯 Found exact match: {actual_lora_name}")
+                                        workflow[node_id]['inputs']['lora_name'] = actual_lora_name
+                                    else:
+                                        # Look for a file that matches the display name
+                                        found = False
+                                        for filename in user_dir_files:
+                                            if filename.endswith('.safetensors') and display_name in filename:
+                                                actual_lora_name = f"{lora_base_name}/{filename}"
+                                                logger.info(f"🎯 Found matching LoRA: {actual_lora_name}")
+                                                workflow[node_id]['inputs']['lora_name'] = actual_lora_name
+                                                found = True
+                                                break
+                                        
+                                        if not found:
+                                            # Fallback: use the first .safetensors file in user directory
+                                            safetensors_files = [f for f in user_dir_files if f.endswith('.safetensors')]
+                                            if safetensors_files:
+                                                actual_lora_name = f"{lora_base_name}/{safetensors_files[0]}"
+                                                logger.info(f"🔄 Fallback: using first LoRA in subdirectory: {actual_lora_name}")
+                                                workflow[node_id]['inputs']['lora_name'] = actual_lora_name
+                                            else:
+                                                logger.error(f"❌ No .safetensors files found in {user_dir_path}")
+                                else:
+                                    logger.warning(f"⚠️ User directory not found: {user_dir_path}")
+        except Exception as e:
+            logger.error(f"❌ Failed to fix LoRA paths: {str(e)}")
+        
         # Prepare ComfyUI environment
         if not prepare_comfyui_environment():
             raise Exception("Failed to prepare ComfyUI environment")

@@ -807,16 +807,17 @@ export default function SkinEnhancerPage() {
     link.click();
   };
 
-  // Fetch available influencer LoRA models on component mount
+  // Fetch available influencer LoRA models on component mount (includes owned + shared LoRAs)
   useEffect(() => {
     const fetchInfluencerLoRAModels = async () => {
       if (!apiClient) return;
 
       try {
         setLoadingLoRAs(true);
-        console.log("=== FETCHING INFLUENCER LORA MODELS ===");
+        console.log("=== FETCHING INFLUENCER LORA MODELS (including shared) ===");
 
-        const response = await apiClient.get("/api/models/loras");
+        // Use /api/user/influencers to get both owned and shared LoRAs
+        const response = await apiClient.get("/api/user/influencers");
         console.log("LoRA API response status:", response.status);
 
         if (!response.ok) {
@@ -826,19 +827,29 @@ export default function SkinEnhancerPage() {
         const data = await response.json();
         console.log("LoRA API response data:", data);
 
-        if (data.success && data.models && Array.isArray(data.models)) {
-          console.log("Available influencer LoRA models:", data.models);
-          setAvailableInfluencerLoRAs(data.models);
+        // Backend returns array of influencers directly
+        if (Array.isArray(data)) {
+          // Transform influencer format to LoRAModel format
+          const loraModels: LoRAModel[] = data.map((inf: any) => ({
+            fileName: inf.fileName,
+            displayName: inf.isShared 
+              ? `${inf.displayName} (Shared by ${inf.sharedBy})` 
+              : inf.displayName,
+            name: inf.name,
+          }));
+          
+          console.log("Available influencer LoRA models (owned + shared):", loraModels);
+          setAvailableInfluencerLoRAs(loraModels);
 
           // Set default LoRA if current selection isn't available
-          const currentLoRAExists = data.models.some(
+          const currentLoRAExists = loraModels.some(
             (lora: LoRAModel) => lora.fileName === params.selectedInfluencerLora
           );
           if (!currentLoRAExists) {
             const defaultLora =
-              data.models.find((lora: LoRAModel) => lora.fileName === "None")
+              loraModels.find((lora: LoRAModel) => lora.fileName === "None")
                 ?.fileName ||
-              data.models[0]?.fileName ||
+              loraModels[0]?.fileName ||
               "None";
             console.log("Setting default influencer LoRA to:", defaultLora);
             setParams((prev) => ({

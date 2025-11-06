@@ -57,6 +57,7 @@ model InfluencerLoRA {
   trainingJobId      String?
   user               User         @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   trainingJob        TrainingJob? @relation(fields: [trainingJobId], references: [id])
+  shares             LoRAShare[]  // LoRA shares with other users
 
   @@index([clerkId])
   @@index([fileName])
@@ -492,6 +493,24 @@ model FolderShare {
   @@index([sharedWithClerkId])
   @@index([folderPrefix])
   @@map("folder_shares")
+}
+
+model LoRAShare {
+  id            String   @id @default(cuid())
+  loraId        String   // ID of the InfluencerLoRA being shared
+  ownerClerkId  String   // Owner of the LoRA
+  sharedWithClerkId String // User it's shared with
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  sharedBy      String?  // Name/email of person who shared (for display)
+  note          String?  // Optional note from the person sharing
+  lora          InfluencerLoRA @relation(fields: [loraId], references: [id], onDelete: Cascade)
+
+  @@unique([loraId, sharedWithClerkId])
+  @@index([ownerClerkId])
+  @@index([sharedWithClerkId])
+  @@index([loraId])
+  @@map("lora_shares")
 }
 
 enum SharePermission {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { addJob, updateJob, GenerationJob as StoredGenerationJob } from '@/lib/jobsStorage';
+import { verifyLoRAAccess } from '@/lib/loraAccessControl';
 
 // RunPod API configuration
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
@@ -56,6 +57,26 @@ export async function POST(request: NextRequest) {
 
     console.log('🎯 Starting RunPod text-to-image generation for user:', userId);
     console.log('📋 Generation params:', params);
+
+    // 🔒 LORA ACCESS CONTROL: Verify user has permission to use the selected LoRA
+    if (workflow["14"] && workflow["14"].inputs && workflow["14"].inputs.lora_name) {
+      const loraName = workflow["14"].inputs.lora_name;
+      console.log('🔍 Verifying LoRA access for:', loraName);
+      
+      try {
+        await verifyLoRAAccess(loraName, userId);
+        console.log('✅ LoRA access verified for user');
+      } catch (error) {
+        console.error('❌ LoRA access denied:', error);
+        return NextResponse.json(
+          { 
+            error: error instanceof Error ? error.message : 'You do not have permission to use this LoRA model',
+            code: 'LORA_ACCESS_DENIED'
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     // Generate unique job ID
     const jobId = `txt2img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

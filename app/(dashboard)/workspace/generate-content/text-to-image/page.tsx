@@ -197,6 +197,7 @@ export default function TextToImagePage() {
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [availableLoRAs, setAvailableLoRAs] = useState<LoRAModel[]>([
     {
       fileName: "None",
@@ -871,7 +872,7 @@ export default function TextToImagePage() {
     return !!(image.s3Key || image.networkVolumePath);
   };
 
-  // Fetch available LoRA models on component mount
+  // Fetch available LoRA models on component mount (includes owned + shared LoRAs)
   useEffect(() => {
     if (!apiClient) {
       console.log("⏳ API client not ready yet, skipping LoRA fetch");
@@ -881,9 +882,10 @@ export default function TextToImagePage() {
     const fetchLoRAModels = async () => {
       try {
         setLoadingLoRAs(true);
-        console.log("=== FETCHING LORA MODELS ===");
+        console.log("=== FETCHING LORA MODELS (including shared) ===");
 
-        const response = await apiClient.get("/api/models/loras");
+        // Use /api/user/influencers to get both owned and shared LoRAs
+        const response = await apiClient.get("/api/user/influencers");
         console.log("LoRA API response status:", response.status);
 
         if (!response.ok) {
@@ -893,9 +895,52 @@ export default function TextToImagePage() {
         const data = await response.json();
         console.log("LoRA API response data:", data);
 
-        if (data.success && data.models && Array.isArray(data.models)) {
-          console.log("Available LoRA models:", data.models);
-          setAvailableLoRAs(data.models);
+        // Backend returns array of influencers directly
+        if (Array.isArray(data)) {
+          console.log("🔍 Raw LoRA data from API:", data);
+          
+          // Transform influencer format to LoRAModel format
+          // Use fileName directly - it already contains the correct path format
+          const loraModels: LoRAModel[] = data.map((inf: any) => {
+            console.log(`📁 LoRA mapping: ${inf.displayName}`, {
+              isShared: inf.isShared,
+              clerkId: inf.clerkId,
+              fileName: inf.fileName,
+            });
+            
+            return {
+              fileName: inf.fileName,
+              displayName: inf.isShared 
+                ? `${inf.displayName} (Shared by ${inf.sharedBy})` 
+                : inf.displayName,
+              name: inf.name,
+              id: inf.id,
+              fileSize: inf.fileSize,
+              uploadedAt: inf.uploadedAt,
+              usageCount: inf.usageCount,
+              networkVolumePath: inf.comfyUIPath || null,
+              originalFileName: inf.originalFileName,
+              comfyUIPath: inf.comfyUIPath,
+            };
+          });
+
+          // Add "None" option at the beginning
+          const allLoraModels = [
+            {
+              fileName: "None",
+              displayName: "No LoRA (Base Model)",
+              name: "none",
+              id: "none",
+              fileSize: 0,
+              uploadedAt: new Date().toISOString(),
+              usageCount: 0,
+              networkVolumePath: null,
+            },
+            ...loraModels,
+          ];
+
+          console.log("Available LoRA models (owned + shared):", allLoraModels);
+          setAvailableLoRAs(allLoraModels);
 
           // Migrate old single LoRA state to new multi-LoRA format if needed
           if (typeof window !== 'undefined') {
@@ -1635,14 +1680,12 @@ export default function TextToImagePage() {
         const nodeId = `${14 + index}`;
         const previousNodeId = index === 0 ? "6" : `${14 + index - 1}`;
         
-        // Format the LoRA path correctly for ComfyUI network volume
-        let loraPath = lora.modelName;
+        // Use modelName directly - it already has the correct format from the API
+        // For owned LoRAs: "user_xxx/filename.safetensors"
+        // For shared LoRAs: "user_owner/filename.safetensors"
+        const loraPath = lora.modelName;
         
-        if (lora.modelName.startsWith("user_") && user?.id) {
-          loraPath = `${user.id}/${lora.modelName}`;
-          console.log(`🎯 LoRA ${index + 1} ComfyUI path: ${loraPath}`);
-          console.log(`🎯 LoRA ${index + 1} strength: ${lora.strength}`);
-        }
+        console.log(`🎯 LoRA ${index + 1}: ${loraPath} (strength: ${lora.strength})`);
         
         workflow[nodeId] = {
           inputs: {
@@ -1888,97 +1931,53 @@ export default function TextToImagePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-indigo-800 p-8 text-white">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
+              <Wand2 className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+              Text to Image Studio
+            </h1>
+          </div>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Transform your imagination into stunning visuals with AI-powered magic ✨ Create breathtaking images with advanced FLUX technology
+          </p>
         </div>
 
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="flex items-center space-x-6">
-            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
-              <div className="relative">
-                <Wand2 className="w-10 h-10 text-white drop-shadow-sm" />
-                <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <Sparkles className="w-3 h-3 text-yellow-800" />
-                </div>
-              </div>
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
             </div>
-            <div>
-              <h1 className="text-4xl font-bold mb-2 drop-shadow-sm flex items-center space-x-3">
-                <span>Text to Image</span>
-                <span className="text-2xl">🎨</span>
-              </h1>
-              <p className="text-blue-100 text-lg font-medium opacity-90 mb-2">
-                Transform your imagination into stunning visuals with AI
-              </p>
-              <div className="flex items-center space-x-4 text-sm text-blue-100">
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span>FLUX AI Powered</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-purple-300 rounded-full"></div>
-                  <span>Ultra High Quality</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-yellow-300 rounded-full"></div>
-                  <span>Instant Results</span>
-                </div>
-              </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-red-900 dark:text-red-100 text-lg">Oops! Something went wrong</h3>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
             </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
+        )}
 
-          <div className="flex items-center space-x-4">
-            {imageStats && (
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-white drop-shadow-sm mb-1">
-                    {imageStats.totalImages?.toLocaleString() || 0}
-                  </div>
-                  <div className="text-sm text-blue-100 font-medium">
-                    Images Created
-                  </div>
-                  {imageStats.totalSize && (
-                    <div className="text-xs text-blue-200 mt-1">
-                      {(imageStats.totalSize / 1024 / 1024).toFixed(1)} MB used
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
-              <div className="text-center">
-                <div className="flex items-center justify-center space-x-1 mb-1">
-                  <Sparkles className="w-4 h-4 text-yellow-300" />
-                  <span className="text-sm font-semibold text-white">
-                    AI Status
-                  </span>
-                </div>
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-green-200 font-medium">
-                    Ready
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel - Controls */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Panel - Input */}
+          <div className="space-y-6">
           {/* Folder Selection */}
-          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-purple-300 dark:hover:border-purple-600 transition-all duration-300">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-              <Folder className="w-5 h-5 mr-2 text-purple-600" />
-              Save Location
-            </h3>
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 mb-4">
+              <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Save to Folder
+              </h2>
+            </div>
 
             <div className="space-y-3">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2008,14 +2007,21 @@ export default function TextToImagePage() {
                   value={targetFolder}
                   onChange={(e) => setTargetFolder(e.target.value)}
                   disabled={isLoadingFolders}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer [&>option]:text-gray-900 [&>option]:bg-white dark:[&>option]:text-gray-100 dark:[&>option]:bg-gray-800"
+                  style={{
+                    colorScheme: 'light dark'
+                  }}
                 >
-                  <option value="">Select a folder...</option>
+                  <option value="" className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">Select a folder...</option>
                   {availableFolders.map((folder) => {
                     const icon = folder.isShared ? '🔓' : '📁';
                     
                     return (
-                      <option key={folder.slug} value={folder.slug}>
+                      <option 
+                        key={folder.slug} 
+                        value={folder.slug}
+                        className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800"
+                      >
                         {icon} {folder.name}
                       </option>
                     );
@@ -2041,140 +2047,42 @@ export default function TextToImagePage() {
             </div>
           </div>
 
-          {/* Enhanced Prompt Input */}
-          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
-                    <Sparkles className="w-5 h-5 text-white" />
-                  </div>
-                  <span>Describe Your Vision</span>
-                  <div className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
-                    Required
-                  </div>
-                </label>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() =>
-                      setParams((prev) => ({
-                        ...prev,
-                        prompt:
-                          "A futuristic cityscape at sunset with flying cars and neon lights reflecting on glass buildings",
-                      }))
-                    }
-                    className="px-3 py-1.5 text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all duration-200 font-medium shadow-lg"
-                    title="Try example prompt"
-                  >
-                    ✨ Example
-                  </button>
-                  <button
-                    onClick={() =>
-                      setParams((prev) => ({ ...prev, prompt: "" }))
-                    }
-                    className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 font-medium transition-colors"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-
-              <div className="relative">
-                <textarea
-                  value={params.prompt}
-                  onChange={(e) =>
-                    setParams((prev) => ({ ...prev, prompt: e.target.value }))
-                  }
-                  placeholder="Describe your dream image in vivid detail... The more specific you are, the better the AI can understand and create your vision. Include details like style, mood, colors, composition, and artistic techniques."
-                  className="w-full h-36 px-4 py-3 border-2 border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-300 text-sm leading-relaxed"
-                  maxLength={1000}
-                />
-                {params.prompt && (
-                  <div className="absolute top-3 right-3">
-                    <div className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded-lg text-xs font-medium">
-                      Ready ✓
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-between items-center">
-                <div
-                  className={`text-sm font-medium transition-colors ${
-                    params.prompt.length > 800
-                      ? "text-red-500"
-                      : params.prompt.length > 500
-                      ? "text-yellow-500"
-                      : "text-gray-500 dark:text-gray-400"
-                  }`}
-                >
-                  {params.prompt.length}/1000 characters
-                </div>
-
-                <div className="flex items-center space-x-4 text-sm">
-                  <div className="flex items-center space-x-2 text-blue-600 dark:text-blue-400">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                    <span className="font-medium">AI Tip:</span>
-                  </div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Include style, mood, and composition details
-                  </span>
-                </div>
-              </div>
-
-              {/* Quick Prompt Suggestions */}
-              <div className="flex flex-wrap gap-2 pt-2">
-                {[
-                  "cinematic lighting",
-                  "photorealistic",
-                  "vibrant colors",
-                  "detailed background",
-                  "professional photography",
-                  "artistic style",
-                ].map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      if (!params.prompt.includes(suggestion)) {
-                        setParams((prev) => ({
-                          ...prev,
-                          prompt:
-                            prev.prompt +
-                            (prev.prompt ? ", " : "") +
-                            suggestion,
-                        }));
-                      }
-                    }}
-                    className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-700 dark:hover:text-purple-300 transition-all duration-200 font-medium border border-gray-200 dark:border-gray-600"
-                  >
-                    + {suggestion}
-                  </button>
-                ))}
-              </div>
+          {/* Prompt Section */}
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 mb-4">
+              <Wand2 className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Describe Your Vision ✨
+              </h2>
             </div>
+            <textarea
+              value={params.prompt}
+              onChange={(e) =>
+                setParams((prev) => ({ ...prev, prompt: e.target.value }))
+              }
+              className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900/50 dark:text-white resize-none transition-all shadow-inner"
+              rows={6}
+              placeholder="Describe your dream image in vivid detail... (e.g., 'A futuristic cityscape at sunset with flying cars and neon lights')"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              💡 Tip: Be specific and descriptive for best results!
+            </p>
           </div>
 
-          {/* Enhanced Basic Settings */}
-          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-indigo-300 dark:hover:border-indigo-600 transition-all duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
-                <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl">
-                  <Settings className="w-6 h-6 text-white" />
-                </div>
-                <span>Generation Settings</span>
-              </h3>
-              <div className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">
-                Fine-tune Your Creation
-              </div>
+          {/* Generation Settings */}
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 mb-4">
+              <Settings className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Generation Settings
+              </h2>
             </div>
 
-            {/* Enhanced Multi-LoRA Model Selection */}
-            <div className="space-y-4 mb-6 p-4 bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 dark:from-green-900/20 dark:via-emerald-900/20 dark:to-teal-900/20 rounded-2xl border border-green-200 dark:border-green-800">
+            {/* LoRA Model Selection */}
+            <div className="space-y-4 mb-6">
               <div className="flex items-center justify-between">
                 <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl">
-                    <User className="w-5 h-5 text-white" />
-                  </div>
+                  <User className="w-5 h-5 text-green-600" />
                   <span>AI Style Models (LoRA)</span>
                   <div className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
                     Multi-Stack
@@ -3472,6 +3380,7 @@ export default function TextToImagePage() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
