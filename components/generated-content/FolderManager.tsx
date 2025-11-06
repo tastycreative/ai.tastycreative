@@ -7,9 +7,10 @@ import { FolderPlus, FolderOpen, X, Check, AlertCircle } from "lucide-react";
 interface FolderManagerProps {
   onFolderCreated?: (folderName: string, folderPrefix: string) => void;
   triggerButton?: React.ReactNode;
+  existingFolders?: string[]; // Array of existing folder names to check for duplicates
 }
 
-export function FolderManager({ onFolderCreated, triggerButton }: FolderManagerProps) {
+export function FolderManager({ onFolderCreated, triggerButton, existingFolders = [] }: FolderManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -30,6 +31,10 @@ export function FolderManager({ onFolderCreated, triggerButton }: FolderManagerP
     // Allow letters, numbers, spaces, hyphens, underscores
     if (!/^[a-zA-Z0-9\s\-_]+$/.test(name)) {
       return "Folder name can only contain letters, numbers, spaces, hyphens, and underscores";
+    }
+    // Check for duplicate folder names
+    if (existingFolders.some(existing => existing.toLowerCase() === name.trim().toLowerCase())) {
+      return "A folder with this name already exists. Please choose a different name.";
     }
     return null;
   };

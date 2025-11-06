@@ -62,12 +62,21 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
   };
 
   const handleFolderCreated = (folderName: string, folderPrefix: string) => {
-    // Add new folder to list
+    // Add new folder to list, avoiding duplicates
     const newFolder: CustomFolder = {
       name: folderName,
       prefix: folderPrefix,
     };
-    setFolders((prev) => [...prev, newFolder]);
+    setFolders((prev) => {
+      // Check if folder already exists by prefix
+      const exists = prev.some(f => f.prefix === folderPrefix);
+      if (exists) {
+        // If it exists, return the current list (no duplicate)
+        return prev;
+      }
+      // Otherwise, add the new folder
+      return [...prev, newFolder];
+    });
   };
 
   const handleDeleteFolder = async (folderPrefix: string) => {
@@ -141,7 +150,10 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
               </button>
-              <FolderManager onFolderCreated={handleFolderCreated} />
+              <FolderManager 
+                onFolderCreated={handleFolderCreated}
+                existingFolders={folders.map(f => f.name)}
+              />
             </div>
           </div>
 
@@ -232,11 +244,11 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
                     </span>
                     <div className="h-px flex-1 bg-gradient-to-r from-transparent via-blue-300 dark:via-blue-700 to-transparent" />
                   </div>
-                  {ownedFolders.map((folder) => {
+                  {ownedFolders.map((folder, index) => {
                     const isSelected = selectedFolder === folder.prefix;
                     return (
                       <div
-                        key={folder.prefix}
+                        key={`owned-${index}-${folder.prefix}`}
                         className={`relative flex items-center gap-3 p-3.5 rounded-xl transition-all duration-300 cursor-pointer group overflow-hidden ${
                           isSelected
                             ? "bg-gradient-to-r from-blue-500/10 via-blue-400/10 to-purple-500/10 dark:from-blue-500/20 dark:via-blue-400/20 dark:to-purple-500/20 shadow-lg shadow-blue-500/10 border-2 border-blue-300/50 dark:border-blue-600/50 scale-[1.02]"
@@ -322,11 +334,11 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
                     </span>
                     <div className="h-px flex-1 bg-gradient-to-r from-transparent via-purple-300 dark:via-purple-700 to-transparent" />
                   </div>
-                  {sharedFolders.map((folder) => {
+                  {sharedFolders.map((folder, index) => {
                     const isSelected = selectedFolder === folder.prefix;
                     return (
                       <div
-                        key={folder.prefix}
+                        key={`shared-${index}-${folder.prefix}`}
                         className={`relative flex items-center gap-3 p-3.5 rounded-xl transition-all duration-300 cursor-pointer group overflow-hidden ${
                           isSelected
                             ? "bg-gradient-to-r from-purple-500/10 via-pink-400/10 to-purple-500/10 dark:from-purple-500/20 dark:via-pink-400/20 dark:to-purple-500/20 shadow-lg shadow-purple-500/10 border-2 border-purple-300/50 dark:border-purple-600/50 scale-[1.02]"
