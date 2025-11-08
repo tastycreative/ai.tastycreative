@@ -1,7 +1,7 @@
 // app/(dashboard)/workspace/generate-content/skin-enhancer/page.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
@@ -26,6 +26,7 @@ import {
   X,
   Folder,
   ChevronDown,
+  Clock,
 } from "lucide-react";
 
 // Types
@@ -87,6 +88,59 @@ interface DatabaseImage {
   dataUrl?: string; // Database-served image URL
   createdAt: Date | string;
 }
+
+interface AvailableFolderOption {
+  name: string;
+  prefix: string;
+  displayPath: string;
+  path: string;
+  depth: number;
+  isShared?: boolean;
+  permission?: 'VIEW' | 'EDIT';
+  parentPrefix?: string | null;
+}
+
+const sanitizePrefix = (prefix: string): string => {
+  if (!prefix) {
+    return '';
+  }
+  const normalized = prefix.replace(/\\/g, '/').replace(/\/+/g, '/');
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
+};
+
+const formatSegmentName = (segment: string): string => {
+  if (!segment) {
+    return '';
+  }
+  return segment
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const deriveFolderMeta = (prefix: string) => {
+  const sanitized = sanitizePrefix(prefix);
+  const parts = sanitized.split('/').filter(Boolean);
+  const relativeSegments = parts.slice(2);
+  const displaySegments = relativeSegments.map(formatSegmentName);
+  const depth = Math.max(relativeSegments.length, 1);
+  const parentPrefix = relativeSegments.length <= 1 ? null : `${parts.slice(0, -1).join('/')}/`;
+  return {
+    sanitized,
+    relativeSegments,
+    displaySegments,
+    depth,
+    parentPrefix,
+    path: relativeSegments.join('/'),
+  };
+};
+
+const buildFolderOptionLabel = (folder: AvailableFolderOption): string => {
+  const indent = folder.depth > 1 ? `${'\u00A0'.repeat((folder.depth - 1) * 2)}↳ ` : '';
+  const icon = folder.isShared ? '🤝' : '📁';
+  return `${icon} ${indent}${folder.displayPath}`;
+};
 
 // Constants - Portrait-optimized sizes (3:4 aspect ratio for faces)
 const ASPECT_RATIOS = [
@@ -229,7 +283,7 @@ export default function SkinEnhancerPage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string, prefix?: string, permission?: 'VIEW' | 'EDIT'}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
 
   // Database image states
@@ -247,6 +301,15 @@ export default function SkinEnhancerPage() {
   const [comparisonMode, setComparisonMode] = useState<
     "split" | "overlay" | "toggle"
   >("split");
+
+  // Memoize the selected folder option
+  const selectedFolderOption = useMemo(() => {
+    if (!targetFolder || availableFolders.length === 0) {
+      return null;
+    }
+    const normalized = sanitizePrefix(targetFolder);
+    return availableFolders.find((f) => f.prefix === normalized) || null;
+  }, [targetFolder, availableFolders]);
 
   // Helper function to determine if a failed job was actually cancelled
   const isJobCancelled = (job: GenerationJob) => {
@@ -902,26 +965,46 @@ export default function SkinEnhancerPage() {
         console.log("📊 Folders loaded:", data);
 
         if (data.success && Array.isArray(data.folders)) {
-          // Create folder objects with full prefix, permission, and display name
-          const folders = data.folders
+          // Build folder options with metadata extraction
+          const folderOptions: AvailableFolderOption[] = data.folders
             .map((folder: any) => {
-              if (typeof folder === 'string') {
-                return { slug: folder, name: folder, prefix: `outputs/${user.id}/${folder}`, permission: 'EDIT' as const };
-              }
-              // Extract slug from prefix: outputs/{userId}/{slug}/
-              const parts = folder.prefix.split('/').filter(Boolean);
-              const slug = parts[2] || folder.name;
-              return { 
-                slug, 
-                name: folder.name,
-                prefix: folder.prefix?.replace(/\/$/, ''), // Store full prefix without trailing slash
-                permission: folder.permission || 'EDIT' as const
+              const rawPrefix = typeof folder === 'string' 
+                ? `outputs/${user.id}/${folder}` 
+                : folder.prefix || '';
+              
+              if (!rawPrefix) return null;
+              
+              const meta = deriveFolderMeta(rawPrefix);
+              const displayPath = meta.displaySegments.join(' / ') || 'Root';
+              
+              return {
+                name: meta.displaySegments[meta.displaySegments.length - 1] || 'Root',
+                prefix: meta.sanitized,
+                displayPath,
+                path: meta.path,
+                depth: meta.depth,
+                isShared: typeof folder === 'object' && folder.permission === 'VIEW',
+                permission: (typeof folder === 'object' ? folder.permission : 'EDIT') as 'VIEW' | 'EDIT',
+                parentPrefix: meta.parentPrefix,
               };
             })
-            // Filter to only show folders with EDIT permission
-            .filter((folder: any) => folder.permission === 'EDIT');
-          setAvailableFolders(folders);
-          console.log("✅ Folders set:", folders);
+            .filter(Boolean) as AvailableFolderOption[];
+          
+          // Deduplicate by prefix
+          const uniqueFolders = Array.from(
+            new Map(folderOptions.map((f) => [f.prefix, f])).values()
+          );
+          
+          // Sort: editable first, then alphabetically by path
+          const sortedFolders = uniqueFolders.sort((a, b) => {
+            if (a.permission !== b.permission) {
+              return a.permission === 'EDIT' ? -1 : 1;
+            }
+            return a.path.localeCompare(b.path);
+          });
+          
+          setAvailableFolders(sortedFolders);
+          console.log("✅ Folders set:", sortedFolders);
         } else {
           console.error("⚠️ Invalid folders response:", data);
           setAvailableFolders([]);
@@ -1622,7 +1705,7 @@ export default function SkinEnhancerPage() {
       "114": {
         inputs: {
           images: ["39", 0], // Save the enhanced result
-          filename_prefix: targetFolder ? `${targetFolder}/SkinEnhancer` : "SkinEnhancer",
+          filename_prefix: targetFolder ? `${sanitizePrefix(targetFolder)}SkinEnhancer` : "SkinEnhancer",
         },
         class_type: "SaveImage",
       },
@@ -1898,13 +1981,15 @@ export default function SkinEnhancerPage() {
   // Show loading state while API client initializes
   if (!apiClient) {
     return (
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center justify-center space-x-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            <p className="text-gray-600 dark:text-gray-400">
-              Initializing API client...
-            </p>
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center justify-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              <p className="text-gray-600 dark:text-gray-300">
+                Initializing API client...
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -1912,165 +1997,118 @@ export default function SkinEnhancerPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 rounded-3xl shadow-2xl border border-emerald-200 dark:border-emerald-800 p-8 text-white">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
+              <Sparkles className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+              Skin Enhancer Studio
+            </h1>
+          </div>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Perfect skin texture and glowing portraits with Flux-inspired AI enhancements tailored for natural results.
+          </p>
         </div>
 
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="flex items-center space-x-6">
-            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
-              <div className="relative">
-                <Sparkles className="w-10 h-10 text-white drop-shadow-sm" />
-                <div className="absolute -top-1 -right-1 w-6 h-6 bg-teal-400 rounded-full flex items-center justify-center">
-                  <Eye className="w-3 h-3 text-teal-800" />
-                </div>
-              </div>
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold mb-2 drop-shadow-sm flex items-center space-x-3">
-                <span>Skin Enhancer</span>
-                <span className="text-2xl">✨</span>
-              </h1>
-              <p className="text-emerald-100 text-lg font-medium opacity-90 mb-2">
-                Perfect skin texture and details with AI-powered enhancement
-              </p>
-              <div className="flex items-center space-x-4 text-sm text-emerald-100">
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span>AI Enhancement</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-emerald-300 rounded-full"></div>
-                  <span>Natural Results</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-teal-300 rounded-full"></div>
-                  <span>Skin Perfect</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/20 shadow-lg">
-              <div className="text-center">
-                <div className="flex items-center justify-center space-x-1 mb-1">
-                  <Sparkles className="w-4 h-4 text-teal-300" />
-                  <span className="text-sm font-semibold text-white">
-                    Skin AI
-                  </span>
-                </div>
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-green-200 font-medium">
-                    Ready
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Controls */}
         <div className="lg:col-span-2 space-y-6">
           {/* Folder Selection */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Save to Folder
-                </label>
-              </div>
-
-              <div className="relative">
-                <select
-                  value={targetFolder}
-                  onChange={(e) => setTargetFolder(e.target.value)}
-                  disabled={isLoadingFolders || isGenerating}
-                  className="w-full px-4 py-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">Select a folder...</option>
-                  {availableFolders.map((folder) => {
-                    // Check if this is a shared folder by looking at the prefix
-                    const isSharedFolder = folder.prefix && !folder.prefix.startsWith(`outputs/${user?.id}/`);
-                    const icon = isSharedFolder ? '🔓' : '📁';
-                    
-                    return (
-                      <option key={folder.slug} value={folder.prefix || folder.slug}>
-                        {icon} {folder.name}
-                      </option>
-                    );
-                  })}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-              </div>
-
-              {isLoadingFolders && (
-                <div className="flex items-center space-x-2 text-sm text-gray-500">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Loading folders...</span>
-                </div>
-              )}
-
-              {targetFolder && (
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  📁 Saving to: {targetFolder.startsWith('outputs/') ? targetFolder : `outputs/${user?.id}/${targetFolder}`}/
-                </div>
-              )}
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 mb-4">
+              <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h2>
             </div>
+            <div className="relative">
+              <select
+                value={targetFolder}
+                onChange={(e) => setTargetFolder(e.target.value)}
+                disabled={isLoadingFolders || isGenerating}
+                className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
+              >
+                <option value="">Select a folder...</option>
+                {availableFolders.map((folder) => (
+                  <option key={folder.prefix} value={folder.prefix}>
+                    {buildFolderOptionLabel(folder)}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                {isLoadingFolders ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </div>
+            </div>
+            {isLoadingFolders && (
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading folders...
+              </p>
+            )}
+            {selectedFolderOption && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                <span>💡</span>
+                <span>Saving to: {selectedFolderOption.prefix}</span>
+              </p>
+            )}
           </div>
 
           {/* Prompt Input */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Enhancement Prompt
-                </label>
-                <button
-                  onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
-                  className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                >
-                  Clear
-                </button>
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Wand2 className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Enhancement Prompt</h2>
               </div>
-              <textarea
-                value={params.prompt}
-                onChange={(e) =>
-                  setParams((prev) => ({ ...prev, prompt: e.target.value }))
-                }
-                placeholder="Describe the enhancement you want..."
-                className="w-full h-32 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-              />
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {params.prompt.length}/1000 characters
-              </div>
+              <button
+                onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
+                className="text-xs font-semibold text-purple-600 hover:text-pink-600 dark:text-purple-400 dark:hover:text-pink-300 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            <textarea
+              value={params.prompt}
+              onChange={(e) =>
+                setParams((prev) => ({ ...prev, prompt: e.target.value }))
+              }
+              placeholder="Describe the enhancement you want..."
+              className="w-full h-36 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 shadow-inner transition-all"
+            />
+            <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+              <span>💡 Tip: Highlight lighting, texture, and desired mood for best results.</span>
+              <span>{params.prompt.length}/1000</span>
             </div>
           </div>
 
           {/* Settings */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Settings
-            </h3>
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Advanced Settings</h2>
+              </div>
+              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-600 dark:text-purple-300">
+                Pro Controls
+              </span>
+            </div>
 
             {/* Multi-Influencer LoRA Model Selection */}
-            <div className="space-y-4 mb-6">
+            <div className="space-y-4 mb-8">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Influencer Models (Optional)
-                </label>
+                </span>
                 <button
                   onClick={addLoRA}
                   disabled={loadingLoRAs || isGenerating}
-                  className="flex items-center space-x-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white text-xs rounded-lg transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white text-xs font-semibold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Add LoRA</span>
@@ -2078,40 +2116,38 @@ export default function SkinEnhancerPage() {
               </div>
 
               {loadingLoRAs ? (
-                <div className="flex items-center space-x-2 p-3 border border-gray-300 dark:border-gray-600 rounded-lg">
+                <div className="flex items-center gap-2 p-4 border border-dashed border-purple-300 dark:border-purple-700 rounded-2xl bg-purple-50/60 dark:bg-purple-900/20 text-sm text-purple-600 dark:text-purple-300">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm text-gray-500">
-                    Loading influencer models...
-                  </span>
+                  Loading influencer models...
                 </div>
               ) : (
                 <div className="space-y-3">
                   {params.loras.length === 0 ? (
-                    <div className="text-sm text-gray-500 dark:text-gray-400 p-4 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-center">
-                      No influencer LoRAs selected. Click "Add LoRA" to add one.
+                    <div className="text-sm text-gray-500 dark:text-gray-400 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl text-center">
+                      No influencer LoRAs selected yet. Click "Add LoRA" to layer your signature looks.
                     </div>
                   ) : (
                     params.loras.map((lora, index) => (
                       <div
                         key={lora.id}
-                        className="p-4 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 space-y-3"
+                        className="p-4 border border-purple-200 dark:border-purple-800 rounded-2xl bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-purple-900/10 dark:via-pink-900/10 dark:to-blue-900/10 space-y-4"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                             Influencer LoRA #{index + 1}
                           </span>
                           <button
                             onClick={() => removeLoRA(lora.id)}
                             disabled={isGenerating}
-                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-colors disabled:opacity-50"
+                            className="p-1 rounded-lg bg-white/70 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500 transition-colors disabled:opacity-50"
                             title="Remove LoRA"
                           >
-                            <X className="w-4 h-4 text-red-500" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
 
                         <div className="space-y-2">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">
+                          <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">
                             Model
                           </label>
                           <select
@@ -2120,7 +2156,7 @@ export default function SkinEnhancerPage() {
                               updateLoRA(lora.id, "modelName", e.target.value)
                             }
                             disabled={isGenerating}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:opacity-50"
+                            className="w-full px-3 py-2 border-2 border-purple-200 dark:border-purple-700 rounded-xl bg-white dark:bg-gray-900/70 text-gray-900 dark:text-white text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500 transition-all disabled:opacity-50"
                           >
                             <option value="select" disabled>
                               Select a LoRA
@@ -2140,29 +2176,35 @@ export default function SkinEnhancerPage() {
 
                         <div className="space-y-2">
                           <div className="flex justify-between items-center">
-                            <label className="text-xs text-gray-600 dark:text-gray-400">
+                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
                               Strength
-                            </label>
-                            <span className="text-xs font-mono text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">
+                            </span>
+                            <span className="text-xs font-mono text-purple-600 dark:text-purple-300 bg-white/70 dark:bg-gray-900/60 px-2 py-0.5 rounded-full">
                               {lora.strength.toFixed(2)}
                             </span>
                           </div>
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={lora.strength}
-                            onChange={(e) =>
-                              updateLoRA(
-                                lora.id,
-                                "strength",
-                                parseFloat(e.target.value)
-                              )
-                            }
-                            disabled={isGenerating}
-                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500 disabled:opacity-50"
-                          />
+                          <div className="relative h-2 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 rounded-full">
+                            <div
+                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 rounded-full"
+                              style={{ width: `${lora.strength * 100}%` }}
+                            ></div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={lora.strength}
+                              onChange={(e) =>
+                                updateLoRA(
+                                  lora.id,
+                                  "strength",
+                                  parseFloat(e.target.value)
+                                )
+                              }
+                              disabled={isGenerating}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            />
+                          </div>
                         </div>
                       </div>
                     ))
@@ -2171,78 +2213,72 @@ export default function SkinEnhancerPage() {
               )}
 
               {params.loras.length > 0 && (
-                <div className="text-xs text-green-600 dark:text-green-400 flex items-center space-x-1">
+                <div className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-300">
                   <CheckCircle className="w-3 h-3" />
                   <span>
-                    Using {params.loras.length} influencer{" "}
-                    {params.loras.length > 1 ? "LoRAs" : "LoRA"}
+                    Using {params.loras.length} influencer {params.loras.length > 1 ? "LoRAs" : "LoRA"}
                   </span>
                 </div>
               )}
             </div>
 
             {/* Aspect Ratio */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <div className="space-y-4">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                 Output Size
-              </label>
+              </span>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {ASPECT_RATIOS.map((ratio) => (
-                  <button
-                    key={ratio.name}
-                    onClick={() =>
-                      handleAspectRatioChange(ratio.width, ratio.height)
-                    }
-                    className={`p-3 rounded-lg border text-sm font-medium transition-all ${
-                      params.width === ratio.width &&
-                      params.height === ratio.height
-                        ? "border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
-                        : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400"
-                    }`}
-                  >
-                    <div className="font-semibold">{ratio.name}</div>
-                    <div className="text-xs opacity-75">
-                      {ratio.width}×{ratio.height}
-                    </div>
-                    <div className="text-xs opacity-60 mt-1">
-                      {ratio.description}
-                    </div>
-                  </button>
-                ))}
+                {ASPECT_RATIOS.map((ratio) => {
+                  const isActive = params.width === ratio.width && params.height === ratio.height;
+                  return (
+                    <button
+                      key={ratio.name}
+                      onClick={() => handleAspectRatioChange(ratio.width, ratio.height)}
+                      className={`p-4 rounded-xl border-2 text-sm font-semibold transition-all duration-300 bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm text-left hover:scale-[1.01] ${
+                        isActive
+                          ? "border-purple-500 shadow-lg text-purple-700 dark:text-purple-200"
+                          : "border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-purple-300 dark:hover:border-purple-500"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span>{ratio.name}</span>
+                        {isActive && <Sparkles className="w-4 h-4 text-purple-500" />}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {ratio.width}×{ratio.height} • {ratio.ratio}
+                      </div>
+                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        {ratio.description}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Batch Size Slider */}
-            <div className="space-y-4 mb-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="space-y-4 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
-                  <Layers className="w-4 h-4 mr-2 text-green-600" />
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-purple-600" />
                   Batch Size
-                </label>
-                <div className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 px-3 py-1 rounded-full">
-                  <span className="text-sm font-bold text-green-700 dark:text-green-300">
-                    {params.batchSize} {params.batchSize > 1 ? 'images' : 'image'}
-                  </span>
+                </span>
+                <div className="px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-xs font-semibold text-purple-700 dark:text-purple-200">
+                  {params.batchSize} {params.batchSize > 1 ? "images" : "image"}
                 </div>
               </div>
-              
+
               <div className="relative">
-                {/* Slider Track */}
-                <div className="relative h-2 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-700 dark:via-gray-600 dark:to-gray-700 rounded-full shadow-inner">
-                  {/* Progress Fill */}
-                  <div 
-                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 rounded-full shadow-lg transition-all duration-300 ease-out"
+                <div className="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 rounded-full transition-all duration-300"
                     style={{ width: `${(params.batchSize / 15) * 100}%` }}
-                  />
-                  
-                  {/* Slider Handle */}
-                  <div 
-                    className="absolute top-1/2 transform -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-white dark:bg-gray-200 border-2 border-green-500 rounded-full shadow-lg cursor-pointer hover:scale-110 transition-all duration-200 ring-4 ring-green-200/50 dark:ring-green-400/30"
+                  ></div>
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 bg-white dark:bg-gray-200 border-2 border-purple-500 rounded-full shadow-lg ring-4 ring-purple-200/50 dark:ring-purple-400/30 transition-all"
                     style={{ left: `${(params.batchSize / 15) * 100}%` }}
-                  />
+                  ></div>
                 </div>
-                
-                {/* Invisible Input Range */}
                 <input
                   type="range"
                   min="1"
@@ -2251,19 +2287,17 @@ export default function SkinEnhancerPage() {
                   onChange={(e) => setParams((prev) => ({ ...prev, batchSize: parseInt(e.target.value) }))}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
-                
-                {/* Scale Markers */}
                 <div className="flex justify-between mt-3 px-1">
                   {[1, 5, 10, 15].map((marker) => (
                     <div key={marker} className="flex flex-col items-center">
-                      <div className={`w-1 h-2 rounded-full transition-colors ${
-                        params.batchSize >= marker 
-                          ? 'bg-green-500' 
-                          : 'bg-gray-300 dark:bg-gray-600'
-                      }`} />
-                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {marker}
-                      </span>
+                      <div
+                        className={`w-1 h-2 rounded-full ${
+                          params.batchSize >= marker
+                            ? "bg-purple-500"
+                            : "bg-gray-300 dark:bg-gray-600"
+                        }`}
+                      ></div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{marker}</span>
                     </div>
                   ))}
                 </div>
@@ -2278,25 +2312,25 @@ export default function SkinEnhancerPage() {
           <button
             onClick={handleEnhance}
             disabled={isGenerating || !params.prompt.trim() || !targetFolder}
-            className="w-full py-4 px-6 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
+            className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
           >
+            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
             {isGenerating ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Enhancing...</span>
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span>Enhancing Beauty...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-5 h-5" />
-                <span>Enhance Skin</span>
+                <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform duration-300" />
+                <span>Enhance Skin ✨</span>
               </>
             )}
           </button>
 
-          {/* Helper text */}
           {!targetFolder && !isGenerating && (
-            <p className="text-sm text-amber-600 dark:text-amber-400 text-center">
-              ⚠️ Please select a folder before enhancing
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400 -mt-2">
+              Please select a folder before enhancing.
             </p>
           )}
         </div>
@@ -2305,28 +2339,25 @@ export default function SkinEnhancerPage() {
         <div className="space-y-6">
           {/* Image Statistics */}
           {imageStats && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 Your Image Library
               </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Total Images:
-                  </span>
-                  <span className="ml-2 font-medium">
+              <div className="grid grid-cols-2 gap-4 text-sm text-gray-700 dark:text-gray-300">
+                <div className="p-3 rounded-xl bg-purple-50/70 dark:bg-purple-900/20 border border-purple-200/70 dark:border-purple-800/60">
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Images</p>
+                  <p className="text-lg font-semibold text-purple-600 dark:text-purple-300">
                     {imageStats.totalImages}
-                  </span>
+                  </p>
                 </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Total Size:
-                  </span>
-                  <span className="ml-2 font-medium">
+                <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200/70 dark:border-blue-800/60">
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Size</p>
+                  <p className="text-lg font-semibold text-blue-600 dark:text-blue-300">
                     {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
                       100}{" "}
                     MB
-                  </span>
+                  </p>
                 </div>
               </div>
             </div>
@@ -2334,17 +2365,19 @@ export default function SkinEnhancerPage() {
 
           {/* Current Enhancement */}
           {currentJob && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Current Enhancement
-                </h3>
-                <div className="flex space-x-2">
-                  {(currentJob.status === "processing" ||
-                    currentJob.status === "pending") && (
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Current Enhancement
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {(currentJob.status === "processing" || currentJob.status === "pending") && (
                     <button
                       onClick={() => checkJobStatus(currentJob.id)}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:bg-gradient-to-br hover:from-purple-500/90 hover:to-blue-500/90 hover:text-white transition-all duration-200"
                       title="Check job status"
                     >
                       <RefreshCw className="w-4 h-4" />
@@ -2357,7 +2390,7 @@ export default function SkinEnhancerPage() {
                         console.log("🔄 Current job state:", currentJob);
                         fetchJobImages(currentJob.id);
                       }}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:bg-gradient-to-br hover:from-purple-500/90 hover:to-blue-500/90 hover:text-white transition-all duration-200"
                       title="Refresh enhanced images"
                     >
                       <RefreshCw className="w-4 h-4" />
@@ -2366,7 +2399,7 @@ export default function SkinEnhancerPage() {
                   {currentJob.status === "failed" && (
                     <button
                       onClick={() => checkJobStatus(currentJob.id)}
-                      className="p-2 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/20"
+                      className="p-2 rounded-xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-300 transition-colors"
                       title="Recheck job status"
                     >
                       <RefreshCw className="w-4 h-4" />
@@ -2375,257 +2408,191 @@ export default function SkinEnhancerPage() {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
                     Status
                   </span>
-                  <div className="flex items-center space-x-2">
-                    {(currentJob.status === "pending" ||
-                      currentJob.status === "processing") && (
-                      <Loader2 className="w-4 h-4 animate-spin text-green-500" />
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-xs font-semibold text-purple-700 dark:text-purple-200">
+                    {(currentJob.status === "pending" || currentJob.status === "processing") && (
+                      <Loader2 className="w-3 h-3 animate-spin" />
                     )}
-                    {currentJob.status === "completed" && (
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    )}
-                    {currentJob.status === "failed" && !isJobCancelled(currentJob) && (
-                      <AlertCircle className="w-4 h-4 text-red-500" />
-                    )}
-                    {currentJob.status === "failed" && isJobCancelled(currentJob) && (
-                      <XCircle className="w-4 h-4 text-orange-500" />
-                    )}
-                    <span className="text-sm font-medium capitalize">
+                    {currentJob.status === "completed" && <CheckCircle className="w-3 h-3" />}
+                    {currentJob.status === "failed" && !isJobCancelled(currentJob) && <AlertCircle className="w-3 h-3" />}
+                    {currentJob.status === "failed" && isJobCancelled(currentJob) && <XCircle className="w-3 h-3" />}
+                    <span className="capitalize">
                       {currentJob.status === "failed" && isJobCancelled(currentJob)
                         ? "cancelled"
                         : currentJob.status}
-                      {currentJob.status === "processing" &&
-                        " (may take 3-5 minutes)"}
+                      {currentJob.status === "processing" && " • may take 3-5 minutes"}
                     </span>
                   </div>
                 </div>
 
-                {currentJob.progress !== undefined && 
-                 currentJob.status !== "failed" && 
-                 !isJobCancelled(currentJob) && (
-                  <div className="space-y-2">
+                {currentJob.progress !== undefined && currentJob.status !== "failed" && !isJobCancelled(currentJob) && (
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                      <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
                         Progress
                         {currentJob.imagesReady && currentJob.totalImages && (
-                          <span className="ml-2 text-xs">
-                            (Image {currentJob.imagesReady} of {currentJob.totalImages})
+                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                            Image {currentJob.imagesReady} of {currentJob.totalImages}
                           </span>
                         )}
                       </span>
-                      <span className="text-sm font-medium">
-                        {Number(currentJob.progress) && !isNaN(Number(currentJob.progress)) && Math.round(Number(currentJob.progress)) >= 0 ? Math.round(Number(currentJob.progress)) : 0}%
+                      <span className="text-sm font-bold text-purple-600 dark:text-purple-300">
+                        {Number(currentJob.progress) && !isNaN(Number(currentJob.progress)) && Math.round(Number(currentJob.progress)) >= 0
+                          ? Math.round(Number(currentJob.progress))
+                          : 0}
+                        %
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="w-full h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
-                        className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${Number(currentJob.progress) && !isNaN(Number(currentJob.progress)) && Math.round(Number(currentJob.progress)) >= 0 ? Math.round(Number(currentJob.progress)) : 0}%` }}
-                      />
+                        className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 transition-all duration-500"
+                        style={{
+                          width: `${
+                            Number(currentJob.progress) && !isNaN(Number(currentJob.progress)) && Math.round(Number(currentJob.progress)) >= 0
+                              ? Math.round(Number(currentJob.progress))
+                              : 0
+                          }%`,
+                        }}
+                      ></div>
                     </div>
-                    {currentJob.status === "processing" &&
-                      currentJob.progress < 90 && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Skin enhancement is a complex process. Please be
-                          patient...
-                        </p>
-                      )}
+                    {currentJob.status === "processing" && currentJob.progress < 90 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Skin enhancement is a delicate process. Hang tight while we perfect the details.
+                      </p>
+                    )}
                   </div>
                 )}
 
-                {/* Show loading or no images message for completed jobs */}
-                {currentJob.status === "completed" &&
-                  (!currentJob.resultUrls ||
-                    currentJob.resultUrls.length === 0) &&
-                  (!jobImages[currentJob.id] ||
-                    jobImages[currentJob.id].length === 0) && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Enhanced Images
-                      </h4>
-                      <div className="text-center py-8">
-                        <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
-                          <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span className="text-sm">
-                            Loading enhanced images...
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => fetchJobImages(currentJob.id)}
-                          className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
-                        >
-                          Refresh Images
-                        </button>
+                {currentJob.status === "completed" && (!currentJob.resultUrls || currentJob.resultUrls.length === 0) && (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0) && (
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      Enhanced Images
+                    </h4>
+                    <div className="text-center py-8 rounded-2xl border border-dashed border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10">
+                      <div className="flex items-center justify-center gap-2 text-purple-600 dark:text-purple-300 mb-3">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Loading enhanced images...</span>
                       </div>
+                      <button
+                        onClick={() => fetchJobImages(currentJob.id)}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white text-sm font-semibold shadow-lg hover:shadow-2xl transition-all"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Refresh Images
+                      </button>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                {/* Enhanced image display with dynamic URL support */}
-                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
-                  (jobImages[currentJob.id] &&
-                    jobImages[currentJob.id].length > 0)) && (
-                  <div className="space-y-3">
+                {((currentJob.resultUrls && currentJob.resultUrls.length > 0) || (jobImages[currentJob.id] && jobImages[currentJob.id].length > 0)) && (
+                  <div className="space-y-4" id={`job-images-${currentJob.id}`}>
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                         Enhanced Images
                       </h4>
                       {comparisonImages.initial && comparisonImages.final && (
                         <button
                           onClick={() => setShowComparison(!showComparison)}
-                          className="px-3 py-1 bg-purple-100 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/30 flex items-center space-x-1 text-sm"
+                          className="px-3 py-1 rounded-xl bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20 text-purple-600 dark:text-purple-300 text-sm font-semibold hover:shadow-md transition-all flex items-center gap-2"
                         >
                           <ArrowRightLeft className="w-4 h-4" />
-                          <span>
-                            {showComparison ? "Hide" : "Show"} Two-Way
-                            Comparison
-                          </span>
+                          {showComparison ? "Hide" : "Show"} Comparison
                         </button>
                       )}
                     </div>
 
-                    {/* Show comparison if enabled */}
-                    {showComparison &&
-                      comparisonImages.initial &&
-                      comparisonImages.final && (
-                        <SkinComparisonViewer
-                          initial={comparisonImages.initial}
-                          final={comparisonImages.final}
-                        />
-                      )}
+                    {showComparison && comparisonImages.initial && comparisonImages.final && (
+                      <SkinComparisonViewer initial={comparisonImages.initial} final={comparisonImages.final} />
+                    )}
 
-                    <div className="grid grid-cols-1 gap-3">
-                      {/* Show database images if available */}
-                      {jobImages[currentJob.id] &&
-                      jobImages[currentJob.id].length > 0
-                        ? // Database images with dynamic URLs
-                          jobImages[currentJob.id].map((dbImage, index) => (
-                            <div
-                              key={`db-${dbImage.id}`}
-                              className="relative group"
-                            >
-                              {/* Only render img if we have a valid URL */}
+                    <div className="grid grid-cols-1 gap-4">
+                      {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0
+                        ? jobImages[currentJob.id].map((dbImage, index) => (
+                            <div key={`db-${dbImage.id}`} className="relative group">
                               {(dbImage.dataUrl || dbImage.url) ? (
-                                <img
-                                  src={(dbImage.dataUrl || dbImage.url) as string}
-                                  alt={`Enhanced image ${index + 1}`}
-                                  className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                  onError={(e) => {
-                                    console.error(
-                                      "Image load error for:",
-                                      dbImage.filename
-                                    );
-
-                                    // Smart fallback logic
-                                    const currentSrc = (
-                                      e.target as HTMLImageElement
-                                    ).src;
-
-                                    if (
-                                      currentSrc === dbImage.dataUrl &&
-                                      dbImage.url
-                                    ) {
-                                      console.log("Falling back to URL");
-                                      (e.target as HTMLImageElement).src =
-                                        dbImage.url;
-                                    } else if (
-                                      currentSrc === dbImage.url &&
-                                      dbImage.dataUrl
-                                    ) {
-                                      console.log("Falling back to database URL");
-                                      (e.target as HTMLImageElement).src =
-                                        dbImage.dataUrl;
-                                    } else {
-                                      console.error(
-                                        "All URLs failed for:",
-                                        dbImage.filename
-                                      );
-                                      (
-                                        e.target as HTMLImageElement
-                                      ).style.display = "none";
-                                    }
-                                  }}
-                                />
+                                <div className="relative overflow-hidden rounded-2xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 p-2">
+                                  <div className="relative w-full h-80 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden">
+                                    <img
+                                      src={(dbImage.dataUrl || dbImage.url) as string}
+                                      alt={`Enhanced image ${index + 1}`}
+                                      className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+                                      onError={(e) => {
+                                        console.error("Image load error for:", dbImage.filename);
+                                        const element = e.target as HTMLImageElement;
+                                        const currentSrc = element.src;
+                                        if (currentSrc === dbImage.dataUrl && dbImage.url) {
+                                          element.src = dbImage.url;
+                                        } else if (currentSrc === dbImage.url && dbImage.dataUrl) {
+                                          element.src = dbImage.dataUrl;
+                                        } else {
+                                          element.style.display = "none";
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </div>
                               ) : (
-                                // Fallback for images without valid URLs
-                                <div className="w-full h-64 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                                  <div className="text-center text-gray-500 dark:text-gray-400">
-                                    <p className="text-sm">Image not available</p>
-                                    <p className="text-xs">{dbImage.filename}</p>
-                                    <p className="text-xs">Missing URL: dataUrl={dbImage.dataUrl || 'null'}, url={dbImage.url || 'null'}</p>
+                                <div className="w-full h-64 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-400">
+                                  <div className="text-center text-xs">
+                                    <p>Image not available</p>
+                                    <p>{dbImage.filename}</p>
                                   </div>
                                 </div>
                               )}
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex space-x-1">
+
+                              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex gap-2">
                                   <button
-                                    onClick={() =>
-                                      downloadDatabaseImage(dbImage)
-                                    }
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    onClick={() => downloadDatabaseImage(dbImage)}
+                                    className="p-2 rounded-xl bg-white/90 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white shadow-lg transition-all"
                                     title={`Download ${dbImage.filename}`}
                                   >
                                     <Download className="w-4 h-4" />
                                   </button>
                                   <button
                                     onClick={() => shareImage(dbImage)}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    className="p-2 rounded-xl bg-white/90 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 hover:bg-gradient-to-br hover:from-purple-500 hover:to-pink-600 hover:text-white shadow-lg transition-all"
                                   >
                                     <Share2 className="w-4 h-4" />
                                   </button>
                                 </div>
                               </div>
 
-                              {/* Image metadata */}
-                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                  {dbImage.width && dbImage.height
-                                    ? `${dbImage.width}×${dbImage.height}`
-                                    : "Unknown size"}
-                                  {dbImage.fileSize &&
-                                    ` • ${Math.round(
-                                      dbImage.fileSize / 1024
-                                    )}KB`}
-                                  {dbImage.format &&
-                                    ` • ${dbImage.format.toUpperCase()}`}
+                              <div className="absolute bottom-3 left-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-sm text-white text-xs">
+                                  {dbImage.width && dbImage.height ? `${dbImage.width}×${dbImage.height}` : "Unknown size"}
+                                  {dbImage.fileSize && ` • ${Math.round(dbImage.fileSize / 1024)}KB`}
+                                  {dbImage.format && ` • ${dbImage.format.toUpperCase()}`}
                                 </div>
                               </div>
                             </div>
                           ))
-                        : // Fallback to legacy URLs if no database images
-                          currentJob.resultUrls &&
+                        : currentJob.resultUrls &&
                           currentJob.resultUrls.length > 0 &&
                           currentJob.resultUrls.map((url, index) => (
-                            <div
-                              key={`legacy-${currentJob.id}-${index}`}
-                              className="relative group"
-                            >
-                              <img
-                                src={url}
-                                alt={`Enhanced image ${index + 1}`}
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow"
-                                onError={(e) => {
-                                  console.error(
-                                    "Legacy image load error:",
-                                    url
-                                  );
-                                  (e.target as HTMLImageElement).style.display =
-                                    "none";
-                                }}
-                              />
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="flex space-x-1">
+                            <div key={`legacy-${currentJob.id}-${index}`} className="relative group">
+                              <div className="relative overflow-hidden rounded-2xl border border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 p-2">
+                                <div className="relative w-full h-80 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden">
+                                  <img
+                                    src={url}
+                                    alt={`Enhanced image ${index + 1}`}
+                                    className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+                                    onError={(e) => {
+                                      console.error("Legacy image load error:", url);
+                                      (e.target as HTMLImageElement).style.display = "none";
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex gap-2">
                                   <button
-                                    onClick={() =>
-                                      downloadFromUrl(
-                                        url,
-                                        `enhanced-image-${index + 1}.png`
-                                      )
-                                    }
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    onClick={() => downloadFromUrl(url, `enhanced-image-${index + 1}.png`)}
+                                    className="p-2 rounded-xl bg-white/90 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white shadow-lg transition-all"
                                   >
                                     <Download className="w-4 h-4" />
                                   </button>
@@ -2634,7 +2601,7 @@ export default function SkinEnhancerPage() {
                                       navigator.clipboard.writeText(url);
                                       alert("Image URL copied to clipboard!");
                                     }}
-                                    className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+                                    className="p-2 rounded-xl bg-white/90 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 hover:bg-gradient-to-br hover:from-purple-500 hover:to-pink-600 hover:text-white shadow-lg transition-all"
                                   >
                                     <Share2 className="w-4 h-4" />
                                   </button>
@@ -2647,23 +2614,22 @@ export default function SkinEnhancerPage() {
                 )}
 
                 {currentJob.error && !isJobCancelled(currentJob) && (
-                  <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <div className="flex items-start justify-between">
+                  <div className="p-4 rounded-2xl border border-red-200 dark:border-red-800 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/30 dark:to-pink-900/30">
+                    <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm text-red-600 dark:text-red-400 mb-2">
+                        <p className="text-sm font-semibold text-red-600 dark:text-red-300 mb-2">
                           {currentJob.error}
                         </p>
                         {currentJob.error.includes("timeout") && (
-                          <p className="text-xs text-red-500 dark:text-red-400">
-                            The job may still be processing. Try checking status
-                            or starting a new enhancement.
+                          <p className="text-xs text-red-500 dark:text-red-300">
+                            The job may still be processing. Try checking status or start a new enhancement.
                           </p>
                         )}
                       </div>
                       {currentJob.status === "failed" && (
                         <button
                           onClick={() => checkJobStatus(currentJob.id)}
-                          className="px-3 py-1 text-xs bg-red-100 dark:bg-red-800 text-red-600 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-700"
+                          className="px-3 py-1.5 rounded-xl bg-red-100 dark:bg-red-800 text-red-600 dark:text-red-200 text-xs font-semibold hover:bg-red-200 dark:hover:bg-red-700"
                         >
                           Check Status
                         </button>
@@ -2672,13 +2638,13 @@ export default function SkinEnhancerPage() {
                   </div>
                 )}
 
-                {/* Cancel Button - placed at bottom of current enhancement */}
                 {isGenerating && currentJob && (
                   <button
                     onClick={cancelGeneration}
-                    className="w-full py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                    className="group w-full py-4 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 dark:from-gray-600 dark:via-gray-700 dark:to-gray-800 text-white font-semibold rounded-2xl hover:from-purple-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 relative overflow-hidden"
                   >
-                    <XCircle className="w-5 h-5" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                    <XCircle className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
                     <span>Cancel Enhancement</span>
                   </button>
                 )}
@@ -2688,78 +2654,88 @@ export default function SkinEnhancerPage() {
 
           {/* Recent Enhancements - Persistent History */}
           {jobHistory.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Recent Enhancements
-                </h3>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Recent Enhancements
+                  </h3>
+                </div>
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
                   {jobHistory.length}/5 jobs
                 </span>
               </div>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                 {jobHistory
                   .filter((job) => job && job.id)
-                  .slice(0, 5) // Limit to 5 jobs
-                  .map((job, index) => (
-                    <div
-                      key={job.id || `job-${index}`}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div className="flex items-center space-x-3 flex-1">
-                        {job.status === "completed" && (
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                        )}
-                        {job.status === "failed" && !isJobCancelled(job) && (
-                          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                        )}
-                        {job.status === "failed" && isJobCancelled(job) && (
-                          <XCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                        )}
-                        {(job.status === "pending" ||
-                          job.status === "processing") && (
-                          <Loader2 className="w-4 h-4 animate-spin text-green-500 flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            {formatJobTime(job.createdAt)}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  .slice(0, 5)
+                  .map((job, index) => {
+                    const statusBadge = (() => {
+                      if (job.status === "completed") {
+                        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
+                      }
+                      if (job.status === "failed" && isJobCancelled(job)) {
+                        return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+                      }
+                      if (job.status === "failed") {
+                        return "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300";
+                      }
+                      return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
+                    })();
+
+                    return (
+                      <div
+                        key={job.id || `job-${index}`}
+                        className="flex items-center justify-between p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-lg transition-all"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-full ${statusBadge}`}
+                          >
                             {job.status === "failed" && isJobCancelled(job)
                               ? "cancelled"
                               : job.status || "unknown"}
-                          </p>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                              {formatJobTime(job.createdAt)}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              Job ID: {job.id}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {job.status === "completed" && jobImages[job.id]?.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const imageSection = document.getElementById(`job-images-${job.id}`);
+                                imageSection?.scrollIntoView({ behavior: "smooth" });
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-lg transition-all"
+                            >
+                              View Results
+                            </button>
+                          )}
+                          {(job.status === "pending" || job.status === "processing") && job.id === currentJob?.id && (
+                            <button
+                              onClick={() => checkJobStatus(job.id)}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg transition-all"
+                            >
+                              Refresh
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 flex-shrink-0">
-                        {job.status === "completed" && jobImages[job.id]?.length > 0 && (
-                          <button
-                            onClick={() => {
-                              // Scroll to images for this job
-                              const imageSection = document.getElementById(`job-images-${job.id}`);
-                              imageSection?.scrollIntoView({ behavior: 'smooth' });
-                            }}
-                            className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800 transition-colors"
-                          >
-                            View Results
-                          </button>
-                        )}
-                        {(job.status === "pending" || job.status === "processing") && job.id === currentJob?.id && (
-                          <button
-                            onClick={() => checkJobStatus(job.id)}
-                            className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
-                          >
-                            Refresh
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             </div>
           )}
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

@@ -683,13 +683,12 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                             # If filename_prefix starts with "outputs/", it's a shared folder with full path
                                                             if filename_prefix.startswith('outputs/'):
                                                                 is_shared_folder = True
-                                                                # Extract the folder path: "outputs/user_xyz/My Folder" -> "outputs/user_xyz/My Folder"
-                                                                # Remove the filename part (everything after the last /)
+                                                                # Extract the folder path by removing filename part (last segment after /)
                                                                 path_parts = filename_prefix.split('/')
                                                                 if len(path_parts) >= 3:
-                                                                    # Keep outputs/user_id/folder_name
-                                                                    folder_prefix = '/'.join(path_parts[:3])
-                                                                    logger.info(f"🔓 Detected shared folder: {folder_prefix}")
+                                                                    # Keep all parts except the filename (last part)
+                                                                    folder_prefix = '/'.join(path_parts[:-1]) + '/'
+                                                                    logger.info(f"� Detected full folder path: {folder_prefix}")
                                                             else:
                                                                 logger.info(f"📁 Using user's own folder: {filename_prefix}")
                                                     

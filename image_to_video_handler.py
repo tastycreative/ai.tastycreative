@@ -659,7 +659,7 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                             webhook_videos = []
                                             outputs = job_data.get('outputs', {})
                                             
-                                            # Detect shared folder by checking workflow for filename_prefix in SaveVideo node
+                                            # Extract folder information from workflow to detect shared folders
                                             folder_prefix = None
                                             is_shared_folder = False
                                             
@@ -674,13 +674,14 @@ def monitor_video_generation_progress(prompt_id: str, job_id: str, webhook_url: 
                                                     if filename_prefix.startswith("outputs/"):
                                                         logger.info(f"🔍 Detected shared folder pattern: {filename_prefix}")
                                                         
-                                                        # Extract the full folder path (e.g., "outputs/user_xyz/FolderName")
-                                                        # Split by "/" and take first 3 parts
+                                                        # Extract the FULL folder path (all segments except the last one)
+                                                        # For "outputs/user_id/folder/subfolder/ImageToVideo", we want "outputs/user_id/folder/subfolder"
                                                         path_parts = filename_prefix.split("/")
                                                         if len(path_parts) >= 3:
-                                                            folder_prefix = "/".join(path_parts[:3])
+                                                            # Take all parts except the last (which is the filename prefix)
+                                                            folder_prefix = "/".join(path_parts[:-1]) + "/"
                                                             is_shared_folder = True
-                                                            logger.info(f"📂 Using shared folder prefix: {folder_prefix}")
+                                                            logger.info(f"📂 Using shared folder prefix with full nested path: {folder_prefix}")
                                                             logger.info(f"👤 Video will be saved to folder owner's account")
                                                         else:
                                                             logger.warning(f"⚠️ Invalid shared folder path format: {filename_prefix}")
@@ -1121,17 +1122,26 @@ def run_image_to_video_generation(job_input, job_id, webhook_url):
             "message": "Video generation started, monitoring progress..."
         })
         
-        # Extract subfolder from workflow's filename_prefix (node 131)
+        # Extract subfolder from workflow's filename_prefix (node 131) with enhanced path parsing
         subfolder = ''
+        is_full_prefix = False
         if "131" in workflow and "inputs" in workflow["131"]:
             filename_prefix = workflow["131"]["inputs"].get("filename_prefix", "")
-            # Extract subfolder from prefix like "folder-slug/ImageToVideo" or "video/ComfyUI/wan2_video"
-            # Take everything before the last '/' as the subfolder
-            if '/' in filename_prefix:
+            
+            # Check if this is a full S3 prefix path (starts with "outputs/")
+            if filename_prefix.startswith('outputs/'):
+                is_full_prefix = True
+                # Remove the file prefix portion and keep the full folder hierarchy
+                sanitized_prefix = filename_prefix.rstrip('/')
+                prefix_parts = sanitized_prefix.split('/')
+                if len(prefix_parts) >= 3:
+                    # Drop the last segment (the generated filename prefix) and keep the rest
+                    subfolder = '/'.join(prefix_parts[:-1]) + '/'
+                    logger.info(f"🔗 Using full folder prefix with subfolders: {subfolder}")
+            elif '/' in filename_prefix:
+                # Extract user's folder from prefix like "nov-2/ImageToVideo"
                 parts = filename_prefix.split('/')
                 if len(parts) > 1:
-                    # For "nov-2/ImageToVideo", subfolder is "nov-2"
-                    # For "video/ComfyUI/wan2_video", subfolder is "video/ComfyUI"
                     subfolder = '/'.join(parts[:-1])
                     logger.info(f"📁 Extracted subfolder from filename_prefix: {subfolder}")
         

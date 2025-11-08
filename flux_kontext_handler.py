@@ -468,8 +468,8 @@ def monitor_flux_kontext_progress(prompt_id: str, job_id: str, webhook_url: str,
                                 image_bytes = get_image_bytes_from_comfyui(filename, subfolder, type_dir)
                                 
                                 # Extract folder info from the workflow's filename_prefix
-                                # The prefix might be like "outputs/user_123/nov-5/FluxKontext_..." for shared folders
-                                # or just "nov-5/FluxKontext_..." for regular folders
+                                # The prefix might be like "outputs/user_123/yuri-sfw/nov-7/FluxKontext_..." for subfolders
+                                # or "outputs/user_123/yuri-sfw/FluxKontext_..." for regular folders
                                 is_full_prefix = False
                                 folder_prefix = subfolder
                                 
@@ -479,13 +479,22 @@ def monitor_flux_kontext_progress(prompt_id: str, job_id: str, webhook_url: str,
                                     # Check if this is a full S3 prefix path (starts with "outputs/")
                                     if filename_prefix.startswith("outputs/"):
                                         is_full_prefix = True
-                                        # Extract the folder path from the prefix (remove the filename part after last meaningful folder)
-                                        # "outputs/user_123/nov-5/FluxKontext_..." -> "outputs/user_123/nov-5/"
+                                        # Extract the folder path from the prefix (everything before the filename pattern)
+                                        # "outputs/user_123/yuri-sfw/nov-7/FluxKontext_..." -> "outputs/user_123/yuri-sfw/nov-7/"
                                         prefix_parts = filename_prefix.split('/')
-                                        if len(prefix_parts) >= 3:
-                                            # Take outputs/user_id/folder-name
-                                            folder_prefix = '/'.join(prefix_parts[:3]) + '/'
-                                            logger.info(f"🔗 Using shared folder prefix: {folder_prefix}")
+                                        
+                                        # Find where the filename part starts (usually after the last folder segment)
+                                        # The filename part typically contains timestamp or pattern like "FluxKontext_"
+                                        folder_parts = []
+                                        for part in prefix_parts:
+                                            # If part contains timestamp pattern or starts with capital letters (filename pattern), stop
+                                            if 'FluxKontext' in part or 'TextToImage' in part or part.isdigit():
+                                                break
+                                            folder_parts.append(part)
+                                        
+                                        if len(folder_parts) >= 2:  # At least outputs/user_id
+                                            folder_prefix = '/'.join(folder_parts) + '/'
+                                            logger.info(f"🔗 Using folder prefix: {folder_prefix}")
                                 
                                 # Upload to AWS S3
                                 s3_result = upload_image_to_aws_s3(

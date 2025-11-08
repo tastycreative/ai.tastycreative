@@ -26,36 +26,73 @@ export async function GET(request: NextRequest) {
 
     console.log('📁 Listing custom folders for user:', userId);
 
-    // List all folders under outputs/{userId}/ prefix
-    const command = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
-      Prefix: `outputs/${userId}/`,
-      Delimiter: '/',
-    });
+    const rootPrefix = `outputs/${userId}/`;
+    const folderInfoKeys: string[] = [];
 
-    const response = await s3Client.send(command);
-    const commonPrefixes = response.CommonPrefixes || [];
+    let continuationToken: string | undefined;
+    do {
+      const listCommand = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: rootPrefix,
+        ContinuationToken: continuationToken,
+      });
 
-    // Get all folders under user's outputs directory
-    const customFolders = commonPrefixes
-      .map((prefix) => {
-        const folderPrefix = prefix.Prefix || '';
-        // Extract folder name from prefix: outputs/{userId}/{folder-name}/
-        const parts = folderPrefix.split('/').filter(Boolean);
-        if (parts.length < 3) return null; // Skip if not properly formatted
-        
-        const folderSlug = parts[2]; // The folder name part
-        const folderName = folderSlug
-          .split('-')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ');
+      const listResponse = await s3Client.send(listCommand);
+      const contents = listResponse.Contents || [];
 
-        return {
-          name: folderName,
-          prefix: folderPrefix,
-        };
+      for (const item of contents) {
+        const key = item.Key || '';
+        if (key.endsWith('.folderinfo')) {
+          folderInfoKeys.push(key);
+        }
+      }
+
+      continuationToken = listResponse.IsTruncated ? listResponse.NextContinuationToken : undefined;
+    } while (continuationToken);
+
+    const formatFolderFromPrefix = (folderPrefix: string) => {
+      const sanitizedPrefix = folderPrefix.replace(/\/+$/, '/') ;
+      const parts = sanitizedPrefix.split('/').filter(Boolean);
+      if (parts.length < 3) {
+        return null;
+      }
+
+      if (`${parts[0]}/${parts[1]}/` !== rootPrefix) {
+        return null;
+      }
+
+      const folderSlug = parts[parts.length - 1];
+      const folderName = folderSlug
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+      const parentParts = parts.slice(0, -1);
+      const parentPrefix = parentParts.length <= 2 ? null : `${parentParts.join('/')}/`;
+      const depth = parts.length - 2; // depth relative to user root
+      const path = parts.slice(2).join('/');
+
+      return {
+        name: folderName,
+        prefix: sanitizedPrefix,
+        parentPrefix,
+        depth,
+        path,
+      };
+    };
+
+    const customFolders = folderInfoKeys
+      .map((key) => {
+        const folderPrefix = key.replace(/\.folderinfo$/, '');
+        return formatFolderFromPrefix(folderPrefix);
       })
-      .filter((folder): folder is { name: string; prefix: string } => folder !== null);
+      .filter((folder): folder is {
+        name: string;
+        prefix: string;
+        parentPrefix: string | null;
+        depth: number;
+        path: string;
+      } => folder !== null);
 
     console.log(`✅ Found ${customFolders.length} custom folders for user ${userId}`);
 
@@ -100,19 +137,42 @@ export async function GET(request: NextRequest) {
           : owner?.firstName || owner?.lastName || owner?.email || 'Unknown';
 
         // Extract folder name from prefix (e.g., "outputs/user_123/nov-2/" -> "nov-2")
-        const parts = share.folderPrefix.split('/').filter(Boolean);
-        const folderSlug = parts[2] || 'unknown';
-        const folderName = folderSlug
-          .split('-')
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ');
+        const formatted = (() => {
+          const prefix = share.folderPrefix.replace(/\/+$/, '/');
+          const parts = prefix.split('/').filter(Boolean);
+          if (parts.length < 3) {
+            return {
+              name: 'Unknown Folder',
+              depth: 1,
+              path: 'unknown',
+              parentPrefix: null as string | null,
+              sanitizedPrefix: prefix,
+            };
+          }
+
+          const folderSlug = parts[parts.length - 1];
+          const folderName = folderSlug
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+
+          const parentParts = parts.slice(0, -1);
+          const parentPrefix = parentParts.length <= 2 ? null : `${parentParts.join('/')}/`;
+          const depth = parts.length - 2;
+          const path = parts.slice(2).join('/');
+
+          return { name: folderName, depth, path, parentPrefix, sanitizedPrefix: prefix };
+        })();
 
         return {
-          name: folderName,
-          prefix: share.folderPrefix,
+          name: formatted.name,
+          prefix: formatted.sanitizedPrefix,
           isShared: true,
           sharedBy: ownerName,
           permission: share.permission,
+          depth: formatted.depth,
+          path: formatted.path,
+          parentPrefix: formatted.parentPrefix,
         };
       })
     );
@@ -152,6 +212,12 @@ export async function GET(request: NextRequest) {
         }
       })
     );
+
+    foldersWithCounts.sort((a, b) => {
+      const pathA = a.path || a.name;
+      const pathB = b.path || b.name;
+      return pathA.localeCompare(pathB);
+    });
 
     return NextResponse.json({
       success: true,

@@ -699,13 +699,14 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                                             if filename_prefix.startswith("outputs/"):
                                                                 logger.info(f"🔍 Detected shared folder pattern: {filename_prefix}")
                                                                 
-                                                                # Extract the full folder path (e.g., "outputs/user_xyz/FolderName")
-                                                                # Split by "/" and take first 3 parts
+                                                                # Extract the FULL folder path (all segments except the last one)
+                                                                # For "outputs/user_id/folder/subfolder/StyleTransfer", we want "outputs/user_id/folder/subfolder"
                                                                 path_parts = filename_prefix.split("/")
                                                                 if len(path_parts) >= 3:
-                                                                    folder_prefix = "/".join(path_parts[:3])
+                                                                    # Take all parts except the last (which is the filename prefix)
+                                                                    folder_prefix = "/".join(path_parts[:-1]) + "/"
                                                                     is_shared_folder = True
-                                                                    logger.info(f"📂 Using shared folder prefix: {folder_prefix}")
+                                                                    logger.info(f"📂 Using shared folder prefix with full nested path: {folder_prefix}")
                                                                     logger.info(f"👤 Image will be saved to folder owner's account")
                                                                 else:
                                                                     logger.warning(f"⚠️ Invalid shared folder path format: {filename_prefix}")

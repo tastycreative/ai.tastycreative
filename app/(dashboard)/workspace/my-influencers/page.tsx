@@ -29,9 +29,11 @@ import {
   BarChart3,
   Sparkles,
   Share2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import ShareLoRAModal from "@/components/ShareLoRAModal";
+import SelectThumbnailModal from "@/components/SelectThumbnailModal";
 
 // Types
 interface InfluencerLoRA {
@@ -98,6 +100,11 @@ export default function MyInfluencersPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [shareLoRAModalOpen, setShareLoRAModalOpen] = useState(false);
   const [loraToShare, setLoraToShare] = useState<InfluencerLoRA | null>(null);
+  const [selectThumbnailModalOpen, setSelectThumbnailModalOpen] = useState(false);
+  const [loraForThumbnail, setLoraForThumbnail] = useState<InfluencerLoRA | null>(null);
+  const [thumbnailOptionsModalOpen, setThumbnailOptionsModalOpen] = useState(false);
+  const [thumbnailOptionsInfluencer, setThumbnailOptionsInfluencer] = useState<InfluencerLoRA | null>(null);
+  const [activeView, setActiveView] = useState<'my-loras' | 'shared'>('my-loras');
 
   // ✅ Get the authenticated API client and user
   const apiClient = useApiClient();
@@ -300,6 +307,8 @@ export default function MyInfluencersPage() {
               : inf
           )
         );
+        
+        toast.success("Thumbnail updated successfully!");
       } catch (error) {
         console.error("Thumbnail upload error:", error);
         alert(
@@ -307,6 +316,57 @@ export default function MyInfluencersPage() {
             error instanceof Error ? error.message : "Unknown error"
           }`
         );
+      } finally {
+        setThumbnailUploadingId(null);
+      }
+    };
+
+    const setThumbnailFromGeneratedImage = async (influencerId: string, imageUrl: string) => {
+      if (!apiClient) return;
+
+      setThumbnailUploadingId(influencerId);
+
+      try {
+        const formData = new FormData();
+        formData.append("imageUrl", imageUrl);
+
+        const response = await apiClient.postFormData(
+          `/api/user/influencers/${influencerId}/thumbnail`,
+          formData
+        );
+
+        if (!response.ok) {
+          let message = `Failed to set thumbnail (status ${response.status})`;
+          try {
+            const errorBody = await response.json();
+            if (errorBody?.error) {
+              message = errorBody.error;
+            }
+          } catch (parseError) {
+            console.warn("Could not parse thumbnail set error:", parseError);
+          }
+
+          throw new Error(message);
+        }
+
+        const data = await response.json();
+
+        setInfluencers((prev) =>
+          prev.map((inf) =>
+            inf.id === influencerId
+              ? {
+                  ...inf,
+                  thumbnailUrl:
+                    data?.influencer?.thumbnailUrl ?? data?.thumbnailUrl ?? inf.thumbnailUrl,
+                }
+              : inf
+          )
+        );
+        
+        toast.success("Thumbnail set successfully!");
+      } catch (error) {
+        console.error("Thumbnail set error:", error);
+        throw error; // Re-throw so modal can handle it
       } finally {
         setThumbnailUploadingId(null);
       }
@@ -1032,20 +1092,6 @@ export default function MyInfluencersPage() {
 
           <div className="flex items-center space-x-3">
             <button
-              onClick={syncWithComfyUI}
-              disabled={syncing}
-              className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 disabled:bg-white/10 text-white font-medium rounded-xl shadow-sm transition-all backdrop-blur-sm"
-              title="Sync existing ComfyUI models with database"
-            >
-              {syncing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-              <span>Sync Models</span>
-            </button>
-
-            <button
               onClick={() => {
                 setShowUploadModal(true);
                 checkComfyUIStatus();
@@ -1059,55 +1105,6 @@ export default function MyInfluencersPage() {
         </div>
       </div>
 
-      {/* Enhanced Stats Card */}
-      {influencers.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-2">
-              <BarChart3 className="w-5 h-5 text-indigo-500" />
-              <span>Models Status Overview</span>
-            </h3>
-            <span className="text-sm text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-              Updated {new Date().toLocaleTimeString()}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {influencers.length}
-              </div>
-              <div className="text-sm text-blue-700 dark:text-blue-300 font-medium mt-1">
-                Your Models
-              </div>
-            </div>
-            <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800">
-              <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {syncedCount}
-              </div>
-              <div className="text-sm text-green-700 dark:text-green-300 font-medium mt-1">
-                Ready to Use
-              </div>
-            </div>
-            <div className="text-center p-4 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
-              <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
-                {pendingCount}
-              </div>
-              <div className="text-sm text-yellow-700 dark:text-yellow-300 font-medium mt-1">
-                Need Setup
-              </div>
-            </div>
-            <div className="text-center p-4 bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 rounded-xl border border-red-200 dark:border-red-800">
-              <div className="text-3xl font-bold text-red-600 dark:text-red-400">
-                {missingCount}
-              </div>
-              <div className="text-sm text-red-700 dark:text-red-300 font-medium mt-1">
-                Missing
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Error Message */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -1118,43 +1115,48 @@ export default function MyInfluencersPage() {
         </div>
       )}
 
-      {/* Info Card */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-          <div>
-            <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-              About Your Personal Influencer LoRA Models
-            </h3>
-            <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">
-              Upload your custom LoRA models directly to the network volume
-              storage where they'll be immediately available for text-to-image
-              generation. Smart fallback to secure storage if needed.
-            </p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
-              <strong>🚀 Network Volume Upload:</strong> Direct upload to
-              `/runpod-volume/loras/{userId}/` (ready immediately for
-              generation)
-            </p>
-            <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
-              <p>
-                <strong>Status indicators:</strong> Green = Ready in network
-                volume, Yellow = Needs setup, Red = Missing from storage
-              </p>
-              <p>
-                <strong>Upload Process:</strong> 1) Upload to network volume via
-                RunPod, 2) Fallback to secure storage if needed, 3) Use "Sync
-                Uploaded Files" if fallback was used
-              </p>
-              <p>
-                <strong>Generation Ready:</strong> Files uploaded to network
-                volume are immediately available in the text-to-image generation
-                tab
-              </p>
-            </div>
-          </div>
+      {/* Filter Buttons - Only show when there are LoRAs */}
+      {influencers.length > 0 && (
+        <div className="flex items-center gap-3 pb-2">
+          <button
+            onClick={() => setActiveView('my-loras')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+              activeView === 'my-loras'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Users className="w-5 h-5" />
+            <span>My LoRAs</span>
+            <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+              activeView === 'my-loras'
+                ? 'bg-white/20'
+                : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+            }`}>
+              {ownedInfluencers.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveView('shared')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+              activeView === 'shared'
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Share2 className="w-5 h-5" />
+            <span>Shared With Me</span>
+            <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+              activeView === 'shared'
+                ? 'bg-white/20'
+                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+            }`}>
+              {sharedInfluencers.length}
+            </span>
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Enhanced Empty State */}
       {influencers.length === 0 ? (
@@ -1225,17 +1227,9 @@ export default function MyInfluencersPage() {
       ) : (
         <>
           {/* My Own LoRAs */}
-          {ownedInfluencers.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  My LoRA Models
-                </h2>
-                <span className="px-2 py-1 text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">
-                  {ownedInfluencers.length}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {activeView === 'my-loras' && ownedInfluencers.length > 0 && (
+            <div id="my-loras-section" className="space-y-4 scroll-mt-24">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {ownedInfluencers.map((influencer) => {
             const isThumbnailUploading =
               thumbnailUploadingId === influencer.id;
@@ -1256,9 +1250,9 @@ export default function MyInfluencersPage() {
             return (
               <div
                 key={influencer.id}
-                className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/20 shadow-lg rounded-xl border border-blue-200/30 dark:border-blue-700/20 p-3 sm:p-4 backdrop-blur-sm hover:shadow-xl transition-all duration-300"
+                className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/20 shadow-md rounded-xl border border-blue-200/30 dark:border-blue-700/20 p-3 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
               >
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-blue-100/40 dark:from-gray-700/40 dark:to-blue-900/30 flex items-center justify-center">
                     {influencer.thumbnailUrl ? (
                       <img
@@ -1267,25 +1261,25 @@ export default function MyInfluencersPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <ImageIcon className="w-14 h-14 text-purple-400" />
+                      <ImageIcon className="w-12 h-12 text-purple-400" />
                     )}
 
                     {isThumbnailUploading && (
                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        <Loader2 className="w-5 h-5 text-white animate-spin" />
                       </div>
                     )}
 
                     {influencer.usageCount > 0 && (
-                      <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-sm">
+                      <div className="absolute top-1.5 left-1.5 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
                         {influencer.usageCount} uses
                       </div>
                     )}
                   </div>
 
-                  <div className="text-center space-y-2">
-                    <div className="space-y-1">
-                      <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white line-clamp-1">
+                  <div className="text-center space-y-1.5">
+                    <div className="space-y-0.5">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-1">
                         {influencer.displayName}
                       </h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -1293,11 +1287,11 @@ export default function MyInfluencersPage() {
                       </p>
                     </div>
 
-                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[32px]">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[28px]">
                       {influencer.description || "No description provided"}
                     </p>
 
-                    <div className="flex flex-wrap items-center justify-center gap-2">
+                    <div className="flex flex-wrap items-center justify-center gap-1.5">
                       <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}>
                         {getSyncStatusText(influencer.syncStatus)}
                       </span>
@@ -1315,81 +1309,79 @@ export default function MyInfluencersPage() {
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                       <span>{formatFileSize(influencer.fileSize)}</span>
                       <span>•</span>
                       <span>{new Date(influencer.uploadedAt).toLocaleDateString()}</span>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => showInfluencerDetails(influencer)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>View</span>
-                      </button>
+                    {/* Action Buttons - Organized in sections */}
+                    <div className="space-y-2 pt-1">
+                      {/* Primary Actions */}
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => showInfluencerDetails(influencer)}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View</span>
+                        </button>
+                        
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setThumbnailOptionsInfluencer(influencer);
+                            setThumbnailOptionsModalOpen(true);
+                          }}
+                          disabled={isThumbnailUploading}
+                          className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-sm transition-all ${
+                            isThumbnailUploading ? "opacity-70 cursor-not-allowed" : ""
+                          }`}
+                        >
+                          {isThumbnailUploading ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ImagePlus className="w-3.5 h-3.5" />
+                              <span>Image</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
 
-                      <input
-                        id={uploadInputId}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(event) =>
-                          handleThumbnailSelect(influencer.id, event)
-                        }
-                        disabled={isThumbnailUploading}
-                      />
-                      <label
-                        htmlFor={uploadInputId}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-md transition-all ${
-                          isThumbnailUploading
-                            ? "opacity-70 cursor-wait pointer-events-none"
-                            : "cursor-pointer"
-                        }`}
-                      >
-                        {isThumbnailUploading ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Uploading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <ImagePlus className="w-3.5 h-3.5" />
-                            <span>Thumbnail</span>
-                          </>
-                        )}
-                      </label>
+                      {/* Secondary Actions */}
+                      <div className="flex items-center justify-between px-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            alert("Download functionality coming soon!");
+                          }}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>Download</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          alert("Download functionality coming soon!");
-                        }}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Download</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setDeleteCandidate(influencer)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Delete</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteCandidate(influencer)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
 
                       {/* Share button - only for owned LoRAs */}
                       {!influencer.isShared && (
                         <button
                           type="button"
                           onClick={() => handleShareLoRA(influencer)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white shadow-md transition-all"
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800/40 transition-colors"
                         >
                           <Share2 className="w-3.5 h-3.5" />
                           <span>{influencer.hasShares ? 'Shared' : 'Share'}</span>
@@ -1398,13 +1390,24 @@ export default function MyInfluencersPage() {
 
                       {/* Shared badge - only for shared LoRAs */}
                       {influencer.isShared && (
-                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold rounded-full">
+                        <div className="flex items-center justify-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold rounded-full">
                           <Users className="w-3 h-3" />
                           <span>Shared by {influencer.sharedBy}</span>
                         </div>
                       )}
                     </div>
                   </div>
+
+                  <input
+                    id={uploadInputId}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) =>
+                      handleThumbnailSelect(influencer.id, event)
+                    }
+                    disabled={isThumbnailUploading}
+                  />
                 </div>
               </div>
             );
@@ -1414,31 +1417,12 @@ export default function MyInfluencersPage() {
             )}
 
           {/* Shared With Me LoRAs */}
-          {sharedInfluencers.length > 0 && (
-            <div className="space-y-4 mt-8">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-purple-300 dark:via-purple-700 to-transparent" />
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Shared With Me
-                  </h2>
-                  <span className="px-2 py-1 text-xs font-semibold bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full">
-                    {sharedInfluencers.length}
-                  </span>
-                </div>
-                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-purple-300 dark:via-purple-700 to-transparent" />
-              </div>
-
-              <div className="bg-purple-50/50 dark:bg-purple-900/10 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
-                <p className="text-sm text-purple-700 dark:text-purple-300 flex items-center gap-2">
-                  <Info className="w-4 h-4" />
-                  These LoRA models have been shared with you by other users. You can use them in your generations.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sharedInfluencers.map((influencer) => {
+          {activeView === 'shared' && (
+            <div id="shared-loras-section" className="space-y-4 mt-8 scroll-mt-24">
+              {sharedInfluencers.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {sharedInfluencers.map((influencer) => {
                   const statusClass =
                     influencer.syncStatus === "synced"
                       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
@@ -1526,6 +1510,28 @@ export default function MyInfluencersPage() {
                   );
                 })}
               </div>
+                </>
+              ) : (
+                // Empty state for shared LoRAs
+                <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl shadow-sm border-2 border-dashed border-blue-200 dark:border-blue-800 p-12 text-center">
+                  <div className="flex flex-col items-center space-y-6">
+                    <div className="relative">
+                      <div className="p-6 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-800/50 dark:to-purple-800/50 rounded-2xl">
+                        <Share2 className="w-12 h-12 text-blue-600 dark:text-blue-400" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 max-w-md">
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                        No Shared LoRAs Yet
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                        When other users share their LoRA models with you, they will appear here. You'll be able to use them in your text-to-image generations.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>
@@ -2074,6 +2080,114 @@ export default function MyInfluencersPage() {
             fetchInfluencers(); // Refresh the list to show share status
           }}
         />
+      )}
+
+      {/* Select Thumbnail Modal */}
+      {loraForThumbnail && (
+        <SelectThumbnailModal
+          isOpen={selectThumbnailModalOpen}
+          onClose={() => {
+            setSelectThumbnailModalOpen(false);
+            setLoraForThumbnail(null);
+          }}
+          influencerId={loraForThumbnail.id}
+          influencerName={loraForThumbnail.displayName}
+          onThumbnailSelected={async (imageUrl) => {
+            await setThumbnailFromGeneratedImage(loraForThumbnail.id, imageUrl);
+            await fetchInfluencers(); // Refresh to show new thumbnail
+          }}
+        />
+      )}
+
+      {/* Thumbnail Options Modal */}
+      {thumbnailOptionsInfluencer && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setThumbnailOptionsModalOpen(false);
+            setThumbnailOptionsInfluencer(null);
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                    <ImagePlus className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold">Set Thumbnail</h3>
+                    <p className="text-sm text-blue-100">{thumbnailOptionsInfluencer.displayName}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setThumbnailOptionsModalOpen(false);
+                    setThumbnailOptionsInfluencer(null);
+                  }}
+                  className="text-white/80 hover:text-white transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Options */}
+            <div className="p-6 space-y-3">
+              {/* Upload Option */}
+              <label
+                htmlFor={`thumbnail-upload-${thumbnailOptionsInfluencer.id}`}
+                className="flex items-center gap-4 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-all group"
+              >
+                <div className="flex-shrink-0 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-800/40 transition-colors">
+                  <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-gray-900 dark:text-white">Upload Image</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Choose a file from your computer</p>
+                </div>
+              </label>
+
+              {/* Select from Generations Option */}
+              <button
+                type="button"
+                onClick={() => {
+                  setLoraForThumbnail(thumbnailOptionsInfluencer);
+                  setSelectThumbnailModalOpen(true);
+                  setThumbnailOptionsModalOpen(false);
+                  setThumbnailOptionsInfluencer(null);
+                }}
+                className="w-full flex items-center gap-4 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all group"
+              >
+                <div className="flex-shrink-0 p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-800/40 transition-colors">
+                  <ImageIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="flex-1 text-left">
+                  <h4 className="font-semibold text-gray-900 dark:text-white">Select from Generations</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Choose from images you've generated</p>
+                </div>
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setThumbnailOptionsModalOpen(false);
+                  setThumbnailOptionsInfluencer(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

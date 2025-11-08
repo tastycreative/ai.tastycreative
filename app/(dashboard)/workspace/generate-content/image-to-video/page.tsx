@@ -82,6 +82,59 @@ interface DatabaseVideo {
   createdAt: Date | string;
 }
 
+interface AvailableFolderOption {
+  name: string;
+  prefix: string;
+  displayPath: string;
+  path: string;
+  depth: number;
+  isShared?: boolean;
+  permission?: 'VIEW' | 'EDIT';
+  parentPrefix?: string | null;
+}
+
+const sanitizePrefix = (prefix: string): string => {
+  if (!prefix) {
+    return '';
+  }
+  const normalized = prefix.replace(/\\/g, '/').replace(/\/+/g, '/');
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
+};
+
+const formatSegmentName = (segment: string): string => {
+  if (!segment) {
+    return '';
+  }
+  return segment
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const deriveFolderMeta = (prefix: string) => {
+  const sanitized = sanitizePrefix(prefix);
+  const parts = sanitized.split('/').filter(Boolean);
+  const relativeSegments = parts.slice(2);
+  const displaySegments = relativeSegments.map(formatSegmentName);
+  const depth = Math.max(relativeSegments.length, 1);
+  const parentPrefix = relativeSegments.length <= 1 ? null : `${parts.slice(0, -1).join('/')}/`;
+  return {
+    sanitized,
+    relativeSegments,
+    displaySegments,
+    depth,
+    parentPrefix,
+    path: relativeSegments.join('/'),
+  };
+};
+
+const buildFolderOptionLabel = (folder: AvailableFolderOption): string => {
+  const indent = folder.depth > 1 ? `${'\u00A0'.repeat((folder.depth - 1) * 2)}↳ ` : '';
+  const icon = folder.isShared ? '🤝' : '📁';
+  return `${icon} ${indent}${folder.displayPath}`;
+};
+
 // Constants
 const ASPECT_RATIOS = [
   { name: "Portrait", width: 480, height: 720, ratio: "2:3" },
@@ -396,13 +449,7 @@ export default function ImageToVideoPage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<Array<{
-    slug: string;
-    name: string;
-    prefix: string;
-    permission: string;
-    isShared: boolean;
-  }>>([]);
+  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
 
   // Video-specific states
@@ -411,8 +458,14 @@ export default function ImageToVideoPage() {
   );
   const [videoStats, setVideoStats] = useState<any>(null);
 
-  const selectedFolder = useMemo(
-    () => availableFolders.find((folder) => folder.slug === targetFolder),
+  const selectedFolderOption = useMemo(
+    () => {
+      if (!targetFolder || availableFolders.length === 0) {
+        return null;
+      }
+      const normalized = sanitizePrefix(targetFolder);
+      return availableFolders.find((f) => f.prefix === normalized) || null;
+    },
     [availableFolders, targetFolder]
   );
 
@@ -569,38 +622,42 @@ export default function ImageToVideoPage() {
         console.log("📊 Folders loaded:", data);
 
         if (data.success && Array.isArray(data.folders)) {
-          // Filter to only EDIT permission folders and extract slug, name, prefix, permission
-          const foldersWithSlugs = data.folders
-            .filter((folder: any) => {
-              // Only show folders with EDIT permission (or no permission field for owned folders)
-              return !folder.permission || folder.permission === 'EDIT';
-            })
-            .map((folder: any) => {
-              if (typeof folder === 'string') {
-                // Legacy: if it's just a string, use it as both slug and name
-                return { 
-                  slug: folder, 
-                  name: folder,
-                  prefix: `outputs/${user.id}/${folder}`,
-                  permission: 'EDIT',
-                  isShared: false
-                };
-              }
-              // Extract slug from prefix: outputs/userId/folder-slug/ -> folder-slug
-              const slug = folder.prefix?.split('/').filter(Boolean)[2] || folder.name;
-              const isShared = folder.permission === 'EDIT' && folder.ownerId !== user.id;
-              return {
-                slug: slug,
-                name: folder.name,
-                prefix: folder.prefix.replace(/\/$/, ''), // Remove trailing slash
-                permission: folder.permission || 'EDIT',
-                isShared
-              };
-            });
-          setAvailableFolders(foldersWithSlugs);
-          console.log("✅ Folders set with slugs:", foldersWithSlugs);
+          const foldersRaw: any[] = data.folders;
+
+          // Build AvailableFolderOption[] with metadata
+          const folderOptionsMap = new Map<string, AvailableFolderOption>();
+
+          for (const rawFolder of foldersRaw) {
+            const prefix = rawFolder.prefix || '';
+            if (!prefix) continue;
+
+            const meta = deriveFolderMeta(prefix);
+            const option: AvailableFolderOption = {
+              name: rawFolder.name || meta.displaySegments.join(' / ') || 'Unknown',
+              prefix: meta.sanitized,
+              displayPath: meta.displaySegments.join(' / ') || rawFolder.name || 'Root',
+              path: meta.path,
+              depth: meta.depth,
+              isShared: rawFolder.isShared || false,
+              permission: rawFolder.permission || 'VIEW',
+              parentPrefix: meta.parentPrefix,
+            };
+
+            folderOptionsMap.set(meta.sanitized, option);
+          }
+
+          // Deduplicate and sort
+          const uniqueFolders = Array.from(folderOptionsMap.values());
+          uniqueFolders.sort((a, b) => {
+            if (a.permission === 'EDIT' && b.permission !== 'EDIT') return -1;
+            if (a.permission !== 'EDIT' && b.permission === 'EDIT') return 1;
+            return a.path.localeCompare(b.path);
+          });
+
+          setAvailableFolders(uniqueFolders);
+          console.log("✅ Available folders with metadata:", uniqueFolders);
         } else {
-          console.error("⚠️ Invalid folders response:", data);
+          console.error("❌ Invalid folders data:", data);
           setAvailableFolders([]);
         }
       } catch (error) {
@@ -1005,16 +1062,13 @@ export default function ImageToVideoPage() {
   const createWorkflowJson = (params: GenerationParams, targetFolder?: string) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
     
-    // Find the folder object to check if it's a shared folder
-    const folderObj = availableFolders.find(f => f.slug === targetFolder);
-    const isSharedFolder = folderObj?.isShared || false;
+    // Normalize the target folder with sanitizePrefix
+    const normalizedTargetFolder = targetFolder ? sanitizePrefix(targetFolder) : '';
     
-    // Use full prefix for shared folders, otherwise build normal path
+    // Build filename prefix with normalized path
     let filenamePrefix: string;
-    if (isSharedFolder && folderObj?.prefix) {
-      filenamePrefix = `${folderObj.prefix}/ImageToVideo`;
-    } else if (targetFolder) {
-      filenamePrefix = `${targetFolder}/ImageToVideo`;
+    if (normalizedTargetFolder) {
+      filenamePrefix = `${normalizedTargetFolder}ImageToVideo`;
     } else {
       filenamePrefix = "video/ComfyUI/wan2.2";
     }
@@ -1753,8 +1807,8 @@ export default function ImageToVideoPage() {
                 >
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
-                    <option key={folder.slug} value={folder.slug}>
-                      {folder.isShared ? '🔓 ' : '📁 '}{folder.name}
+                    <option key={folder.prefix} value={folder.prefix}>
+                      {buildFolderOptionLabel(folder)}
                     </option>
                   ))}
                 </select>
@@ -1768,20 +1822,18 @@ export default function ImageToVideoPage() {
                 </div>
               )}
 
-              {targetFolder && selectedFolder && (
+              {targetFolder && selectedFolderOption && (
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 border border-purple-200 dark:border-purple-700 text-xs text-purple-700 dark:text-purple-300">
-                  <span>{selectedFolder.isShared ? '🔓' : '📁'}</span>
+                  <span>{selectedFolderOption.isShared ? '🤝' : '📁'}</span>
                   <span>
-                    Saving to {selectedFolder.isShared
-                      ? `${selectedFolder.prefix}/`
-                      : `outputs/${user?.id}/${targetFolder}/`}
+                    Saving to {selectedFolderOption.prefix}
                   </span>
-                  <span className="font-semibold">({selectedFolder.name})</span>
+                  <span className="font-semibold">({selectedFolderOption.displayPath})</span>
                 </div>
               )}
-              {targetFolder && !selectedFolder && (
+              {targetFolder && !selectedFolderOption && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Saving to {`outputs/${user?.id}/${targetFolder}/`}
+                  Saving to {targetFolder}
                 </p>
               )}
             </div>

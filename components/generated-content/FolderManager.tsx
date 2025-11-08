@@ -1,24 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { FolderPlus, FolderOpen, X, Check, AlertCircle } from "lucide-react";
 
 interface FolderManagerProps {
-  onFolderCreated?: (folderName: string, folderPrefix: string) => void;
+  onFolderCreated?: (folderName: string, folderPrefix: string, parentPrefix?: string | null) => void;
   triggerButton?: React.ReactNode;
-  existingFolders?: string[]; // Array of existing folder names to check for duplicates
+  existingFolders?: ExistingFolder[];
+  defaultParentPrefix?: string | null;
 }
 
-export function FolderManager({ onFolderCreated, triggerButton, existingFolders = [] }: FolderManagerProps) {
+interface ExistingFolder {
+  name: string;
+  prefix: string;
+  parentPrefix?: string | null;
+  depth?: number;
+  path?: string;
+}
+
+const ROOT_PARENT = "__ROOT__";
+
+const sanitizePrefix = (prefix: string) => prefix.replace(/\/+$/, "/");
+
+const computeDepthFromPrefix = (prefix: string) => {
+  const parts = sanitizePrefix(prefix).split("/").filter(Boolean);
+  return Math.max(parts.length - 2, 1);
+};
+
+const normalizeParentKey = (value?: string | null) => {
+  if (!value) {
+    return ROOT_PARENT;
+  }
+  return sanitizePrefix(value);
+};
+
+export function FolderManager({ onFolderCreated, triggerButton, existingFolders = [], defaultParentPrefix = null }: FolderManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [selectedParent, setSelectedParent] = useState<string>(ROOT_PARENT);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedParent(normalizeParentKey(defaultParentPrefix));
+    }
+  }, [defaultParentPrefix, isOpen]);
+
+  const parentOptions = useMemo(() => {
+    const sortedFolders = [...existingFolders].sort((a, b) => {
+      const pathA = a.path || a.name;
+      const pathB = b.path || b.name;
+      return pathA.localeCompare(pathB);
+    });
+
+    const options = sortedFolders.map((folder) => {
+      const depth = folder.depth ?? computeDepthFromPrefix(folder.prefix);
+      const indentLevel = Math.max(depth - 1, 0);
+      const indent = "\u00A0".repeat(indentLevel * 2);
+      const labelPrefix = indentLevel > 0 ? `${indent}↳ ` : "";
+      return {
+        label: `${labelPrefix}${folder.name}`,
+        value: sanitizePrefix(folder.prefix),
+      };
+    });
+
+    return [
+      { label: "Top level (My Workspace)", value: ROOT_PARENT },
+      ...options,
+    ];
+  }, [existingFolders]);
 
   // Validate folder name
-  const validateFolderName = (name: string): string | null => {
+  const validateFolderName = (name: string, parentKey: string): string | null => {
     if (!name.trim()) {
       return "Folder name cannot be empty";
     }
@@ -32,9 +88,13 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
     if (!/^[a-zA-Z0-9\s\-_]+$/.test(name)) {
       return "Folder name can only contain letters, numbers, spaces, hyphens, and underscores";
     }
-    // Check for duplicate folder names
-    if (existingFolders.some(existing => existing.toLowerCase() === name.trim().toLowerCase())) {
-      return "A folder with this name already exists. Please choose a different name.";
+    const normalizedName = name.trim().toLowerCase();
+    const duplicate = existingFolders.some((existing) => {
+      const siblingParent = normalizeParentKey(existing.parentPrefix);
+      return siblingParent === parentKey && existing.name.trim().toLowerCase() === normalizedName;
+    });
+    if (duplicate) {
+      return "A folder with this name already exists in the selected location.";
     }
     return null;
   };
@@ -44,7 +104,8 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
     setSuccess(false);
 
     // Validate folder name
-    const validationError = validateFolderName(folderName);
+    const normalizedParentKey = selectedParent;
+    const validationError = validateFolderName(folderName, normalizedParentKey);
     if (validationError) {
       setError(validationError);
       return;
@@ -61,6 +122,7 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
         },
         body: JSON.stringify({
           folderName: folderName.trim(),
+          parentPrefix: normalizedParentKey === ROOT_PARENT ? null : normalizedParentKey,
         }),
       });
 
@@ -77,7 +139,7 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
       
       // Notify parent component
       if (onFolderCreated) {
-        onFolderCreated(data.folderName, data.folderPrefix);
+        onFolderCreated(data.folderName, data.folderPrefix, data.parentPrefix ?? null);
       }
 
       // Reset and close after a brief delay
@@ -103,6 +165,7 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
         setFolderName("");
         setError(null);
         setSuccess(false);
+        setSelectedParent(normalizeParentKey(defaultParentPrefix));
       }
     }
   };
@@ -170,6 +233,28 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Letters, numbers, spaces, hyphens, and underscores are allowed.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="parentFolder" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Parent Folder
+                </label>
+                <select
+                  id="parentFolder"
+                  value={selectedParent}
+                  onChange={(e) => setSelectedParent(e.target.value)}
+                  disabled={isCreating || success || parentOptions.length <= 1}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {parentOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Choose where this folder should live. Nested folders help keep large projects organized.
                 </p>
               </div>
 

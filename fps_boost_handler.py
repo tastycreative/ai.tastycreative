@@ -321,16 +321,16 @@ def monitor_comfyui_progress(prompt_id: str, job_id: str, webhook_url: str, user
                                         
                                         if workflow and "3" in workflow:
                                             filename_prefix = workflow.get("3", {}).get("inputs", {}).get("filename_prefix", "")
-                                            
+
                                             # Check if this is a full S3 prefix path (starts with "outputs/")
                                             if filename_prefix.startswith("outputs/"):
                                                 is_full_prefix = True
-                                                # Extract the folder path from the prefix (remove the filename_prefix part after last meaningful folder)
-                                                # "outputs/user_123/nov-5/fps_boosted" -> "outputs/user_123/nov-5/"
-                                                prefix_parts = filename_prefix.split('/')
+                                                # Remove the file prefix portion and keep the full folder hierarchy
+                                                sanitized_prefix = filename_prefix.rstrip('/')
+                                                prefix_parts = sanitized_prefix.split('/')
                                                 if len(prefix_parts) >= 3:
-                                                    # Take outputs/user_id/folder-name
-                                                    folder_prefix = '/'.join(prefix_parts[:3]) + '/'
+                                                    # Drop the last segment (the generated filename prefix) and keep the rest
+                                                    folder_prefix = '/'.join(prefix_parts[:-1]) + '/'
                                                     logger.info(f"🔗 Using shared folder prefix: {folder_prefix}")
                                         
                                         # Upload to AWS S3

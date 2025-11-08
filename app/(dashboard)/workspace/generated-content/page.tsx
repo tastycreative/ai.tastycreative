@@ -165,6 +165,18 @@ const getS3FolderPrefix = (folderName: S3FolderName): string => {
   return folder.prefix.replace(/\/$/, "");
 };
 
+// Helper to extract display name from folder prefix (gets the last folder name in the path)
+const getDisplayNameFromPrefix = (prefix: string): string => {
+  const parts = prefix.split('/').filter(Boolean);
+  const lastFolder = parts[parts.length - 1];
+  if (!lastFolder) return 'folder';
+  
+  // Convert kebab-case to Title Case (e.g., "yuri-sfw" -> "Yuri Sfw")
+  return lastFolder.split('-').map(word => 
+    word.charAt(0).toUpperCase() + word.slice(1)
+  ).join(' ');
+};
+
 interface UploadState {
   [itemId: string]: {
     uploading: boolean;
@@ -1045,16 +1057,44 @@ export default function GeneratedContentPage() {
 
     // Apply folder filter first (if selected)
     if (selectedFolder && selectedFolder !== 'outputs/') {
+      const sanitizedSelected = selectedFolder.replace(/\/+$/, '/');
+      const relativePath = sanitizedSelected
+        .split('/')
+        .filter(Boolean)
+        .slice(2)
+        .join('/');
+
       filtered = filtered.filter((item) => {
-        if (item.awsS3Key) {
-          // For new structure: outputs/{userId}/{folderName}/ 
-          // Extract folder prefix from S3 key: "outputs/user123/my-folder/file.jpg" -> "outputs/user123/my-folder/"
-          const parts = item.awsS3Key.split('/');
-          if (parts.length >= 3) {
-            const itemFolder = parts.slice(0, 3).join('/') + '/';
-            return itemFolder === selectedFolder;
-          }
+        const keyCandidates: Array<string | undefined | null> = [
+          item.awsS3Key,
+          item.s3Key,
+          item.networkVolumePath,
+          item.stagingStorageKey,
+        ];
+
+        const matchesAbsolute = keyCandidates
+          .filter((key): key is string => typeof key === 'string' && key.length > 0)
+          .some((key) => key.replace(/\/+$/, '/').startsWith(sanitizedSelected));
+
+        if (matchesAbsolute) {
+          return true;
         }
+
+        if (relativePath) {
+          const normalizedRelative = relativePath.replace(/^\/+|\/+$/g, '');
+          const normalizedSubfolder = (item.subfolder || '').replace(/^\/+|\/+$/g, '');
+
+          if (!normalizedSubfolder) {
+            return false;
+          }
+
+          if (normalizedSubfolder === normalizedRelative) {
+            return true;
+          }
+
+          return normalizedSubfolder.startsWith(`${normalizedRelative}/`);
+        }
+
         return false;
       });
     }
@@ -1881,7 +1921,7 @@ export default function GeneratedContentPage() {
       }
 
       // Extract folder name from prefix for display
-      const folderName = targetFolderPrefix.split('/')[2]?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'folder';
+      const folderName = getDisplayNameFromPrefix(targetFolderPrefix);
 
       const response = await apiClient.post("/api/s3/move-to-folder", {
         itemId: item.id,
@@ -2504,7 +2544,7 @@ export default function GeneratedContentPage() {
     if (selectedItems.size === 0) return;
     
     const items = allContent.filter(item => selectedItems.has(item.id));
-    const folderName = targetFolderPrefix.split('/')[2]?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'folder';
+    const folderName = getDisplayNameFromPrefix(targetFolderPrefix);
     
     if (!confirm(`Move ${items.length} item${items.length > 1 ? 's' : ''} to "${folderName}"?\n\n${items.map(i => `• ${i.filename}`).slice(0, 5).join('\n')}${items.length > 5 ? `\n... and ${items.length - 5} more` : ''}`)) {
       return;
@@ -4114,7 +4154,7 @@ export default function GeneratedContentPage() {
                 <div className="flex items-center gap-2">
                   <Folder className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                   <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Showing content from: <strong>{selectedFolder.split('/').slice(0, 3).join('/').split('/')[2]?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</strong>
+                    Showing content from: <strong>{selectedFolderInfo?.name || selectedFolder.split('/').filter(Boolean).pop()?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Selected Folder'}</strong>
                   </p>
                 </div>
                 <button

@@ -58,18 +58,40 @@ export async function GET(request: NextRequest) {
         // User has access to this shared folder, filter by folder prefix
         console.log('📂 User viewing shared folder:', folder);
         isSharedFolder = true;
+        
+        // Normalize folder prefix (ensure it ends with /)
+        const normalizedFolder = folder.endsWith('/') ? folder : `${folder}/`;
+        
+        // Filter to only show files directly in this folder (not in subfolders)
+        // This regex matches files that DON'T have additional slashes after the folder prefix
         whereClause = {
           awsS3Key: {
-            startsWith: folder
+            startsWith: normalizedFolder,
+            NOT: {
+              contains: '/',
+              mode: 'insensitive'
+            }
+          }
+        };
+        
+        // Since Prisma doesn't support regex directly, we'll need to filter in memory
+        // So we use startsWith and will post-process
+        whereClause = {
+          awsS3Key: {
+            startsWith: normalizedFolder
           }
         };
       } else if (userId === targetUserId) {
         // User viewing their own folder
         console.log('📂 User viewing own folder:', folder);
+        
+        // Normalize folder prefix (ensure it ends with /)
+        const normalizedFolder = folder.endsWith('/') ? folder : `${folder}/`;
+        
         whereClause = {
           clerkId: targetUserId,
           awsS3Key: {
-            startsWith: folder
+            startsWith: normalizedFolder
           }
         };
       }
@@ -135,11 +157,25 @@ export async function GET(request: NextRequest) {
       where: whereClause
     });
 
+    // Helper function to filter out subfolder items (only keep direct children)
+    const filterDirectChildren = (items: any[], folderPrefix: string) => {
+      const normalizedFolder = folderPrefix.endsWith('/') ? folderPrefix : `${folderPrefix}/`;
+      return items.filter(item => {
+        if (!item.awsS3Key) return false;
+        // Check if the S3 key starts with the folder prefix
+        if (!item.awsS3Key.startsWith(normalizedFolder)) return false;
+        // Get the remaining path after the folder prefix
+        const remainingPath = item.awsS3Key.substring(normalizedFolder.length);
+        // If there's a slash in the remaining path, it's in a subfolder
+        return !remainingPath.includes('/');
+      });
+    };
+
     // Get images - use custom query for shared folders
     let images;
     if (isSharedFolder && folder) {
       console.log('📡 Fetching shared folder images with where clause:', whereClause);
-      images = await prisma.generatedImage.findMany({
+      let allImages = await prisma.generatedImage.findMany({
         where: whereClause,
         select: {
           id: true,
@@ -153,10 +189,16 @@ export async function GET(request: NextRequest) {
         orderBy: sortBy === 'oldest' ? { createdAt: 'asc' } : 
                  sortBy === 'largest' ? { fileSize: 'desc' } : 
                  sortBy === 'smallest' ? { fileSize: 'asc' } : 
-                 { createdAt: 'desc' },
-        take: limit,
-        skip: offset
+                 { createdAt: 'desc' }
       });
+
+      // Filter to only direct children (not in subfolders)
+      allImages = filterDirectChildren(allImages, folder);
+      
+      // Apply pagination after filtering
+      const safeOffset = offset || 0;
+      const safeLimit = limit || 20;
+      images = allImages.slice(safeOffset, safeOffset + safeLimit);
 
       // Format images to match getUserImages output
       images = images.map((img: any) => ({
@@ -178,6 +220,12 @@ export async function GET(request: NextRequest) {
         offset,
         sortBy: sortBy || undefined
       });
+      
+      // If filtering by folder, apply direct children filter
+      if (folder && folder !== 'all') {
+        console.log('📂 Applying folder filter for own folder:', folder);
+        images = filterDirectChildren(images, folder);
+      }
     }
 
     console.log('✅ Found', images.length, 'images for user:', targetUserId, '(total:', totalCount, ')');

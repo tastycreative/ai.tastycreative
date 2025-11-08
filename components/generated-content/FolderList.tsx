@@ -15,12 +15,26 @@ interface CustomFolder {
   sharedBy?: string;
   permission?: 'VIEW' | 'EDIT';
   hasShares?: boolean; // Folder is shared with others
+  parentPrefix?: string | null;
+  depth?: number;
+  path?: string;
 }
 
 interface FolderListProps {
   onFolderSelect?: (folderPrefix: string) => void;
   selectedFolder?: string;
 }
+
+const sanitizePrefix = (prefix: string) => prefix.replace(/\/+$/, '/');
+
+const computeFolderMeta = (prefix: string) => {
+  const sanitized = sanitizePrefix(prefix);
+  const parts = sanitized.split('/').filter(Boolean);
+  const depth = Math.max(parts.length - 2, 1);
+  const path = parts.slice(2).join('/');
+  const parentPrefix = parts.length <= 3 ? null : `${parts.slice(0, -1).join('/')}/`;
+  return { sanitized, depth, path, parentPrefix };
+};
 
 export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) {
   const apiClient = useApiClient();
@@ -49,7 +63,20 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
 
       if (response.ok) {
         const data = await response.json();
-        setFolders(data.folders || []);
+        const folderList = Array.isArray(data.folders) ? data.folders : [];
+        const normalizedFolders = (folderList as CustomFolder[])
+          .map((folder: CustomFolder) => {
+            const meta = computeFolderMeta(folder.prefix);
+            return {
+              ...folder,
+              prefix: meta.sanitized,
+              depth: folder.depth ?? meta.depth,
+              path: folder.path ?? meta.path,
+              parentPrefix: folder.parentPrefix ?? meta.parentPrefix,
+            } as CustomFolder;
+          })
+          .sort((a: CustomFolder, b: CustomFolder) => (a.path || a.name).localeCompare(b.path || b.name));
+        setFolders(normalizedFolders);
       } else {
         throw new Error("Failed to load custom folders");
       }
@@ -61,21 +88,26 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
     }
   };
 
-  const handleFolderCreated = (folderName: string, folderPrefix: string) => {
-    // Add new folder to list, avoiding duplicates
+  const handleFolderCreated = (folderName: string, folderPrefix: string, parentPrefix: string | null = null) => {
+    const meta = computeFolderMeta(folderPrefix);
     const newFolder: CustomFolder = {
       name: folderName,
-      prefix: folderPrefix,
+      prefix: meta.sanitized,
+      parentPrefix: parentPrefix ?? meta.parentPrefix,
+      depth: meta.depth,
+      path: meta.path,
+      fileCount: 0,
+      isShared: false,
+      hasShares: false,
     };
     setFolders((prev) => {
-      // Check if folder already exists by prefix
-      const exists = prev.some(f => f.prefix === folderPrefix);
+      const exists = prev.some(f => sanitizePrefix(f.prefix) === newFolder.prefix);
       if (exists) {
-        // If it exists, return the current list (no duplicate)
         return prev;
       }
-      // Otherwise, add the new folder
-      return [...prev, newFolder];
+      const updated = [...prev, newFolder];
+      updated.sort((a, b) => (a.path || a.name).localeCompare(b.path || b.name));
+      return updated;
     });
   };
 
@@ -95,7 +127,8 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
       }
 
       // Remove from list
-      setFolders((prev) => prev.filter((f) => f.prefix !== folderPrefix));
+  const sanitizedPrefix = sanitizePrefix(folderPrefix);
+  setFolders((prev) => prev.filter((f) => !sanitizePrefix(f.prefix).startsWith(sanitizedPrefix)));
       alert("Folder deleted successfully");
     } catch (err) {
       console.error("Error deleting folder:", err);
@@ -110,13 +143,25 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
   };
 
   // Filter folders based on search query
-  const filteredFolders = folders.filter(folder => 
-    folder.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    folder.sharedBy?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const lowerSearch = searchQuery.toLowerCase();
+  const filteredFolders = folders.filter(folder => {
+    const nameMatch = folder.name.toLowerCase().includes(lowerSearch);
+    const sharedByMatch = folder.sharedBy ? folder.sharedBy.toLowerCase().includes(lowerSearch) : false;
+    const pathMatch = folder.path ? folder.path.toLowerCase().includes(lowerSearch) : false;
+    return nameMatch || sharedByMatch || pathMatch;
+  });
 
   const ownedFolders = filteredFolders.filter(f => !f.isShared);
   const sharedFolders = filteredFolders.filter(f => f.isShared);
+  const ownedHierarchyFolders = folders.filter(f => !f.isShared);
+  const defaultParentForCreation = (() => {
+    if (!selectedFolder) {
+      return null;
+    }
+    const sanitizedSelected = sanitizePrefix(selectedFolder);
+    const match = ownedHierarchyFolders.find(f => sanitizePrefix(f.prefix) === sanitizedSelected);
+    return match?.prefix ?? null;
+  })();
 
   return (
     <div className="bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30 dark:from-gray-800 dark:via-gray-800 dark:to-gray-900 rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden backdrop-blur-sm">
@@ -152,7 +197,8 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
               </button>
               <FolderManager 
                 onFolderCreated={handleFolderCreated}
-                existingFolders={folders.map(f => f.name)}
+                existingFolders={ownedHierarchyFolders}
+                defaultParentPrefix={defaultParentForCreation}
               />
             </div>
           </div>
@@ -255,6 +301,7 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
                             : "bg-white/50 dark:bg-gray-700/30 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/10 dark:hover:to-purple-900/10 border-2 border-transparent hover:border-blue-200/50 dark:hover:border-blue-700/50 hover:shadow-md"
                         }`}
                         onClick={() => onFolderSelect?.(folder.prefix)}
+                        style={{ marginLeft: Math.max((folder.depth ?? 1) - 1, 0) * 12 }}
                       >
                         {/* Animated background effect */}
                         {isSelected && (
@@ -285,11 +332,21 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
                               </span>
                             )}
                           </div>
-                          {folder.fileCount !== undefined && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            {(folder.depth ?? 1) > 1 && folder.path && (
+                              <span className="truncate text-gray-500 dark:text-gray-400">
+                                {folder.path}
+                              </span>
+                            )}
+                            {(folder.depth ?? 1) > 1 && folder.path && folder.fileCount !== undefined && (
+                              <span className="text-gray-400">•</span>
+                            )}
+                            {folder.fileCount !== undefined && (
+                              <span>
+                                {folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Action Buttons */}
@@ -345,6 +402,7 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
                             : "bg-white/50 dark:bg-gray-700/30 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 dark:hover:from-purple-900/10 dark:hover:to-pink-900/10 border-2 border-transparent hover:border-purple-200/50 dark:hover:border-purple-700/50 hover:shadow-md"
                         }`}
                         onClick={() => onFolderSelect?.(folder.prefix)}
+                        style={{ marginLeft: Math.max((folder.depth ?? 1) - 1, 0) * 12 }}
                       >
                         {/* Animated background effect */}
                         {isSelected && (
@@ -377,16 +435,22 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
                               {folder.permission === 'VIEW' ? 'VIEW' : 'EDIT'}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 truncate">
+                            <span className="truncate">
                               by {folder.sharedBy}
                             </span>
                             {folder.fileCount !== undefined && (
                               <>
-                                <span className="text-xs text-gray-400">•</span>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                <span className="text-gray-400">•</span>
+                                <span>
                                   {folder.fileCount} {folder.fileCount === 1 ? 'file' : 'files'}
                                 </span>
+                              </>
+                            )}
+                            {(folder.depth ?? 1) > 1 && folder.path && (
+                              <>
+                                <span className="text-gray-400">•</span>
+                                <span className="truncate">{folder.path}</span>
                               </>
                             )}
                           </div>

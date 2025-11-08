@@ -119,6 +119,7 @@ model GeneratedImage {
   googleDriveFileId String?       // Google Drive file ID for sync tracking
   googleDriveFolderName String?   // Folder name where it was uploaded
   googleDriveUploadedAt DateTime? // When it was uploaded to Google Drive
+  loraModels        String[]      @default([]) // Array of LoRA model filenames used in generation
   user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
   productionLinks   ProductionEntryImage[]
@@ -133,6 +134,7 @@ model GeneratedImage {
   @@index([s3Key])
   @@index([awsS3Key])
   @@index([googleDriveFileId])
+  @@index([loraModels]) // Index for efficient LoRA-based queries
   @@map("generated_images")
 }
 

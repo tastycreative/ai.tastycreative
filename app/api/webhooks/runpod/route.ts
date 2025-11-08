@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateJob, getJob } from '@/lib/jobsStorage';
-import { saveImageToDatabase, buildComfyUIUrl } from '@/lib/imageStorage';
+import { saveImageToDatabase, buildComfyUIUrl, extractLoraModelsFromParams } from '@/lib/imageStorage';
 import { saveVideoToDatabase, buildComfyUIVideoUrl } from '@/lib/videoStorage';
 
 export async function POST(request: NextRequest) {
@@ -142,6 +142,10 @@ export async function POST(request: NextRequest) {
         
         console.log('✅ Using clerkId for image save (runpod):', targetClerkId);
         
+        // Extract LoRA models from job params for tracking
+        const loraModels = extractLoraModelsFromParams(existingJob.params);
+        console.log('🎨 Extracted LoRA models from job:', loraModels);
+        
         for (const pathData of body.aws_s3_paths) {
           const { filename, subfolder, type, awsS3Key, awsS3Url, file_size } = pathData;
           
@@ -158,7 +162,8 @@ export async function POST(request: NextRequest) {
               extractMetadata: false, // Don't extract metadata (we have it from handler)
               awsS3Key: awsS3Key,
               awsS3Url: awsS3Url,
-              fileSize: file_size
+              fileSize: file_size,
+              loraModels: loraModels // ✅ Track LoRA models used
             }
           );
           
@@ -240,6 +245,10 @@ export async function POST(request: NextRequest) {
         
         console.log('✅ Using clerkId for image save (network_volume):', targetClerkId);
         
+        // Extract LoRA models from job params for tracking
+        const loraModels = extractLoraModelsFromParams(existingJob.params);
+        console.log('🎨 Extracted LoRA models from job:', loraModels);
+        
         for (const pathData of body.network_volume_paths) {
           const { filename, subfolder, type, s3_key, network_volume_path, file_size, aws_s3_key, aws_s3_url } = pathData;
           
@@ -260,7 +269,8 @@ export async function POST(request: NextRequest) {
               networkVolumePath: network_volume_path,
               awsS3Key: aws_s3_key,
               awsS3Url: aws_s3_url,
-              fileSize: file_size
+              fileSize: file_size,
+              loraModels: loraModels // ✅ Track LoRA models used
             }
           );
           
@@ -307,6 +317,10 @@ export async function POST(request: NextRequest) {
         // Use job creator's clerkId for legacy base64 images (unlikely to be shared folder)
         const targetClerkId = existingJob.userId || existingJob.clerkId;
         
+        // Extract LoRA models from job params for tracking
+        const loraModels = extractLoraModelsFromParams(existingJob.params);
+        console.log('🎨 Extracted LoRA models from job:', loraModels);
+        
         for (const imageData of images) {
           const { filename, subfolder, type, data } = imageData;
           
@@ -337,7 +351,8 @@ export async function POST(request: NextRequest) {
             {
               saveData: true, // Save the actual image bytes
               extractMetadata: true, // Extract basic metadata
-              providedData: imageBuffer // Use the converted buffer
+              providedData: imageBuffer, // Use the converted buffer
+              loraModels: loraModels // ✅ Track LoRA models used
             }
           );
           
@@ -370,6 +385,10 @@ export async function POST(request: NextRequest) {
         // Use job creator's clerkId for legacy completion images (unlikely to be shared folder)
         const targetClerkId = existingJob.clerkId;
         
+        // Extract LoRA models from job params for tracking
+        const loraModels = extractLoraModelsFromParams(existingJob.params);
+        console.log('🎨 Extracted LoRA models from job:', loraModels);
+        
         for (const imageData of allImages) {
           const { filename, subfolder, type, data } = imageData;
           
@@ -400,7 +419,8 @@ export async function POST(request: NextRequest) {
             {
               saveData: true,
               extractMetadata: true,
-              providedData: imageBuffer
+              providedData: imageBuffer,
+              loraModels: loraModels // ✅ Track LoRA models used
             }
           );
           

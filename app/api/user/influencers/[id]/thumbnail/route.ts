@@ -46,30 +46,46 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const formData = await request.formData();
     const file = formData.get("thumbnail");
+    const imageUrl = formData.get("imageUrl");
 
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Thumbnail image is required" }, { status: 400 });
+    // Two modes: 1) Upload new image, 2) Select from generated images
+    let thumbnailUrl: string;
+
+    if (imageUrl && typeof imageUrl === "string") {
+      // Mode 2: User selected an existing generated image
+      console.log("📸 Using existing generated image as thumbnail:", imageUrl);
+      thumbnailUrl = imageUrl;
+    } else if (file instanceof File) {
+      // Mode 1: User uploaded a new image
+      console.log("📤 Uploading new thumbnail image");
+
+      try {
+        validateImage(file);
+      } catch (validationError) {
+        const message =
+          validationError instanceof Error
+            ? validationError.message
+            : "Invalid thumbnail image";
+
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+
+      const uploadResult = await uploadToCloudinary(buffer, {
+        folder: `influencer-thumbnails/${userId}`,
+        tags: ["influencer-thumbnail", userId],
+        public_id: `${id}-${Date.now()}`,
+        resource_type: "image",
+      });
+
+      thumbnailUrl = uploadResult.secure_url;
+    } else {
+      return NextResponse.json(
+        { error: "Either thumbnail file or imageUrl is required" },
+        { status: 400 }
+      );
     }
-
-    try {
-      validateImage(file);
-    } catch (validationError) {
-      const message =
-        validationError instanceof Error
-          ? validationError.message
-          : "Invalid thumbnail image";
-
-      return NextResponse.json({ error: message }, { status: 400 });
-    }
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    const uploadResult = await uploadToCloudinary(buffer, {
-      folder: `influencer-thumbnails/${userId}`,
-      tags: ["influencer-thumbnail", userId],
-      public_id: `${id}-${Date.now()}`,
-      resource_type: "image",
-    });
 
     const updated = await prisma.influencerLoRA.update({
       where: {
@@ -77,7 +93,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         clerkId: userId,
       },
       data: {
-        thumbnailUrl: uploadResult.secure_url,
+        thumbnailUrl,
       },
       select: {
         id: true,
@@ -90,9 +106,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       influencer: updated,
     });
   } catch (error) {
-    console.error("Error uploading influencer thumbnail:", error);
+    console.error("Error updating influencer thumbnail:", error);
 
-    const message = error instanceof Error ? error.message : "Failed to upload thumbnail";
+    const message = error instanceof Error ? error.message : "Failed to update thumbnail";
 
     return NextResponse.json(
       { error: message },

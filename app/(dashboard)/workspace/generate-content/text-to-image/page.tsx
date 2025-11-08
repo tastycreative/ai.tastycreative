@@ -1,7 +1,7 @@
 // app/(dashboard)/workspace/generate-content/text-to-image/page.tsx - COMPLETE WITH DYNAMIC URLS
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
@@ -33,6 +33,59 @@ import {
 } from "lucide-react";
 
 // Types
+interface AvailableFolderOption {
+  name: string;
+  prefix: string;
+  displayPath: string;
+  path: string;
+  depth: number;
+  isShared?: boolean;
+  permission?: 'VIEW' | 'EDIT';
+  parentPrefix?: string | null;
+}
+
+const sanitizePrefix = (prefix: string): string => {
+  if (!prefix) {
+    return '';
+  }
+  const normalized = prefix.replace(/\\/g, '/').replace(/\/+/g, '/');
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
+};
+
+const formatSegmentName = (segment: string): string => {
+  if (!segment) {
+    return '';
+  }
+  return segment
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const deriveFolderMeta = (prefix: string) => {
+  const sanitized = sanitizePrefix(prefix);
+  const parts = sanitized.split('/').filter(Boolean);
+  const relativeSegments = parts.slice(2);
+  const displaySegments = relativeSegments.map(formatSegmentName);
+  const depth = Math.max(relativeSegments.length, 1);
+  const parentPrefix = relativeSegments.length <= 1 ? null : `${parts.slice(0, -1).join('/')}/`;
+  return {
+    sanitized,
+    relativeSegments,
+    displaySegments,
+    depth,
+    parentPrefix,
+    path: relativeSegments.join('/'),
+  };
+};
+
+const buildFolderOptionLabel = (folder: AvailableFolderOption): string => {
+  const indent = folder.depth > 1 ? `${'\u00A0'.repeat((folder.depth - 1) * 2)}↳ ` : '';
+  const icon = folder.isShared ? '🤝' : '📁';
+  return `${icon} ${indent}${folder.displayPath}`;
+};
+
 interface LoRAConfig {
   id: string;
   modelName: string;
@@ -222,14 +275,19 @@ export default function TextToImagePage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<Array<{
-    slug: string;
-    name: string;
-    prefix: string;
-    permission?: 'VIEW' | 'EDIT';
-    isShared?: boolean;
-  }>>([]);
+  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
+
+  const selectedFolderOption = useMemo(
+    () => {
+      if (!targetFolder || availableFolders.length === 0) {
+        return null;
+      }
+      const normalized = sanitizePrefix(targetFolder);
+      return availableFolders.find((f) => f.prefix === normalized) || null;
+    },
+    [availableFolders, targetFolder]
+  );
 
   // Persistent generation state keys
   const STORAGE_KEYS = {
@@ -545,34 +603,45 @@ export default function TextToImagePage() {
           const data = await response.json();
           if (data.success && Array.isArray(data.folders)) {
             // Filter to only show folders with EDIT permission (own folders + shared with edit)
-            const folderObjects = data.folders
+            const folderOptions: AvailableFolderOption[] = data.folders
               .filter((folder: any) => {
                 // Show own folders and shared folders with EDIT permission
                 return !folder.permission || folder.permission === 'EDIT';
               })
               .map((folder: any) => {
+                // Handle string format (legacy)
                 if (typeof folder === 'string') {
-                  return { 
-                    slug: folder, 
-                    name: folder, 
-                    prefix: `outputs/${user.id}/${folder}`, 
+                  const fullPrefix = `outputs/${user.id}/${folder}`;
+                  const meta = deriveFolderMeta(fullPrefix);
+                  return {
+                    name: folder,
+                    prefix: meta.sanitized,
+                    displayPath: meta.displaySegments.join(' / '),
+                    path: meta.path,
+                    depth: meta.depth,
+                    isShared: false,
                     permission: undefined,
-                    isShared: false
+                    parentPrefix: meta.parentPrefix,
                   };
                 }
-                // Extract slug from prefix: outputs/{userId}/{slug}/
-                const parts = folder.prefix.split('/').filter(Boolean);
-                const slug = parts[2] || folder.name;
-                return { 
-                  slug, 
-                  name: folder.name,
-                  prefix: folder.prefix?.replace(/\/$/, ''), // Store full prefix without trailing slash
+                
+                // Handle object format with full metadata
+                const normalized = sanitizePrefix(folder.prefix || "");
+                const meta = deriveFolderMeta(normalized);
+                return {
+                  name: folder.name || meta.displaySegments[meta.displaySegments.length - 1] || "",
+                  prefix: meta.sanitized,
+                  displayPath: meta.displaySegments.join(' / '),
+                  path: meta.path,
+                  depth: meta.depth,
+                  isShared: folder.isShared || false,
                   permission: folder.permission,
-                  isShared: folder.isShared || false
+                  parentPrefix: meta.parentPrefix,
                 };
               });
-            setAvailableFolders(folderObjects);
-            console.log("✅ Folders set (EDIT only):", folderObjects);
+            
+            setAvailableFolders(folderOptions);
+            console.log("✅ Folders with metadata:", folderOptions);
           }
         }
       } catch (error) {
@@ -1565,15 +1634,14 @@ export default function TextToImagePage() {
     // Determine the filename prefix based on whether it's a shared folder
     let filenamePrefix = `ComfyUI_${Date.now()}_${seed}`;
     if (targetFolder) {
-      // Check if this is a shared folder (contains full prefix like "outputs/userId/folderName")
-      const selectedFolder = availableFolders.find(f => f.slug === targetFolder);
-      if (selectedFolder?.isShared && selectedFolder.prefix) {
-        // For shared folders, use the full prefix
-        filenamePrefix = `${selectedFolder.prefix}/TextToImage_${Date.now()}_${seed}`;
-        console.log("🔓 Using shared folder full prefix:", filenamePrefix);
+      // Use sanitized prefix directly from selected folder option
+      if (selectedFolderOption) {
+        filenamePrefix = `${sanitizePrefix(selectedFolderOption.prefix)}TextToImage_${Date.now()}_${seed}`;
+        console.log("� Using folder prefix:", filenamePrefix);
       } else {
-        // For own folders, use the slug
-        filenamePrefix = `${targetFolder}/TextToImage_${Date.now()}_${seed}`;
+        // Fallback if folder not found in options (shouldn't happen)
+        filenamePrefix = `${sanitizePrefix(targetFolder)}TextToImage_${Date.now()}_${seed}`;
+        console.log("⚠️ Fallback to direct prefix:", filenamePrefix);
       }
     }
 
@@ -1996,7 +2064,7 @@ export default function TextToImagePage() {
                   <div className="flex items-center space-x-2">
                     <Folder className="w-4 h-4 text-purple-600" />
                     <span className="text-gray-700 dark:text-gray-300">
-                      {isLoadingFolders ? "Loading folders..." : (availableFolders.find(f => f.slug === targetFolder)?.name || targetFolder || "Select a folder...")}
+                      {isLoadingFolders ? "Loading folders..." : (selectedFolderOption ? buildFolderOptionLabel(selectedFolderOption) : "Select a folder...")}
                     </span>
                   </div>
                   <ChevronDown className="w-4 h-4 text-gray-400" />
@@ -2013,33 +2081,29 @@ export default function TextToImagePage() {
                   }}
                 >
                   <option value="" className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">Select a folder...</option>
-                  {availableFolders.map((folder) => {
-                    const icon = folder.isShared ? '🔓' : '📁';
-                    
-                    return (
-                      <option 
-                        key={folder.slug} 
-                        value={folder.slug}
-                        className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800"
-                      >
-                        {icon} {folder.name}
-                      </option>
-                    );
-                  })}
+                  {availableFolders.map((folder) => (
+                    <option 
+                      key={folder.prefix} 
+                      value={folder.prefix}
+                      className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800"
+                    >
+                      {buildFolderOptionLabel(folder)}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              {targetFolder && user && (
+              {targetFolder && selectedFolderOption && (
                 <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center space-x-1">
-                  {availableFolders.find(f => f.slug === targetFolder)?.isShared ? (
+                  {selectedFolderOption.isShared ? (
                     <>
-                      <span>�</span>
-                      <span>Shared folder: {availableFolders.find(f => f.slug === targetFolder)?.prefix}/</span>
+                      <span>🤝</span>
+                      <span>Shared folder: {selectedFolderOption.prefix}</span>
                     </>
                   ) : (
                     <>
                       <span>📁</span>
-                      <span>Saving to: outputs/{user.id}/{targetFolder}/</span>
+                      <span>Saving to: {selectedFolderOption.prefix}</span>
                     </>
                   )}
                 </div>

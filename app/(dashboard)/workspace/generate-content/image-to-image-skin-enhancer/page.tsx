@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { 
   Upload, 
@@ -12,11 +12,13 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  Star,
   Settings,
   Share2,
   Folder,
-  ChevronDown
+  ChevronDown,
+  Wand2,
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 import Image from 'next/image';
 import { useApiClient } from '@/lib/apiClient';
@@ -51,6 +53,59 @@ interface DatabaseImage {
   dataUrl?: string; // Database-served image URL
   createdAt: Date | string;
 }
+
+interface AvailableFolderOption {
+  name: string;
+  prefix: string;
+  displayPath: string;
+  path: string;
+  depth: number;
+  isShared?: boolean;
+  permission?: 'VIEW' | 'EDIT';
+  parentPrefix?: string | null;
+}
+
+const sanitizePrefix = (prefix: string): string => {
+  if (!prefix) {
+    return '';
+  }
+  const normalized = prefix.replace(/\\/g, '/').replace(/\/+/g, '/');
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
+};
+
+const formatSegmentName = (segment: string): string => {
+  if (!segment) {
+    return '';
+  }
+  return segment
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const deriveFolderMeta = (prefix: string) => {
+  const sanitized = sanitizePrefix(prefix);
+  const parts = sanitized.split('/').filter(Boolean);
+  const relativeSegments = parts.slice(2);
+  const displaySegments = relativeSegments.map(formatSegmentName);
+  const depth = Math.max(relativeSegments.length, 1);
+  const parentPrefix = relativeSegments.length <= 1 ? null : `${parts.slice(0, -1).join('/')}/`;
+  return {
+    sanitized,
+    relativeSegments,
+    displaySegments,
+    depth,
+    parentPrefix,
+    path: relativeSegments.join('/'),
+  };
+};
+
+const buildFolderOptionLabel = (folder: AvailableFolderOption): string => {
+  const indent = folder.depth > 1 ? `${'\u00A0'.repeat((folder.depth - 1) * 2)}↳ ` : '';
+  const icon = folder.isShared ? '🤝' : '📁';
+  return `${icon} ${indent}${folder.displayPath}`;
+};
 
 const PROGRESS_STAGES: Array<{ key: 'queued' | 'enhancing' | 'saving'; label: string; description: string }> = [
   {
@@ -97,7 +152,7 @@ export default function ImageToImageSkinEnhancerPage() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
   const [targetFolder, setTargetFolder] = useState<string>('');
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string, prefix?: string, permission?: 'VIEW' | 'EDIT'}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
@@ -132,25 +187,45 @@ export default function ImageToImageSkinEnhancerPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.folders) {
-          // Create folder objects with full prefix, permission, and display name
-          const folders = data.folders
+          // Build folder options with metadata extraction
+          const folderOptions: AvailableFolderOption[] = data.folders
             .map((folder: any) => {
-              if (typeof folder === 'string') {
-                return { slug: folder, name: folder, prefix: `outputs/${user.id}/${folder}`, permission: 'EDIT' as const };
-              }
-              // Extract slug from prefix: outputs/{userId}/{slug}/
-              const parts = folder.prefix.split('/').filter(Boolean);
-              const slug = parts[2] || folder.name;
-              return { 
-                slug, 
-                name: folder.name,
-                prefix: folder.prefix?.replace(/\/$/, ''), // Store full prefix without trailing slash
-                permission: folder.permission || 'EDIT' as const
+              const rawPrefix = typeof folder === 'string' 
+                ? `outputs/${user.id}/${folder}` 
+                : folder.prefix || '';
+              
+              if (!rawPrefix) return null;
+              
+              const meta = deriveFolderMeta(rawPrefix);
+              const displayPath = meta.displaySegments.join(' / ') || 'Root';
+              
+              return {
+                name: meta.displaySegments[meta.displaySegments.length - 1] || 'Root',
+                prefix: meta.sanitized,
+                displayPath,
+                path: meta.path,
+                depth: meta.depth,
+                isShared: typeof folder === 'object' && folder.permission === 'VIEW',
+                permission: (typeof folder === 'object' ? folder.permission : 'EDIT') as 'VIEW' | 'EDIT',
+                parentPrefix: meta.parentPrefix,
               };
             })
-            // Filter to only show folders with EDIT permission
-            .filter((folder: any) => folder.permission === 'EDIT');
-          setAvailableFolders(folders);
+            .filter(Boolean) as AvailableFolderOption[];
+          
+          // Deduplicate by prefix
+          const uniqueFolders = Array.from(
+            new Map(folderOptions.map((f) => [f.prefix, f])).values()
+          );
+          
+          // Sort: editable first, then alphabetically by path
+          const sortedFolders = uniqueFolders.sort((a, b) => {
+            if (a.permission !== b.permission) {
+              return a.permission === 'EDIT' ? -1 : 1;
+            }
+            return a.path.localeCompare(b.path);
+          });
+          
+          setAvailableFolders(sortedFolders);
         }
       }
     } catch (error) {
@@ -159,6 +234,15 @@ export default function ImageToImageSkinEnhancerPage() {
       setIsLoadingFolders(false);
     }
   }, [apiClient, user]);
+
+  // Memoize the selected folder option
+  const selectedFolderOption = useMemo(() => {
+    if (!targetFolder || availableFolders.length === 0) {
+      return null;
+    }
+    const normalized = sanitizePrefix(targetFolder);
+    return availableFolders.find((f) => f.prefix === normalized) || null;
+  }, [targetFolder, availableFolders]);
 
   // Load folders on mount
   useEffect(() => {
@@ -843,7 +927,7 @@ export default function ImageToImageSkinEnhancerPage() {
       "38": {
         "inputs": {
           "images": ["13", 0],
-          "filename_prefix": targetFolder ? `${targetFolder}/SkinEnhancer` : "SkinEnhancer"
+          "filename_prefix": targetFolder ? `${sanitizePrefix(targetFolder)}SkinEnhancer` : "SkinEnhancer"
         },
         "class_type": "SaveImage",
         "_meta": {
@@ -1175,160 +1259,153 @@ export default function ImageToImageSkinEnhancerPage() {
     });
   }, [currentJob, jobImages, resultImages]);
 
+  const currentJobImages = currentJob?.id ? jobImages[currentJob.id] : undefined;
+  const hasLegacyUrls = Boolean(currentJob?.resultUrls && currentJob.resultUrls.length > 0);
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-10 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
+              <Wand2 className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
               Image-to-Image Skin Enhancer
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Upload an image and get professional skin enhancement with one click using our optimized AI workflow
-            </p>
           </div>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Bring professional-grade retouching to any portrait. Upload once, let Flux-inspired magic refine every pore, tone, and highlight.
+          </p>
         </div>
-      </div>
 
-      {error && (
-        <div className="mb-6 border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center">
-            <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 mr-2" />
-            <p className="text-red-700 dark:text-red-300">{error}</p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column - Input Controls */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Image Upload */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2 mb-2">
-                <Upload className="w-5 h-5" />
-                <h3 className="text-lg font-semibold">Upload Image</h3>
-              </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Select an image to enhance (max 10MB)
-              </p>
+        {error && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
             </div>
-            <div className="p-6">
-              <div 
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-out shadow-sm focus-within:ring-4 focus-within:ring-blue-300/50 ${
-                  isDragging 
-                    ? 'border-blue-500 bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-blue-900/30 dark:via-gray-900 dark:to-purple-900/30 shadow-lg scale-[1.02]' 
-                    : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 hover:shadow-md'
-                }`}
-                aria-label="Upload image dropzone"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  id="image-upload"
-                />
-                <label
-                  htmlFor="image-upload"
-                  className="cursor-pointer outline-none"
-                  tabIndex={0}
+            <div className="flex-1">
+              <h3 className="font-bold text-red-900 dark:text-red-100 text-lg">We hit a snag</h3>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
+              aria-label="Dismiss error"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Upload Image</h2>
+                </div>
+                {selectedImage && (
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Upload a high-quality portrait (PNG or JPG, up to 10MB). We will preserve details while smoothing skin naturally.
+              </p>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                id="skin-enhancer-upload"
+              />
+
+              {selectedImage ? (
+                <div className="relative group">
+                  <div className="relative w-full h-80 bg-gradient-to-br from-purple-100 via-pink-50 to-blue-100 dark:from-purple-900/30 dark:via-pink-900/20 dark:to-blue-900/30 rounded-2xl border-2 border-purple-200/70 dark:border-purple-800/60 overflow-hidden shadow-inner">
+                    <Image
+                      src={selectedImage.preview}
+                      alt="Selected image"
+                      fill
+                      className="object-contain"
+                      priority
+                    />
+                  </div>
+                  <div className="absolute bottom-4 left-4 px-4 py-2 bg-black/70 backdrop-blur-sm text-white text-xs rounded-full shadow-lg border border-white/10">
+                    {selectedImage.file.name}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onDragEnter={handleDragEnter}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300 ${
+                    isDragging
+                      ? 'border-purple-500 bg-purple-50/80 dark:bg-purple-900/40 scale-[1.02] shadow-xl'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-white/60 dark:hover:bg-gray-900/40'
+                  }`}
                   role="button"
+                  tabIndex={0}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       fileInputRef.current?.click();
                     }
                   }}
+                  aria-label="Upload image"
                 >
-                  {selectedImage ? (
-                    <div className="space-y-3">
-                      <div className="relative w-32 h-32 mx-auto">
-                        <Image
-                          src={selectedImage.preview}
-                          alt="Selected image"
-                          fill
-                          className="object-cover rounded-lg"
-                        />
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {selectedImage.file.name}
+                  <div className="flex flex-col items-center gap-4">
+                    <div className={`p-5 rounded-full ${isDragging ? 'bg-purple-100 dark:bg-purple-900/40' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                      <Upload className={`w-10 h-10 ${isDragging ? 'text-purple-600 dark:text-purple-300' : 'text-gray-400'}`} />
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                        {isDragging ? 'Release to upload' : 'Click or drag your image'}
                       </p>
-                      <button
-                        type="button"
-                        onClick={(e: React.MouseEvent) => {
-                          e.preventDefault();
-                          removeImage();
-                        }}
-                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Remove
-                      </button>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">PNG or JPG up to 10MB</p>
+                      <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                        Pro tip: centered portraits with even lighting deliver the cleanest enhancements.
+                      </p>
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="relative mx-auto flex h-28 w-28 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-100 via-white to-gray-200 dark:from-gray-700 dark:via-gray-800 dark:to-gray-700 shadow-inner">
-                        <ImageIcon className="w-10 h-10 text-gray-400 dark:text-gray-300 animate-pulse" />
-                        <div className="absolute inset-0 rounded-2xl border border-dashed border-gray-300/70 dark:border-gray-500/70" />
-                      </div>
-                      <div>
-                        <p className="text-lg font-medium">
-                          {isDragging ? 'Drop image here' : 'Click to upload or drag & drop'}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          PNG, JPG, JPEG up to 10MB
-                        </p>
-                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                          Tip: Drag a face photo anywhere on this card to preview before enhancing.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </label>
-              </div>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Folder Selection */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2 mb-2">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-4">
                 <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                <h3 className="text-lg font-semibold">Save to Folder</h3>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h2>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Choose where to save your enhanced image
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Pick where your enhanced image should live. We only show folders you can edit.
               </p>
-            </div>
-            <div className="p-6">
               <div className="relative">
                 <select
                   value={targetFolder}
                   onChange={(e) => setTargetFolder(e.target.value)}
                   disabled={isLoadingFolders}
-                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-sm"
+                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-900/40 border-2 border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
                 >
                   <option value="">Select a folder...</option>
-                  {availableFolders.map((folder) => {
-                    // Check if this is a shared folder by looking at the prefix
-                    const isSharedFolder = folder.prefix && !folder.prefix.startsWith(`outputs/${user?.id}/`);
-                    const icon = isSharedFolder ? '🔓' : '📁';
-                    
-                    return (
-                      <option key={folder.slug} value={folder.prefix || folder.slug}>
-                        {icon} {folder.name}
-                      </option>
-                    );
-                  })}
+                  {availableFolders.map((folder) => (
+                    <option key={folder.prefix} value={folder.prefix}>
+                      {buildFolderOptionLabel(folder)}
+                    </option>
+                  ))}
                 </select>
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   {isLoadingFolders ? (
@@ -1338,78 +1415,77 @@ export default function ImageToImageSkinEnhancerPage() {
                   )}
                 </div>
               </div>
-              {targetFolder && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 flex items-center space-x-1">
+              {selectedFolderOption && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 flex items-center gap-1">
                   <span>💡</span>
-                  <span>Saving to: {targetFolder.startsWith('outputs/') ? targetFolder : `outputs/${user?.id}/${targetFolder}`}/</span>
+                  <span>Saving to: {selectedFolderOption.prefix}</span>
                 </p>
               )}
             </div>
-          </div>
 
-          {/* Generation Parameters Info */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center gap-2 mb-2">
-                <Settings className="w-5 h-5" />
-                <h3 className="text-lg font-semibold">AI Enhancement Settings</h3>
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-4">
+                <Settings className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">AI Enhancement Settings</h2>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Using optimized settings for professional skin enhancement
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Tuned for lifelike skin: balanced retouching, pore retention, cinematic lighting, and zero plastic sheen.
               </p>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">AI Model:</span>
-                  <p className="text-gray-600 dark:text-gray-400">{FIXED_VALUES.selectedModel.replace('.safetensors', '')}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">Model</span>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.selectedModel.replace('.safetensors', '')}</p>
                 </div>
-                <div>
-                  <span className="font-medium">LoRA 1:</span>
-                  <p className="text-gray-600 dark:text-gray-400">{FIXED_VALUES.selectedLoRA.replace('.safetensors', '')}</p>
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">LoRA 1</span>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.selectedLoRA.replace('.safetensors', '')}</p>
                 </div>
-                <div>
-                  <span className="font-medium">LoRA 2:</span>
-                  <p className="text-gray-600 dark:text-gray-400">{FIXED_VALUES.moreDetailsLoRA.replace('.safetensors', '')}</p>
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">LoRA 2</span>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.moreDetailsLoRA.replace('.safetensors', '')}</p>
                 </div>
-                <div>
-                  <span className="font-medium">Steps:</span>
-                  <p className="text-gray-600 dark:text-gray-400">{FIXED_VALUES.steps}</p>
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">Steps</span>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.steps}</p>
                 </div>
-                <div>
-                  <span className="font-medium">CFG Scale:</span>
-                  <p className="text-gray-600 dark:text-gray-400">{FIXED_VALUES.cfg}</p>
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">CFG Scale</span>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.cfg}</p>
                 </div>
-                <div>
-                  <span className="font-medium">Denoise:</span>
-                  <p className="text-gray-600 dark:text-gray-400">{FIXED_VALUES.denoise}</p>
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">Denoise</span>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.denoise}</p>
                 </div>
-                <div>
-                  <span className="font-medium">Sampler:</span>
-                  <p className="text-gray-600 dark:text-gray-400">{FIXED_VALUES.sampler}</p>
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">Sampler</span>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.sampler}</p>
+                </div>
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
+                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">Seed</span>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.seed}</p>
                 </div>
               </div>
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  ✨ All parameters are pre-configured for optimal results. Simply upload your image and let our AI enhance your skin!
-                </p>
+              <div className="mt-6 rounded-2xl bg-gradient-to-r from-purple-50 via-white to-blue-50 dark:from-purple-900/20 dark:via-gray-900/20 dark:to-blue-900/20 border border-purple-100 dark:border-purple-800 px-5 py-4 text-sm text-gray-600 dark:text-gray-300 shadow-inner">
+                ✨ All parameters are pre-configured for cinematic realism. Just upload, choose a destination, and tap enhance.
               </div>
             </div>
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleGenerate}
                 disabled={isProcessing || !selectedImage || !targetFolder}
-                className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="group flex-1 py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-semibold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
               >
+                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                 {isProcessing ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Enhancing...
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Enhancing...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Enhance Image
+                    <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+                    <span>Enhance Image</span>
                   </>
                 )}
               </button>
@@ -1417,192 +1493,225 @@ export default function ImageToImageSkinEnhancerPage() {
                 type="button"
                 onClick={resetForm}
                 disabled={isProcessing}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-4 rounded-2xl border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white/80 dark:bg-gray-900/40 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Reset
+                <RefreshCw className="w-4 h-4 inline-block mr-2" /> Reset
               </button>
             </div>
-            
+
             {(!selectedImage || !targetFolder) && (
-              <div className="px-6 pb-4">
-                <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-                  {!selectedImage && "Please upload an image first"}
-                  {selectedImage && !targetFolder && "Please select a folder"}
-                </p>
-              </div>
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+                {!selectedImage && 'Please upload an image to begin.'}
+                {selectedImage && !targetFolder && 'Select a folder so we know where to save your results.'}
+              </p>
             )}
           </div>
-        </div>
 
-        {/* Right Column - Results and Progress */}
-        <div className="space-y-6">
-          {/* Progress Card */}
-          {currentJob && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-2">
-                  {currentJob.status === 'COMPLETED' ? (
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                  ) : currentJob.status === 'FAILED' ? (
-                    <XCircle className="w-5 h-5 text-red-600" />
-                  ) : (
-                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                  )}
-                  <h3 className="text-lg font-semibold">Enhancement Progress</h3>
-                </div>
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Progress</span>
-                    <span>{currentJob.progress || 0}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+          <div className="space-y-6">
+            {currentJob && (
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
                     <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
-                      style={{ width: `${currentJob.progress || 0}%` }}
-                      aria-valuenow={currentJob.progress || 0}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      role="progressbar"
-                    />
+                      className={`p-3 rounded-2xl shadow-lg ${
+                        currentJob.status === 'COMPLETED'
+                          ? 'bg-gradient-to-br from-green-400 to-green-600 text-white'
+                          : currentJob.status === 'FAILED'
+                            ? 'bg-gradient-to-br from-red-500 to-red-600 text-white'
+                            : 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
+                      }`}
+                    >
+                      {currentJob.status === 'COMPLETED' ? (
+                        <CheckCircle className="w-6 h-6" />
+                      ) : currentJob.status === 'FAILED' ? (
+                        <XCircle className="w-6 h-6" />
+                      ) : (
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">Enhancement Status</h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {currentJob.status === 'COMPLETED'
+                          ? 'Your image finished processing successfully.'
+                          : currentJob.status === 'FAILED'
+                            ? 'Something went wrong. Review the message below.'
+                            : 'We are retouching skin and rebalancing tones in real-time.'}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`inline-flex items-center justify-center px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full ${
+                      currentJob.status === 'COMPLETED'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200'
+                        : currentJob.status === 'FAILED'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-200'
+                          : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-200'
+                    }`}
+                  >
+                    {currentJob.status}
+                  </span>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm font-semibold text-gray-600 dark:text-gray-300">
+                      <span>Progress</span>
+                      <span>{Math.min(currentJob.progress || 0, 100)}%</span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 transition-all duration-500"
+                        style={{ width: `${Math.min(currentJob.progress || 0, 100)}%` }}
+                        aria-valuenow={Math.min(currentJob.progress || 0, 100)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        role="progressbar"
+                      />
+                    </div>
+                  </div>
+                  {currentJob.message && (
+                    <div className="rounded-2xl border border-purple-100 dark:border-purple-900/40 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 shadow-inner">
+                      {currentJob.message}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>Elapsed: {formattedElapsed}</span>
+                    <span>Typical runtime: 1-3 min</span>
                   </div>
                 </div>
-                {currentJob.message && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {currentJob.message}
-                  </p>
-                )}
-                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                  <span>Elapsed: {formattedElapsed}</span>
-                  <span>Typical: 1-3 min</span>
-                </div>
-                <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                  currentJob.status === 'COMPLETED' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                  currentJob.status === 'FAILED' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                }`}>
-                  {currentJob.status}
-                </span>
 
-                <div className="pt-4">
-                  <ol className="grid grid-cols-3 gap-2 text-xs">
-                    {PROGRESS_STAGES.map((stage, index) => {
-                      const isActive = index === activeStageIndex;
-                      const isCompleted = index < activeStageIndex || currentJob?.status === 'COMPLETED';
-                      return (
-                        <li
-                          key={stage.key}
-                          className={`rounded-md border px-3 py-2 text-center transition-colors ${
+                <div className="mt-8 space-y-6">
+                  {PROGRESS_STAGES.map((stage, index) => {
+                    const isActive = index === activeStageIndex;
+                    const isComplete = index < activeStageIndex || currentJob.status === 'COMPLETED';
+                    return (
+                      <div key={stage.key} className="relative flex gap-4">
+                        <div className="relative flex-shrink-0">
+                          <div
+                            className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-500 shadow-md ${
+                              isComplete
+                                ? 'bg-gradient-to-br from-green-400 to-green-600 text-white scale-105'
+                                : isActive
+                                  ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white scale-105 animate-pulse'
+                                  : 'bg-gray-200 dark:bg-gray-700 text-gray-500'
+                            }`}
+                          >
+                            {isComplete ? (
+                              <CheckCircle className="w-6 h-6" />
+                            ) : isActive ? (
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                            ) : (
+                              <span className="text-sm font-semibold">{index + 1}</span>
+                            )}
+                          </div>
+                          {index < PROGRESS_STAGES.length - 1 && (
+                            <div className={`absolute left-1/2 top-12 -ml-[1px] h-10 w-[2px] ${isComplete ? 'bg-green-400' : 'bg-gray-200 dark:bg-gray-700'}`} />
+                          )}
+                        </div>
+                        <div className="flex-1 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white/70 dark:bg-gray-900/40 px-4 py-3 shadow-sm backdrop-blur">
+                          <p className={`text-sm font-semibold ${
                             isActive
-                              ? 'border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200'
-                              : isCompleted
-                                ? 'border-green-500 bg-green-50 dark:border-green-400 dark:bg-green-900/30 text-green-700 dark:text-green-200'
-                                : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-300'
-                          }`}
-                          aria-current={isActive ? 'step' : undefined}
-                        >
-                          <p className="font-semibold">{stage.label}</p>
-                          <p className="mt-1 leading-tight text-[11px] opacity-80">{stage.description}</p>
-                        </li>
-                      );
-                    })}
-                  </ol>
+                              ? 'text-purple-600 dark:text-purple-300'
+                              : isComplete
+                                ? 'text-green-600 dark:text-green-300'
+                                : 'text-gray-600 dark:text-gray-300'
+                          }`}>
+                            {stage.label}
+                            {isActive ? ' • in progress' : isComplete ? ' • done' : ''}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{stage.description}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* Skeleton Loader for Processing Images */}
                 {(currentJob.status === 'PROCESSING' || currentJob.status === 'PENDING') && (
-                  <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Processing your image...
-                    </p>
-                    <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 animate-pulse">
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent animate-shimmer"></div>
+                  <div className="mt-8 space-y-4 border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Rendering preview</p>
+                    <div className="relative aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer" />
                     </div>
                     <div className="space-y-2">
-                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 animate-pulse"></div>
+                      <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                      <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-700 w-2/3 animate-pulse" />
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Results */}
-          {currentJob && currentJob.status === 'COMPLETED' && (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-2">
-                  <Star className="w-5 h-5 text-yellow-500" />
-                  <h3 className="text-lg font-semibold">Enhanced Images</h3>
+            {currentJob && currentJob.status === 'COMPLETED' && (
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gradient-to-br from-green-400 to-blue-500 rounded-xl shadow-lg">
+                      <Sparkles className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">Enhanced Images</h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Ready to review, download, or share immediately.</p>
+                    </div>
+                  </div>
+                  {lastJobDuration && (
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 border border-green-200 dark:border-green-800 text-sm font-medium text-green-700 dark:text-green-200">
+                      <Clock className="w-4 h-4" />
+                      {lastJobDuration}
+                    </div>
+                  )}
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Your enhanced images are ready!
-                </p>
-              </div>
 
-              {/* Show loading or no images message */}
-              {(!currentJob.resultUrls || currentJob.resultUrls.length === 0) &&
-                (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0) && (
-                  <div className="p-6">
-                    <div className="text-center py-8">
-                      <div className="flex items-center justify-center space-x-2 text-gray-500 dark:text-gray-400 mb-3">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Loading enhanced images...</span>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          const images = await fetchJobImages(currentJob.id);
-                          if (images && images.length > 0) {
-                            const mappedImages = images
-                              .map((img) => img.dataUrl || img.url || '')
-                              .filter(Boolean);
-                            if (mappedImages.length > 0) {
-                              setResultImages(mappedImages);
-                            }
-                          }
-                        }}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
-                      >
-                        Refresh Images
-                      </button>
+                {!currentJobImages?.length && !hasLegacyUrls && (
+                  <div className="text-center py-12">
+                    <div className="flex items-center justify-center gap-2 text-gray-500 dark:text-gray-400 mb-4">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm font-medium">Fetching results from your gallery...</span>
                     </div>
+                    <button
+                      onClick={async () => {
+                        if (!currentJob) return;
+                        const images = await fetchJobImages(currentJob.id);
+                        if (images && images.length > 0) {
+                          const mappedImages = images.map((img) => img.dataUrl || img.url || '').filter(Boolean);
+                          if (mappedImages.length > 0) {
+                            setResultImages(mappedImages);
+                          }
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-medium shadow-md hover:shadow-lg transition"
+                    >
+                      <RefreshCw className="w-4 h-4" /> Refresh images
+                    </button>
                   </div>
                 )}
 
-              {/* Display images */}
-              {((currentJob.resultUrls && currentJob.resultUrls.length > 0) ||
-                (jobImages[currentJob.id] && jobImages[currentJob.id].length > 0)) && (
-                <div className="p-6 space-y-4">
-                  {(() => {
-                    const totalImages = jobImages[currentJob.id]?.length || currentJob.resultUrls?.length || 0;
-                    return (
-                      <div className="rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-purple-50 p-4 text-sm shadow-sm dark:border-blue-800 dark:from-blue-900/40 dark:via-gray-900 dark:to-purple-900/30" role="status" aria-live="polite">
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Enhancement Complete</p>
-                            <p className="mt-1 text-base font-medium text-gray-800 dark:text-gray-100">
-                              {totalImages} {totalImages === 1 ? 'image' : 'images'} enhanced in {lastJobDuration || formattedElapsed}.
-                            </p>
-                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                              Results are saved to your gallery. You can rerun with a different photo or download immediately.
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
+                {(currentJobImages?.length || hasLegacyUrls) && (
+                  <div className="space-y-5">
+                    {(() => {
+                      const totalImages = currentJobImages?.length || currentJob.resultUrls?.length || 0;
+                      return (
+                        <div className="rounded-2xl border border-blue-200 dark:border-blue-900/40 bg-gradient-to-r from-blue-50 via-white to-purple-50 dark:from-blue-900/30 dark:via-gray-900/20 dark:to-purple-900/30 px-5 py-4 shadow-inner">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-300">Enhancement complete</p>
+                          <p className="mt-1 text-gray-800 dark:text-gray-100 font-semibold">
+                            {totalImages} {totalImages === 1 ? 'image' : 'images'} enhanced in {lastJobDuration || formattedElapsed}.
+                          </p>
+                          <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                            We saved everything to your chosen folder. Download, share, or run another pass anytime.
+                          </p>
+                          <div className="mt-4 flex flex-wrap gap-3">
                             <button
                               onClick={() => {
                                 resetForm();
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
-                              className="inline-flex items-center rounded-full border border-blue-500 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-200 dark:hover:bg-blue-900/40"
+                              className="inline-flex items-center gap-2 rounded-full border border-blue-500 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-200 dark:hover:bg-blue-900/30"
                             >
-                              <Sparkles className="mr-1.5 h-4 w-4" />
-                              Enhance another
+                              <Sparkles className="w-4 h-4" /> Enhance another
                             </button>
                             <button
                               onClick={async () => {
+                                if (!currentJob) return;
                                 const images = await fetchJobImages(currentJob.id);
                                 if (images && images.length > 0) {
                                   const mappedImages = images.map((img) => img.dataUrl || img.url || '').filter(Boolean);
@@ -1611,296 +1720,232 @@ export default function ImageToImageSkinEnhancerPage() {
                                   }
                                 }
                               }}
-                              className="inline-flex items-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+                              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition hover:shadow-lg"
                             >
-                              <RefreshCw className="mr-1.5 h-4 w-4" />
-                              Update gallery
+                              <RefreshCw className="w-4 h-4" /> Update gallery
                             </button>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })()}
-                  {/* Before/After Comparison Toggle */}
-                  {selectedImage && jobImages[currentJob.id]?.[0] && (
-                    <div className="flex items-center gap-2 mb-4">
-                      <button
-                        onClick={() => setComparisonMode('side-by-side')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                          comparisonMode === 'side-by-side'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                            : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        Side by Side
-                      </button>
-                      <button
-                        onClick={() => setComparisonMode('slider')}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                          comparisonMode === 'slider'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                            : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        Slider
-                      </button>
-                    </div>
-                  )}
+                      );
+                    })()}
 
-                  {/* Before/After Comparison View */}
-                  {selectedImage && jobImages[currentJob.id]?.[0] && (
-                    <div className="mb-6">
-                      {comparisonMode === 'side-by-side' ? (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 text-center">BEFORE</p>
-                            <img
-                              src={selectedImage.preview}
-                              alt="Original image"
-                              className="w-full rounded-lg shadow-md"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 text-center">AFTER</p>
-                            <img
-                              src={(jobImages[currentJob.id][0].dataUrl || jobImages[currentJob.id][0].url) as string}
-                              alt="Enhanced image"
-                              className="w-full rounded-lg shadow-md"
-                            />
-                          </div>
+                    {selectedImage && currentJobImages?.[0] && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <button
+                            onClick={() => setComparisonMode('side-by-side')}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                              comparisonMode === 'side-by-side'
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200'
+                                : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            Side by side
+                          </button>
+                          <button
+                            onClick={() => setComparisonMode('slider')}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                              comparisonMode === 'slider'
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200'
+                                : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            Slider
+                          </button>
                         </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-gray-500 dark:text-gray-400 text-center">DRAG TO COMPARE</p>
-                          <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
-                            <img
-                              src={(jobImages[currentJob.id][0].dataUrl || jobImages[currentJob.id][0].url) as string}
-                              alt="Enhanced image"
-                              className="absolute inset-0 w-full h-full object-cover"
-                            />
-                            <div 
-                              className="absolute inset-0"
-                              style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
-                            >
-                              <img
-                                src={selectedImage.preview}
-                                alt="Original image"
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
+                        {comparisonMode === 'side-by-side' ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white/70 dark:bg-gray-900/40 shadow-sm">
+                              <p className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 tracking-wider">BEFORE</p>
+                              <img src={selectedImage.preview} alt="Original" className="w-full object-cover" />
                             </div>
-                            <div
-                              className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-ew-resize"
-                              style={{ left: `${sliderPosition}%` }}
-                              role="slider"
-                              tabIndex={0}
-                              aria-label="Comparison slider"
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-valuenow={Math.round(sliderPosition)}
-                              onKeyDown={(event) => {
-                                if (event.key === 'ArrowLeft') {
-                                  adjustSlider(-5);
-                                  event.preventDefault();
-                                } else if (event.key === 'ArrowRight') {
-                                  adjustSlider(5);
-                                  event.preventDefault();
-                                }
-                              }}
-                              onMouseDown={(e) => {
-                                const container = e.currentTarget.parentElement;
-                                if (!container) return;
-
-                                const handleMove = (moveEvent: MouseEvent) => {
-                                  const rect = container.getBoundingClientRect();
-                                  const x = moveEvent.clientX - rect.left;
-                                  const percentage = (x / rect.width) * 100;
-                                  setSliderPosition(Math.max(0, Math.min(100, percentage)));
-                                };
-
-                                const handleUp = () => {
-                                  document.removeEventListener('mousemove', handleMove);
-                                  document.removeEventListener('mouseup', handleUp);
-                                };
-
-                                document.addEventListener('mousemove', handleMove);
-                                document.addEventListener('mouseup', handleUp);
-                              }}
-                              onTouchStart={(event) => {
-                                const container = event.currentTarget.parentElement;
-                                if (!container) return;
-
-                                const handleTouchMove = (touchEvent: TouchEvent) => {
-                                  const rect = container.getBoundingClientRect();
-                                  const touch = touchEvent.touches[0];
-                                  const x = touch.clientX - rect.left;
-                                  const percentage = (x / rect.width) * 100;
-                                  setSliderPosition(Math.max(0, Math.min(100, percentage)));
-                                };
-
-                                const cleanup = () => {
-                                  document.removeEventListener('touchmove', handleTouchMove);
-                                  document.removeEventListener('touchend', cleanup);
-                                  document.removeEventListener('touchcancel', cleanup);
-                                };
-
-                                document.addEventListener('touchmove', handleTouchMove, { passive: false });
-                                document.addEventListener('touchend', cleanup);
-                                document.addEventListener('touchcancel', cleanup);
-                              }}
-                            >
-                              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center">
-                                <div className="flex gap-0.5">
-                                  <div className="w-0.5 h-4 bg-gray-400"></div>
-                                  <div className="w-0.5 h-4 bg-gray-400"></div>
-                                </div>
+                            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white/70 dark:bg-gray-900/40 shadow-sm">
+                              <p className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 tracking-wider">AFTER</p>
+                              <img src={(currentJobImages[0].dataUrl || currentJobImages[0].url) as string} alt="Enhanced" className="w-full object-cover" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 text-center tracking-wider">DRAG TO COMPARE</p>
+                            <div className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800">
+                              <img src={(currentJobImages[0].dataUrl || currentJobImages[0].url) as string} alt="Enhanced" className="absolute inset-0 w-full h-full object-cover" />
+                              <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}>
+                                <img src={selectedImage.preview} alt="Original" className="absolute inset-0 w-full h-full object-cover" />
                               </div>
-                            </div>
-                            <div className="absolute top-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">BEFORE</div>
-                            <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">AFTER</div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Enhanced Images Grid */}
-                  <div className="grid grid-cols-1 gap-3">
-                    {jobImages[currentJob.id] && jobImages[currentJob.id].length > 0
-                      ? jobImages[currentJob.id].map((dbImage, index) => (
-                          <div key={`db-${dbImage.id}`} className="relative group">
-                            {(dbImage.dataUrl || dbImage.url) ? (
-                              <img
-                                src={(dbImage.dataUrl || dbImage.url) as string}
-                                alt={`Enhanced image ${index + 1}`}
-                                className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
-                                onClick={() => openLightbox((dbImage.dataUrl || dbImage.url) as string, dbImage.filename)}
-                                onError={(e) => {
-                                  console.error("Image load error for:", dbImage.filename);
-
-                                  const currentSrc = (e.target as HTMLImageElement).src;
-                                  
-                                  if (currentSrc === dbImage.dataUrl && dbImage.url) {
-                                    console.log("Falling back to url");
-                                    (e.target as HTMLImageElement).src = dbImage.url;
-                                  } else if (currentSrc === dbImage.url && dbImage.dataUrl) {
-                                    console.log("Falling back to dataUrl");
-                                    (e.target as HTMLImageElement).src = dbImage.dataUrl;
-                                  } else {
-                                    console.error("All URLs failed for:", dbImage.filename);
-                                    (e.target as HTMLImageElement).style.display = 'none';
+                              <div
+                                className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-ew-resize"
+                                style={{ left: `${sliderPosition}%` }}
+                                role="slider"
+                                tabIndex={0}
+                                aria-label="Comparison slider"
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={Math.round(sliderPosition)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'ArrowLeft') {
+                                    adjustSlider(-5);
+                                    event.preventDefault();
+                                  } else if (event.key === 'ArrowRight') {
+                                    adjustSlider(5);
+                                    event.preventDefault();
                                   }
                                 }}
-                              />
-                            ) : (
-                              <div className="w-full h-64 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                                <div className="text-center text-gray-500 dark:text-gray-400">
-                                  <p className="text-sm">Image not available</p>
-                                  <p className="text-xs">{dbImage.filename}</p>
-                                  <p className="text-xs">dataUrl={dbImage.dataUrl || 'null'}</p>
-                                  <p className="text-xs">url={dbImage.url || 'null'}</p>
+                                onMouseDown={(event) => {
+                                  const container = event.currentTarget.parentElement;
+                                  if (!container) return;
+                                  const handleMove = (moveEvent: MouseEvent) => {
+                                    const rect = container.getBoundingClientRect();
+                                    const x = moveEvent.clientX - rect.left;
+                                    const percentage = (x / rect.width) * 100;
+                                    setSliderPosition(Math.max(0, Math.min(100, percentage)));
+                                  };
+                                  const handleUp = () => {
+                                    document.removeEventListener('mousemove', handleMove);
+                                    document.removeEventListener('mouseup', handleUp);
+                                  };
+                                  document.addEventListener('mousemove', handleMove);
+                                  document.addEventListener('mouseup', handleUp);
+                                }}
+                                onTouchStart={(event) => {
+                                  const container = event.currentTarget.parentElement;
+                                  if (!container) return;
+                                  const handleTouchMove = (touchEvent: TouchEvent) => {
+                                    const rect = container.getBoundingClientRect();
+                                    const touch = touchEvent.touches[0];
+                                    const x = touch.clientX - rect.left;
+                                    const percentage = (x / rect.width) * 100;
+                                    setSliderPosition(Math.max(0, Math.min(100, percentage)));
+                                  };
+                                  const cleanup = () => {
+                                    document.removeEventListener('touchmove', handleTouchMove);
+                                    document.removeEventListener('touchend', cleanup);
+                                    document.removeEventListener('touchcancel', cleanup);
+                                  };
+                                  document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                                  document.addEventListener('touchend', cleanup);
+                                  document.addEventListener('touchcancel', cleanup);
+                                }}
+                              >
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-lg flex items-center justify-center">
+                                  <div className="flex gap-0.5">
+                                    <div className="w-0.5 h-4 bg-gray-400" />
+                                    <div className="w-0.5 h-4 bg-gray-400" />
+                                  </div>
                                 </div>
                               </div>
-                            )}
-                            <div className="absolute top-2 right-2 flex space-x-1 transition-opacity">
-                              <div className="flex space-x-1 rounded-full bg-white/90 px-1 py-0.5 shadow-md backdrop-blur dark:bg-gray-800/90">
+                              <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/70 text-white text-xs">BEFORE</div>
+                              <div className="absolute top-3 right-3 px-3 py-1 rounded-full bg-black/70 text-white text-xs">AFTER</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-4">
+                      {currentJobImages?.length
+                        ? currentJobImages.map((dbImage) => (
+                            <div key={dbImage.id} className="relative group">
+                              {(dbImage.dataUrl || dbImage.url) ? (
+                                <img
+                                  src={(dbImage.dataUrl || dbImage.url) as string}
+                                  alt={dbImage.filename}
+                                  className="w-full rounded-2xl border border-gray-200 dark:border-gray-800 shadow-lg hover:shadow-2xl transition-transform duration-500 cursor-pointer hover:scale-[1.01]"
+                                  onClick={() => openLightbox((dbImage.dataUrl || dbImage.url) as string, dbImage.filename)}
+                                  onError={(event) => {
+                                    const target = event.target as HTMLImageElement;
+                                    if (target.src === dbImage.dataUrl && dbImage.url) {
+                                      target.src = dbImage.url;
+                                    } else if (target.src === dbImage.url && dbImage.dataUrl) {
+                                      target.src = dbImage.dataUrl;
+                                    } else {
+                                      target.style.display = 'none';
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-64 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
+                                  Image not available ({dbImage.filename})
+                                </div>
+                              )}
+                              <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={() => downloadDatabaseImage(dbImage)}
-                                  className="p-2 rounded-full text-gray-700 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 dark:text-gray-200 dark:hover:bg-blue-900/40"
+                                  className="p-3 rounded-xl bg-white/90 dark:bg-gray-900/70 border border-gray-100 dark:border-gray-800 shadow-md hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white transition"
                                   aria-label={`Download ${dbImage.filename}`}
-                                  title={`Download ${dbImage.filename}`}
                                 >
                                   <Download className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => shareImage(dbImage)}
-                                  className="p-2 rounded-full text-gray-700 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 dark:text-gray-200 dark:hover:bg-blue-900/40"
-                                  aria-label={`Copy share link for ${dbImage.filename}`}
-                                  title={`Copy share link for ${dbImage.filename}`}
+                                  className="p-3 rounded-xl bg-white/90 dark:bg-gray-900/70 border border-gray-100 dark:border-gray-800 shadow-md hover:bg-gradient-to-br hover:from-purple-500 hover:to-pink-600 hover:text-white transition"
+                                  aria-label={`Share ${dbImage.filename}`}
                                 >
                                   <Share2 className="w-4 h-4" />
                                 </button>
                               </div>
-                            </div>
-                            {dbImage.width && dbImage.height && (
-                              <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
-                                  {dbImage.width}×{dbImage.height}
-                                  {dbImage.fileSize && ` • ${Math.round(dbImage.fileSize / 1024)}KB`}
-                                  {dbImage.format && ` • ${dbImage.format.toUpperCase()}`}
-                                </div>
+                              <div className="absolute bottom-4 left-4 px-3 py-1.5 rounded-full bg-black/70 text-white text-xs backdrop-blur-sm border border-white/10">
+                                {dbImage.filename}
                               </div>
-                            )}
-                            <div className="absolute bottom-2 right-2">
-                              <span
-                                className="inline-flex items-center gap-1 rounded-full bg-white/85 px-2 py-1 text-[11px] font-medium text-gray-600 shadow-sm backdrop-blur transition group-hover:bg-white dark:bg-gray-900/85 dark:text-gray-200"
-                                title={describeImageSource(dbImage)}
-                              >
-                                <span
-                                  className={`inline-block h-2 w-2 rounded-full ${dbImage.url ? 'bg-blue-500' : 'bg-amber-500'}`}
-                                  aria-hidden="true"
-                                />
-                                {dbImage.url ? 'Cloud' : 'Database'}
-                              </span>
+                              <div className="absolute bottom-4 right-4">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-white/80 dark:bg-gray-900/70 border border-gray-100 dark:border-gray-800 px-3 py-1 text-[11px] font-medium text-gray-600 dark:text-gray-200">
+                                  <span className={`inline-block h-2 w-2 rounded-full ${dbImage.url ? 'bg-blue-500' : 'bg-amber-500'}`} />
+                                  {describeImageSource(dbImage)}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        ))
-                      : currentJob.resultUrls && currentJob.resultUrls.map((imageUrl, index) => (
-                          <div key={`legacy-${index}`} className="relative group">
-                            <img
-                              src={imageUrl}
-                              alt={`Enhanced image ${index + 1}`}
-                              className="w-full rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
-                              onClick={() => openLightbox(imageUrl, `Enhanced image ${index + 1}`)}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => downloadImage(imageUrl, `enhanced_image_${index + 1}.png`)}
-                                className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
+                          ))
+                        : currentJob.resultUrls?.map((imageUrl, index) => (
+                            <div key={imageUrl} className="relative group">
+                              <img
+                                src={imageUrl}
+                                alt={`Enhanced image ${index + 1}`}
+                                className="w-full rounded-2xl border border-gray-200 dark:border-gray-800 shadow-lg hover:shadow-2xl transition-transform duration-500 cursor-pointer hover:scale-[1.01]"
+                                onClick={() => openLightbox(imageUrl, `Enhanced image ${index + 1}`)}
+                              />
+                              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => downloadImage(imageUrl, `enhanced_image_${index + 1}.png`)}
+                                  className="p-3 rounded-xl bg-white/90 dark:bg-gray-900/70 border border-gray-100 dark:border-gray-800 shadow-md hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white transition"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Lightbox Modal */}
       {lightboxImage && (
-        <div 
-          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center p-4 animate-fade-in"
+        <div
+          className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in duration-300"
           onClick={closeLightbox}
         >
-          <button
-            onClick={closeLightbox}
-            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors z-10"
-            aria-label="Close lightbox"
-          >
-            <XCircle className="w-8 h-8" />
-          </button>
-          
-          <div className="relative max-w-7xl max-h-[90vh] w-full h-full flex flex-col items-center justify-center">
-            <div className="relative w-full h-full flex items-center justify-center">
+          <div className="relative max-w-7xl max-h-full w-full">
+            <div className="relative bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 rounded-3xl p-4 border border-white/10 shadow-2xl">
               <img
-                src={lightboxImage as string}
+                src={lightboxImage}
                 alt={lightboxTitle}
-                className="max-w-full max-h-full object-contain"
-                onClick={(e) => e.stopPropagation()}
+                className="max-w-full max-h-[85vh] object-contain mx-auto rounded-2xl shadow-2xl"
+                onClick={(event) => event.stopPropagation()}
               />
-            </div>
-            
-            {lightboxTitle && (
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black bg-opacity-75 text-white px-4 py-2 rounded-lg">
-                <p className="text-sm font-medium">{lightboxTitle}</p>
+              <div className="absolute bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl text-sm font-semibold">
+                📁 {lightboxTitle || 'Enhanced image'}
               </div>
-            )}
-            
-            <div className="absolute bottom-4 right-4 text-white text-xs bg-black bg-opacity-50 px-3 py-1 rounded">
+            </div>
+            <button
+              onClick={closeLightbox}
+              className="absolute top-8 right-8 p-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full hover:from-red-600 hover:to-red-700 transition-all shadow-xl hover:scale-110 transform duration-200"
+              title="Close (ESC)"
+            >
+              <XCircle className="w-6 h-6" />
+            </button>
+            <div className="absolute top-8 left-8 px-4 py-2 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl text-sm font-semibold">
               Press ESC to close
             </div>
           </div>

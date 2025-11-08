@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/database';
 
 const s3Client = new S3Client({
@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { folderName } = body;
+  const body = await request.json();
+  const { folderName, parentPrefix } = body;
 
     // Validate folder name
     if (!folderName || typeof folderName !== 'string') {
@@ -65,8 +65,52 @@ export async function POST(request: NextRequest) {
       .replace(/\s+/g, '-') // Replace spaces with hyphens
       .replace(/[^a-z0-9\-_]/g, ''); // Remove any other special characters
 
-    // Create folder path: outputs/{userId}/{safeFolderName}/
-    const folderPrefix = `outputs/${userId}/${safeFolderName}/`;
+    const rootPrefix = `outputs/${userId}/`;
+
+    let normalizedParentPrefix: string | null = null;
+    if (parentPrefix && typeof parentPrefix === 'string' && parentPrefix.trim().length > 0) {
+      const sanitizedParent = parentPrefix.trim().replace(/\/+$/, '/');
+      if (!sanitizedParent.startsWith(rootPrefix)) {
+        return NextResponse.json(
+          { error: 'Invalid parent folder. You can only create folders inside your workspace.' },
+          { status: 400 }
+        );
+      }
+      normalizedParentPrefix = sanitizedParent;
+    }
+
+    const targetParentPrefix = normalizedParentPrefix ?? rootPrefix;
+
+    if (targetParentPrefix !== rootPrefix) {
+      const parentInfoKey = `${targetParentPrefix}.folderinfo`;
+      const parentCheckCommand = new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: parentInfoKey,
+        MaxKeys: 1,
+      });
+      const parentCheck = await s3Client.send(parentCheckCommand);
+      if ((parentCheck.KeyCount ?? 0) === 0) {
+        return NextResponse.json(
+          { error: 'Parent folder not found or you do not have access to it.' },
+          { status: 404 }
+        );
+      }
+    }
+
+    const folderPrefix = `${targetParentPrefix}${safeFolderName}/`;
+
+    const existingFolderCheck = new ListObjectsV2Command({
+      Bucket: BUCKET_NAME,
+      Prefix: folderPrefix,
+      MaxKeys: 1,
+    });
+    const existingFolder = await s3Client.send(existingFolderCheck);
+    if ((existingFolder.KeyCount ?? 0) > 0) {
+      return NextResponse.json(
+        { error: 'A folder with this name already exists in the selected location.' },
+        { status: 409 }
+      );
+    }
 
     console.log('📁 Creating new folder for user:', userId);
     console.log('📝 Folder name:', trimmedName);
@@ -118,7 +162,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       folderName: trimmedName,
-      folderPrefix: `outputs/${userId}/${safeFolderName}/`,
+      folderPrefix,
+      parentPrefix: targetParentPrefix === rootPrefix ? null : targetParentPrefix,
       s3Key: placeholderKey,
       message: 'Folder created successfully',
     });

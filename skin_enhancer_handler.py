@@ -996,8 +996,10 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                             extension = os.path.splitext(filename)[1]
                                             unique_filename = f"{base_name}_{timestamp}_{job_id.split('_')[-1]}{extension}"
                                             
-                                            # Detect shared folder from workflow
-                                            is_shared_folder = False
+                                            # Extract folder info from the workflow's filename_prefix
+                                            # The prefix might be like "outputs/user_123/nov-5/subfolder/SkinEnhancer" for subfolders
+                                            # or just "nov-5/SkinEnhancer" for regular folders
+                                            is_full_prefix = False
                                             folder_prefix = subfolder
                                             
                                             if workflow:
@@ -1006,12 +1008,16 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                                 if save_image_node.get('class_type') == 'SaveImage':
                                                     filename_prefix = save_image_node.get('inputs', {}).get('filename_prefix', '')
                                                     
-                                                    # If filename_prefix starts with "outputs/", it's a shared folder with full path
+                                                    # Check if this is a full S3 prefix path (starts with "outputs/")
                                                     if filename_prefix.startswith('outputs/'):
-                                                        is_shared_folder = True
-                                                        # Extract the folder path: "outputs/user_xyz/My Folder" -> "outputs/user_xyz/My Folder"
-                                                        folder_prefix = filename_prefix
-                                                        logger.info(f"🔓 Detected shared folder: {folder_prefix}")
+                                                        is_full_prefix = True
+                                                        # Remove the file prefix portion and keep the full folder hierarchy
+                                                        sanitized_prefix = filename_prefix.rstrip('/')
+                                                        prefix_parts = sanitized_prefix.split('/')
+                                                        if len(prefix_parts) >= 3:
+                                                            # Drop the last segment (the generated filename prefix) and keep the rest
+                                                            folder_prefix = '/'.join(prefix_parts[:-1]) + '/'
+                                                            logger.info(f"� Using full folder prefix with subfolders: {folder_prefix}")
                                                     else:
                                                         logger.info(f"📁 Using user's own folder: {filename_prefix}")
                                             
@@ -1023,7 +1029,7 @@ def monitor_skin_enhancement_progress(prompt_id: str, job_id: str, webhook_url: 
                                                     user_id, 
                                                     unique_filename,
                                                     folder_prefix,
-                                                    is_full_prefix=is_shared_folder
+                                                    is_full_prefix=is_full_prefix
                                                 )
                                                 if aws_s3_result.get('success'):
                                                     aws_s3_paths.append({

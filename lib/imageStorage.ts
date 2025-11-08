@@ -3,6 +3,51 @@ import { prisma } from './database';
 
 const COMFYUI_URL = () => process.env.COMFYUI_URL || 'http://localhost:8188';
 
+// Helper function to extract LoRA model filenames from job params
+export function extractLoraModelsFromParams(params: any): string[] {
+  if (!params) return [];
+  
+  const loraModels: string[] = [];
+  
+  // Handle nested params structure (serverless API stores entire request in params)
+  // If params.params exists, use that instead (nested structure from API)
+  const actualParams = params.params || params;
+  
+  console.log('🔍 Extracting LoRA models from params...');
+  console.log('  - Has params.params?', !!params.params);
+  console.log('  - actualParams.loras?', actualParams.loras ? `Array[${actualParams.loras.length}]` : 'none');
+  console.log('  - actualParams.selectedLora?', actualParams.selectedLora || 'none');
+  
+  // Handle different param structures:
+  // 1. actualParams.loras - array of LoRA objects (text-to-image, multi-LoRA style transfer)
+  if (actualParams.loras && Array.isArray(actualParams.loras)) {
+    actualParams.loras.forEach((lora: any, index: number) => {
+      const loraName = lora.modelName || lora.model_name || lora.fileName || lora.filename;
+      if (loraName) {
+        console.log(`  - Found LoRA #${index + 1}:`, loraName);
+        loraModels.push(loraName);
+      }
+    });
+  }
+  
+  // 2. actualParams.selectedLora - single LoRA filename (style transfer legacy)
+  if (actualParams.selectedLora) {
+    console.log('  - Found selectedLora:', actualParams.selectedLora);
+    loraModels.push(actualParams.selectedLora);
+  }
+  
+  // 3. actualParams.loraModel - single LoRA filename (alternative format)
+  if (actualParams.loraModel) {
+    console.log('  - Found loraModel:', actualParams.loraModel);
+    loraModels.push(actualParams.loraModel);
+  }
+  
+  // Remove duplicates
+  const uniqueLoraModels = [...new Set(loraModels)];
+  console.log('  - Final LoRA models:', uniqueLoraModels);
+  return uniqueLoraModels;
+}
+
 export interface GeneratedImage {
   id: string;
   clerkId: string;
@@ -88,6 +133,7 @@ export async function saveImageToDatabase(
     awsS3Key?: string; // AWS S3 key for primary storage
     awsS3Url?: string; // AWS S3 public URL for direct access
     fileSize?: number; // File size if known
+    loraModels?: string[]; // ✅ Array of LoRA model filenames used in generation
   } = {}
 ): Promise<GeneratedImage | null> {
   console.log('💾 Saving image to database:', pathInfo.filename);
@@ -220,7 +266,8 @@ export async function saveImageToDatabase(
         s3Key: options.s3Key,
         awsS3Key: options.awsS3Key,
         awsS3Url: options.awsS3Url,
-        metadata
+        metadata,
+        loraModels: options.loraModels // ✅ Update LoRA models if provided
       },
       create: {
         clerkId,
@@ -237,7 +284,8 @@ export async function saveImageToDatabase(
         s3Key: options.s3Key,
         awsS3Key: options.awsS3Key,
         awsS3Url: options.awsS3Url,
-        metadata
+        metadata,
+        loraModels: options.loraModels || [] // ✅ Store LoRA models array
       }
     });
     

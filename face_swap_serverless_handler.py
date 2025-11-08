@@ -1194,14 +1194,11 @@ def monitor_face_swap_progress(prompt_id: str, job_id: str, webhook_url: str, us
                         
                         # Check if this is a shared folder pattern
                         if filename_prefix.startswith('outputs/'):
-                            parts = filename_prefix.split('/')
-                            if len(parts) >= 3:
-                                # Pattern: outputs/{ownerId}/{folderName}
-                                is_shared_folder = True
-                                # Extract the full prefix (first 3 parts)
-                                subfolder = '/'.join(parts[:3])
-                                logger.info(f"📂 Detected shared folder: {subfolder}")
-                                break
+                            is_shared_folder = True
+                            # Use the subfolder that was already extracted earlier (contains full path)
+                            # Don't re-extract here to preserve nested subfolders
+                            logger.info(f"📂 Detected shared folder workflow with subfolder: {subfolder}")
+                            break
             except Exception as e:
                 logger.error(f"⚠️ Error checking for shared folder: {e}")
         
@@ -1707,19 +1704,31 @@ def run_face_swap_generation(job_input, job_id, webhook_url):
         if not user_id:
             user_id = 'default_user'
         
-        # Extract subfolder from workflow for S3 organization
-        # Look for SaveImage node filename_prefix like "nov-2/FaceSwap" or "PureInpaint_FaceSwap"
+        # Extract subfolder from workflow for S3 organization with enhanced path parsing
+        # Look for SaveImage node filename_prefix like "outputs/user_id/folder/subfolder/FaceSwap"
         subfolder = ''
+        is_full_prefix = False
         try:
             for node_id, node_data in workflow.items():
                 if isinstance(node_data, dict) and node_data.get('class_type') == 'SaveImage':
                     filename_prefix = node_data.get('inputs', {}).get('filename_prefix', '')
-                    if '/' in filename_prefix:
+                    
+                    # Check if this is a full S3 prefix path (starts with "outputs/")
+                    if filename_prefix.startswith('outputs/'):
+                        is_full_prefix = True
+                        # Remove the file prefix portion and keep the full folder hierarchy
+                        sanitized_prefix = filename_prefix.rstrip('/')
+                        prefix_parts = sanitized_prefix.split('/')
+                        if len(prefix_parts) >= 3:
+                            # Drop the last segment (the generated filename prefix) and keep the rest
+                            subfolder = '/'.join(prefix_parts[:-1]) + '/'
+                            logger.info(f"🔗 Using full folder prefix with subfolders: {subfolder}")
+                    elif '/' in filename_prefix:
                         # Extract user's folder from prefix like "nov-2/FaceSwap"
                         folder_parts = filename_prefix.split('/')
                         subfolder = '/'.join(folder_parts[:-1])  # Get everything before the last part
                         logger.info(f"🔍 Extracted subfolder from workflow: '{subfolder}'")
-                        break
+                    break
         except Exception as e:
             logger.warning(f"⚠️ Could not extract subfolder from workflow: {e}")
             

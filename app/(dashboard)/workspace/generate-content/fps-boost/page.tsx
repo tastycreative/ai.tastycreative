@@ -76,6 +76,59 @@ interface DatabaseVideo {
   createdAt: Date | string;
 }
 
+interface AvailableFolderOption {
+  name: string;
+  prefix: string;
+  displayPath: string;
+  path: string;
+  depth: number;
+  isShared?: boolean;
+  permission?: 'VIEW' | 'EDIT';
+  parentPrefix?: string | null;
+}
+
+const sanitizePrefix = (prefix: string): string => {
+  if (!prefix) {
+    return '';
+  }
+  const normalized = prefix.replace(/\\/g, '/').replace(/\/+/g, '/');
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
+};
+
+const formatSegmentName = (segment: string): string => {
+  if (!segment) {
+    return '';
+  }
+  return segment
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const deriveFolderMeta = (prefix: string) => {
+  const sanitized = sanitizePrefix(prefix);
+  const parts = sanitized.split('/').filter(Boolean);
+  const relativeSegments = parts.slice(2);
+  const displaySegments = relativeSegments.map(formatSegmentName);
+  const depth = Math.max(relativeSegments.length, 1);
+  const parentPrefix = relativeSegments.length <= 1 ? null : `${parts.slice(0, -1).join('/')}/`;
+  return {
+    sanitized,
+    relativeSegments,
+    displaySegments,
+    depth,
+    parentPrefix,
+    path: relativeSegments.join('/'),
+  };
+};
+
+const buildFolderOptionLabel = (folder: AvailableFolderOption): string => {
+  const indent = folder.depth > 1 ? `${'\u00A0'.repeat((folder.depth - 1) * 2)}↳ ` : '';
+  const icon = folder.isShared ? '🤝' : '📁';
+  return `${icon} ${indent}${folder.displayPath}`;
+};
+
 const formatJobTime = (createdAt: Date | string | undefined): string => {
   try {
     if (!createdAt) return "Unknown time";
@@ -229,11 +282,16 @@ export default function FPSBoostPage() {
   const [videoStats, setVideoStats] = useState<any>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
-  const [availableFolders, setAvailableFolders] = useState<Array<{slug: string, name: string, prefix: string, isShared?: boolean, permission?: 'VIEW' | 'EDIT'}>>([]);
+  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
+
+  const selectedFolderOption = useMemo(
+    () => availableFolders.find((folder) => folder.prefix === params.targetFolder),
+    [availableFolders, params.targetFolder]
+  );
 
   const isJobCancelled = (job: GenerationJob) => {
     return job.status === 'failed' && job.error === 'Job canceled by user';
@@ -257,35 +315,74 @@ export default function FPSBoostPage() {
     setIsLoadingFolders(true);
     try {
       const response = await apiClient.get('/api/s3/folders/list-custom');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.folders) {
-          // Create folder objects with slug, name, prefix, shared status, and permission
-          const folders = data.folders.map((folder: any) => {
-            if (typeof folder === 'string') {
-              return { slug: folder, name: folder, prefix: `outputs/${user.id}/${folder}/`, isShared: false, permission: 'EDIT' as const };
-            }
-            // Extract slug from prefix: outputs/{userId}/{slug}/
-            const parts = folder.prefix.split('/').filter(Boolean);
-            const slug = parts[2] || folder.name;
-            return { 
-              slug, 
-              name: folder.name, 
-              prefix: folder.prefix,
-              isShared: folder.isShared || false,
-              permission: folder.permission || 'EDIT' as 'VIEW' | 'EDIT'
-            };
-          });
-          
-          // Filter to only show folders with EDIT permission
-          const editableFolders = folders.filter((f: any) => !f.isShared || f.permission === 'EDIT');
-          
-          setAvailableFolders(editableFolders);
-          console.log('📁 Loaded editable folders with prefixes:', editableFolders);
-        }
+      if (!response.ok) {
+        setAvailableFolders([]);
+        return;
       }
+
+      const data = await response.json();
+      if (!data.success || !Array.isArray(data.folders)) {
+        setAvailableFolders([]);
+        return;
+      }
+
+      const foldersRaw: any[] = data.folders;
+
+      const mappedOptions = foldersRaw
+        .map((folder) => {
+          const rawPrefix = typeof folder === 'string'
+            ? `outputs/${user.id}/${folder}/`
+            : typeof folder?.prefix === 'string'
+              ? folder.prefix
+              : null;
+
+          if (!rawPrefix) {
+            return null;
+          }
+
+          const meta = deriveFolderMeta(rawPrefix);
+          const lastDisplaySegment = meta.displaySegments.length > 0 ? meta.displaySegments[meta.displaySegments.length - 1] : undefined;
+          const lastRelativeSegment = meta.relativeSegments.length > 0 ? meta.relativeSegments[meta.relativeSegments.length - 1] : '';
+          const fallbackName = lastDisplaySegment || formatSegmentName(lastRelativeSegment);
+          const nameFromApi = typeof folder?.name === 'string' && folder.name.trim().length > 0
+            ? folder.name
+            : fallbackName;
+          const displayPath = meta.displaySegments.length > 0
+            ? meta.displaySegments.join(' / ')
+            : nameFromApi;
+
+          const option: AvailableFolderOption = {
+            name: nameFromApi,
+            prefix: meta.sanitized,
+            displayPath,
+            path: meta.path,
+            depth: meta.depth,
+            isShared: Boolean(folder?.isShared),
+            permission: folder?.permission ?? 'EDIT',
+            parentPrefix: folder?.parentPrefix ?? meta.parentPrefix,
+          };
+
+          return option;
+        })
+        .filter((option): option is AvailableFolderOption => {
+          if (!option) {
+            return false;
+          }
+          return !option.isShared || option.permission === 'EDIT';
+        });
+
+      const dedupedMap = new Map<string, AvailableFolderOption>();
+      mappedOptions.forEach((option) => {
+        dedupedMap.set(option.prefix, option);
+      });
+
+      const deduped = Array.from(dedupedMap.values()).sort((a, b) => a.displayPath.localeCompare(b.displayPath));
+
+      setAvailableFolders(deduped);
+      console.log('📁 Loaded editable folders with prefixes:', deduped);
     } catch (error) {
       console.error('Error loading folders:', error);
+      setAvailableFolders([]);
     } finally {
       setIsLoadingFolders(false);
     }
@@ -380,6 +477,7 @@ export default function FPSBoostPage() {
     // Calculate multiplier based on target FPS (assuming 30 FPS input)
     const baselineFPS = 30;
     const multiplier = Math.max(2, Math.round(params.targetFPS / baselineFPS));
+    const normalizedTargetFolder = sanitizePrefix(params.targetFolder);
     
     const workflow: any = {
       "1": {
@@ -411,7 +509,7 @@ export default function FPSBoostPage() {
           images: ["2", 0],
           frame_rate: params.targetFPS,
           loop_count: 0,
-          filename_prefix: `${params.targetFolder}fps_boosted`,
+          filename_prefix: `${normalizedTargetFolder}fps_boosted`,
           format: "video/h264-mp4",
           pix_fmt: "yuv420p",
           crf: 19,
@@ -447,11 +545,24 @@ export default function FPSBoostPage() {
 
     try {
       console.log("=== STARTING FPS BOOST GENERATION ===");
-      console.log("Generation params:", params);
-      console.log("🎯 Target folder selected:", params.targetFolder);
-      console.log("🎯 Filename prefix will be:", `${params.targetFolder}/fps_boosted`);
+      const normalizedTargetFolder = sanitizePrefix(params.targetFolder);
+      const normalizedParams: FPSBoostParams =
+        normalizedTargetFolder === params.targetFolder
+          ? params
+          : { ...params, targetFolder: normalizedTargetFolder };
 
-      const workflow = createWorkflowJson(params);
+      console.log("Generation params:", normalizedParams);
+      console.log("🎯 Target folder selected:", normalizedTargetFolder);
+      if (selectedFolderOption) {
+        console.log("🎯 Folder display path:", selectedFolderOption.displayPath);
+      }
+      console.log("🎯 Filename prefix will be:", `${normalizedTargetFolder}fps_boosted`);
+
+      if (normalizedTargetFolder !== params.targetFolder) {
+        setParams((prev) => ({ ...prev, targetFolder: normalizedTargetFolder }));
+      }
+
+      const workflow = createWorkflowJson(normalizedParams);
       const videoBase64Data = (window as any).fpsBoostVideoBase64Data;
 
       if (!videoBase64Data) {
@@ -462,7 +573,7 @@ export default function FPSBoostPage() {
 
       const response = await apiClient.post("/api/generate/fps-boost", {
         workflow,
-        params,
+        params: normalizedParams,
         videoData: videoBase64Data,
       });
 
@@ -630,57 +741,41 @@ export default function FPSBoostPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-cyan-600 to-teal-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800 p-8 text-white">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
-        </div>
-
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="flex items-center space-x-6">
-            <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-sm border border-white/30 shadow-lg">
-              <Zap className="w-10 h-10 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8 text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
+              <Zap className="w-8 h-8 text-white" />
             </div>
-            <div>
-              <h1 className="text-4xl font-bold mb-2 flex items-center space-x-3">
-                <span>FPS Boost</span>
-                <Sparkles className="w-8 h-8" />
-              </h1>
-              <p className="text-blue-100 text-lg font-medium">
-                AI-powered frame interpolation for ultra-smooth motion
-              </p>
-              <div className="flex items-center space-x-4 mt-3 text-sm">
-                <div className="flex items-center space-x-1">
-                  <Gauge className="w-4 h-4" />
-                  <span>RIFE AI</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Video className="w-4 h-4" />
-                  <span>2x - 5x FPS</span>
-                </div>
-              </div>
-            </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+              FPS Boost Studio
+            </h1>
           </div>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            AI-powered frame interpolation for ultra-smooth motion ⚡ Transform your videos with advanced RIFE technology
+          </p>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Video Upload */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border p-6">
-            <h3 className="text-xl font-bold mb-4 flex items-center space-x-2">
-              <Upload className="w-6 h-6 text-blue-500" />
-              <span>Upload Video</span>
-            </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Panel - Input */}
+          <div className="space-y-6">
+            {/* Video Upload */}
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                  <Upload className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Upload Video</h3>
+              </div>
 
             {!uploadedVideoPreview ? (
               <div
-                className={`relative border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all ${
+                className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300 ${
                   isDragging
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-105'
-                    : 'border-blue-300 dark:border-blue-600 hover:border-blue-400'
+                    ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 scale-[1.02] shadow-lg'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-gradient-to-br hover:from-gray-50 hover:to-purple-50/30 dark:hover:from-gray-800/50 dark:hover:to-purple-900/10'
                 }`}
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={handleDragOver}
@@ -711,16 +806,16 @@ export default function FPSBoostPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="relative">
+                <div className="relative rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 shadow-lg">
                   <video
                     ref={videoPreviewRef}
                     src={uploadedVideoPreview}
                     controls
-                    className="w-full max-h-96 rounded-lg object-contain bg-black"
+                    className="w-full max-h-96 object-contain bg-black"
                   />
                   <button
                     onClick={removeUploadedVideo}
-                    className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all hover:scale-110 z-10"
+                    className="absolute top-3 right-3 p-2 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all hover:scale-110 shadow-xl z-10"
                     title="Remove video"
                   >
                     <X className="w-5 h-5" />
@@ -739,8 +834,13 @@ export default function FPSBoostPage() {
           </div>
 
           {/* FPS Settings */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border p-6">
-            <h3 className="text-xl font-bold mb-4">FPS Settings</h3>
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                <Gauge className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">FPS Settings</h3>
+            </div>
 
             <div className="space-y-6">
               {/* Output Folder Selection - Moved to top */}
@@ -754,8 +854,9 @@ export default function FPSBoostPage() {
                     value={params.targetFolder}
                     onChange={(e) => {
                       const selectedPrefix = e.target.value;
-                      console.log("🔄 Folder selection changed to:", selectedPrefix);
-                      setParams((prev) => ({ ...prev, targetFolder: selectedPrefix }));
+                      const normalizedPrefix = selectedPrefix ? sanitizePrefix(selectedPrefix) : '';
+                      console.log("🔄 Folder selection changed to:", normalizedPrefix);
+                      setParams((prev) => ({ ...prev, targetFolder: normalizedPrefix }));
                     }}
                     disabled={isLoadingFolders}
                     className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -763,7 +864,7 @@ export default function FPSBoostPage() {
                     <option value="">Select a folder...</option>
                     {availableFolders.map((folder) => (
                       <option key={folder.prefix} value={folder.prefix}>
-                        {folder.isShared ? '� ' : '📁 '}{folder.name}
+                        {buildFolderOptionLabel(folder)}
                       </option>
                     ))}
                   </select>
@@ -775,8 +876,26 @@ export default function FPSBoostPage() {
                     )}
                   </div>
                 </div>
-                {params.targetFolder && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
+                {selectedFolderOption && (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                      <span>💡</span>
+                      <span>
+                        Saving to <span className="font-semibold text-gray-700 dark:text-gray-100">{selectedFolderOption.displayPath}</span>
+                      </span>
+                      {selectedFolderOption.isShared && (
+                        <span className="ml-1 inline-flex items-center px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                          Shared
+                        </span>
+                      )}
+                    </p>
+                    <span className="inline-block text-[11px] font-mono bg-gray-100 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700">
+                      {selectedFolderOption.prefix}
+                    </span>
+                  </div>
+                )}
+                {params.targetFolder && !selectedFolderOption && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
                     <span>💡</span>
                     <span>Saving to: {params.targetFolder}</span>
                   </p>
@@ -805,13 +924,13 @@ export default function FPSBoostPage() {
 
               {/* Target FPS Slider */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                     Custom FPS
                   </label>
-                  <div className="flex items-center space-x-2">
-                    <Gauge className="w-5 h-5 text-blue-500" />
-                    <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-md">
+                    <Gauge className="w-5 h-5 text-white" />
+                    <span className="text-2xl font-bold text-white">
                       {params.targetFPS}
                     </span>
                   </div>
@@ -838,20 +957,20 @@ export default function FPSBoostPage() {
               {/* Advanced Settings */}
               <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center space-x-2 text-blue-600 dark:text-blue-400"
+                className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors font-semibold"
               >
-                <Settings className="w-4 h-4" />
+                <Settings className="w-5 h-5" />
                 <span>Advanced Settings</span>
-                {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {showAdvanced ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </button>
 
               {showAdvanced && (
                 <div className="space-y-4 pt-4 border-t">
                   {/* Quality/Speed Trade-off */}
                   <div>
-                    <label className="text-sm font-medium mb-3 block">Quality vs Speed</label>
+                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 block">Quality vs Speed</label>
                     <div className="relative">
-                      <div className="flex justify-between text-xs text-gray-500 mb-2">
+                      <div className="flex justify-between text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3">
                         <span className="flex items-center space-x-1">
                           <Zap className="w-3 h-3" />
                           <span>Fast</span>
@@ -865,47 +984,49 @@ export default function FPSBoostPage() {
                       <div className="flex items-center space-x-3">
                         <button
                           onClick={() => setParams((prev) => ({ ...prev, fastMode: true, ensemble: false }))}
-                          className={`flex-1 py-2 rounded-lg transition-all ${
+                          className={`flex-1 py-3 rounded-xl transition-all duration-300 ${
                             params.fastMode && !params.ensemble
-                              ? 'bg-yellow-500 text-white shadow-lg'
-                              : 'bg-gray-100 dark:bg-gray-700'
+                              ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg scale-105'
+                              : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
                           }`}
                         >
-                          <Zap className="w-4 h-4 mx-auto" />
+                          <Zap className="w-5 h-5 mx-auto" />
                         </button>
                         <button
                           onClick={() => setParams((prev) => ({ ...prev, fastMode: false, ensemble: false }))}
-                          className={`flex-1 py-2 rounded-lg transition-all ${
+                          className={`flex-1 py-3 rounded-xl transition-all duration-300 ${
                             !params.fastMode && !params.ensemble
-                              ? 'bg-blue-500 text-white shadow-lg'
-                              : 'bg-gray-100 dark:bg-gray-700'
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
+                              : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
                           }`}
                         >
-                          <Gauge className="w-4 h-4 mx-auto" />
+                          <Gauge className="w-5 h-5 mx-auto" />
                         </button>
                         <button
                           onClick={() => setParams((prev) => ({ ...prev, fastMode: false, ensemble: true }))}
-                          className={`flex-1 py-2 rounded-lg transition-all ${
+                          className={`flex-1 py-3 rounded-xl transition-all duration-300 ${
                             params.ensemble
-                              ? 'bg-purple-500 text-white shadow-lg'
-                              : 'bg-gray-100 dark:bg-gray-700'
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
+                              : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
                           }`}
                         >
-                          <Sparkles className="w-4 h-4 mx-auto" />
+                          <Sparkles className="w-5 h-5 mx-auto" />
                         </button>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        {params.fastMode && !params.ensemble && 'Faster processing, good quality'}
-                        {!params.fastMode && !params.ensemble && 'Balanced speed and quality'}
-                        {params.ensemble && 'Slower processing, best quality'}
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-3 text-center font-medium">
+                        {params.fastMode && !params.ensemble && '⚡ Faster processing, good quality'}
+                        {!params.fastMode && !params.ensemble && '⚖️ Balanced speed and quality'}
+                        {params.ensemble && '✨ Slower processing, best quality'}
                       </p>
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium mb-2 flex items-center justify-between">
+                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center justify-between">
                       <span>Memory Management</span>
-                      <span className="text-xs text-blue-600 dark:text-blue-400">{params.clearCache} frames</span>
+                      <span className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold rounded-lg shadow-sm">
+                        {params.clearCache} frames
+                      </span>
                     </label>
                     <input
                       type="range"
@@ -914,15 +1035,18 @@ export default function FPSBoostPage() {
                       step="5"
                       value={params.clearCache}
                       onChange={(e) => setParams((prev) => ({ ...prev, clearCache: parseInt(e.target.value) }))}
-                      className="w-full"
+                      className="w-full h-3 bg-gradient-to-r from-blue-200 via-blue-400 to-blue-600 rounded-lg appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((params.clearCache - 5) / 45) * 100}%, #e5e7eb ${((params.clearCache - 5) / 45) * 100}%, #e5e7eb 100%)`
+                      }}
                     />
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <div className="flex justify-between text-xs font-semibold text-gray-600 dark:text-gray-400 mt-2">
                       <span>Frequent (5)</span>
                       <span>Balanced (25)</span>
                       <span>Rare (50)</span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Clear cache more frequently for longer videos or limited GPU memory
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-3 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                      💡 Clear cache more frequently for longer videos or limited GPU memory
                     </p>
                   </div>
                 </div>
@@ -934,49 +1058,63 @@ export default function FPSBoostPage() {
           <button
             onClick={handleGenerate}
             disabled={isGenerating || !params.uploadedVideo || !params.targetFolder}
-            className="w-full py-4 px-6 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold rounded-xl shadow-lg transition-all hover:scale-105 disabled:hover:scale-100 disabled:cursor-not-allowed"
+            className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
           >
+            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
             {isGenerating ? (
-              <div className="flex items-center justify-center space-x-3">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Processing...</span>
+              <div className="flex items-center justify-center space-x-3 relative z-10">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                <span>Processing Magic...</span>
                 {currentJob?.progress !== undefined && (
-                  <span className="text-sm">({currentJob.progress}%)</span>
+                  <span className="text-sm bg-white/20 px-2 py-1 rounded-lg">({currentJob.progress}%)</span>
                 )}
+                <Sparkles className="w-5 h-5 animate-pulse" />
               </div>
             ) : (
-              <div className="flex items-center justify-center space-x-2">
-                <Wand2 className="w-5 h-5" />
+              <div className="flex items-center justify-center space-x-2 relative z-10">
+                <Wand2 className="w-6 h-6" />
                 <span>Boost FPS to {params.targetFPS}</span>
-                <Zap className="w-4 h-4" />
+                <Zap className="w-5 h-5" />
               </div>
             )}
           </button>
           
           {(!params.uploadedVideo || !params.targetFolder) && (
-            <p className="text-center text-sm text-gray-500 dark:text-gray-400 -mt-2">
-              {!params.uploadedVideo && "Please upload a video first"}
-              {params.uploadedVideo && !params.targetFolder && "Please select a folder"}
-            </p>
+            <div className="text-center py-3 px-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+              <p className="text-sm text-gray-700 dark:text-gray-300 font-medium flex items-center justify-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                {!params.uploadedVideo && "Please upload a video first"}
+                {params.uploadedVideo && !params.targetFolder && "Please select a folder to save your output"}
+              </p>
+            </div>
           )}
         </div>
 
-        {/* Right Panel - Results */}
-        <div className="space-y-6">
-          {/* Current Job */}
-          {currentJob && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Current Generation</h3>
-                {currentJob.status === 'processing' && (
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                )}
-                {currentJob.status === 'completed' && (
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                )}
-                {currentJob.status === 'failed' && (
-                  <XCircle className="w-5 h-5 text-red-500" />
-                )}
+          {/* Right Panel - Progress & Results */}
+          <div className="space-y-6">
+            {/* Current Job */}
+            {currentJob && (
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Current Generation</h3>
+                  {currentJob.status === 'processing' && (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">Processing</span>
+                    </div>
+                  )}
+                  {currentJob.status === 'completed' && (
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      <span className="text-xs font-semibold text-green-600 dark:text-green-400">Completed</span>
+                    </div>
+                  )}
+                  {currentJob.status === 'failed' && (
+                    <div className="flex items-center gap-2">
+                      <XCircle className="w-5 h-5 text-red-500" />
+                      <span className="text-xs font-semibold text-red-600 dark:text-red-400">Failed</span>
+                    </div>
+                  )}
               </div>
               
               <div className="space-y-4">
@@ -1108,6 +1246,7 @@ export default function FPSBoostPage() {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

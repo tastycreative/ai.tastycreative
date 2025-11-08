@@ -1,7 +1,7 @@
 // app/(dashboard)/workspace/generate-content/style-transfer/page.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
@@ -34,6 +34,59 @@ import {
 } from "lucide-react";
 
 // Types
+interface AvailableFolderOption {
+  name: string;
+  prefix: string;
+  displayPath: string;
+  path: string;
+  depth: number;
+  isShared?: boolean;
+  permission?: 'VIEW' | 'EDIT';
+  parentPrefix?: string | null;
+}
+
+const sanitizePrefix = (prefix: string): string => {
+  if (!prefix) {
+    return '';
+  }
+  const normalized = prefix.replace(/\\/g, '/').replace(/\/+/g, '/');
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
+};
+
+const formatSegmentName = (segment: string): string => {
+  if (!segment) {
+    return '';
+  }
+  return segment
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const deriveFolderMeta = (prefix: string) => {
+  const sanitized = sanitizePrefix(prefix);
+  const parts = sanitized.split('/').filter(Boolean);
+  const relativeSegments = parts.slice(2);
+  const displaySegments = relativeSegments.map(formatSegmentName);
+  const depth = Math.max(relativeSegments.length, 1);
+  const parentPrefix = relativeSegments.length <= 1 ? null : `${parts.slice(0, -1).join('/')}/`;
+  return {
+    sanitized,
+    relativeSegments,
+    displaySegments,
+    depth,
+    parentPrefix,
+    path: relativeSegments.join('/'),
+  };
+};
+
+const buildFolderOptionLabel = (folder: AvailableFolderOption): string => {
+  const indent = folder.depth > 1 ? `${'\u00A0'.repeat((folder.depth - 1) * 2)}↳ ` : '';
+  const icon = folder.isShared ? '🤝' : '📁';
+  return `${icon} ${indent}${folder.displayPath}`;
+};
+
 interface LoRAConfig {
   id: string;
   modelName: string;
@@ -237,13 +290,7 @@ export default function StyleTransferPage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<Array<{
-    slug: string;
-    name: string;
-    prefix: string;
-    permission: string;
-    isShared: boolean;
-  }>>([]);
+  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   // Database image states
@@ -255,6 +302,17 @@ export default function StyleTransferPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const shouldContinuePolling = useRef<boolean>(true);
+
+  const selectedFolderOption = useMemo(
+    () => {
+      if (!targetFolder || availableFolders.length === 0) {
+        return null;
+      }
+      const normalized = sanitizePrefix(targetFolder);
+      return availableFolders.find((f) => f.prefix === normalized) || null;
+    },
+    [availableFolders, targetFolder]
+  );
 
   // Helper function to determine if a failed job was actually cancelled
   const isJobCancelled = (job: GenerationJob) => {
@@ -712,35 +770,44 @@ export default function StyleTransferPage() {
         if (response.ok) {
           const data = await response.json();
           if (data.success && Array.isArray(data.folders)) {
-            // Filter to only EDIT permission folders and extract slug, name, prefix, permission
-            const folderObjects = data.folders
+            // Filter to only EDIT permission folders and build enhanced metadata
+            const folderOptions: AvailableFolderOption[] = data.folders
               .filter((folder: any) => {
                 // Only show folders with EDIT permission (or no permission field for owned folders)
                 return !folder.permission || folder.permission === 'EDIT';
               })
               .map((folder: any) => {
-                if (typeof folder === 'string') {
-                  return { 
-                    slug: folder, 
-                    name: folder,
-                    prefix: `outputs/${user.id}/${folder}`,
-                    permission: 'EDIT',
-                    isShared: false
-                  };
-                }
-                // Extract slug from prefix: "outputs/userId/folder-slug/" -> "folder-slug"
-                const parts = folder.prefix.split('/').filter(Boolean);
-                const slug = parts[2] || folder.name;
-                const isShared = folder.permission === 'EDIT' && folder.ownerId !== user.id;
-                return { 
-                  slug, 
-                  name: folder.name,
-                  prefix: folder.prefix.replace(/\/$/, ''), // Remove trailing slash
-                  permission: folder.permission || 'EDIT',
-                  isShared
+                // Handle both string and object formats
+                const prefix = typeof folder === 'string' 
+                  ? `outputs/${user.id}/${folder}/`
+                  : folder.prefix;
+                
+                const meta = deriveFolderMeta(prefix);
+                const isShared = typeof folder === 'object' 
+                  ? (folder.permission === 'EDIT' && folder.ownerId !== user.id)
+                  : false;
+                const permission = typeof folder === 'object' 
+                  ? (folder.permission || 'EDIT')
+                  : 'EDIT';
+                
+                return {
+                  name: meta.relativeSegments[meta.relativeSegments.length - 1] || 'root',
+                  prefix: meta.sanitized,
+                  displayPath: meta.displaySegments.join(' / ') || 'Root',
+                  path: meta.path,
+                  depth: meta.depth,
+                  isShared,
+                  permission: permission as 'VIEW' | 'EDIT',
+                  parentPrefix: meta.parentPrefix,
                 };
+              })
+              .sort((a: AvailableFolderOption, b: AvailableFolderOption) => {
+                // Sort: non-shared first, then by path alphabetically
+                if (a.isShared !== b.isShared) return a.isShared ? 1 : -1;
+                return a.path.localeCompare(b.path);
               });
-            setAvailableFolders(folderObjects);
+
+            setAvailableFolders(folderOptions);
           }
         }
       } catch (error) {
@@ -1662,16 +1729,13 @@ export default function StyleTransferPage() {
     const loraCount = params.loras.length;
     const lastLoraNodeId = loraCount > 1 ? `5${loraCount}` : "51";
     
-    // Find the folder object to check if it's a shared folder
-    const folderObj = availableFolders.find(f => f.slug === targetFolder);
-    const isSharedFolder = folderObj?.isShared || false;
+    // Normalize the target folder with sanitizePrefix
+    const normalizedTargetFolder = targetFolder ? sanitizePrefix(targetFolder) : '';
     
-    // Use full prefix for shared folders, otherwise build normal path
+    // Build filename prefix with normalized path
     let filenamePrefix: string;
-    if (isSharedFolder && folderObj?.prefix) {
-      filenamePrefix = `${folderObj.prefix}/StyleTransfer`;
-    } else if (targetFolder) {
-      filenamePrefix = `${targetFolder}/StyleTransfer`;
+    if (normalizedTargetFolder) {
+      filenamePrefix = `${normalizedTargetFolder}StyleTransfer`;
     } else {
       filenamePrefix = "ComfyUI";
     }
@@ -1920,8 +1984,8 @@ export default function StyleTransferPage() {
                 >
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
-                    <option key={folder.prefix} value={folder.slug}>
-                      {folder.isShared ? '🔓 ' : '📁 '}{folder.name}
+                    <option key={folder.prefix} value={folder.prefix}>
+                      {buildFolderOptionLabel(folder)}
                     </option>
                   ))}
                 </select>
@@ -1933,10 +1997,10 @@ export default function StyleTransferPage() {
                   )}
                 </div>
               </div>
-              {targetFolder && (
+              {selectedFolderOption && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
                   <span>�</span>
-                  <span>Saving to: {targetFolder}</span>
+                  <span>Saving to: {selectedFolderOption.displayPath}</span>
                 </p>
               )}
             </div>
