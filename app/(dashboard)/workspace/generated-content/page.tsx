@@ -1192,10 +1192,8 @@ export default function GeneratedContentPage() {
   // Calculate total pages based on filtered content (not raw API counts)
   // This ensures pagination adjusts when filters like "Images only" or "Videos only" are applied
   const totalPages = useMemo(() => {
-    // Check if ANY filter is active
-    const hasActiveFilters = 
-      (selectedFolder && selectedFolder !== 'outputs/') ||  // Folder filter
-      filterBy !== 'all' ||                                  // Content type filter (images/videos)
+    // Check if client-side only filters are active (filters not handled by API)
+    const hasClientSideFilters = 
       debouncedSearchQuery ||                                // Search filter
       advancedFilters.dateRange.start ||                     // Date range start
       advancedFilters.dateRange.end ||                       // Date range end
@@ -1205,12 +1203,13 @@ export default function GeneratedContentPage() {
       advancedFilters.fileSize.min !== 0 ||                  // File size min
       advancedFilters.fileSize.max !== Infinity;             // File size max
     
-    if (hasActiveFilters) {
-      // When ANY filter is active, use the actual filtered content length
+    if (hasClientSideFilters) {
+      // When client-side filters are active, use the actual filtered content length
       // This ensures pagination matches what's actually displayed
       return Math.ceil(filteredAndSortedContent.length / itemsPerPage);
     } else {
-      // No filters active - use API totals for efficiency
+      // No client-side filters active - use API totals (includes folder and content type filters)
+      // The API already handles folder filtering and returns correct totals
       return Math.ceil((totalImages + totalVideos) / itemsPerPage);
     }
   }, [filterBy, totalImages, totalVideos, itemsPerPage, filteredAndSortedContent.length, 
