@@ -495,8 +495,8 @@ export default function MyInfluencersPage() {
       throw new Error("API client is not initialized");
     }
 
-    // Define chunk size (10MB for much faster uploads - S3 multipart minimum is 5MB)
-    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks (was 512KB)
+    // Define chunk size (4MB to stay under Vercel's 4.5MB limit - S3 multipart minimum is 5MB)
+    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks (safe for Vercel)
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     console.log(
@@ -532,8 +532,8 @@ export default function MyInfluencersPage() {
 
       console.log(`✅ Multipart upload started: ${uploadId}`);
 
-      // Step 2: Upload all parts sequentially but with larger chunks (10MB instead of 512KB)
-      // This is much faster than 512KB chunks while still being reliable
+      // Step 2: Upload all parts sequentially with 4MB chunks (Vercel limit: 4.5MB)
+      // This balances speed and reliability while staying under Vercel's body size limit
       for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
         const start = (partNumber - 1) * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
