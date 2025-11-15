@@ -97,6 +97,11 @@ export default function DashboardLayout({
       collapsible: true,
       items: [
         {
+          name: "FLUX_GROUP_LABEL",
+          href: "#",
+          icon: Sparkles,
+        },
+        {
           name: "Text to Image",
           href: "/workspace/generate-content/text-to-image",
           icon: ImageIcon,
@@ -107,19 +112,44 @@ export default function DashboardLayout({
           icon: Palette,
         },
         {
+          name: "Skin Enhancer",
+          href: "/workspace/generate-content/skin-enhancer",
+          icon: Sparkles,
+        },
+        {
+          name: "DIVIDER_1",
+          href: "#",
+          icon: Sparkles,
+        },
+        {
+          name: "WAN_22_GROUP_LABEL",
+          href: "#",
+          icon: Video,
+        },
+        {
+          name: "Text to Video",
+          href: "/workspace/generate-content/text-to-video",
+          icon: PlayCircle,
+        },
+        {
           name: "Image to Video",
           href: "/workspace/generate-content/image-to-video",
           icon: Video,
         },
         {
+          name: "DIVIDER_2",
+          href: "#",
+          icon: Sparkles,
+        },
+        {
+          name: "ADVANCED_TOOLS_GROUP_LABEL",
+          href: "#",
+          icon: Wand2,
+        },
+        {
           name: "Face Swapping",
           href: "/workspace/generate-content/face-swapping",
           icon: Shuffle,
-        },
-        {
-          name: "Skin Enhancer",
-          href: "/workspace/generate-content/skin-enhancer",
-          icon: Sparkles,
         },
         {
           name: "Image-to-Image Skin Enhancer",
@@ -241,6 +271,117 @@ export default function DashboardLayout({
   };
 
   const renderNavItem = (item: NavItem, isInSection = false) => {
+    // Handle Flux group label
+    if (item.name === "FLUX_GROUP_LABEL") {
+      return sidebarOpen ? (
+        <div
+          key="flux-group-label"
+          className="mx-3 mt-3 mb-1.5"
+        >
+          <div className="relative">
+            {/* Background glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 rounded-lg blur-sm"></div>
+            
+            {/* Main label container */}
+            <div className="relative bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-blue-400/30 dark:border-blue-500/20 rounded-lg px-3 py-2 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="relative">
+                    <Sparkles className="h-4 w-4 text-blue-400 dark:text-blue-300 animate-pulse" />
+                    <div className="absolute inset-0 h-4 w-4 text-blue-400 dark:text-blue-300 opacity-50 blur-sm">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 dark:from-blue-300 dark:via-purple-300 dark:to-pink-300 bg-clip-text text-transparent uppercase tracking-wider">
+                    Flux Models
+                  </span>
+                </div>
+                <div className="h-1 w-1 rounded-full bg-blue-400 dark:bg-blue-300 animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null;
+    }
+
+    // Handle Wan 2.2 group label
+    if (item.name === "WAN_22_GROUP_LABEL") {
+      return sidebarOpen ? (
+        <div
+          key="wan-22-group-label"
+          className="mx-3 mt-3 mb-1.5"
+        >
+          <div className="relative">
+            {/* Background glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 rounded-lg blur-sm"></div>
+            
+            {/* Main label container */}
+            <div className="relative bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 dark:from-green-500/10 dark:via-emerald-500/10 dark:to-teal-500/10 border border-green-400/30 dark:border-green-500/20 rounded-lg px-3 py-2 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="relative">
+                    <Video className="h-4 w-4 text-green-400 dark:text-green-300 animate-pulse" />
+                    <div className="absolute inset-0 h-4 w-4 text-green-400 dark:text-green-300 opacity-50 blur-sm">
+                      <Video className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 dark:from-green-300 dark:via-emerald-300 dark:to-teal-300 bg-clip-text text-transparent uppercase tracking-wider">
+                    Wan 2.2 Models
+                  </span>
+                </div>
+                <div className="h-1 w-1 rounded-full bg-green-400 dark:bg-green-300 animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null;
+    }
+
+    // Handle Advanced Tools group label
+    if (item.name === "ADVANCED_TOOLS_GROUP_LABEL") {
+      return sidebarOpen ? (
+        <div
+          key="advanced-tools-group-label"
+          className="mx-3 mt-3 mb-1.5"
+        >
+          <div className="relative">
+            {/* Background glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-orange-500/10 rounded-lg blur-sm"></div>
+            
+            {/* Main label container */}
+            <div className="relative bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-orange-500/20 dark:from-purple-500/10 dark:via-pink-500/10 dark:to-orange-500/10 border border-purple-400/30 dark:border-purple-500/20 rounded-lg px-3 py-2 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="relative">
+                    <Wand2 className="h-4 w-4 text-purple-400 dark:text-purple-300 animate-pulse" />
+                    <div className="absolute inset-0 h-4 w-4 text-purple-400 dark:text-purple-300 opacity-50 blur-sm">
+                      <Wand2 className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 dark:from-purple-300 dark:via-pink-300 dark:to-orange-300 bg-clip-text text-transparent uppercase tracking-wider">
+                    Advanced Tools
+                  </span>
+                </div>
+                <div className="h-1 w-1 rounded-full bg-purple-400 dark:bg-purple-300 animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null;
+    }
+
+    // Handle divider
+    if (item.name.startsWith("DIVIDER")) {
+      return sidebarOpen ? (
+        <div key={item.name} className="mx-3 my-3">
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-500/20 to-transparent blur-sm"></div>
+            <div className="relative border-t border-gray-600/40 dark:border-gray-700/40"></div>
+          </div>
+        </div>
+      ) : null;
+    }
+
     const isActive = isNavItemActive(item.href);
     const Icon = item.icon;
 

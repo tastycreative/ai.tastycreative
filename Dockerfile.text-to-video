@@ -1,0 +1,84 @@
+# Use NVIDIA CUDA base image
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    git \
+    wget \
+    curl \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+RUN pip3 install --no-cache-dir \
+    runpod \
+    requests \
+    pillow \
+    numpy \
+    boto3 \
+    opencv-python
+
+# Clone ComfyUI
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /app/comfyui
+
+# Install ComfyUI dependencies
+WORKDIR /app/comfyui
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Install rgthree-comfy for Power LoRA Loader
+WORKDIR /app/comfyui/custom_nodes
+RUN git clone https://github.com/rgthree/rgthree-comfy.git && \
+    cd rgthree-comfy && \
+    pip3 install --no-cache-dir -r requirements.txt
+
+# Configure ComfyUI to use RunPod network volume models
+WORKDIR /app/comfyui
+RUN echo "runpod_volume:" > extra_model_paths.yaml && \
+    echo "    base_path: /runpod-volume/" >> extra_model_paths.yaml && \
+    echo "    checkpoints: checkpoints/" >> extra_model_paths.yaml && \
+    echo "    clip: clip/" >> extra_model_paths.yaml && \
+    echo "    clip_vision: clip_vision/" >> extra_model_paths.yaml && \
+    echo "    configs: configs/" >> extra_model_paths.yaml && \
+    echo "    controlnet: controlnet/" >> extra_model_paths.yaml && \
+    echo "    diffusers: diffusers/" >> extra_model_paths.yaml && \
+    echo "    diffusion_models: diffusion_models/" >> extra_model_paths.yaml && \
+    echo "    embeddings: embeddings/" >> extra_model_paths.yaml && \
+    echo "    loras: loras/" >> extra_model_paths.yaml && \
+    echo "    upscale_models: upscale_models/" >> extra_model_paths.yaml && \
+    echo "    vae: vae/" >> extra_model_paths.yaml && \
+    echo "    unet: unet/" >> extra_model_paths.yaml && \
+    echo "    hypernetworks: hypernetworks/" >> extra_model_paths.yaml && \
+    echo "    style_models: style_models/" >> extra_model_paths.yaml
+
+# Copy handler script
+WORKDIR /app
+COPY text_to_video_handler.py /app/handler.py
+
+# Create output directory
+RUN mkdir -p /app/comfyui/output
+
+# Set working directory
+WORKDIR /app
+
+# Expose ComfyUI port
+EXPOSE 8188
+
+# Run the handler
+CMD ["python3", "-u", "/app/handler.py"]

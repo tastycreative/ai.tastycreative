@@ -495,14 +495,14 @@ export default function MyInfluencersPage() {
       throw new Error("API client is not initialized");
     }
 
-    // Define chunk size (512KB for better reliability)
-    const CHUNK_SIZE = 512 * 1024; // 512KB chunks
+    // Define chunk size (10MB for much faster uploads - S3 multipart minimum is 5MB)
+    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks (was 512KB)
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
     console.log(
       `📦 Using ${totalChunks} parts of ~${Math.round(
-        CHUNK_SIZE / 1024
-      )}KB each`
+        CHUNK_SIZE / 1024 / 1024
+      )}MB each`
     );
 
     try {
@@ -532,16 +532,17 @@ export default function MyInfluencersPage() {
 
       console.log(`✅ Multipart upload started: ${uploadId}`);
 
-      // Step 2: Upload each part via server with retry logic
+      // Step 2: Upload all parts sequentially but with larger chunks (10MB instead of 512KB)
+      // This is much faster than 512KB chunks while still being reliable
       for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
         const start = (partNumber - 1) * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
 
         console.log(
-          `📤 Uploading part ${partNumber}/${totalChunks} via server (${Math.round(
-            chunk.size / 1024
-          )}KB)`
+          `📤 Uploading part ${partNumber}/${totalChunks} (${Math.round(
+            chunk.size / 1024 / 1024
+          )}MB)`
         );
 
         // Retry logic for individual parts
@@ -555,7 +556,6 @@ export default function MyInfluencersPage() {
             partFormData.append("chunk", chunk);
             partFormData.append("partNumber", partNumber.toString());
             partFormData.append("sessionId", sessionId);
-            // Include session reconstruction data
             partFormData.append("uploadId", uploadId);
             partFormData.append("s3Key", s3Key);
             partFormData.append("uniqueFileName", uniqueFileName);
@@ -565,6 +565,7 @@ export default function MyInfluencersPage() {
               "/api/user/influencers/multipart-s3-upload",
               partFormData
             );
+            
             if (!partResponse.ok) {
               const errorData = await partResponse
                 .json()
@@ -594,7 +595,7 @@ export default function MyInfluencersPage() {
               );
               await new Promise((resolve) =>
                 setTimeout(resolve, 1000 * attempt)
-              ); // Exponential backoff
+              );
             }
           }
         }
@@ -607,7 +608,7 @@ export default function MyInfluencersPage() {
           );
         }
 
-        // Update progress
+        // Update progress after each part
         if (onProgress) {
           const progress = Math.round((partNumber / totalChunks) * 100);
           onProgress(progress);
