@@ -44,6 +44,12 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [folderToShare, setFolderToShare] = useState<CustomFolder | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Effect to detect client-side mounting for portal rendering (prevents hydration mismatch)
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (apiClient) {
@@ -471,7 +477,7 @@ export function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) 
       </div>
 
       {/* Share Folder Modal */}
-      {folderToShare && (
+      {folderToShare && isMounted && (
         <ShareFolderModal
           isOpen={shareModalOpen}
           onClose={() => {

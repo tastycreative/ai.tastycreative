@@ -42,6 +42,12 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [selectedParent, setSelectedParent] = useState<string>(ROOT_PARENT);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Effect to detect client-side mounting for portal rendering (prevents hydration mismatch)
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -186,7 +192,7 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
       )}
 
       {/* Create Folder Dialog Modal */}
-      {isOpen && createPortal(
+      {isOpen && isMounted && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center isolate">
           {/* Backdrop */}
           <div 

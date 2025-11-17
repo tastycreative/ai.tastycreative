@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { getBestMediaUrl, getBandwidthStats, getDownloadUrl } from "@/lib/directUrlUtils";
 import BandwidthStats from "@/components/BandwidthStats";
@@ -375,6 +376,7 @@ export default function GeneratedContentPage() {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   
   // Advanced Filters State
@@ -1431,11 +1433,28 @@ export default function GeneratedContentPage() {
     }
   }, [inView, loading, isLoadingMore, isChangingPage, hasMoreImages, hasMoreVideos, useInfiniteScroll]);
 
-  // Modal enhancement: Auto-hide controls when modal opens
+  // Effect to detect client-side mounting for portal rendering (prevents hydration mismatch)
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Modal enhancement: Auto-hide controls when modal opens + Lock body scroll
   useEffect(() => {
     if (selectedItem) {
+      // Lock body scroll
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.top = '0';
+      
       resetControlsTimeout();
       return () => {
+        // Unlock body scroll
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.top = '';
+        
         if (controlsTimeoutRef.current) {
           clearTimeout(controlsTimeoutRef.current);
         }
@@ -5193,10 +5212,10 @@ export default function GeneratedContentPage() {
       )}
 
       {/* Enhanced Modal/Lightbox */}
-      {selectedItem && (
+      {selectedItem && isMounted && createPortal(
         <div
           ref={modalRef}
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/95 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/95 backdrop-blur-sm p-2 xs:p-4"
           onClick={() => {
             setSelectedItem(null);
             setZoomLevel(1);
@@ -5214,7 +5233,8 @@ export default function GeneratedContentPage() {
             right: 0,
             bottom: 0,
             width: '100vw',
-            height: '100vh'
+            height: '100vh',
+            overflow: 'hidden'
           }}
         >
           <div
@@ -5589,11 +5609,12 @@ export default function GeneratedContentPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
   {/* S3 Upload Modal */}
-      {showUploadModal && (
+      {showUploadModal && isMounted && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
           onClick={() => setShowUploadModal(null)}
@@ -5688,11 +5709,12 @@ export default function GeneratedContentPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Move to Folder Modal */}
-      {showMoveModal && (
+      {showMoveModal && isMounted && createPortal(
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={() => setShowMoveModal(null)}
@@ -5791,11 +5813,12 @@ export default function GeneratedContentPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Bulk Move to Folder Modal */}
-      {showBulkMoveModal && (
+      {showBulkMoveModal && isMounted && createPortal(
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={() => setShowBulkMoveModal(false)}
@@ -5882,11 +5905,12 @@ export default function GeneratedContentPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Task Selection Modal */}
-      {showTaskModal && (
+      {showTaskModal && isMounted && createPortal(
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={() => setShowTaskModal(false)}
@@ -6050,7 +6074,8 @@ export default function GeneratedContentPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Toast Notifications */}
