@@ -493,8 +493,8 @@ export default function TrainLoRAPage() {
   // Tooltip component
   const Tooltip = ({ text }: { text: string }) => (
     <div className="group relative inline-block ml-1">
-      <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
-      <div className="invisible group-hover:visible absolute z-50 w-64 p-2 mt-1 text-xs text-white bg-gray-900 rounded-lg shadow-lg -left-24 top-5">
+      <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+      <div className="invisible group-hover:visible absolute z-50 w-48 xs:w-56 sm:w-64 p-2 mt-1 text-[10px] xs:text-xs text-white bg-gray-900 rounded-lg shadow-lg -left-20 xs:-left-24 top-5">
         {text}
         <div className="absolute w-2 h-2 bg-gray-900 transform rotate-45 -top-1 left-1/2"></div>
       </div>
@@ -502,49 +502,49 @@ export default function TrainLoRAPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-8">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 md:space-y-8">
       {/* Enhanced Header */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800 p-12 text-white text-center">
+      <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 rounded-xl sm:rounded-2xl md:rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800 p-6 xs:p-8 sm:p-10 md:p-12 text-white text-center">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0 bg-grid-pattern opacity-20"></div>
         </div>
 
-        <div className="relative z-10 space-y-6">
+        <div className="relative z-10 space-y-3 sm:space-y-4 md:space-y-6">
           <div className="flex justify-center">
-            <div className="p-4 bg-white/20 rounded-3xl backdrop-blur-sm border border-white/30 shadow-2xl">
+            <div className="p-2.5 xs:p-3 sm:p-4 bg-white/20 rounded-2xl sm:rounded-3xl backdrop-blur-sm border border-white/30 shadow-2xl">
               <div className="relative">
-                <Cpu className="w-16 h-16 text-white drop-shadow-lg" />
-                <div className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-yellow-800" />
+                <Cpu className="w-10 h-10 xs:w-12 xs:h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 text-white drop-shadow-lg" />
+                <div className="absolute -top-1 -right-1 xs:-top-1.5 xs:-right-1.5 sm:-top-2 sm:-right-2 w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+                  <Zap className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-yellow-800" />
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h1 className="text-5xl font-bold drop-shadow-lg flex items-center justify-center space-x-4">
+          <div className="space-y-2 sm:space-y-3 md:space-y-4">
+            <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl font-bold drop-shadow-lg flex items-center justify-center flex-wrap gap-2 sm:gap-3 md:gap-4">
               <span>Train Custom LoRA</span>
-              <span className="text-4xl">🧠</span>
+              <span className="text-xl xs:text-2xl sm:text-3xl md:text-4xl">🧠</span>
             </h1>
-            <p className="text-xl text-blue-100 font-medium opacity-90 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-sm xs:text-base sm:text-lg md:text-xl text-blue-100 font-medium opacity-90 max-w-3xl mx-auto leading-relaxed px-2">
               Create a personalized AI model by training on your own images
               using
               <span className="text-yellow-300 font-bold"> RunPod's </span>
               powerful GPU infrastructure
             </p>
 
-            <div className="flex items-center justify-center space-x-8 text-sm text-blue-100 pt-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+            <div className="flex flex-wrap items-center justify-center gap-3 xs:gap-4 sm:gap-6 md:gap-8 text-[10px] xs:text-xs sm:text-sm text-blue-100 pt-2 sm:pt-3 md:pt-4">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-green-400 rounded-full animate-pulse"></div>
                 <span className="font-medium">GPU Powered</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-purple-300 rounded-full"></div>
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-purple-300 rounded-full"></div>
                 <span className="font-medium">Custom Models</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-yellow-300 rounded-full"></div>
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 bg-yellow-300 rounded-full"></div>
                 <span className="font-medium">High Quality</span>
               </div>
             </div>
@@ -555,7 +555,7 @@ export default function TrainLoRAPage() {
       {/* Progress Steps */}
       <div className="relative">
         {/* Progress Line */}
-        <div className="absolute top-6 left-0 right-0 h-0.5 bg-gray-200 dark:bg-gray-700" style={{ width: `calc(100% - 96px)`, left: '48px' }}>
+        <div className="absolute top-5 xs:top-6 left-0 right-0 h-0.5 bg-gray-200 dark:bg-gray-700" style={{ width: `calc(100% - 64px)`, left: '32px' }}>
           <div 
             className="h-full bg-blue-600 transition-all duration-500"
             style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
@@ -569,7 +569,7 @@ export default function TrainLoRAPage() {
             const isCompleted = currentStep > step.id;
 
             return (
-              <div key={step.id} className="flex flex-col items-center space-y-2 bg-white dark:bg-gray-900 px-2">
+              <div key={step.id} className="flex flex-col items-center space-y-1.5 sm:space-y-2 bg-white dark:bg-gray-900 px-1 sm:px-2">
                 <button
                   onClick={() => {
                     if (step.id < currentStep || (step.id === currentStep + 1 && validateStep(currentStep))) {
@@ -578,7 +578,7 @@ export default function TrainLoRAPage() {
                   }}
                   disabled={step.id > currentStep + 1}
                   className={`
-                    w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 transform hover:scale-110
+                    w-10 h-10 xs:w-12 xs:h-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 transform hover:scale-110 active:scale-95
                     ${
                       isActive
                         ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/50"
@@ -590,13 +590,13 @@ export default function TrainLoRAPage() {
                   `}
                 >
                   {isCompleted ? (
-                    <CheckCircle2 className="w-6 h-6" />
+                    <CheckCircle2 className="w-5 h-5 xs:w-6 xs:h-6" />
                   ) : (
-                    <Icon className="w-6 h-6" />
+                    <Icon className="w-5 h-5 xs:w-6 xs:h-6" />
                   )}
                 </button>
                 <span
-                  className={`text-sm font-medium transition-colors ${
+                  className={`text-[10px] xs:text-xs sm:text-sm font-medium transition-colors text-center max-w-[80px] xs:max-w-none ${
                     isActive ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"
                   }`}
                 >
@@ -609,26 +609,26 @@ export default function TrainLoRAPage() {
       </div>
 
       {/* Step Content */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+      <div className="bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg p-4 xs:p-5 sm:p-6 md:p-8">
         {currentStep === 1 && (
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">Configure Training</h2>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Clock className="w-4 h-4" />
+          <div className="space-y-4 sm:space-y-6 md:space-y-8">
+            <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 xs:gap-3">
+              <h2 className="text-lg xs:text-xl sm:text-2xl font-semibold">Configure Training</h2>
+              <div className="flex items-center gap-1.5 sm:gap-2 text-xs xs:text-sm text-gray-500">
+                <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>Est. 2-4 hours</span>
               </div>
             </div>
 
             {/* Basic Info */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="text-base xs:text-lg font-medium flex items-center gap-1.5 sm:gap-2">
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 Basic Information
               </h3>
               
               <div>
-                <label className="text-sm font-medium mb-2 flex items-center">
+                <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                   Job Name *
                   <Tooltip text="A unique identifier for your training job. Use descriptive names like 'character_portrait_v1' or 'style_anime_v2'" />
                 </label>
@@ -640,20 +640,20 @@ export default function TrainLoRAPage() {
                     setErrors(prev => ({ ...prev, jobName: "" }));
                   }}
                   placeholder="e.g., my_first_flux_lora_v1"
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 transition-colors ${
+                  className={`w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 transition-colors text-xs xs:text-sm ${
                     errors.jobName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                 />
                 {errors.jobName && (
-                  <p className="mt-1 text-sm text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" />
+                  <p className="mt-1 text-xs xs:text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     {errors.jobName}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 flex items-center">
+                <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                   Description (Optional)
                   <Tooltip text="Add notes about what this model is for, the subject matter, or training goals" />
                 </label>
@@ -662,12 +662,12 @@ export default function TrainLoRAPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Describe what this model is for..."
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                  className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm"
                 />
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 flex items-center">
+                <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                   Trigger Word (Optional)
                   <Tooltip text="A unique word that activates your LoRA. Examples: 'ohwx person', 'xyz style'. Leave empty if training on a general style." />
                 </label>
@@ -676,21 +676,21 @@ export default function TrainLoRAPage() {
                   value={triggerWord}
                   onChange={(e) => setTriggerWord(e.target.value)}
                   placeholder="e.g., ohwx person"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                  className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm"
                 />
               </div>
             </div>
 
             {/* Training Configuration */}
-            <div className="space-y-4 border-t pt-6">
-              <h3 className="text-lg font-medium flex items-center gap-2">
-                <Settings className="w-5 h-5 text-purple-600" />
+            <div className="space-y-3 sm:space-y-4 border-t pt-4 sm:pt-5 md:pt-6">
+              <h3 className="text-base xs:text-lg font-medium flex items-center gap-1.5 sm:gap-2">
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                 Core Training Settings
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="text-sm font-medium mb-2 flex items-center">
+                  <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                     Training Steps
                     <Tooltip text="Total number of training iterations. More steps = better quality but longer training. 500-1000 for quick tests, 2000+ for production." />
                   </label>
@@ -706,21 +706,21 @@ export default function TrainLoRAPage() {
                     }}
                     min="500"
                     max="4000"
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 ${
+                    className={`w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm ${
                       errors.steps ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                     }`}
                   />
                   {errors.steps ? (
-                    <p className="mt-1 text-xs text-red-600">{errors.steps}</p>
+                    <p className="mt-1 text-[10px] xs:text-xs text-red-600">{errors.steps}</p>
                   ) : (
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-[10px] xs:text-xs text-gray-500 mt-1">
                       Current: {trainingConfig.steps} steps (~{Math.round(trainingConfig.steps / 500 * 0.5)} hours)
                     </p>
                   )}
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium mb-2 flex items-center">
+                  <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                     Learning Rate
                     <Tooltip text="Controls how quickly the model learns. 0.0001 is a safe default. Lower = slower but more stable training." />
                   </label>
@@ -736,15 +736,15 @@ export default function TrainLoRAPage() {
                     step="0.00001"
                     min="0.00001"
                     max="0.01"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                    className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-[10px] xs:text-xs text-gray-500 mt-1">
                     Default: 0.0001 (recommended)
                   </p>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium mb-2 flex items-center">
+                  <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                     Network Rank (Linear)
                     <Tooltip text="LoRA network size. Higher = more capacity but larger file size. 32 is a good balance, 16 for style, 64+ for complex subjects." />
                   </label>
@@ -759,15 +759,15 @@ export default function TrainLoRAPage() {
                     }
                     min="8"
                     max="128"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                    className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-[10px] xs:text-xs text-gray-500 mt-1">
                     Current: Rank {trainingConfig.networkLinear}
                   </p>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium mb-2 flex items-center">
+                  <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                     Network Alpha
                     <Tooltip text="Scaling factor for LoRA weights. Usually set equal to rank for balanced training." />
                   </label>
@@ -782,12 +782,12 @@ export default function TrainLoRAPage() {
                     }
                     min="8"
                     max="128"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                    className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm"
                   />
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium mb-2 flex items-center">
+                  <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                     Sample Every (Steps)
                     <Tooltip text="How often to generate preview images during training. More frequent = better monitoring but slightly slower." />
                   </label>
@@ -802,15 +802,15 @@ export default function TrainLoRAPage() {
                     }
                     min="50"
                     max="1000"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                    className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-[10px] xs:text-xs text-gray-500 mt-1">
                     Will generate ~{Math.floor(trainingConfig.steps / trainingConfig.sampleEvery)} preview images
                   </p>
                 </div>
                 
                 <div>
-                  <label className="text-sm font-medium mb-2 flex items-center">
+                  <label className="text-xs xs:text-sm font-medium mb-1.5 sm:mb-2 flex items-center">
                     Save Every (Steps)
                     <Tooltip text="How often to save checkpoints. Allows you to pick the best version if training goes too far." />
                   </label>
@@ -825,9 +825,9 @@ export default function TrainLoRAPage() {
                     }
                     min="100"
                     max="1000"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                    className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-[10px] xs:text-xs text-gray-500 mt-1">
                     {Math.floor(trainingConfig.steps / trainingConfig.saveEvery)} checkpoints will be saved
                   </p>
                 </div>
@@ -835,21 +835,21 @@ export default function TrainLoRAPage() {
             </div>
 
             {/* Sample Prompts */}
-            <div className="space-y-4 border-t pt-6">
+            <div className="space-y-3 sm:space-y-4 border-t pt-4 sm:pt-5 md:pt-6">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-green-600" />
+                <h3 className="text-base xs:text-lg font-medium flex items-center gap-1.5 sm:gap-2">
+                  <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                   Sample Prompts
                 </h3>
-                <span className="text-sm text-gray-500">{samplePrompts.length} prompts</span>
+                <span className="text-xs xs:text-sm text-gray-500">{samplePrompts.length} prompts</span>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
                 These prompts will be used to generate preview images during training to monitor progress
               </p>
               <div className="space-y-2">
                 {samplePrompts.map((prompt, index) => (
                   <div key={index} className="flex gap-2">
-                    <div className="flex-shrink-0 w-8 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center text-sm font-medium text-blue-600">
+                    <div className="flex-shrink-0 w-7 h-9 xs:w-8 xs:h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center text-xs xs:text-sm font-medium text-blue-600">
                       {index + 1}
                     </div>
                     <input
@@ -859,24 +859,24 @@ export default function TrainLoRAPage() {
                         updateSamplePrompt(index, e.target.value)
                       }
                       placeholder={`Sample prompt ${index + 1}`}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700"
+                      className="flex-1 px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 text-xs xs:text-sm"
                     />
                     {samplePrompts.length > 1 && (
                       <button
                         onClick={() => removeSamplePrompt(index)}
-                        className="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        className="px-2 xs:px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors active:scale-95"
                         title="Remove prompt"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       </button>
                     )}
                   </div>
                 ))}
                 <button
                   onClick={addSamplePrompt}
-                  className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors font-medium"
+                  className="flex items-center gap-1.5 sm:gap-2 px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors font-medium text-xs xs:text-sm active:scale-95"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   Add Sample Prompt
                 </button>
               </div>
@@ -885,23 +885,23 @@ export default function TrainLoRAPage() {
         )}
 
         {currentStep === 2 && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">Upload Training Images</h2>
+          <div className="space-y-4 sm:space-y-5 md:space-y-6">
+            <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2">
+              <h2 className="text-lg xs:text-xl sm:text-2xl font-semibold">Upload Training Images</h2>
               {images.length > 0 && (
-                <span className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
                   {images.length} image{images.length !== 1 ? 's' : ''} uploaded
                 </span>
               )}
             </div>
 
             {/* Info Banner */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <div className="flex gap-3">
-                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-800 dark:text-blue-200">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4">
+              <div className="flex gap-2 sm:gap-3">
+                <Info className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs xs:text-sm text-blue-800 dark:text-blue-200">
                   <p className="font-medium mb-1">Best Practices for Training Images:</p>
-                  <ul className="list-disc list-inside space-y-1 text-blue-700 dark:text-blue-300">
+                  <ul className="list-disc list-inside space-y-0.5 xs:space-y-1 text-blue-700 dark:text-blue-300">
                     <li>Upload 10-100 high-quality images (20-50 recommended)</li>
                     <li>Use variety: different angles, lighting, backgrounds</li>
                     <li>Keep consistent subject/style across all images</li>
@@ -918,7 +918,7 @@ export default function TrainLoRAPage() {
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               className={`
-                border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300
+                border-2 border-dashed rounded-lg sm:rounded-xl p-6 xs:p-8 sm:p-10 md:p-12 text-center transition-all duration-300 active:scale-[0.99]
                 ${isDragging 
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-105' 
                   : errors.images
@@ -927,16 +927,16 @@ export default function TrainLoRAPage() {
                 }
               `}
             >
-              <div className="flex flex-col items-center gap-4">
-                <div className={`p-4 rounded-full ${isDragging ? 'bg-blue-100 dark:bg-blue-800' : 'bg-gray-100 dark:bg-gray-700'} transition-colors`}>
-                  <Upload className={`w-12 h-12 ${isDragging ? 'text-blue-600' : 'text-gray-400'} transition-colors`} />
+              <div className="flex flex-col items-center gap-3 sm:gap-4">
+                <div className={`p-3 xs:p-3.5 sm:p-4 rounded-full ${isDragging ? 'bg-blue-100 dark:bg-blue-800' : 'bg-gray-100 dark:bg-gray-700'} transition-colors`}>
+                  <Upload className={`w-8 h-8 xs:w-10 xs:h-10 sm:w-12 sm:h-12 ${isDragging ? 'text-blue-600' : 'text-gray-400'} transition-colors`} />
                 </div>
                 
                 <div>
-                  <h3 className="text-lg font-medium mb-2">
+                  <h3 className="text-sm xs:text-base sm:text-lg font-medium mb-1.5 sm:mb-2">
                     {isDragging ? 'Drop images here' : 'Drag & drop images or click to browse'}
                   </h3>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
+                  <p className="text-gray-500 dark:text-gray-400 text-xs xs:text-sm mb-3 sm:mb-4">
                     Supported formats: JPG, PNG, WebP
                   </p>
                 </div>
@@ -951,37 +951,37 @@ export default function TrainLoRAPage() {
                 />
                 <label
                   htmlFor="image-upload"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 cursor-pointer transition-all hover:shadow-lg font-medium"
+                  className="inline-flex items-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-6 py-2.5 xs:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 cursor-pointer transition-all hover:shadow-lg font-medium text-xs xs:text-sm sm:text-base active:scale-95"
                 >
-                  <ImageIcon className="w-5 h-5" />
+                  <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                   Choose Images
                 </label>
               </div>
             </div>
 
             {errors.images && (
-              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <div className="flex items-center gap-1.5 sm:gap-2 text-amber-600 dark:text-amber-400 text-xs xs:text-sm bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2.5 sm:p-3">
+                <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
                 <span>{errors.images}</span>
               </div>
             )}
 
             {/* Image Grid */}
             {images.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2">
+                  <h3 className="text-base xs:text-lg font-medium">
                     Uploaded Images ({images.length})
                   </h3>
                   {images.length < 10 && (
-                    <span className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
+                    <span className="text-xs xs:text-sm text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       Consider uploading more images
                     </span>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                   {images.map((image, index) => (
                     <div 
                       key={index} 
@@ -996,17 +996,17 @@ export default function TrainLoRAPage() {
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
                           <button
                             onClick={() => removeImage(index)}
-                            className="opacity-0 group-hover:opacity-100 transition-all transform scale-75 group-hover:scale-100 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 shadow-lg"
+                            className="opacity-0 group-hover:opacity-100 transition-all transform scale-75 group-hover:scale-100 bg-red-600 text-white rounded-full p-1.5 sm:p-2 hover:bg-red-700 shadow-lg active:scale-95"
                             title="Remove image"
                           >
-                            <X className="w-5 h-5" />
+                            <X className="w-4 h-4 sm:w-5 sm:h-5" />
                           </button>
                         </div>
-                        <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full font-medium">
+                        <div className="absolute top-1.5 sm:top-2 left-1.5 sm:left-2 bg-black/70 text-white text-[10px] xs:text-xs px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-full font-medium">
                           #{index + 1}
                         </div>
                       </div>
-                      <div className="p-2">
+                      <div className="p-1.5 sm:p-2">
                         <input
                           type="text"
                           placeholder="Add caption (optional)..."
@@ -1014,7 +1014,7 @@ export default function TrainLoRAPage() {
                           onChange={(e) =>
                             updateImageCaption(index, e.target.value)
                           }
-                          className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 transition-all"
+                          className="w-full px-2 py-1 text-[10px] xs:text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 transition-all"
                         />
                       </div>
                     </div>
@@ -1022,19 +1022,19 @@ export default function TrainLoRAPage() {
                 </div>
 
                 {/* Batch Actions */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
                   <button
                     onClick={() => {
                       if (confirm(`Remove all ${images.length} images?`)) {
                         setImages([]);
                       }
                     }}
-                    className="text-red-600 hover:text-red-700 dark:text-red-400 text-sm font-medium flex items-center gap-1 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-2 rounded-lg transition-colors"
+                    className="text-red-600 hover:text-red-700 dark:text-red-400 text-xs xs:text-sm font-medium flex items-center gap-1 hover:bg-red-50 dark:hover:bg-red-900/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-colors active:scale-95"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     Clear All
                   </button>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
                     {images.filter(img => img.caption).length} images have captions
                   </span>
                 </div>
@@ -1044,172 +1044,172 @@ export default function TrainLoRAPage() {
         )}
 
         {currentStep === 3 && (
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-semibold">Review & Start Training</h2>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4" />
+          <div className="space-y-4 sm:space-y-6 md:space-y-8">
+            <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2">
+              <h2 className="text-lg xs:text-xl sm:text-2xl font-semibold">Review & Start Training</h2>
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 xs:px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs xs:text-sm font-medium">
+                <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 Ready to Train
               </div>
             </div>
 
             {/* Quick Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-blue-600 rounded-lg">
-                    <ImageIcon className="w-5 h-5 text-white" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-lg sm:rounded-xl p-4 xs:p-5 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="p-1.5 sm:p-2 bg-blue-600 rounded-lg">
+                    <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Images</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm xs:text-base">Images</h3>
                 </div>
-                <p className="text-3xl font-bold text-blue-600 mb-1">{images.length}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-2xl xs:text-3xl font-bold text-blue-600 mb-1">{images.length}</p>
+                <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
                   {images.filter(img => img.caption).length} with captions
                 </p>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-purple-600 rounded-lg">
-                    <Zap className="w-5 h-5 text-white" />
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 rounded-lg sm:rounded-xl p-4 xs:p-5 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="p-1.5 sm:p-2 bg-purple-600 rounded-lg">
+                    <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Steps</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm xs:text-base">Steps</h3>
                 </div>
-                <p className="text-3xl font-bold text-purple-600 mb-1">{trainingConfig.steps.toLocaleString()}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-2xl xs:text-3xl font-bold text-purple-600 mb-1">{trainingConfig.steps.toLocaleString()}</p>
+                <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
                   ~{Math.round(trainingConfig.steps / 500 * 0.5 * 10) / 10}h training time
                 </p>
               </div>
 
-              <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-green-600 rounded-lg">
-                    <Settings className="w-5 h-5 text-white" />
+              <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800 rounded-lg sm:rounded-xl p-4 xs:p-5 sm:p-6">
+                <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="p-1.5 sm:p-2 bg-green-600 rounded-lg">
+                    <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Quality</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm xs:text-base">Quality</h3>
                 </div>
-                <p className="text-3xl font-bold text-green-600 mb-1">Rank {trainingConfig.networkLinear}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-2xl xs:text-3xl font-bold text-green-600 mb-1">Rank {trainingConfig.networkLinear}</p>
+                <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
                   {trainingConfig.quantize ? 'Quantized' : 'Full Precision'}
                 </p>
               </div>
             </div>
 
             {/* Detailed Configuration */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-blue-600" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 md:gap-6">
+              <div className="space-y-3 sm:space-y-4">
+                <h3 className="text-base xs:text-lg font-semibold flex items-center gap-1.5 sm:gap-2">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                   Job Configuration
                 </h3>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-3">
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Job Name</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{jobName}</span>
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Job Name</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm break-all text-right max-w-[60%]">{jobName}</span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Model</span>
-                    <span className="font-medium text-gray-900 dark:text-white">FLUX.1-dev</span>
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Model</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm">FLUX.1-dev</span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Trigger Word</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Trigger Word</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm break-all text-right max-w-[60%]">
                       {triggerWord || <span className="text-gray-400">None</span>}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Network Type</span>
-                    <span className="font-medium text-gray-900 dark:text-white uppercase">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Network Type</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm uppercase">
                       {trainingConfig.networkType}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-purple-600" />
+              <div className="space-y-3 sm:space-y-4">
+                <h3 className="text-base xs:text-lg font-semibold flex items-center gap-1.5 sm:gap-2">
+                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                   Training Parameters
                 </h3>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-3">
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Learning Rate</span>
-                    <span className="font-mono text-sm font-medium text-gray-900 dark:text-white">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Learning Rate</span>
+                    <span className="font-mono text-xs xs:text-sm font-medium text-gray-900 dark:text-white">
                       {trainingConfig.learningRate}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Batch Size</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Batch Size</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm">
                       {trainingConfig.batchSize}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Precision</span>
-                    <span className="font-medium text-gray-900 dark:text-white uppercase">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Precision</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm uppercase">
                       {trainingConfig.dtype}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Optimizer</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Optimizer</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm">
                       {trainingConfig.optimizer}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">EMA</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">EMA</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm">
                       {trainingConfig.useEma ? 'Enabled' : 'Disabled'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-green-600" />
+              <div className="space-y-3 sm:space-y-4">
+                <h3 className="text-base xs:text-lg font-semibold flex items-center gap-1.5 sm:gap-2">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                   Sampling & Checkpoints
                 </h3>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-3">
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Sample Every</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Sample Every</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm">
                       {trainingConfig.sampleEvery} steps
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Total Samples</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Total Samples</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm">
                       ~{Math.floor(trainingConfig.steps / trainingConfig.sampleEvery)} images
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-600">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Save Every</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Save Every</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm">
                       {trainingConfig.saveEvery} steps
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Checkpoints Kept</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
+                  <div className="flex justify-between items-center py-1.5 sm:py-2">
+                    <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Checkpoints Kept</span>
+                    <span className="font-medium text-gray-900 dark:text-white text-xs xs:text-sm">
                       {trainingConfig.maxStepSavesToKeep}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-yellow-600" />
+              <div className="space-y-3 sm:space-y-4">
+                <h3 className="text-base xs:text-lg font-semibold flex items-center gap-1.5 sm:gap-2">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600" />
                   Sample Prompts
                 </h3>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-2 max-h-[240px] overflow-y-auto">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 sm:p-4 space-y-2 max-h-[200px] xs:max-h-[240px] overflow-y-auto">
                   {samplePrompts.filter(p => p.trim()).map((prompt, index) => (
-                    <div key={index} className="text-sm text-gray-700 dark:text-gray-300 flex gap-2 py-2 border-b border-gray-200 dark:border-gray-600 last:border-0">
-                      <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-medium">
+                    <div key={index} className="text-xs xs:text-sm text-gray-700 dark:text-gray-300 flex gap-2 py-1.5 sm:py-2 border-b border-gray-200 dark:border-gray-600 last:border-0">
+                      <span className="flex-shrink-0 w-5 h-5 xs:w-6 xs:h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] xs:text-xs font-medium">
                         {index + 1}
                       </span>
-                      <span className="flex-1">{prompt}</span>
+                      <span className="flex-1 break-words">{prompt}</span>
                     </div>
                   ))}
                 </div>
@@ -1217,37 +1217,37 @@ export default function TrainLoRAPage() {
             </div>
 
             {/* Important Notice */}
-            <div className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-6">
-              <div className="flex gap-4">
+            <div className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg sm:rounded-xl p-4 xs:p-5 sm:p-6">
+              <div className="flex gap-3 sm:gap-4">
                 <div className="flex-shrink-0">
-                  <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center">
-                    <Info className="w-6 h-6 text-yellow-900" />
+                  <div className="w-8 h-8 xs:w-9 xs:h-9 sm:w-10 sm:h-10 bg-yellow-400 rounded-full flex items-center justify-center">
+                    <Info className="w-5 h-5 xs:w-5.5 xs:h-5.5 sm:w-6 sm:h-6 text-yellow-900" />
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
+                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1.5 sm:mb-2 text-sm xs:text-base">
                     Training Process Overview
                   </h4>
-                  <ul className="space-y-2 text-sm text-yellow-800 dark:text-yellow-300">
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <ul className="space-y-1.5 sm:space-y-2 text-xs xs:text-sm text-yellow-800 dark:text-yellow-300">
+                    <li className="flex items-start gap-1.5 sm:gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5 flex-shrink-0" />
                       <span>Your images will be uploaded securely to RunPod storage</span>
                     </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <li className="flex items-start gap-1.5 sm:gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5 flex-shrink-0" />
                       <span>Training will start automatically on a GPU instance</span>
                     </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <li className="flex items-start gap-1.5 sm:gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5 flex-shrink-0" />
                       <span>You'll receive progress updates and sample images</span>
                     </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <li className="flex items-start gap-1.5 sm:gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mt-0.5 flex-shrink-0" />
                       <span>The final LoRA model will be ready for download when complete</span>
                     </li>
                   </ul>
-                  <div className="mt-4 flex items-center gap-2 text-sm">
-                    <Clock className="w-4 h-4" />
+                  <div className="mt-3 sm:mt-4 flex items-center gap-1.5 sm:gap-2 text-xs xs:text-sm">
+                    <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span className="font-medium">Estimated completion: {Math.round(trainingConfig.steps / 500 * 0.5 * 10) / 10} - {Math.round(trainingConfig.steps / 500 * 0.5 * 15) / 10} hours</span>
                   </div>
                 </div>
@@ -1258,20 +1258,20 @@ export default function TrainLoRAPage() {
 
         {/* Upload Progress Display */}
         {uploadProgress.isUploading && (
-          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-medium text-blue-800 dark:text-blue-200">
+          <div className="mt-4 sm:mt-5 md:mt-6 p-3 sm:p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <h4 className="font-medium text-blue-800 dark:text-blue-200 text-xs xs:text-sm">
                 Uploading Images...
               </h4>
-              <span className="text-sm text-blue-600 dark:text-blue-300">
+              <span className="text-[10px] xs:text-xs sm:text-sm text-blue-600 dark:text-blue-300">
                 Chunk {uploadProgress.currentChunk} of{" "}
                 {uploadProgress.totalChunks}
               </span>
             </div>
-            <div className="mb-2">
-              <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+            <div className="mb-1.5 sm:mb-2">
+              <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5 sm:h-2">
                 <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  className="bg-blue-600 h-1.5 sm:h-2 rounded-full transition-all duration-300"
                   style={{
                     width: `${
                       (uploadProgress.uploadedImages /
@@ -1282,7 +1282,7 @@ export default function TrainLoRAPage() {
                 ></div>
               </div>
             </div>
-            <p className="text-sm text-blue-700 dark:text-blue-300">
+            <p className="text-[10px] xs:text-xs sm:text-sm text-blue-700 dark:text-blue-300">
               Uploaded {uploadProgress.uploadedImages} of{" "}
               {uploadProgress.totalImages} images
             </p>
@@ -1290,13 +1290,13 @@ export default function TrainLoRAPage() {
         )}
 
         {/* Navigation Buttons */}
-        <div className="flex justify-between pt-8 border-t border-gray-200 dark:border-gray-700 mt-8">
+        <div className="flex flex-col xs:flex-row justify-between gap-3 pt-6 sm:pt-7 md:pt-8 border-t border-gray-200 dark:border-gray-700 mt-6 sm:mt-7 md:mt-8">
           {currentStep > 1 && (
             <button
               onClick={() => setCurrentStep(currentStep - 1)}
-              className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 transition-all font-medium"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-6 py-2.5 xs:py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 transition-all font-medium text-xs xs:text-sm sm:text-base active:scale-95"
             >
-              <ChevronDown className="w-4 h-4 rotate-90" />
+              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 rotate-90" />
               Previous
             </button>
           )}
@@ -1309,25 +1309,25 @@ export default function TrainLoRAPage() {
                 }
                 setCurrentStep(currentStep + 1);
               }}
-              className="ml-auto flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all hover:shadow-lg font-medium"
+              className="xs:ml-auto flex items-center justify-center gap-1.5 sm:gap-2 px-4 xs:px-5 sm:px-6 py-2.5 xs:py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all hover:shadow-lg font-medium text-xs xs:text-sm sm:text-base active:scale-95"
             >
               Next
-              <ChevronDown className="w-4 h-4 -rotate-90" />
+              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 -rotate-90" />
             </button>
           ) : (
             <button
               onClick={handleStartTraining}
               disabled={createTrainingJobMutation.isPending || uploadProgress.isUploading}
-              className="ml-auto flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:shadow-lg hover:shadow-green-500/50 font-medium text-lg disabled:hover:shadow-none"
+              className="xs:ml-auto flex items-center justify-center gap-1.5 sm:gap-2 px-6 xs:px-7 sm:px-8 py-2.5 xs:py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:shadow-lg hover:shadow-green-500/50 font-medium text-sm xs:text-base sm:text-lg disabled:hover:shadow-none active:scale-95"
             >
               {createTrainingJobMutation.isPending || uploadProgress.isUploading ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   {uploadProgress.isUploading ? 'Uploading Images...' : 'Starting Training...'}
                 </>
               ) : (
                 <>
-                  <Zap className="w-5 h-5" />
+                  <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
                   Start Training
                 </>
               )}

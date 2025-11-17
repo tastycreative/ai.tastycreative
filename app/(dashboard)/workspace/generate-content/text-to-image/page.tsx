@@ -1999,50 +1999,50 @@ export default function TextToImagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-3 sm:p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
-              <Wand2 className="w-8 h-8 text-white" />
+        <div className="mb-4 sm:mb-6 md:mb-8 text-center">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
+              <Wand2 className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-white" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
               Text to Image Studio
             </h1>
           </div>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base md:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-2">
             Transform your imagination into stunning visuals with AI-powered magic ✨ Create breathtaking images with advanced FLUX technology
           </p>
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-xl sm:rounded-2xl flex items-start gap-2 sm:gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
             </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-red-900 dark:text-red-100 text-lg">Oops! Something went wrong</h3>
-              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-red-900 dark:text-red-100 text-sm sm:text-base md:text-lg">Oops! Something went wrong</h3>
+              <p className="text-xs sm:text-sm text-red-700 dark:text-red-300 mt-1 break-words">{error}</p>
             </div>
             <button
               onClick={() => setError(null)}
-              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
+              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg active:scale-95 flex-shrink-0"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
           {/* Left Panel - Input */}
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
           {/* Folder Selection */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-2 mb-4">
-              <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+              <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                 Save to Folder
               </h2>
             </div>
@@ -2112,10 +2112,10 @@ export default function TextToImagePage() {
           </div>
 
           {/* Prompt Section */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-2 mb-4">
-              <Wand2 className="w-5 h-5 text-pink-600 dark:text-pink-400" />
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 text-pink-600 dark:text-pink-400" />
+              <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                 Describe Your Vision ✨
               </h2>
             </div>
@@ -2124,38 +2124,38 @@ export default function TextToImagePage() {
               onChange={(e) =>
                 setParams((prev) => ({ ...prev, prompt: e.target.value }))
               }
-              className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900/50 dark:text-white resize-none transition-all shadow-inner"
-              rows={6}
+              className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900/50 dark:text-white resize-none transition-all shadow-inner"
+              rows={5}
               placeholder="Describe your dream image in vivid detail... (e.g., 'A futuristic cityscape at sunset with flying cars and neon lights')"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2">
               💡 Tip: Be specific and descriptive for best results!
             </p>
           </div>
 
           {/* Generation Settings */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-2 mb-4">
-              <Settings className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 dark:text-indigo-400" />
+              <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                 Generation Settings
               </h2>
             </div>
 
             {/* LoRA Model Selection */}
-            <div className="space-y-4 mb-6">
-              <div className="flex items-center justify-between">
-                <label className="text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-3">
-                  <User className="w-5 h-5 text-green-600" />
-                  <span>AI Style Models (LoRA)</span>
-                  <div className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs font-medium">
+            <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <label className="text-sm sm:text-base md:text-lg font-bold text-gray-900 dark:text-white flex items-center space-x-2 sm:space-x-3">
+                  <User className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                  <span className="whitespace-nowrap">AI Style Models</span>
+                  <div className="px-1.5 sm:px-2 py-0.5 sm:py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-[10px] sm:text-xs font-medium">
                     Multi-Stack
                   </div>
                 </label>
                 {params.loras.filter(l => l.modelName !== "None").length > 0 && (
-                  <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm font-medium">{params.loras.filter(l => l.modelName !== "None").length} Active</span>
+                  <div className="flex items-center space-x-1.5 sm:space-x-2 text-green-600 dark:text-green-400">
+                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-xs sm:text-sm font-medium">{params.loras.filter(l => l.modelName !== "None").length} Active</span>
                   </div>
                 )}
               </div>
@@ -2698,15 +2698,15 @@ export default function TextToImagePage() {
                 <button
                   onClick={handleGenerate}
                   disabled={!params.prompt.trim() || !targetFolder}
-                  className={`group relative w-full py-5 px-8 rounded-2xl transition-all duration-500 flex items-center justify-center space-x-4 font-bold text-xl overflow-hidden ${
+                  className={`group relative w-full py-3 sm:py-4 md:py-5 px-4 sm:px-6 md:px-8 rounded-xl sm:rounded-2xl transition-all duration-500 flex items-center justify-center space-x-2 sm:space-x-3 md:space-x-4 font-bold text-base sm:text-lg md:text-xl overflow-hidden ${
                     !params.prompt.trim() || !targetFolder
                       ? "bg-gradient-to-r from-gray-400 to-gray-500 cursor-not-allowed text-white/80"
-                      : "bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 hover:from-purple-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-2xl hover:shadow-purple-500/30 hover:scale-105 active:scale-95"
+                      : "bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 hover:from-purple-700 hover:via-blue-700 hover:to-indigo-700 text-white shadow-xl sm:shadow-2xl hover:shadow-purple-500/30 hover:scale-105 active:scale-95"
                   }`}
                 >
                   {/* Animated background */}
                   <div
-                    className={`absolute inset-0 rounded-2xl transition-opacity duration-500 ${
+                    className={`absolute inset-0 rounded-xl sm:rounded-2xl transition-opacity duration-500 ${
                       !params.prompt.trim() || !targetFolder
                         ? "opacity-0"
                         : "opacity-100 bg-gradient-to-r from-purple-400/20 via-blue-400/20 to-indigo-400/20 animate-pulse"
@@ -2714,43 +2714,43 @@ export default function TextToImagePage() {
                   ></div>
 
                   {/* Button content */}
-                  <div className="relative flex items-center justify-center space-x-4">
+                  <div className="relative flex items-center justify-center space-x-2 sm:space-x-3 md:space-x-4">
                     <div className="relative">
-                      <Sparkles className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></div>
+                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
+                      <div className="absolute -top-0.5 sm:-top-1 -right-0.5 sm:-right-1 w-3 h-3 sm:w-4 sm:h-4 bg-yellow-400 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-yellow-600 rounded-full animate-pulse"></div>
                       </div>
                     </div>
                     <span className="drop-shadow-sm">Generate AI Art</span>
-                    <Wand2 className="w-8 h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
+                    <Wand2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 group-hover:rotate-12 transition-transform duration-300 drop-shadow-lg" />
                   </div>
                 </button>
               )}
 
               {/* Status messages */}
               {!params.prompt.trim() ? (
-                <div className="text-center mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-                  <div className="flex items-center justify-center space-x-2 text-amber-700 dark:text-amber-300">
-                    <AlertCircle className="w-4 h-4" />
-                    <span className="text-sm font-medium">
+                <div className="text-center mt-3 sm:mt-4 p-2 sm:p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg sm:rounded-xl">
+                  <div className="flex items-center justify-center space-x-1.5 sm:space-x-2 text-amber-700 dark:text-amber-300">
+                    <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium">
                       Enter a creative prompt to begin
                     </span>
                   </div>
                 </div>
               ) : !targetFolder ? (
-                <div className="text-center mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
-                  <div className="flex items-center justify-center space-x-2 text-amber-700 dark:text-amber-300">
-                    <AlertCircle className="w-4 h-4" />
-                    <span className="text-sm font-medium">
+                <div className="text-center mt-3 sm:mt-4 p-2 sm:p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg sm:rounded-xl">
+                  <div className="flex items-center justify-center space-x-1.5 sm:space-x-2 text-amber-700 dark:text-amber-300">
+                    <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium">
                       ⚠️ Please select a folder before generating
                     </span>
                   </div>
                 </div>
               ) : (
-                <div className="text-center mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
-                  <div className="flex items-center justify-center space-x-2 text-green-700 dark:text-green-300">
-                    <CheckCircle className="w-4 h-4" />
-                    <span className="text-sm font-medium">
+                <div className="text-center mt-3 sm:mt-4 p-2 sm:p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg sm:rounded-xl">
+                  <div className="flex items-center justify-center space-x-1.5 sm:space-x-2 text-green-700 dark:text-green-300">
+                    <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium">
                       Ready to create amazing art!
                     </span>
                   </div>
@@ -2761,46 +2761,46 @@ export default function TextToImagePage() {
         </div>
 
         {/* Right Panel - Results */}
-        <div className="space-y-6">
+        <div className="space-y-3 sm:space-y-4 md:space-y-6">
           {/* Enhanced Image Statistics */}
           {imageStats && (
-            <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl">
-                    <ImageIcon className="w-6 h-6 text-white" />
+            <div className="group bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-300">
+              <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="p-1.5 sm:p-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg sm:rounded-xl">
+                    <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                     AI Art Gallery
                   </h3>
                 </div>
                 <Link
                   href="/dashboard/workspace/generated-content"
-                  className="group flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl"
+                  className="group flex items-center space-x-1.5 sm:space-x-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg sm:rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl active:scale-95 text-sm sm:text-base w-full xs:w-auto justify-center"
                 >
                   <span>View Gallery</span>
-                  <ExternalLink className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-blue-500 rounded-xl">
-                        <ImageIcon className="w-5 h-5 text-white" />
+              <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                <div className="p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl sm:rounded-2xl border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                      <div className="p-1.5 sm:p-2 bg-blue-500 rounded-lg sm:rounded-xl flex-shrink-0">
+                        <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                       </div>
-                      <div>
-                        <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                      <div className="min-w-0">
+                        <div className="text-lg sm:text-xl md:text-2xl font-bold text-blue-700 dark:text-blue-300">
                           {imageStats.totalImages?.toLocaleString() || 0}
                         </div>
-                        <div className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                        <div className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 font-medium">
                           Total Masterpieces
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-gray-700 dark:text-gray-300">
+                    <div className="text-right flex-shrink-0">
+                      <div className="text-sm sm:text-base md:text-lg font-bold text-gray-700 dark:text-gray-300">
                         {Math.round(
                           (imageStats.totalSize / 1024 / 1024) * 100
                         ) / 100}{" "}
@@ -2818,56 +2818,56 @@ export default function TextToImagePage() {
 
           {/* Current Generation */}
           {currentJob && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <h3 className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 dark:text-white">
                   Current Generation
                 </h3>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 sm:space-x-2">
                   {/* Manual status refresh button for processing jobs */}
                   {(currentJob.status === "processing" ||
                     currentJob.status === "pending") && (
                     <button
                       onClick={() => refreshJobStatus(currentJob.id)}
-                      className="p-2 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30"
+                      className="p-1.5 sm:p-2 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 active:scale-95 transition-transform"
                       title="Check RunPod status and sync if completed"
                     >
-                      <RotateCcw className="w-4 h-4" />
+                      <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                   {/* Image refresh button for completed jobs */}
                   {currentJob.status === "completed" && (
                     <button
                       onClick={() => fetchJobImages(currentJob.id, true)}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95 transition-transform"
                       title="Refresh generated images"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                     Status
                   </span>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1.5 sm:space-x-2">
                     {(currentJob.status === "pending" ||
                       currentJob.status === "processing") && (
-                      <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                      <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-blue-500" />
                     )}
                     {currentJob.status === "completed" && (
-                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500" />
                     )}
                     {currentJob.status === "failed" && !isJobCancelled(currentJob) && (
-                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500" />
                     )}
                     {isJobCancelled(currentJob) && (
-                      <XCircle className="w-4 h-4 text-orange-500" />
+                      <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-500" />
                     )}
-                    <span className="text-sm font-medium capitalize">
+                    <span className="text-xs sm:text-sm font-medium capitalize">
                       {isJobCancelled(currentJob) ? 'cancelled' : currentJob.status}
                     </span>
                   </div>
@@ -3367,18 +3367,18 @@ export default function TextToImagePage() {
 
                 {/* Cancel Button - only show for pending/processing jobs */}
                 {isGenerating && (currentJob.status === "pending" || currentJob.status === "processing") && (
-                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
                     <button
                       onClick={cancelGeneration}
-                      className="group relative w-full py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center space-x-3 font-semibold text-lg overflow-hidden bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:from-red-600 hover:via-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-red-500/30 hover:scale-105 active:scale-95"
+                      className="group relative w-full py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2 sm:space-x-3 font-semibold text-base sm:text-lg overflow-hidden bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:from-red-600 hover:via-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-red-500/30 hover:scale-105 active:scale-95"
                     >
                       {/* Animated background */}
                       <div className="absolute inset-0 rounded-xl opacity-100 bg-gradient-to-r from-red-400/20 via-red-500/20 to-red-600/20 animate-pulse"></div>
 
                       {/* Button content */}
-                      <div className="relative flex items-center justify-center space-x-3">
+                      <div className="relative flex items-center justify-center space-x-2 sm:space-x-3">
                         <div className="relative">
-                          <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300 drop-shadow-lg" />
+                          <X className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-90 transition-transform duration-300 drop-shadow-lg" />
                         </div>
                         <span className="drop-shadow-sm">Cancel Generation</span>
                       </div>
@@ -3391,50 +3391,50 @@ export default function TextToImagePage() {
 
           {/* Generation History */}
           {jobHistory.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6">
+              <h3 className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">
                 Recent Generations
               </h3>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+              <div className="space-y-2 sm:space-y-3 max-h-80 sm:max-h-96 overflow-y-auto">
                 {jobHistory
                   .filter((job) => job && job.id)
                   .slice(0, 10)
                   .map((job, index) => (
                     <div
                       key={job.id || `job-${index}`}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                      className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
                         {job.status === "completed" && (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
                         )}
                         {job.status === "failed" && !isJobCancelled(job) && (
-                          <AlertCircle className="w-4 h-4 text-red-500" />
+                          <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
                         )}
                         {isJobCancelled(job) && (
-                          <XCircle className="w-4 h-4 text-orange-500" />
+                          <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-500 flex-shrink-0" />
                         )}
                         {(job.status === "pending" ||
                           job.status === "processing") && (
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                          <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-blue-500 flex-shrink-0" />
                         )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        <div className="min-w-0">
+                          <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">
                             {formatJobTime(job.createdAt)}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 capitalize truncate">
                             {isJobCancelled(job) ? 'cancelled' : (job.status || "unknown")}
                           </p>
                         </div>
                       </div>
                       {job.resultUrls && job.resultUrls.length > 0 && (
-                        <div className="flex space-x-1">
+                        <div className="flex space-x-1 flex-shrink-0">
                           <button
                             onClick={() => fetchJobImages(job.id, true)}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 active:scale-95 transition-transform"
                             title="Refresh images"
                           >
-                            <RefreshCw className="w-4 h-4" />
+                            <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           </button>
                         </div>
                       )}

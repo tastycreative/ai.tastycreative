@@ -1947,13 +1947,13 @@ export default function StyleTransferPage() {
 
         {/* Error Display */}
         {currentJob?.error && !isJobCancelled(currentJob) && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-xl sm:rounded-2xl flex items-start gap-2 sm:gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/50 rounded-lg flex-shrink-0">
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
             </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-red-900 dark:text-red-100 text-lg">Oops! Something went wrong</h3>
-              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{currentJob.error}</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-red-900 dark:text-red-100 text-sm sm:text-base md:text-lg">Oops! Something went wrong</h3>
+              <p className="text-xs sm:text-sm text-red-700 dark:text-red-300 mt-1 break-words">{currentJob.error}</p>
             </div>
             <button
               onClick={() => setCurrentJob(prev => prev ? {...prev, error: undefined} : null)}
@@ -1964,14 +1964,14 @@ export default function StyleTransferPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
           {/* Left Panel - Input */}
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Folder Selection */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-4">
-                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                   Save to Folder
                 </h2>
               </div>
@@ -1980,7 +1980,7 @@ export default function StyleTransferPage() {
                   value={targetFolder}
                   onChange={(e) => setTargetFolder(e.target.value)}
                   disabled={isLoadingFolders}
-                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
                 >
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
@@ -1989,16 +1989,16 @@ export default function StyleTransferPage() {
                     </option>
                   ))}
                 </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   {isLoadingFolders ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                    <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-gray-400" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                    <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                   )}
                 </div>
               </div>
               {selectedFolderOption && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
+                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
                   <span>�</span>
                   <span>Saving to: {selectedFolderOption.displayPath}</span>
                 </p>
@@ -2006,10 +2006,10 @@ export default function StyleTransferPage() {
             </div>
 
             {/* Reference Image Upload */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-4">
-                <ImageIcon className="w-5 h-5 text-pink-600 dark:text-pink-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-pink-600 dark:text-pink-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                   Style Reference Image
                 </h2>
               </div>
@@ -2129,18 +2129,18 @@ export default function StyleTransferPage() {
             </div>
 
             {/* Prompt Input */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-lg font-semibold text-slate-800 dark:text-white flex items-center">
-                    <Sparkles className="w-5 h-5 mr-2 text-indigo-600" />
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 border border-white/20 shadow-lg">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-sm sm:text-base md:text-lg font-semibold text-slate-800 dark:text-white flex items-center">
+                    <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 text-indigo-600" />
                     Style Description
                   </label>
                   <button
                     onClick={() =>
                       setParams((prev) => ({ ...prev, prompt: "" }))
                     }
-                    className="text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                    className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 active:scale-95 transition-transform"
                   >
                     Clear
                   </button>
@@ -2151,13 +2151,13 @@ export default function StyleTransferPage() {
                     setParams((prev) => ({ ...prev, prompt: e.target.value }))
                   }
                   placeholder="Describe the artistic style you want to apply (e.g., 'oil painting style with thick brushstrokes and vibrant colors')"
-                  className="w-full h-32 px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  className="w-full h-24 sm:h-28 md:h-32 px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
                 />
-                <div className="flex justify-between items-center">
-                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                <div className="flex flex-col xs:flex-row justify-between items-start xs:items-center gap-1 xs:gap-2">
+                  <div className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
                     {params.prompt.length}/1000 characters
                   </div>
-                  <div className="text-xs text-indigo-600 dark:text-indigo-400">
+                  <div className="text-[10px] sm:text-xs text-indigo-600 dark:text-indigo-400">
                     💡 Tip: Be specific about the artistic style you want
                   </div>
                 </div>
@@ -2165,18 +2165,18 @@ export default function StyleTransferPage() {
             </div>
 
             {/* Basic Settings */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
-                <Sliders className="w-5 h-5 mr-2 text-indigo-600" />
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 border border-white/20 shadow-lg">
+              <h3 className="text-sm sm:text-base md:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4 flex items-center">
+                <Sliders className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 text-indigo-600" />
                 Style Transfer Settings
               </h3>
 
               {/* Style Weight */}
-              <div className="space-y-4 mb-6 p-4 bg-slate-50 dark:bg-slate-700/30 rounded-xl">
-                <label className="text-sm font-semibold text-slate-800 dark:text-white flex items-center">
-                  <Sliders className="w-4 h-4 mr-2 text-indigo-600" />
+              <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6 p-3 sm:p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg sm:rounded-xl">
+                <label className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white flex items-center">
+                  <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 text-indigo-600" />
                   Style Weight:{" "}
-                  <span className="ml-2 text-indigo-600 font-bold">
+                  <span className="ml-1.5 sm:ml-2 text-indigo-600 font-bold">
                     {params.weight}
                   </span>
                 </label>
@@ -2634,7 +2634,7 @@ export default function StyleTransferPage() {
             </div>
 
             {/* Generate Button */}
-            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
+            <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 border border-white/20 shadow-lg">
               <button
                 onClick={handleGenerate}
                 disabled={
@@ -2644,28 +2644,28 @@ export default function StyleTransferPage() {
                   uploadingImage ||
                   !targetFolder
                 }
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-lg sm:rounded-xl transition-all duration-200 flex items-center justify-center space-x-1.5 sm:space-x-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-95 text-sm sm:text-base"
               >
                 {isGenerating ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                     <span>Applying Style Transfer...</span>
                   </>
                 ) : uploadingImage ? (
                   <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                     <span>Uploading Image...</span>
                   </>
                 ) : (
                   <>
-                    <Wand2 className="w-5 h-5" />
+                    <Wand2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span>Apply Style Transfer</span>
                   </>
                 )}
               </button>
               
               {!targetFolder && !isGenerating && (
-                <p className="mt-3 text-sm text-amber-600 dark:text-amber-400 text-center">
+                <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-center">
                   ⚠️ Please select a folder before applying style transfer
                 </p>
               )}
@@ -2673,16 +2673,16 @@ export default function StyleTransferPage() {
           </div>
 
           {/* Right Panel - Results */}
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Image Statistics */}
             {imageStats && (
-              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-                <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
-                  <ImageIcon className="w-5 h-5 mr-2 text-green-600" />
+              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 border border-white/20 shadow-lg">
+                <h3 className="text-sm sm:text-base md:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4 flex items-center">
+                  <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 text-green-600" />
                   Your Image Library
                 </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm">
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2 sm:p-3">
                     <div className="text-slate-600 dark:text-slate-400 text-xs mb-1">
                       Total Images
                     </div>
@@ -2706,53 +2706,53 @@ export default function StyleTransferPage() {
 
             {/* Current Generation */}
             {currentJob && (
-              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center">
-                    <Wand2 className="w-5 h-5 mr-2 text-purple-600" />
+              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 border border-white/20 shadow-lg">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h3 className="text-sm sm:text-base md:text-lg font-semibold text-slate-800 dark:text-white flex items-center">
+                    <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 text-purple-600" />
                     Generation Status
                   </h3>
                   {currentJob.status === "completed" && (
                     <button
                       onClick={() => fetchJobImages(currentJob.id)}
-                      className="p-2 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors"
+                      className="p-1.5 sm:p-2 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors active:scale-95"
                       title="Refresh generated images"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                   {/* Reset button for stuck jobs */}
                   {(currentJob.status === "processing" || currentJob.status === "pending") && !isGenerating && (
                     <button
                       onClick={resetStuckJob}
-                      className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      className="p-1.5 sm:p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors active:scale-95"
                       title="Reset stuck job state"
                     >
-                      <XCircle className="w-4 h-4" />
+                      <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="flex items-center justify-between p-2 sm:p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                    <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
                       Status
                     </span>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1.5 sm:space-x-2">
                       {(currentJob.status === "pending" ||
                         currentJob.status === "processing") && (
-                        <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                        <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-indigo-600" />
                       )}
                       {currentJob.status === "completed" && (
-                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600" />
                       )}
                       {currentJob.status === "failed" && !isJobCancelled(currentJob) && (
-                        <AlertCircle className="w-4 h-4 text-red-600" />
+                        <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600" />
                       )}
                       {currentJob.status === "failed" && isJobCancelled(currentJob) && (
-                        <XCircle className="w-4 h-4 text-orange-600" />
+                        <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-600" />
                       )}
-                      <span className="text-sm font-semibold capitalize text-slate-900 dark:text-white">
+                      <span className="text-xs sm:text-sm font-semibold capitalize text-slate-900 dark:text-white">
                         {currentJob.status === "failed" && isJobCancelled(currentJob)
                           ? "cancelled"
                           : currentJob.status}
@@ -2762,20 +2762,20 @@ export default function StyleTransferPage() {
 
                   {(currentJob.progress !== undefined || progressData.progress > 0) && 
                    !isJobCancelled(currentJob) && (
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                       {/* Enhanced Progress Display */}
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
                           Progress
                         </span>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-bold text-slate-900 dark:text-white">
+                        <div className="flex items-center space-x-1.5 sm:space-x-2">
+                          <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
                             {Math.round(progressData.progress || currentJob.progress || 0)}%
                           </span>
                           {progressData.estimatedTimeRemaining && 
                            Number(progressData.estimatedTimeRemaining) > 0 && 
                            Math.round(Number(progressData.estimatedTimeRemaining)) > 0 && (
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                            <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
                               ({Math.round(Number(progressData.estimatedTimeRemaining))}s left)
                             </span>
                           )}

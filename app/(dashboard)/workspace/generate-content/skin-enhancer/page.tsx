@@ -2014,21 +2014,21 @@ export default function SkinEnhancerPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
         {/* Left Panel - Controls */}
         <div className="lg:col-span-2 space-y-6">
           {/* Folder Selection */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-2 mb-4">
-              <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h2>
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
+              <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+              <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h2>
             </div>
             <div className="relative">
               <select
                 value={targetFolder}
                 onChange={(e) => setTargetFolder(e.target.value)}
                 disabled={isLoadingFolders || isGenerating}
-                className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
               >
                 <option value="">Select a folder...</option>
                 {availableFolders.map((folder) => (
@@ -2039,20 +2039,20 @@ export default function SkinEnhancerPage() {
               </select>
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                 {isLoadingFolders ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-gray-400" />
                 ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                  <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                 )}
               </div>
             </div>
             {isLoadingFolders && (
-              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
+              <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
                 Loading folders...
               </p>
             )}
             {selectedFolderOption && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1 break-all">
                 <span>💡</span>
                 <span>Saving to: {selectedFolderOption.prefix}</span>
               </p>
@@ -2060,11 +2060,11 @@ export default function SkinEnhancerPage() {
           </div>
 
           {/* Prompt Input */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
               <div className="flex items-center gap-2">
-                <Wand2 className="w-5 h-5 text-pink-600 dark:text-pink-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Enhancement Prompt</h2>
+                <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 text-pink-600 dark:text-pink-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Enhancement Prompt</h2>
               </div>
               <button
                 onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
@@ -2079,36 +2079,37 @@ export default function SkinEnhancerPage() {
                 setParams((prev) => ({ ...prev, prompt: e.target.value }))
               }
               placeholder="Describe the enhancement you want..."
-              className="w-full h-36 px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 shadow-inner transition-all"
+              className="w-full h-24 sm:h-28 md:h-36 px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 shadow-inner transition-all"
             />
-            <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-              <span>💡 Tip: Highlight lighting, texture, and desired mood for best results.</span>
+            <div className="mt-2 flex flex-col xs:flex-row items-start xs:items-center justify-between gap-1 xs:gap-0 text-xs text-gray-500 dark:text-gray-400">
+              <span className="hidden xs:inline">💡 Tip: Highlight lighting, texture, and desired mood for best results.</span>
+              <span className="xs:hidden">💡 Tip: Describe lighting, texture & mood</span>
               <span>{params.prompt.length}/1000</span>
             </div>
           </div>
 
           {/* Settings */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center justify-between mb-6">
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
               <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Advanced Settings</h2>
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Advanced Settings</h2>
               </div>
-              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-600 dark:text-purple-300">
+              <span className="px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-purple-600 dark:text-purple-300">
                 Pro Controls
               </span>
             </div>
 
             {/* Multi-Influencer LoRA Model Selection */}
-            <div className="space-y-4 mb-8">
+            <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                <span className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
                   Influencer Models (Optional)
                 </span>
                 <button
                   onClick={addLoRA}
                   disabled={loadingLoRAs || isGenerating}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white text-xs font-semibold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white text-xs font-semibold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Add LoRA</span>
@@ -2223,31 +2224,31 @@ export default function SkinEnhancerPage() {
             </div>
 
             {/* Aspect Ratio */}
-            <div className="space-y-4">
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <div className="space-y-3 sm:space-y-4">
+              <span className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
                 Output Size
               </span>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                 {ASPECT_RATIOS.map((ratio) => {
                   const isActive = params.width === ratio.width && params.height === ratio.height;
                   return (
                     <button
                       key={ratio.name}
                       onClick={() => handleAspectRatioChange(ratio.width, ratio.height)}
-                      className={`p-4 rounded-xl border-2 text-sm font-semibold transition-all duration-300 bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm text-left hover:scale-[1.01] ${
+                      className={`p-2.5 sm:p-3 md:p-4 rounded-xl border-2 text-xs sm:text-sm font-semibold transition-all duration-300 bg-white/70 dark:bg-gray-900/40 backdrop-blur-sm text-left hover:scale-[1.01] active:scale-95 ${
                         isActive
                           ? "border-purple-500 shadow-lg text-purple-700 dark:text-purple-200"
                           : "border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-purple-300 dark:hover:border-purple-500"
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-1 sm:mb-2">
                         <span>{ratio.name}</span>
-                        {isActive && <Sparkles className="w-4 h-4 text-purple-500" />}
+                        {isActive && <Sparkles className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500" />}
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                      <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
                         {ratio.width}×{ratio.height} • {ratio.ratio}
                       </div>
-                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      <div className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 mt-0.5 sm:mt-1">
                         {ratio.description}
                       </div>
                     </button>
@@ -2257,13 +2258,13 @@ export default function SkinEnhancerPage() {
             </div>
 
             {/* Batch Size Slider */}
-            <div className="space-y-4 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="space-y-3 sm:space-y-4 mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-purple-600" />
+                <span className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600" />
                   Batch Size
                 </span>
-                <div className="px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-xs font-semibold text-purple-700 dark:text-purple-200">
+                <div className="px-2 sm:px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-200">
                   {params.batchSize} {params.batchSize > 1 ? "images" : "image"}
                 </div>
               </div>
@@ -2312,48 +2313,48 @@ export default function SkinEnhancerPage() {
           <button
             onClick={handleEnhance}
             disabled={isGenerating || !params.prompt.trim() || !targetFolder}
-            className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
+            className="group w-full py-3 sm:py-4 md:py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-sm sm:text-base md:text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
             {isGenerating ? (
               <>
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                 <span>Enhancing Beauty...</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform duration-300" />
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform duration-300" />
                 <span>Enhance Skin ✨</span>
               </>
             )}
           </button>
 
           {!targetFolder && !isGenerating && (
-            <p className="text-center text-sm text-gray-500 dark:text-gray-400 -mt-2">
+            <p className="text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400 -mt-2">
               Please select a folder before enhancing.
             </p>
           )}
         </div>
 
         {/* Right Panel - Results */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Image Statistics */}
           {imageStats && (
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
+                <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
                 Your Image Library
               </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm text-gray-700 dark:text-gray-300">
-                <div className="p-3 rounded-xl bg-purple-50/70 dark:bg-purple-900/20 border border-purple-200/70 dark:border-purple-800/60">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Images</p>
-                  <p className="text-lg font-semibold text-purple-600 dark:text-purple-300">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
+                <div className="p-2 sm:p-3 rounded-xl bg-purple-50/70 dark:bg-purple-900/20 border border-purple-200/70 dark:border-purple-800/60">
+                  <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Images</p>
+                  <p className="text-base sm:text-lg font-semibold text-purple-600 dark:text-purple-300">
                     {imageStats.totalImages}
                   </p>
                 </div>
-                <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200/70 dark:border-blue-800/60">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Size</p>
-                  <p className="text-lg font-semibold text-blue-600 dark:text-blue-300">
+                <div className="p-2 sm:p-3 rounded-xl bg-blue-50/70 dark:bg-blue-900/20 border border-blue-200/70 dark:border-blue-800/60">
+                  <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total Size</p>
+                  <p className="text-base sm:text-lg font-semibold text-blue-600 dark:text-blue-300">
                     {Math.round((imageStats.totalSize / 1024 / 1024) * 100) /
                       100}{" "}
                     MB
@@ -2365,11 +2366,11 @@ export default function SkinEnhancerPage() {
 
           {/* Current Enhancement */}
           {currentJob && (
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-6">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                  <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                     Current Enhancement
                   </h3>
                 </div>
@@ -2377,10 +2378,10 @@ export default function SkinEnhancerPage() {
                   {(currentJob.status === "processing" || currentJob.status === "pending") && (
                     <button
                       onClick={() => checkJobStatus(currentJob.id)}
-                      className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:bg-gradient-to-br hover:from-purple-500/90 hover:to-blue-500/90 hover:text-white transition-all duration-200"
+                      className="p-1.5 sm:p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:bg-gradient-to-br hover:from-purple-500/90 hover:to-blue-500/90 hover:text-white transition-all duration-200 active:scale-95"
                       title="Check job status"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                   {currentJob.status === "completed" && (
@@ -2390,30 +2391,30 @@ export default function SkinEnhancerPage() {
                         console.log("🔄 Current job state:", currentJob);
                         fetchJobImages(currentJob.id);
                       }}
-                      className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:bg-gradient-to-br hover:from-purple-500/90 hover:to-blue-500/90 hover:text-white transition-all duration-200"
+                      className="p-1.5 sm:p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:bg-gradient-to-br hover:from-purple-500/90 hover:to-blue-500/90 hover:text-white transition-all duration-200 active:scale-95"
                       title="Refresh enhanced images"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                   {currentJob.status === "failed" && (
                     <button
                       onClick={() => checkJobStatus(currentJob.id)}
-                      className="p-2 rounded-xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-300 transition-colors"
+                      className="p-1.5 sm:p-2 rounded-xl border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-300 transition-colors active:scale-95"
                       title="Recheck job status"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+              <div className="space-y-4 sm:space-y-5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs sm:text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
                     Status
                   </span>
-                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-xs font-semibold text-purple-700 dark:text-purple-200">
+                  <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 text-[10px] sm:text-xs font-semibold text-purple-700 dark:text-purple-200">
                     {(currentJob.status === "pending" || currentJob.status === "processing") && (
                       <Loader2 className="w-3 h-3 animate-spin" />
                     )}
@@ -2424,23 +2425,23 @@ export default function SkinEnhancerPage() {
                       {currentJob.status === "failed" && isJobCancelled(currentJob)
                         ? "cancelled"
                         : currentJob.status}
-                      {currentJob.status === "processing" && " • may take 3-5 minutes"}
+                      {currentJob.status === "processing" && <span className="hidden sm:inline"> • may take 3-5 minutes</span>}
                     </span>
                   </div>
                 </div>
 
                 {currentJob.progress !== undefined && currentJob.status !== "failed" && !isJobCancelled(currentJob) && (
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                      <span className="text-xs sm:text-sm font-semibold text-gray-600 dark:text-gray-400">
                         Progress
                         {currentJob.imagesReady && currentJob.totalImages && (
-                          <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                          <span className="ml-2 text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
                             Image {currentJob.imagesReady} of {currentJob.totalImages}
                           </span>
                         )}
                       </span>
-                      <span className="text-sm font-bold text-purple-600 dark:text-purple-300">
+                      <span className="text-xs sm:text-sm font-bold text-purple-600 dark:text-purple-300">
                         {Number(currentJob.progress) && !isNaN(Number(currentJob.progress)) && Math.round(Number(currentJob.progress)) >= 0
                           ? Math.round(Number(currentJob.progress))
                           : 0}
@@ -2468,20 +2469,20 @@ export default function SkinEnhancerPage() {
                 )}
 
                 {currentJob.status === "completed" && (!currentJob.resultUrls || currentJob.resultUrls.length === 0) && (!jobImages[currentJob.id] || jobImages[currentJob.id].length === 0) && (
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <div className="space-y-3 sm:space-y-4">
+                    <h4 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
                       Enhanced Images
                     </h4>
-                    <div className="text-center py-8 rounded-2xl border border-dashed border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10">
-                      <div className="flex items-center justify-center gap-2 text-purple-600 dark:text-purple-300 mb-3">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Loading enhanced images...</span>
+                    <div className="text-center py-6 sm:py-8 rounded-2xl border border-dashed border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10">
+                      <div className="flex items-center justify-center gap-2 text-purple-600 dark:text-purple-300 mb-2 sm:mb-3">
+                        <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                        <span className="text-xs sm:text-sm">Loading enhanced images...</span>
                       </div>
                       <button
                         onClick={() => fetchJobImages(currentJob.id)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white text-sm font-semibold shadow-lg hover:shadow-2xl transition-all"
+                        className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white text-xs sm:text-sm font-semibold shadow-lg hover:shadow-2xl transition-all active:scale-95"
                       >
-                        <RefreshCw className="w-4 h-4" />
+                        <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         Refresh Images
                       </button>
                     </div>
@@ -2641,10 +2642,10 @@ export default function SkinEnhancerPage() {
                 {isGenerating && currentJob && (
                   <button
                     onClick={cancelGeneration}
-                    className="group w-full py-4 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 dark:from-gray-600 dark:via-gray-700 dark:to-gray-800 text-white font-semibold rounded-2xl hover:from-purple-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 relative overflow-hidden"
+                    className="group w-full py-3 sm:py-4 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 dark:from-gray-600 dark:via-gray-700 dark:to-gray-800 text-white font-semibold text-sm sm:text-base rounded-2xl hover:from-purple-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 shadow-xl hover:shadow-2xl flex items-center justify-center gap-2 relative overflow-hidden active:scale-95"
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                    <XCircle className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+                    <XCircle className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-12 transition-transform duration-300" />
                     <span>Cancel Enhancement</span>
                   </button>
                 )}
@@ -2654,19 +2655,19 @@ export default function SkinEnhancerPage() {
 
           {/* Recent Enhancements - Persistent History */}
           {jobHistory.length > 0 && (
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-5">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-3 sm:mb-4 md:mb-5">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
+                  <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                     Recent Enhancements
                   </h3>
                 </div>
-                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                <span className="text-[10px] sm:text-xs font-semibold text-gray-500 dark:text-gray-400">
                   {jobHistory.length}/5 jobs
                 </span>
               </div>
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              <div className="space-y-2 sm:space-y-3 max-h-96 overflow-y-auto pr-1">
                 {jobHistory
                   .filter((job) => job && job.id)
                   .slice(0, 5)
@@ -2687,33 +2688,33 @@ export default function SkinEnhancerPage() {
                     return (
                       <div
                         key={job.id || `job-${index}`}
-                        className="flex items-center justify-between p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-lg transition-all"
+                        className="flex items-center justify-between p-2.5 sm:p-3 md:p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/40 hover:border-purple-300 dark:hover:border-purple-600 hover:shadow-lg transition-all"
                       >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                           <div
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-full ${statusBadge}`}
+                            className={`px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold rounded-full ${statusBadge}`}
                           >
                             {job.status === "failed" && isJobCancelled(job)
                               ? "cancelled"
                               : job.status || "unknown"}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
                               {formatJobTime(job.createdAt)}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
                               Job ID: {job.id}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                           {job.status === "completed" && jobImages[job.id]?.length > 0 && (
                             <button
                               onClick={() => {
                                 const imageSection = document.getElementById(`job-images-${job.id}`);
                                 imageSection?.scrollIntoView({ behavior: "smooth" });
                               }}
-                              className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-lg transition-all"
+                              className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:shadow-lg transition-all active:scale-95"
                             >
                               View Results
                             </button>
@@ -2721,7 +2722,7 @@ export default function SkinEnhancerPage() {
                           {(job.status === "pending" || job.status === "processing") && job.id === currentJob?.id && (
                             <button
                               onClick={() => checkJobStatus(job.id)}
-                              className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg transition-all"
+                              className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg transition-all active:scale-95"
                             >
                               Refresh
                             </button>

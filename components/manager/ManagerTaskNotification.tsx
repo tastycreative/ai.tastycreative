@@ -107,7 +107,7 @@ function TaskModal({ isOpen, onClose, tasks, stats }: {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-2 xs:p-4"
       style={{
         position: 'fixed',
         top: 0,
@@ -120,7 +120,7 @@ function TaskModal({ isOpen, onClose, tasks, stats }: {
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-hidden"
+        className="bg-white dark:bg-gray-900 rounded-lg sm:rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         style={{
           position: 'relative',
@@ -128,102 +128,101 @@ function TaskModal({ isOpen, onClose, tasks, stats }: {
         }}
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-3 xs:p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Bell className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="flex items-center space-x-2 xs:space-x-3">
+              <div className="p-1.5 xs:p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                <Bell className="w-4 h-4 xs:w-5 xs:h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Your Assigned Tasks</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Production tasks assigned to you</p>
+                <h2 className="text-base xs:text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Your Assigned Tasks</h2>
+                <p className="text-[10px] xs:text-xs sm:text-sm text-gray-600 dark:text-gray-400">Production tasks assigned to you</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <XCircle className="w-5 h-5 text-gray-500" />
+              className="p-1.5 xs:p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors active:scale-95">
+              <XCircle className="w-4 h-4 xs:w-5 xs:h-5 text-gray-500" />
             </button>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <div className="p-3 xs:p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-6 gap-2 xs:gap-3 sm:gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Total</div>
+              <div className="text-lg xs:text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
+              <div className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400">Total</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Pending</div>
+              <div className="text-lg xs:text-xl sm:text-2xl font-bold text-yellow-600">{stats.pending}</div>
+              <div className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400">Pending</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{stats.inProgress}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">In Progress</div>
+              <div className="text-lg xs:text-xl sm:text-2xl font-bold text-blue-600">{stats.inProgress}</div>
+              <div className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400"><span className="hidden xs:inline">In </span>Progress</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Completed</div>
+              <div className="text-lg xs:text-xl sm:text-2xl font-bold text-green-600">{stats.completed}</div>
+              <div className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400">Completed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Failed</div>
+              <div className="text-lg xs:text-xl sm:text-2xl font-bold text-red-600">{stats.failed}</div>
+              <div className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400">Failed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{stats.overdue}</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Overdue</div>
+              <div className="text-lg xs:text-xl sm:text-2xl font-bold text-orange-600">{stats.overdue}</div>
+              <div className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400">Overdue</div>
             </div>
           </div>
         </div>
 
         {/* Tasks List */}
-        <div className="overflow-y-auto max-h-96">
+        <div className="overflow-y-auto max-h-[50vh] xs:max-h-[60vh] sm:max-h-96">
           {tasks.length === 0 ? (
-            <div className="p-8 text-center">
-              <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No tasks assigned</h3>
-              <p className="text-gray-600 dark:text-gray-400">You don't have any production tasks assigned to you right now.</p>
+            <div className="p-4 xs:p-6 sm:p-8 text-center">
+              <CheckCircle className="w-8 h-8 xs:w-10 xs:h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 xs:mb-4" />
+              <h3 className="text-base xs:text-lg font-medium text-gray-900 dark:text-white mb-2">No tasks assigned</h3>
+              <p className="text-xs xs:text-sm sm:text-base text-gray-600 dark:text-gray-400">You don't have any production tasks assigned to you right now.</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
               {tasks.map((task) => (
-                <div key={task.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                <div key={task.id} className="p-3 xs:p-4 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{task.influencer}</h3>
+                      <div className="flex flex-wrap items-center gap-2 xs:gap-3 mb-2">
+                        <h3 className="text-sm xs:text-base sm:text-lg font-semibold text-gray-900 dark:text-white">{task.influencer}</h3>
                         {getStatusBadge(task.status)}
                         {isOverdue(task.deadline, task.status) && (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                            <AlertCircle className="w-3 h-3 mr-1" />
+                          <span className="inline-flex items-center px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                            <AlertCircle className="w-3 h-3 mr-0.5 xs:mr-1" />
                             Overdue
                           </span>
                         )}
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                          <Calendar className="w-4 h-4" />
+                      <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 xs:gap-3 sm:gap-4 mb-2 xs:mb-3">
+                        <div className="flex items-center space-x-1.5 xs:space-x-2 text-xs xs:text-sm text-gray-600 dark:text-gray-400">
+                          <Calendar className="w-3.5 h-3.5 xs:w-4 xs:h-4 flex-shrink-0" />
                           <span>Deadline: {new Date(task.deadline).toLocaleDateString()}</span>
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                          <User className="w-4 h-4" />
-                          <span>LoRA: {task.loraModel}</span>
+                        <div className="flex items-center space-x-1.5 xs:space-x-2 text-xs xs:text-sm text-gray-600 dark:text-gray-400">
+                          <User className="w-3.5 h-3.5 xs:w-4 xs:h-4 flex-shrink-0" />
+                          <span className="truncate">LoRA: {task.loraModel}</span>
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                          <ImageIcon className="w-4 h-4" />
+                        <div className="flex items-center space-x-1.5 xs:space-x-2 text-xs xs:text-sm text-gray-600 dark:text-gray-400">
+                          <ImageIcon className="w-3.5 h-3.5 xs:w-4 xs:h-4 flex-shrink-0" />
                           <span>Images: {task.imagesGenerated}/{task.imagesTarget}</span>
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                          <Video className="w-4 h-4" />
+                        <div className="flex items-center space-x-1.5 xs:space-x-2 text-xs xs:text-sm text-gray-600 dark:text-gray-400">
+                          <Video className="w-3.5 h-3.5 xs:w-4 xs:h-4 flex-shrink-0" />
                           <span>Videos: {task.videosGenerated}/{task.videosTarget}</span>
                         </div>
                       </div>
 
                       {task.notes && (
-                        <div className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                        <div className="text-xs xs:text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-2 xs:p-3">
                           {task.notes}
                         </div>
                       )}
@@ -300,20 +299,20 @@ export default function ManagerTaskNotification() {
       {/* Notification Bell with Badge */}
       <button
         onClick={() => setShowModal(true)}
-        className="relative p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+        className="relative p-1.5 xs:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors active:scale-95"
       >
-        <Bell className="w-6 h-6" />
+        <Bell className="w-5 h-5 xs:w-6 xs:h-6" />
         
         {/* Badge showing number of urgent tasks */}
         {urgentTasks.length > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+          <span className="absolute -top-0.5 xs:-top-1 -right-0.5 xs:-right-1 bg-red-500 text-white text-[10px] xs:text-xs font-bold rounded-full h-4 w-4 xs:h-5 xs:w-5 flex items-center justify-center">
             {urgentTasks.length > 99 ? '99+' : urgentTasks.length}
           </span>
         )}
         
         {/* Pulse animation for urgent tasks */}
         {stats.overdue > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 rounded-full h-5 w-5 animate-ping"></span>
+          <span className="absolute -top-0.5 xs:-top-1 -right-0.5 xs:-right-1 bg-red-500 rounded-full h-4 w-4 xs:h-5 xs:w-5 animate-ping"></span>
         )}
       </button>
 

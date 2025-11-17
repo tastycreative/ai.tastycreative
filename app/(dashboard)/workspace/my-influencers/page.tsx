@@ -1077,29 +1077,29 @@ export default function MyInfluencersPage() {
   return (
     <div className="space-y-6">
       {/* Enhanced Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg border border-purple-200 dark:border-pink-800 p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-              <Users className="w-8 h-8 text-white" />
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg border border-purple-200 dark:border-pink-800 p-4 sm:p-6 text-white">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center space-x-3 sm:space-x-4">
+            <div className="p-2 sm:p-3 bg-white/20 rounded-xl backdrop-blur-sm flex-shrink-0">
+              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">My Influencers</h1>
-              <p className="text-purple-100">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">My Influencers</h1>
+              <p className="text-purple-100 text-xs sm:text-sm hidden sm:block">
                 Manage your personal LoRA models for AI-generated content
               </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 w-full sm:w-auto">
             <button
               onClick={() => {
                 setShowUploadModal(true);
                 checkComfyUIStatus();
               }}
-              className="flex items-center space-x-2 px-6 py-3 bg-white text-purple-600 hover:bg-gray-50 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+              className="flex items-center justify-center space-x-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-white text-purple-600 hover:bg-gray-50 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 w-full sm:w-auto text-sm sm:text-base"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
               <span>Add Influencer</span>
             </button>
           </div>
@@ -1118,16 +1118,16 @@ export default function MyInfluencersPage() {
 
       {/* Filter Buttons - Only show when there are LoRAs */}
       {influencers.length > 0 && (
-        <div className="flex items-center gap-3 pb-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 pb-2">
           <button
             onClick={() => setActiveView('my-loras')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+            className={`flex items-center justify-center sm:justify-start gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-200 text-sm sm:text-base ${
               activeView === 'my-loras'
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg scale-105'
+                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg sm:scale-105'
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            <Users className="w-5 h-5" />
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>My LoRAs</span>
             <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
               activeView === 'my-loras'
@@ -1140,13 +1140,13 @@ export default function MyInfluencersPage() {
 
           <button
             onClick={() => setActiveView('shared')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+            className={`flex items-center justify-center sm:justify-start gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-200 text-sm sm:text-base ${
               activeView === 'shared'
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg sm:scale-105'
                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            <Share2 className="w-5 h-5" />
+            <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Shared With Me</span>
             <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
               activeView === 'shared'
@@ -1230,7 +1230,7 @@ export default function MyInfluencersPage() {
           {/* My Own LoRAs */}
           {activeView === 'my-loras' && ownedInfluencers.length > 0 && (
             <div id="my-loras-section" className="space-y-4 scroll-mt-24">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                 {ownedInfluencers.map((influencer) => {
             const isThumbnailUploading =
               thumbnailUploadingId === influencer.id;
@@ -1251,9 +1251,9 @@ export default function MyInfluencersPage() {
             return (
               <div
                 key={influencer.id}
-                className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/20 shadow-md rounded-xl border border-blue-200/30 dark:border-blue-700/20 p-3 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
+                className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/20 shadow-md rounded-xl border border-blue-200/30 dark:border-blue-700/20 p-3 sm:p-4 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
               >
-                <div className="space-y-2.5">
+                <div className="space-y-2 sm:space-y-2.5">
                   <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-blue-100/40 dark:from-gray-700/40 dark:to-blue-900/30 flex items-center justify-center">
                     {influencer.thumbnailUrl ? (
                       <img
@@ -1280,7 +1280,7 @@ export default function MyInfluencersPage() {
 
                   <div className="text-center space-y-1.5">
                     <div className="space-y-0.5">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white line-clamp-1">
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white line-clamp-1">
                         {influencer.displayName}
                       </h3>
                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -1288,7 +1288,7 @@ export default function MyInfluencersPage() {
                       </p>
                     </div>
 
-                    <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[28px]">
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[24px] sm:min-h-[28px]">
                       {influencer.description || "No description provided"}
                     </p>
 
@@ -1319,14 +1319,14 @@ export default function MyInfluencersPage() {
                     {/* Action Buttons - Organized in sections */}
                     <div className="space-y-2 pt-1">
                       {/* Primary Actions */}
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-1.5 sm:gap-2">
                         <button
                           type="button"
                           onClick={() => showInfluencerDetails(influencer)}
-                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                          className="flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors active:scale-95"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View</span>
+                          <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden xs:inline">View</span>
                         </button>
                         
                         <button
@@ -1336,44 +1336,44 @@ export default function MyInfluencersPage() {
                             setThumbnailOptionsModalOpen(true);
                           }}
                           disabled={isThumbnailUploading}
-                          className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-sm transition-all ${
+                          className={`flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-sm transition-all active:scale-95 ${
                             isThumbnailUploading ? "opacity-70 cursor-not-allowed" : ""
                           }`}
                         >
                           {isThumbnailUploading ? (
                             <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Uploading...</span>
+                              <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                              <span className="hidden xs:inline">Uploading...</span>
                             </>
                           ) : (
                             <>
-                              <ImagePlus className="w-3.5 h-3.5" />
-                              <span>Image</span>
+                              <ImagePlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <span className="hidden xs:inline">Image</span>
                             </>
                           )}
                         </button>
                       </div>
 
                       {/* Secondary Actions */}
-                      <div className="flex items-center justify-between px-2">
+                      <div className="flex items-center justify-between px-1 sm:px-2">
                         <button
                           type="button"
                           onClick={() => {
                             alert("Download functionality coming soon!");
                           }}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors p-1.5 rounded active:scale-95"
                         >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Download</span>
+                          <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden xs:inline">Download</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setDeleteCandidate(influencer)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors p-1.5 rounded active:scale-95"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Delete</span>
+                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden xs:inline">Delete</span>
                         </button>
                       </div>
 
@@ -1422,7 +1422,7 @@ export default function MyInfluencersPage() {
             <div id="shared-loras-section" className="space-y-4 mt-8 scroll-mt-24">
               {sharedInfluencers.length > 0 ? (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                     {sharedInfluencers.map((influencer) => {
                   const statusClass =
                     influencer.syncStatus === "synced"
@@ -1540,8 +1540,8 @@ export default function MyInfluencersPage() {
 
       {/* Influencer Details Modal */}
       {showDetailsModal && selectedInfluencer && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -1693,8 +1693,8 @@ export default function MyInfluencersPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteCandidate && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md border-t sm:border border-gray-200 dark:border-gray-700">
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -1767,8 +1767,8 @@ export default function MyInfluencersPage() {
 
       {/* Manual Instructions Modal */}
       {showInstructions && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
@@ -1851,8 +1851,8 @@ export default function MyInfluencersPage() {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -2103,14 +2103,14 @@ export default function MyInfluencersPage() {
       {/* Thumbnail Options Modal */}
       {thumbnailOptionsInfluencer && (
         <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
           onClick={() => {
             setThumbnailOptionsModalOpen(false);
             setThumbnailOptionsInfluencer(null);
           }}
         >
           <div 
-            className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700 overflow-hidden"
+            className="bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-md border-t sm:border border-gray-200 dark:border-gray-700 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

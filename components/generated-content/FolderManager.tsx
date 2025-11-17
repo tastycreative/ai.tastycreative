@@ -187,7 +187,7 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
 
       {/* Create Folder Dialog Modal */}
       {isOpen && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center isolate">
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center isolate">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/50 backdrop-blur-sm z-[9998]"
@@ -195,25 +195,25 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
           />
           
           {/* Modal */}
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4 z-[9999]">
+          <div className="relative bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md mx-0 sm:mx-4 p-4 sm:p-6 space-y-3 sm:space-y-4 z-[9999] max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="space-y-2">
+            <div className="space-y-1.5 sm:space-y-2">
               <div className="flex items-center gap-2">
-                <FolderOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                <FolderOpen className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
                   Create New Folder
                 </h2>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                 Create a new folder in your S3 storage to organize your generated content.
               </p>
             </div>
 
             {/* Form */}
-            <div className="space-y-4 py-4">
+            <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
               {/* Folder Name Input */}
-              <div className="space-y-2">
-                <label htmlFor="folderName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="space-y-1.5 sm:space-y-2">
+                <label htmlFor="folderName" className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                   Folder Name
                 </label>
                 <input
@@ -229,15 +229,15 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
                     }
                   }}
                   autoFocus
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Letters, numbers, spaces, hyphens, and underscores are allowed.
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <label htmlFor="parentFolder" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="space-y-1.5 sm:space-y-2">
+                <label htmlFor="parentFolder" className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                   Parent Folder
                 </label>
                 <select
@@ -245,7 +245,7 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
                   value={selectedParent}
                   onChange={(e) => setSelectedParent(e.target.value)}
                   disabled={isCreating || success || parentOptions.length <= 1}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                 >
                   {parentOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -278,12 +278,12 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
               <button
                 type="button"
                 onClick={() => handleOpenChange(false)}
                 disabled={isCreating}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors active:scale-95"
               >
                 Cancel
               </button>
@@ -291,7 +291,7 @@ export function FolderManager({ onFolderCreated, triggerButton, existingFolders 
                 type="button"
                 onClick={handleCreateFolder}
                 disabled={isCreating || success || !folderName.trim()}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors active:scale-95"
               >
                 {isCreating ? (
                   <>

@@ -49,18 +49,18 @@ function SocialMediaContent() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-3">
+    <div className="space-y-3 sm:space-y-4">
+      <div className="space-y-2 sm:space-y-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Social Media</h1>
-          <p className="text-gray-600 dark:text-gray-300">Manage your social media content and posting schedule</p>
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Social Media</h1>
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Manage your social media content and posting schedule</p>
         </div>
       </div>
 
       {/* Tab Navigation */}
       <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/30 dark:to-gray-800/20 border border-gray-200/50 dark:border-gray-700/30 rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
         <div className="border-b border-gray-200/50 dark:border-gray-700/30">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          <nav className="flex gap-4 sm:gap-6 md:gap-8 px-4 sm:px-6 overflow-x-auto scrollbar-hide" aria-label="Tabs">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               const Icon = tab.icon;
@@ -72,17 +72,18 @@ function SocialMediaContent() {
                     isActive
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                  } whitespace-nowrap border-b-2 py-4 px-1 font-medium text-sm transition-colors flex items-center gap-2`}
+                  } whitespace-nowrap border-b-2 py-3 sm:py-4 px-1 font-medium text-xs sm:text-sm transition-colors flex items-center gap-1.5 sm:gap-2 active:scale-95`}
                 >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">{tab.label}</span>
+                  <span className="xs:hidden">{tab.label.split(' ')[0]}</span>
                 </button>
               );
             })}
           </nav>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {renderTabContent()}
         </div>
       </div>

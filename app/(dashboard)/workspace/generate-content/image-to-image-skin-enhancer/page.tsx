@@ -1265,59 +1265,59 @@ export default function ImageToImageSkinEnhancerPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-10 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
-              <Wand2 className="w-8 h-8 text-white" />
+        <div className="mb-6 sm:mb-8 md:mb-10 text-center">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
+              <Wand2 className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
               Image-to-Image Skin Enhancer
             </h1>
           </div>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base md:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-4">
             Bring professional-grade retouching to any portrait. Upload once, let Flux-inspired magic refine every pore, tone, and highlight.
           </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-2 sm:gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-red-900 dark:text-red-100 text-lg">We hit a snag</h3>
-              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+              <h3 className="font-bold text-red-900 dark:text-red-100 text-base sm:text-lg">We hit a snag</h3>
+              <p className="text-xs sm:text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
             </div>
             <button
               onClick={() => setError(null)}
-              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
+              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg active:scale-95"
               aria-label="Dismiss error"
             >
-              <XCircle className="w-5 h-5" />
+              <XCircle className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Upload Image</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                  <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Upload Image</h2>
                 </div>
                 {selectedImage && (
                   <button
                     type="button"
                     onClick={removeImage}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/70 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-600 dark:text-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+                    className="inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full bg-white/70 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors active:scale-95"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     Remove
                   </button>
                 )}
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-3 sm:mb-4">
                 Upload a high-quality portrait (PNG or JPG, up to 10MB). We will preserve details while smoothing skin naturally.
               </p>
 
@@ -1385,12 +1385,12 @@ export default function ImageToImageSkinEnhancerPage() {
               )}
             </div>
 
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-4">
-                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h2>
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+                <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h2>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-3 sm:mb-4">
                 Pick where your enhanced image should live. We only show folders you can edit.
               </p>
               <div className="relative">
@@ -1398,7 +1398,7 @@ export default function ImageToImageSkinEnhancerPage() {
                   value={targetFolder}
                   onChange={(e) => setTargetFolder(e.target.value)}
                   disabled={isLoadingFolders}
-                  className="w-full px-4 py-3 bg-white/90 dark:bg-gray-900/40 border-2 border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-white/90 dark:bg-gray-900/40 border-2 border-gray-300 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner text-sm sm:text-base"
                 >
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
@@ -1423,17 +1423,17 @@ export default function ImageToImageSkinEnhancerPage() {
               )}
             </div>
 
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-4">
-                <Settings className="w-5 h-5 text-pink-600 dark:text-pink-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">AI Enhancement Settings</h2>
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-pink-600 dark:text-pink-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">AI Enhancement Settings</h2>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-3 sm:mb-4">
                 Tuned for lifelike skin: balanced retouching, pore retention, cinematic lighting, and zero plastic sheen.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
-                  <span className="block text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">Model</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4 text-xs sm:text-sm">
+                <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-3 sm:px-4 py-2 sm:py-3 shadow-sm">
+                  <span className="block text-[10px] sm:text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500">Model</span>
                   <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.selectedModel.replace('.safetensors', '')}</p>
                 </div>
                 <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 px-4 py-3 shadow-sm">
@@ -1465,16 +1465,16 @@ export default function ImageToImageSkinEnhancerPage() {
                   <p className="mt-1 font-semibold text-gray-800 dark:text-gray-200">{FIXED_VALUES.seed}</p>
                 </div>
               </div>
-              <div className="mt-6 rounded-2xl bg-gradient-to-r from-purple-50 via-white to-blue-50 dark:from-purple-900/20 dark:via-gray-900/20 dark:to-blue-900/20 border border-purple-100 dark:border-purple-800 px-5 py-4 text-sm text-gray-600 dark:text-gray-300 shadow-inner">
+              <div className="mt-4 sm:mt-6 rounded-2xl bg-gradient-to-r from-purple-50 via-white to-blue-50 dark:from-purple-900/20 dark:via-gray-900/20 dark:to-blue-900/20 border border-purple-100 dark:border-purple-800 px-3 sm:px-4 md:px-5 py-3 sm:py-4 text-xs sm:text-sm text-gray-600 dark:text-gray-300 shadow-inner">
                 ✨ All parameters are pre-configured for cinematic realism. Just upload, choose a destination, and tap enhance.
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <button
                 onClick={handleGenerate}
                 disabled={isProcessing || !selectedImage || !targetFolder}
-                className="group flex-1 py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-semibold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
+                className="group flex-1 py-3 sm:py-4 md:py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-semibold text-sm sm:text-base md:text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                 {isProcessing ? (
@@ -1495,25 +1495,25 @@ export default function ImageToImageSkinEnhancerPage() {
                 disabled={isProcessing}
                 className="px-5 py-4 rounded-2xl border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white/80 dark:bg-gray-900/40 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <RefreshCw className="w-4 h-4 inline-block mr-2" /> Reset
+                <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 inline-block mr-1.5 sm:mr-2" /> Reset
               </button>
             </div>
 
             {(!selectedImage || !targetFolder) && (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                 {!selectedImage && 'Please upload an image to begin.'}
                 {selectedImage && !targetFolder && 'Select a folder so we know where to save your results.'}
               </p>
             )}
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {currentJob && (
-              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
+                <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <div
-                      className={`p-3 rounded-2xl shadow-lg ${
+                      className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl shadow-lg ${
                         currentJob.status === 'COMPLETED'
                           ? 'bg-gradient-to-br from-green-400 to-green-600 text-white'
                           : currentJob.status === 'FAILED'
@@ -1522,16 +1522,16 @@ export default function ImageToImageSkinEnhancerPage() {
                       }`}
                     >
                       {currentJob.status === 'COMPLETED' ? (
-                        <CheckCircle className="w-6 h-6" />
+                        <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                       ) : currentJob.status === 'FAILED' ? (
-                        <XCircle className="w-6 h-6" />
+                        <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                       ) : (
-                        <Loader2 className="w-6 h-6 animate-spin" />
+                        <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                       )}
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">Enhancement Status</h2>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Enhancement Status</h2>
+                      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                         {currentJob.status === 'COMPLETED'
                           ? 'Your image finished processing successfully.'
                           : currentJob.status === 'FAILED'
@@ -1541,7 +1541,7 @@ export default function ImageToImageSkinEnhancerPage() {
                     </div>
                   </div>
                   <span
-                    className={`inline-flex items-center justify-center px-3 py-1 text-xs font-semibold uppercase tracking-wide rounded-full ${
+                    className={`inline-flex items-center justify-center px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold uppercase tracking-wide rounded-full ${
                       currentJob.status === 'COMPLETED'
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-200'
                         : currentJob.status === 'FAILED'
@@ -1581,7 +1581,7 @@ export default function ImageToImageSkinEnhancerPage() {
                   </div>
                 </div>
 
-                <div className="mt-8 space-y-6">
+                <div className="mt-6 sm:mt-8 space-y-4 sm:space-y-6">
                   {PROGRESS_STAGES.map((stage, index) => {
                     const isActive = index === activeStageIndex;
                     const isComplete = index < activeStageIndex || currentJob.status === 'COMPLETED';
@@ -1643,9 +1643,9 @@ export default function ImageToImageSkinEnhancerPage() {
             )}
 
             {currentJob && currentJob.status === 'COMPLETED' && (
-              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <div className="p-2.5 bg-gradient-to-br from-green-400 to-blue-500 rounded-xl shadow-lg">
                       <Sparkles className="w-5 h-5 text-white" />
                     </div>

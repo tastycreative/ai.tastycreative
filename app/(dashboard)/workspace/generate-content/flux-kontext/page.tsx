@@ -818,59 +818,59 @@ export default function FluxKontextPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
-              <Wand2 className="w-8 h-8 text-white" />
+        <div className="mb-6 sm:mb-8 md:mb-10 text-center">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
+              <Wand2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-white" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
               Flux Kontext Studio
             </h1>
           </div>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-2">
             Transform your images with AI-powered magic ✨ Create stunning scene modifications with advanced Flux Kontext technology
           </p>
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-xl sm:rounded-2xl flex items-start gap-2 sm:gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-red-900 dark:text-red-100 text-lg">Oops! Something went wrong</h3>
-              <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+              <h3 className="font-bold text-red-900 dark:text-red-100 text-sm sm:text-base md:text-lg">Oops! Something went wrong</h3>
+              <p className="text-xs sm:text-sm text-red-700 dark:text-red-300 mt-0.5 sm:mt-1">{error}</p>
             </div>
             <button
               onClick={() => setError(null)}
-              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
+              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg active:scale-95"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
           {/* Left Panel - Input */}
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Image Upload Section */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-4">
-                <ImageIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+                <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                   Upload Your Image
                 </h2>
               </div>
 
               {/* Single Image Upload */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">
                   Source Image to Transform ✨
                 </label>
                 {selectedImages[0] ? (
                   <div className="relative group">
-                    <div className="relative w-full h-80 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden border-2 border-purple-200 dark:border-purple-800 shadow-lg">
+                    <div className="relative w-full h-48 xs:h-56 sm:h-64 md:h-80 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden border-2 border-purple-200 dark:border-purple-800 shadow-lg">
                       <img
                         src={selectedImages[0].preview}
                         alt="Image preview"
@@ -879,11 +879,11 @@ export default function FluxKontextPage() {
                     </div>
                     <button
                       onClick={removeImage}
-                      className="absolute top-3 right-3 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg hover:scale-110 transform duration-200"
+                      className="absolute top-2 sm:top-3 right-2 sm:right-3 p-1.5 sm:p-2 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg hover:scale-110 transform duration-200 active:scale-95"
                     >
-                      <X className="w-5 h-5" />
+                      <X className="w-4 h-4 sm:w-5 sm:h-5" />
                     </button>
-                    <div className="absolute bottom-3 left-3 px-3 py-1 bg-black/60 backdrop-blur-sm text-white text-xs rounded-full">
+                    <div className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 px-2 xs:px-3 py-0.5 xs:py-1 bg-black/60 backdrop-blur-sm text-white text-[10px] xs:text-xs rounded-full">
                       {selectedImages[0].file.name}
                     </div>
                   </div>
@@ -894,21 +894,21 @@ export default function FluxKontextPage() {
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-16 text-center cursor-pointer transition-all duration-300 ${
+                    className={`border-2 border-dashed rounded-xl p-8 xs:p-10 sm:p-12 md:p-16 text-center cursor-pointer transition-all duration-300 ${
                       isDragging
                         ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-105 shadow-xl'
                         : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/10'
                     }`}
                   >
-                    <div className="flex flex-col items-center gap-4">
-                      <div className={`p-4 rounded-full ${isDragging ? 'bg-purple-100 dark:bg-purple-900/40' : 'bg-gray-100 dark:bg-gray-800'} transition-colors`}>
-                        <Upload className={`w-12 h-12 ${isDragging ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'} transition-colors`} />
+                    <div className="flex flex-col items-center gap-3 sm:gap-4">
+                      <div className={`p-3 sm:p-4 rounded-full ${isDragging ? 'bg-purple-100 dark:bg-purple-900/40' : 'bg-gray-100 dark:bg-gray-800'} transition-colors`}>
+                        <Upload className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 ${isDragging ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'} transition-colors`} />
                       </div>
                       <div>
-                        <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        <p className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">
                           {isDragging ? 'Drop it here! 🎯' : 'Click or drag image here'}
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                           PNG, JPG, WEBP up to 10MB
                         </p>
                       </div>
@@ -926,10 +926,10 @@ export default function FluxKontextPage() {
             </div>
 
             {/* Folder Selection */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-4">
-                <Folder className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+                <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                   Save to Folder
                 </h2>
               </div>
@@ -938,7 +938,7 @@ export default function FluxKontextPage() {
                   value={targetFolder}
                   onChange={(e) => setTargetFolder(e.target.value)}
                   disabled={isLoadingFolders}
-                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner text-sm sm:text-base"
                 >
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
@@ -947,16 +947,16 @@ export default function FluxKontextPage() {
                     </option>
                   ))}
                 </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                   {isLoadingFolders ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                    <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-gray-400" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                    <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                   )}
                 </div>
               </div>
               {selectedFolderOption && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
+                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center space-x-1">
                   <span>💡</span>
                   <span>Saving to: {selectedFolderOption.displayPath}</span>
                   {selectedFolderOption.isShared && (
@@ -967,21 +967,21 @@ export default function FluxKontextPage() {
             </div>
 
             {/* Prompt Section */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-4">
-                <Wand2 className="w-5 h-5 text-pink-600 dark:text-pink-400" />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
+                <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 text-pink-600 dark:text-pink-400" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                   Transformation Magic ✨
                 </h2>
               </div>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900/50 dark:text-white resize-none transition-all shadow-inner"
-                rows={6}
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900/50 dark:text-white resize-none transition-all shadow-inner text-sm sm:text-base"
+                rows={5}
                 placeholder="Describe your vision... (e.g., 'Transform into a magical nighttime scene with stars and soft lighting')"
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2">
                 💡 Tip: Be specific and descriptive for best results!
               </p>
             </div>
@@ -990,24 +990,24 @@ export default function FluxKontextPage() {
             <button
               onClick={handleGenerate}
               disabled={isProcessing || selectedImages.length === 0 || !targetFolder}
-              className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
+              className="group w-full py-3 sm:py-4 md:py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-sm sm:text-base md:text-lg rounded-xl sm:rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 animate-spin" />
                   <span>Creating Magic...</span>
                 </>
               ) : (
                 <>
-                  <Wand2 className="w-6 h-6 group-hover:rotate-12 transition-transform duration-300" />
+                  <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 group-hover:rotate-12 transition-transform duration-300" />
                   <span>Transform Image ✨</span>
                 </>
               )}
             </button>
             
             {(selectedImages.length === 0 || !targetFolder) && (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 -mt-2">
+              <p className="text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400 -mt-1 sm:-mt-2">
                 {selectedImages.length === 0 && "Please upload an image first"}
                 {selectedImages.length > 0 && !targetFolder && "Please select a folder"}
               </p>
@@ -1015,48 +1015,48 @@ export default function FluxKontextPage() {
           </div>
 
           {/* Right Panel - Progress & Results */}
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Progress Section */}
             {isProcessing && currentJob && (
-              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
-                <div className="flex items-center gap-2 mb-6">
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
+                <div className="flex items-center gap-1.5 sm:gap-2 mb-4 sm:mb-6">
                   <div className="relative">
-                    <Loader2 className="w-6 h-6 text-purple-600 dark:text-purple-400 animate-spin" />
+                    <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400 animate-spin" />
                     <div className="absolute inset-0 bg-purple-500/20 rounded-full animate-ping"></div>
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                     AI is Working Magic 🎨
                   </h2>
                 </div>
                 
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {PROGRESS_STAGES.map((stage, index) => {
                     const isActive = index === activeStageIndex;
                     const isComplete = index < activeStageIndex;
                     
                     return (
                       <div key={stage.key} className="relative">
-                        <div className="flex items-start gap-4">
-                          <div className={`relative flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 transform ${
+                        <div className="flex items-start gap-3 sm:gap-4">
+                          <div className={`relative flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-500 transform ${
                             isComplete ? 'bg-gradient-to-br from-green-400 to-green-600 scale-110 shadow-lg' : 
                             isActive ? 'bg-gradient-to-br from-purple-500 to-pink-600 scale-110 shadow-lg animate-pulse' : 
                             'bg-gray-300 dark:bg-gray-600 scale-100'
                           }`}>
                             {isComplete ? (
-                              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                               </svg>
                             ) : isActive ? (
-                              <Loader2 className="w-5 h-5 text-white animate-spin" />
+                              <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-spin" />
                             ) : (
-                              <span className="text-sm font-bold text-white">{index + 1}</span>
+                              <span className="text-xs sm:text-sm font-bold text-white">{index + 1}</span>
                             )}
                             {isActive && (
                               <div className="absolute inset-0 rounded-full bg-purple-400 animate-ping opacity-75"></div>
                             )}
                           </div>
-                          <div className="flex-1 pt-1">
-                            <h3 className={`font-bold text-lg transition-colors ${
+                          <div className="flex-1 pt-0.5 sm:pt-1">
+                            <h3 className={`font-bold text-sm sm:text-base md:text-lg transition-colors ${
                               isActive ? 'text-purple-600 dark:text-purple-400' : 
                               isComplete ? 'text-green-600 dark:text-green-400' :
                               'text-gray-500 dark:text-gray-400'
@@ -1065,11 +1065,11 @@ export default function FluxKontextPage() {
                               {isActive && ' 🚀'}
                               {isComplete && ' ✓'}
                             </h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{stage.description}</p>
+                            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-0.5 sm:mt-1">{stage.description}</p>
                           </div>
                         </div>
                         {index < PROGRESS_STAGES.length - 1 && (
-                          <div className={`absolute left-5 top-12 w-0.5 h-6 transition-colors duration-500 ${
+                          <div className={`absolute left-4 sm:left-4.5 md:left-5 top-10 sm:top-11 md:top-12 w-0.5 h-4 sm:h-5 md:h-6 transition-colors duration-500 ${
                             isComplete ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
                           }`}></div>
                         )}
@@ -1079,10 +1079,10 @@ export default function FluxKontextPage() {
                 </div>
 
                 {jobStartTime && (
-                  <div className="mt-6 pt-6 border-t-2 border-gray-200 dark:border-gray-700">
+                  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t-2 border-gray-200 dark:border-gray-700">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">⏱️ Elapsed Time:</span>
-                      <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{formattedElapsed}</span>
+                      <span className="text-xs sm:text-sm font-semibold text-gray-600 dark:text-gray-400">⏱️ Elapsed Time:</span>
+                      <span className="text-lg xs:text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{formattedElapsed}</span>
                     </div>
                   </div>
                 )}
@@ -1091,32 +1091,32 @@ export default function FluxKontextPage() {
 
             {/* Results Section */}
             {(currentJob?.status === 'completed' || currentJob?.status === 'COMPLETED') && jobImages[currentJob.id] && (
-              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-gradient-to-br from-green-400 to-green-600 rounded-xl shadow-lg">
-                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="p-1.5 sm:p-2 bg-gradient-to-br from-green-400 to-green-600 rounded-lg sm:rounded-xl shadow-lg">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                       Your Masterpiece is Ready! 🎉
                     </h2>
                   </div>
                   {lastJobDuration && (
-                    <div className="px-4 py-2 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 rounded-full border border-green-200 dark:border-green-700">
-                      <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                    <div className="px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 rounded-full border border-green-200 dark:border-green-700">
+                      <span className="text-[10px] xs:text-xs sm:text-sm font-semibold text-green-700 dark:text-green-300">
                         ⚡ {lastJobDuration}
                       </span>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {jobImages[currentJob.id].map((image) => (
                     <div key={image.id} className="relative group">
-                      <div className="relative overflow-hidden rounded-2xl border-2 border-purple-200 dark:border-purple-800 shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-2">
-                        <div className="relative w-full h-96 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden">
+                      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border-2 border-purple-200 dark:border-purple-800 shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-1.5 sm:p-2">
+                        <div className="relative w-full h-64 xs:h-72 sm:h-80 md:h-96 bg-gray-100 dark:bg-gray-900 rounded-lg sm:rounded-xl overflow-hidden">
                           <img
                             src={image.awsS3Url || image.url || image.dataUrl || ''}
                             alt={image.filename}
@@ -1125,30 +1125,30 @@ export default function FluxKontextPage() {
                           />
                         </div>
                       </div>
-                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex gap-1.5 sm:gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
                         <button
                           onClick={() => downloadDatabaseImage(image)}
-                          className="p-3 bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700"
+                          className="p-2 sm:p-3 bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700 active:scale-95"
                           title="Download"
                         >
-                          <Download className="w-5 h-5" />
+                          <Download className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
                         <button
                           onClick={() => shareImage(image)}
-                          className="p-3 bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-purple-500 hover:to-pink-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700"
+                          className="p-2 sm:p-3 bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-purple-500 hover:to-pink-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700 active:scale-95"
                           title="Share"
                         >
-                          <Share2 className="w-5 h-5" />
+                          <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
                         <button
                           onClick={() => openLightbox(image.awsS3Url || image.url || image.dataUrl || '', image.filename)}
-                          className="p-3 bg-white dark:bg-gray-800 rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-green-500 hover:to-green-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700"
+                          className="p-2 sm:p-3 bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-green-500 hover:to-green-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700 active:scale-95"
                           title="View Full Size"
                         >
-                          <ZoomIn className="w-5 h-5" />
+                          <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />
                         </button>
                       </div>
-                      <div className="absolute bottom-4 left-4 px-4 py-2 bg-black/70 backdrop-blur-md text-white text-sm rounded-xl border border-white/20 shadow-lg">
+                      <div className="absolute bottom-3 sm:bottom-4 left-3 sm:left-4 px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 bg-black/70 backdrop-blur-md text-white text-[10px] xs:text-xs sm:text-sm rounded-lg sm:rounded-xl border border-white/20 shadow-lg">
                         <span className="font-semibold">📁 {image.filename}</span>
                       </div>
                     </div>
@@ -1157,10 +1157,10 @@ export default function FluxKontextPage() {
 
                 <button
                   onClick={resetForm}
-                  className="group w-full mt-6 py-4 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 dark:from-gray-600 dark:via-gray-700 dark:to-gray-800 text-white font-bold rounded-xl hover:from-purple-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 relative overflow-hidden"
+                  className="group w-full mt-4 sm:mt-6 py-3 sm:py-4 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 dark:from-gray-600 dark:via-gray-700 dark:to-gray-800 text-white font-bold text-sm sm:text-base rounded-xl hover:from-purple-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1.5 sm:gap-2 relative overflow-hidden"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                  <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" />
+                  <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-12 transition-transform duration-300" />
                   <span>Create Another Masterpiece ✨</span>
                 </button>
               </div>
@@ -1172,44 +1172,44 @@ export default function FluxKontextPage() {
       {/* Lightbox */}
       {lightboxImage && (
         <div
-          className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in duration-300"
+          className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-300"
           onClick={() => setLightboxImage(null)}
         >
-          <div className="relative max-w-7xl max-h-full w-full">
-            <div className="relative bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 rounded-3xl p-4 border border-white/10 shadow-2xl">
+          <div className="relative max-w-[95vw] sm:max-w-7xl max-h-full w-full">
+            <div className="relative bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 rounded-2xl sm:rounded-3xl p-2 xs:p-3 sm:p-4 border border-white/10 shadow-2xl">
               <img
                 src={lightboxImage}
                 alt={lightboxTitle}
-                className="max-w-full max-h-[85vh] object-contain mx-auto rounded-2xl shadow-2xl"
+                className="max-w-full max-h-[80vh] sm:max-h-[85vh] object-contain mx-auto rounded-xl sm:rounded-2xl shadow-2xl"
               />
-              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl">
-                <span className="font-semibold text-sm">📁 {lightboxTitle}</span>
+              <div className="absolute bottom-4 xs:bottom-6 sm:bottom-8 left-1/2 transform -translate-x-1/2 px-3 xs:px-4 sm:px-6 py-1.5 xs:py-2 sm:py-3 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl">
+                <span className="font-semibold text-[10px] xs:text-xs sm:text-sm">📁 {lightboxTitle}</span>
               </div>
             </div>
             <button
               onClick={() => setLightboxImage(null)}
-              className="absolute top-8 right-8 p-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full hover:from-red-600 hover:to-red-700 transition-all shadow-xl hover:scale-110 transform duration-200"
+              className="absolute top-4 xs:top-6 sm:top-8 right-4 xs:right-6 sm:right-8 p-2 xs:p-2.5 sm:p-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full hover:from-red-600 hover:to-red-700 transition-all shadow-xl hover:scale-110 transform duration-200 active:scale-95"
               title="Close (ESC)"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
-            <div className="absolute top-8 left-8 px-4 py-2 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl">
-              <span className="text-sm font-semibold">Press ESC to close</span>
+            <div className="absolute top-4 xs:top-6 sm:top-8 left-4 xs:left-6 sm:left-8 px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl hidden xs:block">
+              <span className="text-[10px] xs:text-xs sm:text-sm font-semibold">Press ESC to close</span>
             </div>
           </div>
         </div>
       )}
 
       {/* Floating Chat Assistant */}
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-50">
         {/* Chat Bubble Button */}
         {!isChatOpen && (
           <button
             onClick={() => setIsChatOpen(true)}
-            className="group relative p-4 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300 animate-bounce"
+            className="group relative p-3 sm:p-4 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300 animate-bounce active:scale-95"
           >
-            <MessageCircle className="w-7 h-7" />
-            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold animate-pulse">
+            <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+            <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold animate-pulse">
               AI
             </div>
             <div className="absolute bottom-full right-0 mb-2 px-3 py-1 bg-black/80 backdrop-blur-md text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -1220,71 +1220,71 @@ export default function FluxKontextPage() {
 
         {/* Chat Window */}
         {isChatOpen && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-96 h-[600px] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-[calc(100vw-2rem)] xs:w-80 sm:w-96 h-[500px] xs:h-[550px] sm:h-[600px] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
             {/* Chat Header */}
-            <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 p-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <Sparkles className="w-5 h-5 text-white" />
+            <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 p-3 sm:p-4 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="p-1.5 sm:p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white">AI Assistant</h3>
-                  <p className="text-xs text-purple-100">Flux Kontext Helper</p>
+                  <h3 className="font-bold text-sm sm:text-base text-white">AI Assistant</h3>
+                  <p className="text-[10px] sm:text-xs text-purple-100">Flux Kontext Helper</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsChatOpen(false)}
-                className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-1.5 sm:p-2 hover:bg-white/20 rounded-lg transition-colors active:scale-95"
               >
-                <X className="w-5 h-5 text-white" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </button>
             </div>
 
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900/50">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50 dark:bg-gray-900/50">
               {chatMessages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                    className={`max-w-[85%] xs:max-w-[88%] sm:max-w-[90%] rounded-xl sm:rounded-2xl px-2 xs:px-3 sm:px-4 py-2 xs:py-2.5 sm:py-3 ${
                       message.role === 'user'
                         ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
                         : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
                     }`}
                   >
                     {message.role === 'assistant' && (
-                      <div className="flex items-center gap-2 mb-2">
-                        <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                        <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">AI Assistant</span>
+                      <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 mb-1 xs:mb-1.5 sm:mb-2">
+                        <Brain className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
+                        <span className="text-[10px] xs:text-xs font-semibold text-purple-600 dark:text-purple-400">AI Assistant</span>
                       </div>
                     )}
                     {message.image && (
-                      <div className="mb-2">
+                      <div className="mb-1 xs:mb-1.5 sm:mb-2">
                         <img
                           src={message.image}
                           alt="Uploaded"
-                          className="max-w-full h-32 object-cover rounded-lg border-2 border-white/20"
+                          className="max-w-full h-24 xs:h-28 sm:h-32 object-cover rounded-md sm:rounded-lg border-2 border-white/20"
                         />
                       </div>
                     )}
-                    <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                    <div className="text-xs xs:text-sm whitespace-pre-wrap leading-relaxed">
                       {message.content.split(/(\*\*.*?\*\*|```[\s\S]*?```)/g).map((part, idx) => {
                         if (part.startsWith('**') && part.endsWith('**')) {
                           return <strong key={idx} className="font-bold">{part.slice(2, -2)}</strong>;
                         } else if (part.startsWith('```') && part.endsWith('```')) {
                           const code = part.slice(3, -3).trim();
                           return (
-                            <div key={idx} className="my-2 relative group">
-                              <pre className="bg-gray-900 text-gray-100 p-3 rounded-lg text-xs overflow-x-auto">
+                            <div key={idx} className="my-1 xs:my-1.5 sm:my-2 relative group">
+                              <pre className="bg-gray-900 text-gray-100 p-2 xs:p-2.5 sm:p-3 rounded-md sm:rounded-lg text-[10px] xs:text-xs overflow-x-auto">
                                 {code}
                               </pre>
                               <button
                                 onClick={() => copyToClipboard(code)}
-                                className="absolute top-2 right-2 p-1 bg-gray-700 hover:bg-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-1 xs:top-1.5 sm:top-2 right-1 xs:right-1.5 sm:right-2 p-0.5 xs:p-1 bg-gray-700 hover:bg-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity active:scale-95"
                               >
-                                <Copy className="w-3 h-3 text-white" />
+                                <Copy className="w-2.5 h-2.5 xs:w-3 xs:h-3 text-white" />
                               </button>
                             </div>
                           );
@@ -1293,7 +1293,7 @@ export default function FluxKontextPage() {
                       })}
                     </div>
                     {message.role === 'user' && (
-                      <div className="text-xs text-purple-100 mt-1 text-right">
+                      <div className="text-[10px] xs:text-xs text-purple-100 mt-0.5 xs:mt-1 text-right">
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     )}
@@ -1303,14 +1303,14 @@ export default function FluxKontextPage() {
               
               {isChatGenerating && (
                 <div className="flex justify-start">
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 max-w-[85%]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
-                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">{chatLoadingStep}</span>
+                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-2xl px-2 xs:px-3 sm:px-4 py-2 xs:py-2.5 sm:py-3 max-w-[85%]">
+                    <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 mb-1 xs:mb-1.5 sm:mb-2">
+                      <Brain className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
+                      <span className="text-[10px] xs:text-xs font-semibold text-purple-600 dark:text-purple-400">{chatLoadingStep}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Generating response...</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <Loader2 className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 animate-spin text-purple-600 dark:text-purple-400" />
+                      <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Generating response...</span>
                     </div>
                   </div>
                 </div>
@@ -1319,49 +1319,49 @@ export default function FluxKontextPage() {
             </div>
 
             {/* Chat Input */}
-            <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            <div className="p-2 xs:p-3 sm:p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
               {chatUploadedImage && (
-                <div className="mb-3 relative inline-block group">
+                <div className="mb-2 xs:mb-2.5 sm:mb-3 relative inline-block group">
                   <img
                     src={chatUploadedImage}
                     alt="Preview"
-                    className="h-20 w-20 object-cover rounded-lg border-2 border-purple-300 dark:border-purple-600 shadow-md"
+                    className="h-16 xs:h-18 sm:h-20 w-16 xs:w-18 sm:w-20 object-cover rounded-md sm:rounded-lg border-2 border-purple-300 dark:border-purple-600 shadow-md"
                   />
                   <button
                     onClick={handleRemoveChatImage}
-                    className="absolute -top-2 -right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg opacity-100 group-hover:scale-110"
+                    className="absolute -top-1 xs:-top-1.5 sm:-top-2 -right-1 xs:-right-1.5 sm:-right-2 p-0.5 xs:p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg opacity-100 group-hover:scale-110 active:scale-95"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-2.5 h-2.5 xs:w-3 xs:h-3" />
                   </button>
                 </div>
               )}
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 sm:gap-2">
                 <button
                   onClick={() => chatFileInputRef.current?.click()}
-                  className="p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  className="p-1.5 xs:p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md sm:rounded-lg transition-colors active:scale-95"
                   title="Upload image"
                 >
-                  <ImageIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  <ImageIcon className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-300" />
                 </button>
                 <textarea
                   ref={chatInputRef}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={handleChatKeyPress}
-                  placeholder="Ask me anything about Flux Kontext..."
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900 dark:text-white resize-none text-sm"
+                  placeholder="Ask me anything..."
+                  className="flex-1 px-2 xs:px-3 py-1.5 xs:py-2 border border-gray-300 dark:border-gray-600 rounded-md sm:rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900 dark:text-white resize-none text-xs xs:text-sm"
                   rows={2}
                   disabled={isChatGenerating}
                 />
                 <button
                   onClick={handleSendChat}
                   disabled={(!chatInput.trim() && !chatUploadedImage) || isChatGenerating}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                  className="px-2 xs:px-3 sm:px-4 py-1.5 xs:py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-md sm:rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl active:scale-95"
                 >
-                  <Send className="w-5 h-5" />
+                  <Send className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5" />
                 </button>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 mt-1 xs:mt-1.5 sm:mt-2">
                 💡 Press Enter to send, Shift+Enter for new line
               </p>
               <input

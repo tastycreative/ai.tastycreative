@@ -258,19 +258,19 @@ const VideoPlayer = ({
 
         {/* Action buttons */}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="flex space-x-1">
+          <div className="flex space-x-1 sm:space-x-1.5">
             <button
               onClick={onDownload}
-              className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+              className="p-1.5 sm:p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg active:scale-95"
               title={`Download ${video.filename}`}
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={onShare}
-              className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+              className="p-1.5 sm:p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg active:scale-95"
             >
-              <Share2 className="w-4 h-4" />
+              <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
@@ -297,19 +297,19 @@ const VideoPlayer = ({
 
         {/* Action buttons */}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="flex space-x-1">
+          <div className="flex space-x-1 sm:space-x-1.5">
             <button
               onClick={onDownload}
-              className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+              className="p-1.5 sm:p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg active:scale-95"
               title={`Download ${video.filename}`}
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               onClick={onShare}
-              className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+              className="p-1.5 sm:p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg active:scale-95"
             >
-              <Share2 className="w-4 h-4" />
+              <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
@@ -356,19 +356,19 @@ const VideoPlayer = ({
 
       {/* Action buttons */}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="flex space-x-1">
+        <div className="flex space-x-1 sm:space-x-1.5">
           <button
             onClick={onDownload}
-            className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+            className="p-1.5 sm:p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg active:scale-95"
             title={`Download ${video.filename}`}
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
           <button
             onClick={onShare}
-            className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg"
+            className="p-1.5 sm:p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg active:scale-95"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         </div>
       </div>
@@ -1757,43 +1757,43 @@ export default function ImageToVideoPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
-              <Video className="w-8 h-8 text-white" />
+        <div className="mb-6 sm:mb-8 text-center">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
+              <Video className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
               Image to Video Studio
             </h1>
-            <span className="text-sm font-semibold px-3 py-1 rounded-full bg-green-500/20 text-green-700 dark:text-green-300 border border-green-300/40 dark:border-green-500/40 backdrop-blur-sm">Serverless</span>
+            <span className="text-[10px] xs:text-xs sm:text-sm font-semibold px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-green-500/20 text-green-700 dark:text-green-300 border border-green-300/40 dark:border-green-500/40 backdrop-blur-sm">Serverless</span>
           </div>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base md:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-4">
             Animate any still image with cinematic motion powered by WAN 2.2 on RunPod serverless infrastructure.
           </p>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
-            <div className="px-3 py-1 rounded-full bg-white/70 dark:bg-gray-900/40 border border-white/60 dark:border-gray-700/60 shadow-sm">
+          <div className="mt-3 sm:mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-[10px] xs:text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+            <div className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-white/70 dark:bg-gray-900/40 border border-white/60 dark:border-gray-700/60 shadow-sm">
               <span className="font-semibold text-purple-600 dark:text-purple-300">WAN 2.2</span> Motion Engine
             </div>
-            <div className="px-3 py-1 rounded-full bg-white/70 dark:bg-gray-900/40 border border-white/60 dark:border-gray-700/60 shadow-sm">
+            <div className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-white/70 dark:bg-gray-900/40 border border-white/60 dark:border-gray-700/60 shadow-sm">
               HD Output • Smooth Animation
             </div>
-            <div className="px-3 py-1 rounded-full bg-white/70 dark:bg-gray-900/40 border border-white/60 dark:border-gray-700/60 shadow-sm">
+            <div className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-white/70 dark:bg-gray-900/40 border border-white/60 dark:border-gray-700/60 shadow-sm">
               S3 Library Integration
             </div>
           </div>
         </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
         {/* Left Panel - Controls */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-3 sm:space-y-4 md:space-y-6">
           {/* Folder Selection */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl shadow-lg">
-                  <Folder className="w-5 h-5 text-white" />
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-lg sm:rounded-xl shadow-lg">
+                  <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <label className="text-lg font-bold text-gray-900 dark:text-white">
+                <label className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
                   Save to Folder
                 </label>
               </div>
@@ -1803,7 +1803,7 @@ export default function ImageToVideoPage() {
                   value={targetFolder}
                   onChange={(e) => setTargetFolder(e.target.value)}
                   disabled={isLoadingFolders || isGenerating}
-                  className="w-full px-4 py-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-8 sm:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-sm sm:text-base text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="">Select a folder...</option>
                   {availableFolders.map((folder) => (
@@ -1840,14 +1840,14 @@ export default function ImageToVideoPage() {
           </div>
 
           {/* Enhanced Image Upload */}
-          <div className="group bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl hover:border-purple-400 dark:hover:border-purple-500 transition-all duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
-                <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
-                  <ImageIcon className="w-6 h-6 text-white" />
+          <div className="group bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl hover:border-purple-400 dark:hover:border-purple-500 transition-all duration-300">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-2 sm:space-x-3">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg sm:rounded-xl">
+                  <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" />
                 </div>
                 <span>Source Image</span>
-                <div className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
+                <div className="px-2 py-0.5 sm:py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-[10px] sm:text-xs font-medium">
                   Required
                 </div>
               </h3>
@@ -1855,19 +1855,19 @@ export default function ImageToVideoPage() {
 
             {!uploadedImagePreview ? (
               <div
-                className="relative border-2 border-dashed border-purple-300 dark:border-purple-600 rounded-2xl p-12 text-center cursor-pointer hover:border-purple-400 dark:hover:border-purple-500 transition-all duration-300 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 group-hover:scale-105"
+                className="relative border-2 border-dashed border-purple-300 dark:border-purple-600 rounded-2xl p-6 sm:p-8 md:p-12 text-center cursor-pointer hover:border-purple-400 dark:hover:border-purple-500 transition-all duration-300 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 group-hover:scale-105 active:scale-95"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-purple-100/50 to-pink-100/50 dark:from-purple-800/20 dark:to-pink-800/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
                 {isUploading ? (
-                  <div className="relative flex flex-col items-center space-y-4">
+                  <div className="relative flex flex-col items-center space-y-3 sm:space-y-4">
                     <div className="relative">
-                      <Loader2 className="w-16 h-16 animate-spin text-purple-500" />
-                      <div className="absolute inset-0 w-16 h-16 border-4 border-purple-200 dark:border-purple-700 rounded-full animate-ping"></div>
+                      <Loader2 className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 animate-spin text-purple-500" />
+                      <div className="absolute inset-0 w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 border-4 border-purple-200 dark:border-purple-700 rounded-full animate-ping"></div>
                     </div>
                     <div className="text-center">
-                      <p className="text-lg font-semibold text-purple-700 dark:text-purple-300 mb-1">
+                      <p className="text-sm sm:text-base md:text-lg font-semibold text-purple-700 dark:text-purple-300 mb-1">
                         Uploading Your Image
                       </p>
                       <p className="text-sm text-purple-600 dark:text-purple-400">
@@ -1947,21 +1947,21 @@ export default function ImageToVideoPage() {
           </div>
 
           {/* Enhanced Prompt Input */}
-          <div className="group bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl hover:border-indigo-400 dark:hover:border-indigo-500 transition-all duration-300">
-            <div className="space-y-6">
+          <div className="group bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl hover:border-indigo-400 dark:hover:border-indigo-500 transition-all duration-300">
+            <div className="space-y-4 sm:space-y-6">
               <div className="flex items-center justify-between">
-                <label className="text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-3">
-                  <div className="p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl">
-                    <Wand2 className="w-5 h-5 text-white" />
+                <label className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white flex items-center space-x-2 sm:space-x-3">
+                  <div className="p-1.5 sm:p-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg sm:rounded-xl">
+                    <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
                   <span>Video Motion Prompt</span>
-                  <div className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-medium">
+                  <div className="px-2 py-0.5 sm:py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full text-[10px] sm:text-xs font-medium">
                     Optional
                   </div>
                 </label>
                 <button
                   onClick={() => setParams((prev) => ({ ...prev, prompt: "" }))}
-                  className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 font-medium transition-colors"
+                  className="text-xs sm:text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 font-medium transition-colors active:scale-95"
                 >
                   Clear
                 </button>
@@ -2054,19 +2054,19 @@ export default function ImageToVideoPage() {
           </div>
 
           {/* Video Settings */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl shadow-lg">
-                <Settings className="w-5 h-5 text-white" />
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+              <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-lg sm:rounded-xl shadow-lg">
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                 Video Settings
               </h3>
             </div>
 
             {/* Aspect Ratio */}
-            <div className="space-y-3 mb-6">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
+              <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                 Aspect Ratio
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -2076,7 +2076,7 @@ export default function ImageToVideoPage() {
                     onClick={() =>
                       handleAspectRatioChange(ratio.width, ratio.height)
                     }
-                    className={`p-3 rounded-lg border text-sm font-medium transition-all ${
+                    className={`p-2 sm:p-3 rounded-lg border text-xs sm:text-sm font-medium transition-all active:scale-95 ${
                       params.width === ratio.width &&
                       params.height === ratio.height
                         ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300"
@@ -2251,17 +2251,17 @@ export default function ImageToVideoPage() {
             disabled={
               isGenerating || !params.prompt.trim() || !params.uploadedImage || !targetFolder
             }
-            className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
+            className="group w-full py-3 sm:py-4 md:py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-sm sm:text-base md:text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
             {isGenerating ? (
               <>
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                 <span>Generating Video...</span>
               </>
             ) : (
               <>
-                <Wand2 className="w-6 h-6 group-hover:rotate-12 transition-transform duration-300" />
+                <Wand2 className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform duration-300" />
                 <span>Create Video Magic ✨</span>
               </>
             )}
@@ -2269,39 +2269,39 @@ export default function ImageToVideoPage() {
 
           {/* Helper text */}
           {!targetFolder && !isGenerating && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-center">
               ⚠️ Please select a folder to save your animated video
             </p>
           )}
         </div>
 
         {/* Right Panel - Results */}
-        <div className="space-y-6">
+        <div className="space-y-3 sm:space-y-4 md:space-y-6">
           {/* Video Statistics */}
           {videoStats && (
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl shadow-lg">
-                  <Layers className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-lg sm:rounded-xl shadow-lg">
+                  <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                   Your Video Library
                 </h3>
               </div>
-              <div className="grid grid-cols-1 gap-3 text-sm">
-                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-100 dark:border-purple-800 shadow-sm">
+              <div className="grid grid-cols-1 gap-2 sm:gap-3 text-xs sm:text-sm">
+                <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-100 dark:border-purple-800 shadow-sm">
                   <span className="text-gray-600 dark:text-gray-300 font-medium">
                     Total Videos
                   </span>
-                  <span className="text-lg font-bold text-purple-600 dark:text-purple-300">
+                  <span className="text-base sm:text-lg font-bold text-purple-600 dark:text-purple-300">
                     {videoStats.totalVideos}
                   </span>
                 </div>
-                <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 border border-pink-100 dark:border-pink-800 shadow-sm">
+                <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 rounded-xl bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 border border-pink-100 dark:border-pink-800 shadow-sm">
                   <span className="text-gray-600 dark:text-gray-300 font-medium">
                     Total Size
                   </span>
-                  <span className="text-lg font-bold text-pink-600 dark:text-pink-300">
+                  <span className="text-base sm:text-lg font-bold text-pink-600 dark:text-pink-300">
                     {Math.round((videoStats.totalSize / 1024 / 1024) * 100) /
                       100}{" "}
                     MB
@@ -2313,24 +2313,24 @@ export default function ImageToVideoPage() {
 
           {/* Current Generation */}
           {currentJob && (
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl shadow-lg">
-                    <Sparkles className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-lg sm:rounded-xl shadow-lg">
+                    <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                     Current Generation
                   </h3>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 sm:space-x-2">
                   {currentJob.status === "completed" && (
                     <button
                       onClick={() => fetchJobVideos(currentJob.id)}
-                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="p-1.5 sm:p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 active:scale-95"
                       title="Refresh generated videos"
                     >
-                      <RefreshCw className="w-4 h-4" />
+                      <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </button>
                   )}
                   {/* Refresh button for timed out jobs */}
@@ -2344,7 +2344,7 @@ export default function ImageToVideoPage() {
                         // Restart polling for this job
                         pollJobStatus(currentJob.id);
                       }}
-                      className="flex items-center space-x-1 px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                      className="flex items-center space-x-1 px-2 sm:px-3 py-1 text-[10px] sm:text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors active:scale-95"
                       title="Check job status again"
                     >
                       <RefreshCw className="w-3 h-3" />
@@ -2354,15 +2354,15 @@ export default function ImageToVideoPage() {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                     Status
                   </span>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1.5 sm:space-x-2">
                     {(currentJob.status === "pending" ||
                       currentJob.status === "processing") && (
-                      <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                      <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-purple-500" />
                     )}
                     {currentJob.status === "completed" && (
                       <CheckCircle className="w-4 h-4 text-green-500" />
@@ -2672,43 +2672,43 @@ export default function ImageToVideoPage() {
 
           {/* Generation History */}
           {jobHistory.length > 0 && (
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl shadow-lg">
-                  <Clock className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-lg sm:rounded-xl shadow-lg">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
                   Recent Generations
                 </h3>
               </div>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+              <div className="space-y-2 sm:space-y-3 max-h-96 overflow-y-auto">
                 {jobHistory
                   .filter((job) => job && job.id)
                   .slice(0, 10)
                   .map((job, index) => (
                     <div
                       key={job.id || `job-${index}`}
-                      className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-100 dark:border-purple-800 rounded-xl shadow-sm"
+                      className="flex items-center justify-between p-2 sm:p-3 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border border-purple-100 dark:border-purple-800 rounded-xl shadow-sm"
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2 sm:space-x-3">
                         {job.status === "completed" && (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500" />
                         )}
                         {job.status === "failed" && !isJobCancelled(job) && (
-                          <AlertCircle className="w-4 h-4 text-red-500" />
+                          <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500" />
                         )}
                         {isJobCancelled(job) && (
-                          <XCircle className="w-4 h-4 text-orange-500" />
+                          <XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-500" />
                         )}
                         {(job.status === "pending" ||
                           job.status === "processing") && (
-                          <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                          <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-purple-500" />
                         )}
                         <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
                             {formatJobTime(job.createdAt)}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 capitalize">
                             {isJobCancelled(job) ? 'cancelled' : (job.status || "unknown")}
                           </p>
                         </div>

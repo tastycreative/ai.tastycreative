@@ -69,78 +69,78 @@ export default function AdminContent() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-3 xs:space-y-4 sm:space-y-6">
       {/* Admin Header */}
-      <div className="space-y-3">
+      <div className="space-y-2 xs:space-y-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">Manage users and system settings</p>
+          <h1 className="text-lg xs:text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+          <p className="text-xs xs:text-sm sm:text-base text-gray-600 dark:text-gray-300">Manage users and system settings</p>
         </div>
       </div>
 
       {/* Admin Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        <div className="bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-900/30 dark:to-blue-900/20 shadow-xl rounded-xl p-3 sm:p-4 border border-blue-200/30 dark:border-blue-700/20 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
+      <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        <div className="bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-900/30 dark:to-blue-900/20 shadow-xl rounded-lg sm:rounded-xl p-3 xs:p-3.5 sm:p-4 border border-blue-200/30 dark:border-blue-700/20 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 active:scale-[0.99]">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">Total Users</h3>
-              <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent">
+              <h3 className="text-xs xs:text-sm sm:text-base font-medium text-gray-900 dark:text-white">Total Users</h3>
+              <p className="text-lg xs:text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent">
                 {loading ? '...' : stats.totalUsers}
               </p>
             </div>
-            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-lg">
-              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="p-1.5 xs:p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-lg">
+              <Users className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-white" />
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-white to-purple-50/50 dark:from-gray-900/30 dark:to-purple-900/20 shadow-xl rounded-xl p-3 sm:p-4 border border-purple-200/30 dark:border-purple-700/20 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
+        <div className="bg-gradient-to-br from-white to-purple-50/50 dark:from-gray-900/30 dark:to-purple-900/20 shadow-xl rounded-lg sm:rounded-xl p-3 xs:p-3.5 sm:p-4 border border-purple-200/30 dark:border-purple-700/20 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 active:scale-[0.99]">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">Active Jobs</h3>
-              <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
+              <h3 className="text-xs xs:text-sm sm:text-base font-medium text-gray-900 dark:text-white">Active Jobs</h3>
+              <p className="text-lg xs:text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-500 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
                 {loading ? '...' : stats.activeJobs}
               </p>
             </div>
-            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-lg">
-              <BarChart className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="p-1.5 xs:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-lg">
+              <BarChart className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-white" />
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-white to-emerald-50/50 dark:from-gray-900/30 dark:to-emerald-900/20 shadow-xl rounded-xl p-3 sm:p-4 border border-emerald-200/30 dark:border-emerald-700/20 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
+        <div className="bg-gradient-to-br from-white to-emerald-50/50 dark:from-gray-900/30 dark:to-emerald-900/20 shadow-xl rounded-lg sm:rounded-xl p-3 xs:p-3.5 sm:p-4 border border-emerald-200/30 dark:border-emerald-700/20 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 active:scale-[0.99]">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">Total Content</h3>
-              <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
+              <h3 className="text-xs xs:text-sm sm:text-base font-medium text-gray-900 dark:text-white">Total Content</h3>
+              <p className="text-lg xs:text-xl sm:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-500 dark:from-emerald-400 dark:to-teal-400 bg-clip-text text-transparent">
                 {loading ? '...' : stats.totalContent}
               </p>
             </div>
-            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg shadow-lg">
-              <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="p-1.5 xs:p-2 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg shadow-lg">
+              <Shield className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-white" />
             </div>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-white to-orange-50/50 dark:from-gray-900/30 dark:to-orange-900/20 shadow-xl rounded-xl p-3 sm:p-4 border border-orange-200/30 dark:border-orange-700/20 backdrop-blur-sm hover:shadow-2xl transition-all duration-300">
+        <div className="bg-gradient-to-br from-white to-orange-50/50 dark:from-gray-900/30 dark:to-orange-900/20 shadow-xl rounded-lg sm:rounded-xl p-3 xs:p-3.5 sm:p-4 border border-orange-200/30 dark:border-orange-700/20 backdrop-blur-sm hover:shadow-2xl transition-all duration-300 active:scale-[0.99]">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">Storage Used</h3>
-              <p className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-500 dark:from-orange-400 dark:to-red-400 bg-clip-text text-transparent">
+              <h3 className="text-xs xs:text-sm sm:text-base font-medium text-gray-900 dark:text-white">Storage Used</h3>
+              <p className="text-lg xs:text-xl sm:text-2xl font-bold bg-gradient-to-r from-orange-600 to-red-500 dark:from-orange-400 dark:to-red-400 bg-clip-text text-transparent">
                 {loading ? '...' : stats.storageUsed}
               </p>
             </div>
-            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg shadow-lg">
-              <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="p-1.5 xs:p-2 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg shadow-lg">
+              <Settings className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-white" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/30 dark:to-gray-800/20 border border-gray-200/50 dark:border-gray-700/30 rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
+      <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/30 dark:to-gray-800/20 border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
         <div className="border-b border-gray-200/50 dark:border-gray-700/30">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          <nav className="flex space-x-4 xs:space-x-6 sm:space-x-8 px-3 xs:px-4 sm:px-6 overflow-x-auto" aria-label="Tabs">
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               const Icon = tab.icon;
@@ -152,10 +152,11 @@ export default function AdminContent() {
                     isActive
                       ? 'border-blue-500 text-blue-600 dark:text-blue-400'
                       : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-all duration-200`}
+                  } whitespace-nowrap py-3 xs:py-3.5 sm:py-4 px-1 border-b-2 font-medium text-xs xs:text-sm flex items-center space-x-1.5 xs:space-x-2 transition-all duration-200 active:scale-95`}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
+                  <Icon className="w-3.5 h-3.5 xs:w-4 xs:h-4" />
+                  <span className="hidden xs:inline">{tab.label}</span>
+                  <span className="xs:hidden">{tab.label.split(' ')[0]}</span>
                 </button>
               );
             })}
@@ -163,7 +164,7 @@ export default function AdminContent() {
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="p-3 xs:p-4 sm:p-6">
           {renderTabContent()}
         </div>
       </div>

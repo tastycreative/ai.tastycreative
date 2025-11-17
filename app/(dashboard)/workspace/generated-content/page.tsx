@@ -3661,25 +3661,25 @@ export default function GeneratedContentPage() {
       )}
 
       {/* Enhanced Controls */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 lg:space-x-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+        <div className="flex flex-col space-y-4">
           {/* Search Section */}
-          <div className="flex-1 max-w-2xl">
+          <div className="w-full">
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
+              <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
               </div>
               <input
                 type="text"
                 placeholder="Search your content..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium"
+                className="block w-full pl-10 sm:pl-12 pr-10 sm:pr-4 py-2.5 sm:py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm font-medium"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+                  className="absolute inset-y-0 right-0 pr-3 sm:pr-4 flex items-center text-gray-400 hover:text-gray-600 active:scale-95"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -3688,21 +3688,21 @@ export default function GeneratedContentPage() {
           </div>
 
           {/* Filter and Sort Controls */}
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* Content Type Filter */}
-            <div className="relative">
+            <div className="relative flex-1 min-w-[140px] sm:flex-none">
               <select
                 value={filterBy}
                 onChange={(e) => setFilterBy(e.target.value as FilterBy)}
-                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
+                className="appearance-none w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs sm:text-sm rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 <option value="all">All Content</option>
                 <option value="images">🖼️ Images Only</option>
                 <option value="videos">🎥 Videos Only</option>
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
                 <svg
-                  className="h-4 w-4"
+                  className="h-3 w-3 sm:h-4 sm:w-4"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >
@@ -3716,11 +3716,11 @@ export default function GeneratedContentPage() {
             </div>
 
             {/* Sort Options */}
-            <div className="relative">
+            <div className="relative flex-1 min-w-[140px] sm:flex-none">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortBy)}
-                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
+                className="appearance-none w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs sm:text-sm rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 <option value="newest">⏰ Newest First</option>
                 <option value="oldest">🕐 Oldest First</option>
@@ -3728,9 +3728,9 @@ export default function GeneratedContentPage() {
                 <option value="smallest">📉 Smallest First</option>
                 <option value="name">🔤 Name A-Z</option>
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
                 <svg
-                  className="h-4 w-4"
+                  className="h-3 w-3 sm:h-4 sm:w-4"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >
@@ -3744,7 +3744,7 @@ export default function GeneratedContentPage() {
             </div>
 
             {/* Items Per Page Selector */}
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <select
                 value={itemsPerPage}
                 onChange={(e) => {
@@ -3758,7 +3758,7 @@ export default function GeneratedContentPage() {
                   setHasMoreVideos(false);
                   // The useEffect that watches itemsPerPage will trigger refetch
                 }}
-                className="appearance-none bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
+                className="appearance-none w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs sm:text-sm rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 pr-8 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600"
                 title="Items per page"
               >
                 <option value="20">📄 20 per page</option>
@@ -3766,9 +3766,9 @@ export default function GeneratedContentPage() {
                 <option value="100">📄 100 per page</option>
                 <option value="200">📄 200 per page</option>
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-gray-400">
                 <svg
-                  className="h-4 w-4"
+                  className="h-3 w-3 sm:h-4 sm:w-4"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >
@@ -3783,12 +3783,12 @@ export default function GeneratedContentPage() {
 
             {/* Admin User Filter */}
             {isAdmin && !adminLoading && (
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <select
                   value={selectedUserId || ""}
                   onChange={(e) => setSelectedUserId(e.target.value || null)}
                   disabled={loadingUsers}
-                  className="appearance-none bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 border-2 border-purple-300 dark:border-purple-600 text-gray-900 dark:text-white text-sm rounded-xl px-4 py-2.5 pr-10 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:from-purple-100 hover:to-blue-100 dark:hover:from-purple-900/50 dark:hover:to-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed [&>option]:bg-white [&>option]:dark:bg-gray-800 [&>option]:text-gray-900 [&>option]:dark:text-white [&>option]:py-2"
+                  className="appearance-none w-full bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30 border-2 border-purple-300 dark:border-purple-600 text-gray-900 dark:text-white text-xs sm:text-sm rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 pr-9 sm:pr-10 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 font-medium cursor-pointer hover:from-purple-100 hover:to-blue-100 dark:hover:from-purple-900/50 dark:hover:to-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed [&>option]:bg-white [&>option]:dark:bg-gray-800 [&>option]:text-gray-900 [&>option]:dark:text-white [&>option]:py-2"
                   title="Admin: View any user's content"
                 >
                   <option value="" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">👤 All Users</option>
@@ -3799,11 +3799,11 @@ export default function GeneratedContentPage() {
                     </option>
                   ))}
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-purple-600 dark:text-purple-400">
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 sm:px-3 text-purple-600 dark:text-purple-400">
                   {loadingUsers ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                   ) : (
-                    <Users className="h-4 w-4" />
+                    <Users className="h-3 w-3 sm:h-4 sm:w-4" />
                   )}
                 </div>
               </div>
@@ -3813,46 +3813,47 @@ export default function GeneratedContentPage() {
             <div className="flex bg-gray-100 dark:bg-gray-700 rounded-xl p-1 border border-gray-200 dark:border-gray-600">
               <button
                 onClick={() => setViewMode("grid")}
-                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${
+                className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg transition-all duration-200 active:scale-95 ${
                   viewMode === "grid"
                     ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md"
                     : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                 }`}
                 title="Grid view"
               >
-                <Grid3X3 className="w-4 h-4" />
+                <Grid3X3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${
+                className={`flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-lg transition-all duration-200 active:scale-95 ${
                   viewMode === "list"
                     ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-md"
                     : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                 }`}
                 title="List view"
               >
-                <List className="w-4 h-4" />
+                <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             </div>
 
             {/* Selection Mode Toggle */}
             <button
               onClick={() => setSelectionMode(!selectionMode)}
-              className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl border transition-all duration-200 font-medium text-sm ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border transition-all duration-200 font-medium text-xs sm:text-sm active:scale-95 ${
                 selectionMode
                   ? "bg-blue-600 text-white border-blue-600 shadow-md"
                   : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
               }`}
               title={selectionMode ? "Exit selection mode" : "Enter selection mode - Show all checkboxes"}
             >
-              <MousePointer2 className="w-4 h-4" />
-              <span>{selectionMode ? "Exit Select" : "Select Mode"}</span>
+              <MousePointer2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">{selectionMode ? "Exit Select" : "Select Mode"}</span>
+              <span className="sm:hidden">{selectionMode ? "Exit" : "Select"}</span>
             </button>
 
             {/* Keyboard Shortcuts Help */}
-            <div className="relative group">
+            <div className="relative group hidden sm:block">
               <button
-                className="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-all"
+                className="flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 transition-all active:scale-95"
                 title="Keyboard shortcuts"
               >
                 <Keyboard className="w-4 h-4" />
@@ -3902,36 +3903,36 @@ export default function GeneratedContentPage() {
         </div>
 
         {/* Advanced Filters Panel */}
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setAdvancedFilters({...advancedFilters, panelOpen: !advancedFilters.panelOpen})}
-            className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            className="flex items-center gap-2 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors active:scale-95"
           >
-            <Filter className="w-4 h-4" />
+            <Filter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>Advanced Filters</span>
             {advancedFilters.panelOpen ? (
-              <ChevronUp className="w-4 h-4" />
+              <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             ) : (
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             )}
             {(advancedFilters.dateRange.start || advancedFilters.dateRange.end || 
               advancedFilters.fileSize.min > 0 || advancedFilters.fileSize.max < Infinity ||
               advancedFilters.aspectRatio !== 'all' || advancedFilters.formats.length > 0 ||
               advancedFilters.linkedStatus !== 'all') && (
-              <span className="ml-2 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full font-semibold">
+              <span className="ml-1 sm:ml-2 px-1.5 sm:px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] sm:text-xs rounded-full font-semibold">
                 Active
               </span>
             )}
           </button>
 
           {advancedFilters.panelOpen && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="mt-3 sm:mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               {/* Date Range Filter */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="space-y-1.5 sm:space-y-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                   Date Range
                 </label>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                   <input
                     type="date"
                     value={advancedFilters.dateRange.start || ''}
@@ -3939,9 +3940,9 @@ export default function GeneratedContentPage() {
                       ...advancedFilters,
                       dateRange: {...advancedFilters.dateRange, start: e.target.value}
                     })}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-gray-500">to</span>
+                  <span className="text-gray-500 text-xs">to</span>
                   <input
                     type="date"
                     value={advancedFilters.dateRange.end || ''}
@@ -3949,17 +3950,17 @@ export default function GeneratedContentPage() {
                       ...advancedFilters,
                       dateRange: {...advancedFilters.dateRange, end: e.target.value}
                     })}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
               {/* File Size Filter */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="space-y-1.5 sm:space-y-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                   File Size (MB)
                 </label>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                   <input
                     type="number"
                     min="0"
@@ -3970,9 +3971,9 @@ export default function GeneratedContentPage() {
                       ...advancedFilters,
                       fileSize: {...advancedFilters.fileSize, min: parseFloat(e.target.value) || 0}
                     })}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-gray-500">to</span>
+                  <span className="text-gray-500 text-xs">to</span>
                   <input
                     type="number"
                     min="0"
@@ -3983,14 +3984,14 @@ export default function GeneratedContentPage() {
                       ...advancedFilters,
                       fileSize: {...advancedFilters.fileSize, max: parseFloat(e.target.value) || Infinity}
                     })}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
               {/* Aspect Ratio Filter */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="space-y-1.5 sm:space-y-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                   Aspect Ratio
                 </label>
                 <select
@@ -3999,7 +4000,7 @@ export default function GeneratedContentPage() {
                     ...advancedFilters,
                     aspectRatio: e.target.value as AspectRatio
                   })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Ratios</option>
                   <option value="portrait">📱 Portrait</option>
@@ -4009,11 +4010,11 @@ export default function GeneratedContentPage() {
               </div>
 
               {/* Format Filter */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="space-y-1.5 sm:space-y-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                   Formats
                 </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5 sm:gap-2">
                   {['PNG', 'JPEG', 'WEBP', 'MP4', 'MOV'].map((format) => (
                     <button
                       key={format}
@@ -4023,7 +4024,7 @@ export default function GeneratedContentPage() {
                           : [...advancedFilters.formats, format];
                         setAdvancedFilters({...advancedFilters, formats});
                       }}
-                      className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all ${
+                      className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs rounded-lg font-medium transition-all active:scale-95 ${
                         advancedFilters.formats.includes(format)
                           ? 'bg-blue-600 text-white shadow-md'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -4036,8 +4037,8 @@ export default function GeneratedContentPage() {
               </div>
 
               {/* Linked Status Filter */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="space-y-1.5 sm:space-y-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">
                   Task Status
                 </label>
                 <select
@@ -4046,7 +4047,7 @@ export default function GeneratedContentPage() {
                     ...advancedFilters,
                     linkedStatus: e.target.value as LinkedStatus
                   })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Items</option>
                   <option value="linked">✅ Linked to Tasks</option>
@@ -4065,7 +4066,7 @@ export default function GeneratedContentPage() {
                     linkedStatus: 'all',
                     panelOpen: advancedFilters.panelOpen
                   })}
-                  className="w-full px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm"
+                  className="w-full px-3 sm:px-4 py-1.5 sm:py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-xs sm:text-sm active:scale-95"
                 >
                   Clear All Filters
                 </button>
@@ -4110,7 +4111,7 @@ export default function GeneratedContentPage() {
       </div>
 
       {/* Main Content Layout with Folder Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Folder Management Sidebar */}
         <aside className="lg:col-span-1">
           <div className="lg:sticky lg:top-6 space-y-4">
@@ -4148,12 +4149,12 @@ export default function GeneratedContentPage() {
         <main className="lg:col-span-3">
           {/* Active Folder Filter Badge */}
           {selectedFolder && selectedFolder !== 'outputs/' && (
-            <div className="mb-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    Showing content from: <strong>{selectedFolderInfo?.name || selectedFolder.split('/').filter(Boolean).pop()?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Selected Folder'}</strong>
+            <div className="mb-3 sm:mb-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2.5 sm:p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                  <Folder className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                  <p className="text-xs sm:text-sm text-blue-700 dark:text-blue-300 truncate">
+                    <span className="hidden sm:inline">Showing content from: </span><strong className="truncate">{selectedFolderInfo?.name || selectedFolder.split('/').filter(Boolean).pop()?.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || 'Selected Folder'}</strong>
                   </p>
                 </div>
                 <button
@@ -4162,9 +4163,9 @@ export default function GeneratedContentPage() {
                     setSelectedFolderInfo(null);
                     setCurrentPage(1);
                   }}
-                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 p-1 flex-shrink-0"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               </div>
             </div>

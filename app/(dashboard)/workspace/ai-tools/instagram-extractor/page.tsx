@@ -207,30 +207,30 @@ export default function InstagramExtractorPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white to-gray-50/50 dark:bg-gradient-to-br dark:from-black dark:to-gray-900/30">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-4">
-            <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-3 rounded-2xl shadow-lg">
-              <Instagram className="h-8 w-8 text-white" />
+        <div className="text-center mb-4 sm:mb-6 md:mb-8">
+          <div className="flex items-center justify-center mb-2 sm:mb-3 md:mb-4">
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-2 sm:p-2.5 md:p-3 rounded-xl sm:rounded-2xl shadow-lg">
+              <Instagram className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 dark:from-pink-400 dark:to-purple-400 bg-clip-text text-transparent mb-2">
+          <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 dark:from-pink-400 dark:to-purple-400 bg-clip-text text-transparent mb-1.5 sm:mb-2 px-2">
             Instagram Image Extractor
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xs xs:text-sm sm:text-base text-gray-600 dark:text-gray-400 max-w-2xl mx-auto px-3 sm:px-4">
             Extract and download all images from any Instagram post. Simply
             paste the URL and get high-quality images instantly.
           </p>
         </div>
 
         {/* URL Input Form */}
-        <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/30 p-6 mb-8">
-          <div className="space-y-4">
+        <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/30 p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 md:mb-8">
+          <div className="space-y-3 sm:space-y-4">
             <div>
               <label
                 htmlFor="instagram-url"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                className="block text-xs xs:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2"
               >
                 Instagram Post URL
               </label>
@@ -241,22 +241,22 @@ export default function InstagramExtractorPage() {
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https://www.instagram.com/p/..."
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                  className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 sm:py-3 pr-10 xs:pr-11 sm:pr-12 border border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors text-xs xs:text-sm"
                   disabled={isLoading}
                 />
-                <Instagram className="absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Instagram className="absolute right-3 xs:right-3.5 sm:right-4 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
               </div>
             </div>
 
             {error && (
-              <div className="flex items-center justify-between text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
-                <div className="flex items-center space-x-2">
-                  <AlertCircle className="h-5 w-5 flex-shrink-0" />
-                  <span className="text-sm">{error}</span>
+              <div className="flex items-center justify-between text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 sm:p-3 rounded-lg border border-red-200 dark:border-red-800">
+                <div className="flex items-center space-x-1.5 sm:space-x-2">
+                  <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span className="text-xs xs:text-sm">{error}</span>
                 </div>
                 <button
                   onClick={() => setError("")}
-                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
+                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200 active:scale-95 ml-2"
                 >
                   <span className="sr-only">Dismiss</span>×
                 </button>
@@ -264,14 +264,14 @@ export default function InstagramExtractorPage() {
             )}
 
             {success && (
-              <div className="flex items-center justify-between text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="h-5 w-5 flex-shrink-0" />
-                  <span className="text-sm">{success}</span>
+              <div className="flex items-center justify-between text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 sm:p-3 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center space-x-1.5 sm:space-x-2">
+                  <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                  <span className="text-xs xs:text-sm">{success}</span>
                 </div>
                 <button
                   onClick={() => setSuccess("")}
-                  className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200"
+                  className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200 active:scale-95 ml-2"
                 >
                   <span className="sr-only">Dismiss</span>×
                 </button>
@@ -281,16 +281,16 @@ export default function InstagramExtractorPage() {
             <button
               onClick={handleExtract}
               disabled={isLoading || !url.trim()}
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl"
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-2.5 xs:py-3 px-4 xs:px-5 sm:px-6 rounded-lg sm:rounded-xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 sm:space-x-2 shadow-lg hover:shadow-xl text-xs xs:text-sm sm:text-base active:scale-95"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
                   <span>Extracting Images...</span>
                 </>
               ) : (
                 <>
-                  <ImageIcon className="h-5 w-5" />
+                  <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span>Extract Images</span>
                 </>
               )}
@@ -300,48 +300,51 @@ export default function InstagramExtractorPage() {
 
         {/* Results */}
         {result && (
-          <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/30 p-6">
+          <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/30 p-3 sm:p-4 md:p-6">
             {/* Result Header */}
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="h-6 w-6 text-green-500" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-5 md:mb-6 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700 gap-3 sm:gap-4">
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-500 flex-shrink-0" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-base xs:text-lg font-semibold text-gray-900 dark:text-white">
                     Extraction Complete
                   </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
                     Found {result.images.length} image
                     {result.images.length !== 1 ? "s" : ""}
                   </p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  <p className="text-[10px] xs:text-xs text-amber-600 dark:text-amber-400 mt-0.5 sm:mt-1">
                     � Using advanced bypass methods (bot user-agents, base64
                     encoding) to show previews
                   </p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto">
                 <button
                   onClick={() => window.open(result.postUrl, "_blank")}
-                  className="inline-flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                  className="inline-flex items-center space-x-1.5 sm:space-x-2 px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-xs xs:text-sm flex-1 sm:flex-initial justify-center active:scale-95"
                 >
-                  <ExternalLink className="h-4 w-4" />
-                  <span>View Original</span>
+                  <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden xs:inline">View Original</span>
+                  <span className="xs:hidden">View</span>
                 </button>
                 {result.images.length > 1 && (
                   <button
                     onClick={handleDownloadAll}
                     disabled={downloadingAll || downloadingIndex !== null}
-                    className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 shadow-md disabled:cursor-not-allowed"
+                    className="inline-flex items-center space-x-1.5 sm:space-x-2 px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 shadow-md disabled:cursor-not-allowed text-xs xs:text-sm flex-1 sm:flex-initial justify-center active:scale-95"
                   >
                     {downloadingAll ? (
                       <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Downloading...</span>
+                        <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                        <span className="hidden xs:inline">Downloading...</span>
+                        <span className="xs:hidden">...</span>
                       </>
                     ) : (
                       <>
-                        <Download className="h-4 w-4" />
-                        <span>Download All</span>
+                        <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                        <span className="hidden xs:inline">Download All</span>
+                        <span className="xs:hidden">All</span>
                       </>
                     )}
                   </button>
@@ -351,26 +354,26 @@ export default function InstagramExtractorPage() {
 
             {/* Post Info */}
             {result.caption && (
-              <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3">
+              <div className="mb-4 sm:mb-5 md:mb-6 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg sm:rounded-xl">
+                <p className="text-xs xs:text-sm text-gray-700 dark:text-gray-300 line-clamp-3">
                   {result.caption}
                 </p>
               </div>
             )}
 
             {/* Images Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
               {result.images.map((image, index) => (
                 <div
                   key={index}
-                  className="group relative bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-700"
+                  className="group relative bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-700"
                 >
                   <div className="aspect-square relative overflow-hidden bg-gray-100 dark:bg-gray-800">
                     {imageLoadingStates[index] && (
                       <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                        <div className="flex flex-col items-center space-y-2">
-                          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex flex-col items-center space-y-1.5 sm:space-y-2">
+                          <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-gray-400" />
+                          <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                             Loading image...
                           </span>
                         </div>
@@ -379,19 +382,19 @@ export default function InstagramExtractorPage() {
 
                     {imageErrorStates[index] ? (
                       <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 border-2 border-dashed border-gray-300 dark:border-gray-600">
-                        <div className="text-center p-4">
-                          <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                        <div className="text-center p-3 sm:p-4">
+                          <ImageIcon className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 text-gray-400 mx-auto mb-1.5 sm:mb-2" />
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-1 sm:mb-2">
                             Advanced bypass failed
                           </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                          <p className="text-[10px] xs:text-xs text-gray-400 dark:text-gray-500 mb-2 sm:mb-3">
                             Tried multiple bypass methods including bot
                             user-agents and base64 encoding
                           </p>
-                          <div className="space-y-2">
+                          <div className="space-y-1.5 sm:space-y-2">
                             <button
                               onClick={() => window.open(image.url, "_blank")}
-                              className="block w-full text-xs text-blue-500 hover:text-blue-600 underline"
+                              className="block w-full text-[10px] xs:text-xs text-blue-500 hover:text-blue-600 underline active:scale-95"
                             >
                               Open in new tab
                             </button>
@@ -399,7 +402,7 @@ export default function InstagramExtractorPage() {
                               onClick={() =>
                                 handleDownloadImage(image.url, index)
                               }
-                              className="block w-full text-xs text-green-500 hover:text-green-600 underline"
+                              className="block w-full text-[10px] xs:text-xs text-green-500 hover:text-green-600 underline active:scale-95"
                               disabled={downloadingIndex === index}
                             >
                               Try download anyway
@@ -426,7 +429,7 @@ export default function InstagramExtractorPage() {
                                   )}&bypass=whatsapp&t=${Date.now()}`;
                                 }
                               }}
-                              className="block w-full text-xs text-purple-500 hover:text-purple-600 underline"
+                              className="block w-full text-[10px] xs:text-xs text-purple-500 hover:text-purple-600 underline active:scale-95"
                             >
                               Retry with WhatsApp bypass
                             </button>
@@ -521,89 +524,90 @@ export default function InstagramExtractorPage() {
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
 
                     {/* Image Overlay Actions */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex space-x-2">
+                    <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex space-x-1.5 sm:space-x-2">
                       <button
                         onClick={() => openImageInNewTab(image.url)}
-                        className="p-2 bg-white/90 dark:bg-gray-800/90 rounded-lg shadow-md hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                        className="p-1.5 sm:p-2 bg-white/90 dark:bg-gray-800/90 rounded-lg shadow-md hover:bg-white dark:hover:bg-gray-800 transition-colors active:scale-95"
                         title="View full size"
                       >
-                        <Eye className="h-4 w-4 text-gray-700 dark:text-gray-300" />
+                        <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-700 dark:text-gray-300" />
                       </button>
                       <button
                         onClick={() => copyImageUrl(image.url, index)}
-                        className="p-2 bg-white/90 dark:bg-gray-800/90 rounded-lg shadow-md hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                        className="p-1.5 sm:p-2 bg-white/90 dark:bg-gray-800/90 rounded-lg shadow-md hover:bg-white dark:hover:bg-gray-800 transition-colors active:scale-95"
                         title="Copy image URL"
                       >
                         {copiedIndex === index ? (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
                         ) : (
-                          <Copy className="h-4 w-4 text-gray-700 dark:text-gray-300" />
+                          <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-700 dark:text-gray-300" />
                         )}
                       </button>
                     </div>
                   </div>
 
                   {/* Image Actions */}
-                  <div className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="p-2.5 sm:p-3 md:p-4">
+                    <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 xs:gap-3">
+                      <div className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
                         Image {index + 1}
                         {image.width && image.height && (
-                          <span className="ml-2">
+                          <span className="ml-1.5 sm:ml-2 text-[10px] xs:text-xs">
                             {image.width} × {image.height}
                           </span>
                         )}
-                        <div className="mt-1 flex flex-wrap gap-1">
+                        <div className="mt-1 sm:mt-1.5 flex flex-wrap gap-0.5 xs:gap-1">
                           {/* Quality indicators */}
                           {!image.url.includes("c288.0.864.864a") && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <span className="inline-flex items-center px-1 xs:px-1.5 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                               Uncropped
                             </span>
                           )}
                           {image.url.includes("s1080x1080") && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                            <span className="inline-flex items-center px-1 xs:px-1.5 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                               HD
                             </span>
                           )}
                           {image.url.includes("_e15_") && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            <span className="inline-flex items-center px-1 xs:px-1.5 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                               HQ
                             </span>
                           )}
                           {!image.url.includes("stp=") && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                            <span className="inline-flex items-center px-1 xs:px-1.5 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                               Original
                             </span>
                           )}
                         </div>
                       </div>
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-1.5 sm:space-x-2 w-full xs:w-auto">
                         <button
                           onClick={() => handleDownloadImage(image.url, index)}
                           disabled={
                             downloadingIndex === index || downloadingAll
                           }
-                          className="flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white text-sm rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled:cursor-not-allowed"
+                          className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 px-2 xs:px-2.5 sm:px-3 py-1 xs:py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white text-[10px] xs:text-xs sm:text-sm rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled:cursor-not-allowed flex-1 xs:flex-initial justify-center active:scale-95"
                         >
                           {downloadingIndex === index ? (
                             <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Downloading...</span>
+                              <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                              <span className="hidden xs:inline">Downloading...</span>
+                              <span className="xs:hidden">...</span>
                             </>
                           ) : (
                             <>
-                              <Download className="h-4 w-4" />
+                              <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                               <span>Download</span>
                             </>
                           )}
                         </button>
                         <button
                           onClick={() => window.open(image.url, "_blank")}
-                          className="flex items-center space-x-2 px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded-lg transition-all duration-300 shadow-md hover:shadow-lg"
+                          className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 px-2 xs:px-2.5 sm:px-3 py-1 xs:py-1.5 bg-gray-500 hover:bg-gray-600 text-white text-[10px] xs:text-xs sm:text-sm rounded-lg transition-all duration-300 shadow-md hover:shadow-lg active:scale-95"
                           title="Open in new tab for manual save"
                         >
-                          <ExternalLink className="h-4 w-4" />
-                          <span>Open</span>
+                          <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          <span className="hidden xs:inline">Open</span>
                         </button>
                       </div>
                     </div>

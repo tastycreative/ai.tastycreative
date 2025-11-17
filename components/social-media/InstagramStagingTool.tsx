@@ -167,6 +167,9 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   
   // Media library filter state
   const [mediaLibraryStatusFilter, setMediaLibraryStatusFilter] = useState<string>("ALL");
+  
+  // Media library visibility for mobile
+  const [showMediaLibrary, setShowMediaLibrary] = useState(false);
 
   // Fetch user role from database on mount
   useEffect(() => {
@@ -1079,15 +1082,15 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-6 py-3 sm:py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <h1 className="text-base sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
               Instagram Content Staging
             </h1>
             {/* Role Badge */}
             <span
-              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+              className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold ${
                 userRole === "ADMIN"
                   ? "bg-red-500/20 text-red-600 dark:text-red-400"
                   : userRole === "MANAGER"
@@ -1098,14 +1101,15 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
               {userRole}
             </span>
           </div>
-          <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              <Upload size={18} />
-              Import from Drive
+          <div className="flex flex-wrap gap-2 sm:gap-3">
+            <button className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm active:scale-95">
+              <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Import from Drive</span>
+              <span className="xs:hidden">Import</span>
             </button>
             
             {/* Export Button with Selection */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {posts.length > 0 && (
                 <button
                   onClick={() => {
@@ -1126,14 +1130,14 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                       setSelectedPostIds(newSelected);
                     }
                   }}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                  className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium active:scale-95"
                 >
                   {getFilteredPosts().every(p => selectedPostIds.includes(p.id)) && getFilteredPosts().length > 0 ? '☐ Deselect All' : '☑ Select All'}
                 </button>
               )}
               
               {selectedPostIds.length > 0 && (
-                <span className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                   {selectedPostIds.length} selected
                 </span>
               )}
@@ -1149,42 +1153,42 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         </div>
 
         {/* Quick Stats Dashboard */}
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="mt-4 sm:mt-6 grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
           {/* Pending Review */}
-          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-200 dark:border-yellow-700/30 rounded-lg p-4 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-10 h-10 bg-yellow-500/20 dark:bg-yellow-500/30 rounded-full flex items-center justify-center">
-                <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-200 dark:border-yellow-700/30 rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-yellow-500/20 dark:bg-yellow-500/30 rounded-full flex items-center justify-center">
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600 dark:text-yellow-400" />
               </div>
-              <span className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
+              <span className="text-xl sm:text-2xl font-bold text-yellow-700 dark:text-yellow-300">
                 {posts.filter(p => p.status === 'REVIEW').length}
               </span>
             </div>
-            <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Pending Review</p>
-            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">Awaiting approval</p>
+            <p className="text-xs sm:text-sm font-medium text-yellow-700 dark:text-yellow-300">Pending Review</p>
+            <p className="text-[10px] sm:text-xs text-yellow-600 dark:text-yellow-400 mt-0.5 sm:mt-1">Awaiting approval</p>
           </div>
 
           {/* Ready to Schedule */}
-          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700/30 rounded-lg p-4 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-10 h-10 bg-green-500/20 dark:bg-green-500/30 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700/30 rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-500/20 dark:bg-green-500/30 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
               </div>
-              <span className="text-2xl font-bold text-green-700 dark:text-green-300">
+              <span className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-300">
                 {posts.filter(p => p.status === 'APPROVED').length}
               </span>
             </div>
-            <p className="text-sm font-medium text-green-700 dark:text-green-300">Ready to Schedule</p>
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">Approved posts</p>
+            <p className="text-xs sm:text-sm font-medium text-green-700 dark:text-green-300">Ready to Schedule</p>
+            <p className="text-[10px] sm:text-xs text-green-600 dark:text-green-400 mt-0.5 sm:mt-1">Approved posts</p>
           </div>
 
           {/* Scheduled Today */}
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-4 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-10 h-10 bg-blue-500/20 dark:bg-blue-500/30 rounded-full flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500/20 dark:bg-blue-500/30 rounded-full flex items-center justify-center">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
               </div>
-              <span className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+              <span className="text-xl sm:text-2xl font-bold text-blue-700 dark:text-blue-300">
                 {posts.filter(p => {
                   if (!p.date || p.status !== 'SCHEDULED') return false;
                   const today = new Date();
@@ -1193,35 +1197,35 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 }).length}
               </span>
             </div>
-            <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Scheduled Today</p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Going out today</p>
+            <p className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300">Scheduled Today</p>
+            <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 mt-0.5 sm:mt-1">Going out today</p>
           </div>
 
           {/* Needs Attention */}
-          <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border border-red-200 dark:border-red-700/30 rounded-lg p-4 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <div className="w-10 h-10 bg-red-500/20 dark:bg-red-500/30 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border border-red-200 dark:border-red-700/30 rounded-lg p-3 sm:p-4 hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-red-500/20 dark:bg-red-500/30 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
               </div>
-              <span className="text-2xl font-bold text-red-700 dark:text-red-300">
+              <span className="text-xl sm:text-2xl font-bold text-red-700 dark:text-red-300">
                 {posts.filter(p => p.rejectedAt).length}
               </span>
             </div>
-            <p className="text-sm font-medium text-red-700 dark:text-red-300">Needs Attention</p>
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">Rejected posts</p>
+            <p className="text-xs sm:text-sm font-medium text-red-700 dark:text-red-300">Needs Attention</p>
+            <p className="text-[10px] sm:text-xs text-red-600 dark:text-red-400 mt-0.5 sm:mt-1">Rejected posts</p>
           </div>
         </div>
 
         {/* User Selector for Admin/Manager */}
         {(userRole === "ADMIN" || userRole === "MANAGER") && (
-          <div className="mt-4 flex items-center gap-3">
-            <Users className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            <div className="flex-1 max-w-md">
+          <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400" />
+            <div className="flex-1 w-full sm:max-w-md">
               <select
                 value={selectedUserId || ""}
                 onChange={(e) => setSelectedUserId(e.target.value || null)}
                 disabled={loadingUsers}
-                className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                className="w-full px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               >
                 <option value="">📋 All My Posts (Personal View)</option>
                 <optgroup label="👥 Content Creators">
@@ -1267,58 +1271,60 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         )}
 
         {/* View Toggle */}
-        <div className="flex items-center gap-4 mt-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mt-3 sm:mt-4">
           <div className="flex gap-2">
             <button
               onClick={() => setView("grid")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm active:scale-95 ${
                 view === "grid"
                   ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900"
                   : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
               }`}
             >
-              <Grid3x3 size={18} />
-              Feed Preview
+              <Grid3x3 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Feed Preview</span>
+              <span className="xs:hidden">Feed</span>
             </button>
             <button
               onClick={() => setView("queue")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors text-xs sm:text-sm active:scale-95 ${
                 view === "queue"
                   ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900"
                   : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
               }`}
             >
-              <Calendar size={18} />
-              Queue Timeline
+              <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Queue Timeline</span>
+              <span className="xs:hidden">Queue</span>
             </button>
           </div>
 
           {/* Workflow Guide */}
-          <div className="flex-1 max-w-md">
+          <div className="flex-1 w-full sm:max-w-md">
             <WorkflowGuide userRole={userRole} />
           </div>
         </div>
 
         {/* Bulk Actions Toolbar - Shows when posts are selected */}
         {selectedPostIds.length > 0 && (
-          <div className="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                  <span className="font-semibold text-blue-900 dark:text-blue-100">
+          <div className="mt-3 sm:mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700/50 rounded-lg p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                  <span className="font-semibold text-xs sm:text-sm text-blue-900 dark:text-blue-100">
                     {selectedPostIds.length} post{selectedPostIds.length > 1 ? 's' : ''} selected
                   </span>
                 </div>
                 <button
                   onClick={() => setSelectedPostIds([])}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                  className="text-xs sm:text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium active:scale-95"
                 >
                   Clear selection
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 {/* Bulk Approve - Admin/Manager only */}
                 {canApprove(userRole) && (
                   <button
@@ -1337,10 +1343,11 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                         toast.error('Failed to approve some posts');
                       }
                     }}
-                    className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors active:scale-95"
                   >
-                    <CheckCircle className="w-4 h-4" />
-                    Approve All
+                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">Approve All</span>
+                    <span className="xs:hidden">Approve</span>
                   </button>
                 )}
 
@@ -1363,20 +1370,22 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                       setBulkScheduleTime(defaultTime);
                       setShowBulkScheduleDialog(true);
                     }}
-                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors active:scale-95"
                   >
-                    <Calendar className="w-4 h-4" />
-                    Bulk Schedule
+                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">Bulk Schedule</span>
+                    <span className="xs:hidden">Schedule</span>
                   </button>
                 )}
 
                 {/* Change Post Type */}
                 <div className="relative group">
-                  <button className="flex items-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors">
-                    <Edit3 className="w-4 h-4" />
-                    Change Type
+                  <button className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors active:scale-95">
+                    <Edit3 className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">Change Type</span>
+                    <span className="xs:hidden">Type</span>
                   </button>
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                  <div className="absolute right-0 mt-2 w-40 sm:w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
                     {['POST', 'REEL', 'STORY'].map(type => (
                       <button
                         key={type}
@@ -1436,15 +1445,27 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         )}
       </div>
 
-      <div className="flex h-[calc(100vh-200px)]">
+      <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-200px)]">
         {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className={`flex-1 overflow-y-auto p-3 sm:p-6 ${
+          showMediaLibrary ? 'hidden lg:block' : 'block'
+        }`}>
           {view === "grid" ? (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Feed Preview
-              </h2>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                  Feed Preview
+                </h2>
+                {/* Mobile toggle button for media library */}
+                <button
+                  onClick={() => setShowMediaLibrary(true)}
+                  className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors active:scale-95"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  Add Images
+                </button>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700">
                 {getFilteredPosts().length === 0 ? (
                   <div className="text-center py-16">
                     <Grid3x3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -1458,7 +1479,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-1">
+                  <div className="grid grid-cols-3 gap-0.5 sm:gap-1">
                     {getFilteredPosts().map((post) => (
                       <div
                         key={post.id}
@@ -1482,7 +1503,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                       >
                         {/* Selection Checkbox */}
                         <div 
-                          className="absolute top-2 left-2 z-10"
+                          className="absolute top-1 sm:top-2 left-1 sm:left-2 z-10"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <input
@@ -1495,7 +1516,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                 setSelectedPostIds(selectedPostIds.filter(id => id !== post.id));
                               }
                             }}
-                            className="w-5 h-5 rounded cursor-pointer accent-green-600 shadow-lg"
+                            className="w-4 h-4 sm:w-5 sm:h-5 rounded cursor-pointer accent-green-600 shadow-lg"
                           />
                         </div>
 
@@ -1527,17 +1548,17 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                         )}
                         {/* VIDEO Indicator - Top Right Corner */}
                         {post.type === "REEL" && (
-                          <div className="absolute top-2 right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1 z-10">
-                            <Video className="w-3 h-3" />
-                            VIDEO
+                          <div className="absolute top-1 sm:top-2 right-1 sm:right-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs font-bold shadow-lg flex items-center gap-0.5 sm:gap-1 z-10">
+                            <Video className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                            <span className="hidden xs:inline">VIDEO</span>
                           </div>
                         )}
                         {/* Status Badge - Top Right, below VIDEO indicator if present */}
                         <div
-                          className={`absolute ${post.type === "REEL" ? "top-10" : "top-2"} right-2 ${getStatusColor(
+                          className={`absolute ${post.type === "REEL" ? "top-8 sm:top-10" : "top-1 sm:top-2"} right-1 sm:right-2 ${getStatusColor(
                             post.status,
                             !!post.rejectedAt
-                          )} text-white text-xs px-2 py-1 rounded-full z-10`}
+                          )} text-white text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full z-10`}
                         >
                           {getStatusText(post.status, !!post.rejectedAt)}
                         </div>
@@ -1548,10 +1569,10 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                 e.stopPropagation();
                                 setSelectedPost(post);
                               }}
-                              className="bg-white text-gray-900 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                              className="bg-white text-gray-900 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 transition-colors active:scale-95"
                               title="Edit post"
                             >
-                              <Edit3 size={18} />
+                              <Edit3 className="w-4 h-4 sm:w-5 sm:h-5" />
                             </button>
                           </div>
                         </div>
@@ -1627,16 +1648,45 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         </div>
 
         {/* Right Sidebar - Editor or Library */}
-        <div className="w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto">
+        <div className={`${
+          showMediaLibrary ? 'fixed inset-0 z-50 lg:relative lg:inset-auto' : 'hidden'
+        } lg:block lg:w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto`}>
+          {/* Mobile overlay backdrop */}
+          {showMediaLibrary && (
+            <div 
+              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm -z-10"
+              onClick={() => setShowMediaLibrary(false)}
+            />
+          )}
+          
+          {/* Sidebar content wrapper for mobile slide-in */}
+          <div className={`${
+            showMediaLibrary ? 'lg:relative absolute inset-y-0 right-0 w-full sm:w-96 bg-white dark:bg-gray-800 shadow-2xl' : ''
+          } lg:w-full h-full overflow-y-auto`}>
+            {/* Mobile close button */}
+            {!selectedPost && (
+              <div className="lg:hidden sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-3 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                  Add Images to Feed
+                </h3>
+                <button
+                  onClick={() => setShowMediaLibrary(false)}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors active:scale-95"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+            
           {selectedPost ? (
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <div className="p-3 sm:p-6">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
                   Edit Post
                 </h3>
                 <button
                   onClick={() => setSelectedPost(null)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 active:scale-95"
                 >
                   ✕
                 </button>
@@ -2119,12 +2169,12 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
               </div>
             </div>
           ) : (
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="p-3 sm:p-6">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4 hidden lg:block">
                 Media Library (AWS S3)
               </h3>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {/* Folder Selection */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -2708,6 +2758,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
 

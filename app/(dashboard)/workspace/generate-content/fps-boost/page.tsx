@@ -224,24 +224,24 @@ const VideoPlayer = ({
         <div className="flex space-x-1">
           <button
             onClick={onDownload}
-            className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md"
+            className="p-1.5 sm:p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md active:scale-95"
             title="Download"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
           <button
             onClick={onShare}
-            className="p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md"
+            className="p-1.5 sm:p-2 bg-white dark:bg-gray-800 rounded-lg shadow-md active:scale-95"
             title="Share"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </button>
         </div>
       </div>
 
       {video.fps && (
         <div className="absolute bottom-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+          <div className="bg-black bg-opacity-75 text-white text-[10px] xs:text-xs px-1.5 xs:px-2 py-0.5 xs:py-1 rounded">
             {Math.round(video.fps)} FPS
             {video.duration && ` • ${video.duration.toFixed(1)}s`}
           </div>
@@ -744,35 +744,35 @@ export default function FPSBoostPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
-              <Zap className="w-8 h-8 text-white" />
+        <div className="mb-6 sm:mb-8 md:mb-10 text-center">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
+              <Zap className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-white" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
               FPS Boost Studio
             </h1>
           </div>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-2">
             AI-powered frame interpolation for ultra-smooth motion ⚡ Transform your videos with advanced RIFE technology
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
           {/* Left Panel - Input */}
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Video Upload */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                  <Upload className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 mb-4 sm:mb-6">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg sm:rounded-xl">
+                  <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Upload Video</h3>
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Upload Video</h3>
               </div>
 
             {!uploadedVideoPreview ? (
               <div
-                className={`relative border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300 ${
+                className={`relative border-2 border-dashed rounded-xl p-8 xs:p-10 sm:p-12 md:p-16 text-center cursor-pointer transition-all duration-300 ${
                   isDragging
                     ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 scale-[1.02] shadow-lg'
                     : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-gradient-to-br hover:from-gray-50 hover:to-purple-50/30 dark:hover:from-gray-800/50 dark:hover:to-purple-900/10'
@@ -783,42 +783,42 @@ export default function FPSBoostPage() {
                 onDrop={handleDrop}
               >
                 {isUploading ? (
-                  <div className="space-y-4">
-                    <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto" />
-                    <p className="text-gray-600 dark:text-gray-400">Uploading and analyzing video...</p>
-                    <div className="max-w-xs mx-auto bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
+                  <div className="space-y-3 sm:space-y-4">
+                    <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 animate-spin text-blue-500 mx-auto" />
+                    <p className="text-xs sm:text-sm md:text-base text-gray-600 dark:text-gray-400">Uploading and analyzing video...</p>
+                    <div className="max-w-xs mx-auto bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 sm:h-2">
+                      <div className="bg-blue-500 h-1.5 sm:h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3 sm:space-y-4">
                     <div className={`transition-transform ${isDragging ? 'scale-110' : ''}`}>
-                      <Video className="w-16 h-16 text-blue-500 mx-auto" />
+                      <Video className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 text-blue-500 mx-auto" />
                     </div>
                     <div>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      <p className="text-sm xs:text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
                         {isDragging ? 'Drop video here' : 'Click or drag to upload video'}
                       </p>
-                      <p className="text-sm text-gray-500 mt-1">MP4, MOV, AVI up to 500MB</p>
+                      <p className="text-xs sm:text-sm text-gray-500 mt-1">MP4, MOV, AVI up to 500MB</p>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="relative rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 shadow-lg">
                   <video
                     ref={videoPreviewRef}
                     src={uploadedVideoPreview}
                     controls
-                    className="w-full max-h-96 object-contain bg-black"
+                    className="w-full max-h-64 xs:max-h-72 sm:max-h-80 md:max-h-96 object-contain bg-black"
                   />
                   <button
                     onClick={removeUploadedVideo}
-                    className="absolute top-3 right-3 p-2 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all hover:scale-110 shadow-xl z-10"
+                    className="absolute top-2 xs:top-2.5 sm:top-3 right-2 xs:right-2.5 sm:right-3 p-1.5 sm:p-2 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg sm:rounded-xl hover:from-red-600 hover:to-red-700 transition-all hover:scale-110 shadow-xl z-10 active:scale-95"
                     title="Remove video"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
@@ -834,19 +834,19 @@ export default function FPSBoostPage() {
           </div>
 
           {/* FPS Settings */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                <Gauge className="w-5 h-5 text-white" />
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 mb-4 sm:mb-6">
+              <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg sm:rounded-xl">
+                <Gauge className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">FPS Settings</h3>
+              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">FPS Settings</h3>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Output Folder Selection - Moved to top */}
               <div>
-                <label className="text-sm font-medium mb-3 flex items-center space-x-2">
-                  <Folder className="w-4 h-4 text-purple-500" />
+                <label className="text-xs sm:text-sm font-medium mb-2 sm:mb-3 flex items-center space-x-1.5 sm:space-x-2">
+                  <Folder className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500" />
                   <span>Save to Folder</span>
                 </label>
                 <div className="relative">
@@ -859,7 +859,7 @@ export default function FPSBoostPage() {
                       setParams((prev) => ({ ...prev, targetFolder: normalizedPrefix }));
                     }}
                     disabled={isLoadingFolders}
-                    className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                   >
                     <option value="">Select a folder...</option>
                     {availableFolders.map((folder) => (
@@ -868,34 +868,34 @@ export default function FPSBoostPage() {
                       </option>
                     ))}
                   </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                     {isLoadingFolders ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-gray-400" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                      <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                     )}
                   </div>
                 </div>
                 {selectedFolderOption && (
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                  <div className="mt-1.5 sm:mt-2 space-y-0.5 sm:space-y-1">
+                    <p className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
                       <span>💡</span>
                       <span>
                         Saving to <span className="font-semibold text-gray-700 dark:text-gray-100">{selectedFolderOption.displayPath}</span>
                       </span>
                       {selectedFolderOption.isShared && (
-                        <span className="ml-1 inline-flex items-center px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 rounded-full">
+                        <span className="ml-1 inline-flex items-center px-1.5 xs:px-2 py-0.5 text-[9px] xs:text-[10px] font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/30 rounded-full">
                           Shared
                         </span>
                       )}
                     </p>
-                    <span className="inline-block text-[11px] font-mono bg-gray-100 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700">
+                    <span className="inline-block text-[10px] xs:text-[11px] font-mono bg-gray-100 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 px-2 xs:px-3 py-1 xs:py-1.5 rounded-md border border-gray-200 dark:border-gray-700">
                       {selectedFolderOption.prefix}
                     </span>
                   </div>
                 )}
                 {params.targetFolder && !selectedFolderOption && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
+                  <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 mt-1.5 sm:mt-2 flex items-center gap-1">
                     <span>💡</span>
                     <span>Saving to: {params.targetFolder}</span>
                   </p>
@@ -904,13 +904,13 @@ export default function FPSBoostPage() {
 
               {/* FPS Presets */}
               <div>
-                <label className="text-sm font-medium mb-3 block">Quick Presets</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <label className="text-xs sm:text-sm font-medium mb-2 sm:mb-3 block">Quick Presets</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 sm:gap-2">
                   {[30, 60, 90, 120].map((fps) => (
                     <button
                       key={fps}
                       onClick={() => setParams((prev) => ({ ...prev, targetFPS: fps }))}
-                      className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                      className={`px-2 xs:px-3 sm:px-4 py-2 xs:py-2.5 sm:py-3 rounded-lg font-semibold transition-all text-xs xs:text-sm sm:text-base active:scale-95 ${
                         params.targetFPS === fps
                           ? 'bg-blue-600 text-white shadow-lg scale-105'
                           : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -924,13 +924,13 @@ export default function FPSBoostPage() {
 
               {/* Target FPS Slider */}
               <div>
-                <div className="flex items-center justify-between mb-4">
-                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <label className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
                     Custom FPS
                   </label>
-                  <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl shadow-md">
-                    <Gauge className="w-5 h-5 text-white" />
-                    <span className="text-2xl font-bold text-white">
+                  <div className="flex items-center space-x-1.5 sm:space-x-2 px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg sm:rounded-xl shadow-md">
+                    <Gauge className="w-3.5 h-3.5 xs:w-4 xs:h-4 sm:w-5 sm:h-5 text-white" />
+                    <span className="text-lg xs:text-xl sm:text-2xl font-bold text-white">
                       {params.targetFPS}
                     </span>
                   </div>
@@ -947,7 +947,7 @@ export default function FPSBoostPage() {
                     background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((params.targetFPS - 20) / 100) * 100}%, #e5e7eb ${((params.targetFPS - 20) / 100) * 100}%, #e5e7eb 100%)`
                   }}
                 />
-                <div className="flex justify-between text-xs text-gray-500 mt-2">
+                <div className="flex justify-between text-[10px] xs:text-xs text-gray-500 mt-1.5 sm:mt-2">
                   <span>Slow (20)</span>
                   <span>Smooth (60)</span>
                   <span>Ultra (120)</span>
@@ -957,63 +957,62 @@ export default function FPSBoostPage() {
               {/* Advanced Settings */}
               <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center space-x-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors font-semibold"
-              >
-                <Settings className="w-5 h-5" />
+                className="flex items-center space-x-1.5 sm:space-x-2 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors font-semibold text-xs xs:text-sm sm:text-base active:scale-95">
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span>Advanced Settings</span>
-                {showAdvanced ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                {showAdvanced ? <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" /> : <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />}
               </button>
 
               {showAdvanced && (
-                <div className="space-y-4 pt-4 border-t">
+                <div className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 border-t">
                   {/* Quality/Speed Trade-off */}
                   <div>
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 block">Quality vs Speed</label>
+                    <label className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3 block">Quality vs Speed</label>
                     <div className="relative">
-                      <div className="flex justify-between text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3">
-                        <span className="flex items-center space-x-1">
-                          <Zap className="w-3 h-3" />
+                      <div className="flex justify-between text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 sm:mb-3">
+                        <span className="flex items-center space-x-0.5 xs:space-x-1">
+                          <Zap className="w-2.5 h-2.5 xs:w-3 xs:h-3" />
                           <span>Fast</span>
                         </span>
                         <span>Balanced</span>
-                        <span className="flex items-center space-x-1">
-                          <Sparkles className="w-3 h-3" />
+                        <span className="flex items-center space-x-0.5 xs:space-x-1">
+                          <Sparkles className="w-2.5 h-2.5 xs:w-3 xs:h-3" />
                           <span>Quality</span>
                         </span>
                       </div>
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-1.5 sm:space-x-2 md:space-x-3">
                         <button
                           onClick={() => setParams((prev) => ({ ...prev, fastMode: true, ensemble: false }))}
-                          className={`flex-1 py-3 rounded-xl transition-all duration-300 ${
+                          className={`flex-1 py-2 xs:py-2.5 sm:py-3 rounded-lg sm:rounded-xl transition-all duration-300 active:scale-95 ${
                             params.fastMode && !params.ensemble
                               ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg scale-105'
                               : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
                           }`}
                         >
-                          <Zap className="w-5 h-5 mx-auto" />
+                          <Zap className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 mx-auto" />
                         </button>
                         <button
                           onClick={() => setParams((prev) => ({ ...prev, fastMode: false, ensemble: false }))}
-                          className={`flex-1 py-3 rounded-xl transition-all duration-300 ${
+                          className={`flex-1 py-2 xs:py-2.5 sm:py-3 rounded-lg sm:rounded-xl transition-all duration-300 active:scale-95 ${
                             !params.fastMode && !params.ensemble
                               ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
                               : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
                           }`}
                         >
-                          <Gauge className="w-5 h-5 mx-auto" />
+                          <Gauge className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 mx-auto" />
                         </button>
                         <button
                           onClick={() => setParams((prev) => ({ ...prev, fastMode: false, ensemble: true }))}
-                          className={`flex-1 py-3 rounded-xl transition-all duration-300 ${
+                          className={`flex-1 py-2 xs:py-2.5 sm:py-3 rounded-lg sm:rounded-xl transition-all duration-300 active:scale-95 ${
                             params.ensemble
                               ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
                               : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
                           }`}
                         >
-                          <Sparkles className="w-5 h-5 mx-auto" />
+                          <Sparkles className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 mx-auto" />
                         </button>
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-3 text-center font-medium">
+                      <p className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400 mt-2 sm:mt-3 text-center font-medium">
                         {params.fastMode && !params.ensemble && '⚡ Faster processing, good quality'}
                         {!params.fastMode && !params.ensemble && '⚖️ Balanced speed and quality'}
                         {params.ensemble && '✨ Slower processing, best quality'}
@@ -1022,9 +1021,9 @@ export default function FPSBoostPage() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center justify-between">
+                    <label className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3 flex items-center justify-between">
                       <span>Memory Management</span>
-                      <span className="px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold rounded-lg shadow-sm">
+                      <span className="px-2 xs:px-2.5 sm:px-3 py-0.5 xs:py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] xs:text-xs font-bold rounded-md sm:rounded-lg shadow-sm">
                         {params.clearCache} frames
                       </span>
                     </label>
@@ -1035,17 +1034,17 @@ export default function FPSBoostPage() {
                       step="5"
                       value={params.clearCache}
                       onChange={(e) => setParams((prev) => ({ ...prev, clearCache: parseInt(e.target.value) }))}
-                      className="w-full h-3 bg-gradient-to-r from-blue-200 via-blue-400 to-blue-600 rounded-lg appearance-none cursor-pointer"
+                      className="w-full h-2.5 sm:h-3 bg-gradient-to-r from-blue-200 via-blue-400 to-blue-600 rounded-lg appearance-none cursor-pointer"
                       style={{
                         background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((params.clearCache - 5) / 45) * 100}%, #e5e7eb ${((params.clearCache - 5) / 45) * 100}%, #e5e7eb 100%)`
                       }}
                     />
-                    <div className="flex justify-between text-xs font-semibold text-gray-600 dark:text-gray-400 mt-2">
+                    <div className="flex justify-between text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-400 mt-1.5 sm:mt-2">
                       <span>Frequent (5)</span>
                       <span>Balanced (25)</span>
                       <span>Rare (50)</span>
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-3 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <p className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400 mt-2 sm:mt-3 p-1.5 sm:p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
                       💡 Clear cache more frequently for longer videos or limited GPU memory
                     </p>
                   </div>
@@ -1058,31 +1057,31 @@ export default function FPSBoostPage() {
           <button
             onClick={handleGenerate}
             disabled={isGenerating || !params.uploadedVideo || !params.targetFolder}
-            className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
+            className="group w-full py-3 sm:py-4 md:py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-sm sm:text-base md:text-lg rounded-xl sm:rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
             {isGenerating ? (
-              <div className="flex items-center justify-center space-x-3 relative z-10">
-                <Loader2 className="w-6 h-6 animate-spin" />
+              <div className="flex items-center justify-center space-x-2 sm:space-x-3 relative z-10">
+                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                 <span>Processing Magic...</span>
                 {currentJob?.progress !== undefined && (
-                  <span className="text-sm bg-white/20 px-2 py-1 rounded-lg">({currentJob.progress}%)</span>
+                  <span className="text-xs sm:text-sm bg-white/20 px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-md sm:rounded-lg">({currentJob.progress}%)</span>
                 )}
-                <Sparkles className="w-5 h-5 animate-pulse" />
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
               </div>
             ) : (
-              <div className="flex items-center justify-center space-x-2 relative z-10">
-                <Wand2 className="w-6 h-6" />
+              <div className="flex items-center justify-center space-x-1.5 sm:space-x-2 relative z-10">
+                <Wand2 className="w-5 h-5 sm:w-6 sm:h-6" />
                 <span>Boost FPS to {params.targetFPS}</span>
-                <Zap className="w-5 h-5" />
+                <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
             )}
           </button>
           
           {(!params.uploadedVideo || !params.targetFolder) && (
-            <div className="text-center py-3 px-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
-              <p className="text-sm text-gray-700 dark:text-gray-300 font-medium flex items-center justify-center gap-2">
-                <AlertCircle className="w-4 h-4" />
+            <div className="text-center py-2 xs:py-2.5 sm:py-3 px-3 xs:px-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+              <p className="text-xs xs:text-sm text-gray-700 dark:text-gray-300 font-medium flex items-center justify-center gap-1.5 sm:gap-2">
+                <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {!params.uploadedVideo && "Please upload a video first"}
                 {params.uploadedVideo && !params.targetFolder && "Please select a folder to save your output"}
               </p>
@@ -1091,45 +1090,45 @@ export default function FPSBoostPage() {
         </div>
 
           {/* Right Panel - Progress & Results */}
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Current Job */}
             {currentJob && (
-              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Current Generation</h3>
+              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Current Generation</h3>
                   {currentJob.status === 'processing' && (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
-                      <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">Processing</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-purple-500" />
+                      <span className="text-[10px] xs:text-xs font-semibold text-purple-600 dark:text-purple-400">Processing</span>
                     </div>
                   )}
                   {currentJob.status === 'completed' && (
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
-                      <span className="text-xs font-semibold text-green-600 dark:text-green-400">Completed</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+                      <span className="text-[10px] xs:text-xs font-semibold text-green-600 dark:text-green-400">Completed</span>
                     </div>
                   )}
                   {currentJob.status === 'failed' && (
-                    <div className="flex items-center gap-2">
-                      <XCircle className="w-5 h-5 text-red-500" />
-                      <span className="text-xs font-semibold text-red-600 dark:text-red-400">Failed</span>
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                      <span className="text-[10px] xs:text-xs font-semibold text-red-600 dark:text-red-400">Failed</span>
                     </div>
                   )}
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {/* Status Badge */}
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Status</span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1 ${
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Status</span>
+                  <span className={`px-2 xs:px-2.5 sm:px-3 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs sm:text-sm font-medium flex items-center space-x-0.5 xs:space-x-1 ${
                     currentJob.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
                     currentJob.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
                     currentJob.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
                     'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                   }`}>
-                    {currentJob.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin" />}
-                    {currentJob.status === 'completed' && <CheckCircle2 className="w-3 h-3" />}
-                    {currentJob.status === 'failed' && <XCircle className="w-3 h-3" />}
+                    {currentJob.status === 'processing' && <Loader2 className="w-2.5 h-2.5 xs:w-3 xs:h-3 animate-spin" />}
+                    {currentJob.status === 'completed' && <CheckCircle2 className="w-2.5 h-2.5 xs:w-3 xs:h-3" />}
+                    {currentJob.status === 'failed' && <XCircle className="w-2.5 h-2.5 xs:w-3 xs:h-3" />}
                     <span className="capitalize">{currentJob.status}</span>
                   </span>
                 </div>
@@ -1137,13 +1136,13 @@ export default function FPSBoostPage() {
                 {/* Progress Bar */}
                 {currentJob.status === 'processing' && currentJob.progress !== undefined && (
                   <div>
-                    <div className="flex justify-between text-sm mb-2">
+                    <div className="flex justify-between text-xs sm:text-sm mb-1.5 sm:mb-2">
                       <span className="text-gray-600 dark:text-gray-400">Progress</span>
                       <span className="font-semibold text-blue-600 dark:text-blue-400">{currentJob.progress}%</span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 sm:h-3 overflow-hidden">
                       <div
-                        className="bg-gradient-to-r from-blue-500 to-cyan-500 h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+                        className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2.5 sm:h-3 rounded-full transition-all duration-500 ease-out relative overflow-hidden"
                         style={{ width: `${currentJob.progress}%` }}
                       >
                         <div className="absolute inset-0 bg-white/30 animate-pulse" />
@@ -1154,22 +1153,22 @@ export default function FPSBoostPage() {
 
                 {/* Stage Info */}
                 {currentJob.stage && (
-                  <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center space-x-2">
-                    <Clock className="w-4 h-4" />
+                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 flex items-center space-x-1.5 sm:space-x-2">
+                    <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>{currentJob.stage}</span>
                   </div>
                 )}
 
                 {/* Time Info */}
                 {currentJob.elapsedTime && (
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                      <div className="text-xs text-gray-500 dark:text-gray-400">Elapsed</div>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+                    <div className="p-1.5 sm:p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                      <div className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">Elapsed</div>
                       <div className="font-semibold">{Math.floor(currentJob.elapsedTime / 60)}m {currentJob.elapsedTime % 60}s</div>
                     </div>
                     {currentJob.estimatedTimeRemaining && (
-                      <div className="p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Remaining</div>
+                      <div className="p-1.5 sm:p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">Remaining</div>
                         <div className="font-semibold">{Math.floor(currentJob.estimatedTimeRemaining / 60)}m {currentJob.estimatedTimeRemaining % 60}s</div>
                       </div>
                     )}
@@ -1178,17 +1177,17 @@ export default function FPSBoostPage() {
 
                 {/* Error Display */}
                 {currentJob.status === 'failed' && currentJob.error && (
-                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                    <div className="flex items-start space-x-2">
-                      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div className="p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start space-x-1.5 sm:space-x-2">
+                      <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 flex-shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-sm font-semibold text-red-900 dark:text-red-100 mb-1">Generation Failed</p>
-                        <p className="text-xs text-red-700 dark:text-red-300">{currentJob.error}</p>
+                        <p className="text-xs sm:text-sm font-semibold text-red-900 dark:text-red-100 mb-0.5 sm:mb-1">Generation Failed</p>
+                        <p className="text-[10px] xs:text-xs text-red-700 dark:text-red-300">{currentJob.error}</p>
                         <button
                           onClick={handleGenerate}
-                          className="mt-2 text-xs text-red-600 dark:text-red-400 hover:underline flex items-center space-x-1"
+                          className="mt-1.5 sm:mt-2 text-[10px] xs:text-xs text-red-600 dark:text-red-400 hover:underline flex items-center space-x-0.5 xs:space-x-1 active:scale-95"
                         >
-                          <RotateCcw className="w-3 h-3" />
+                          <RotateCcw className="w-2.5 h-2.5 xs:w-3 xs:h-3" />
                           <span>Retry Generation</span>
                         </button>
                       </div>
@@ -1198,16 +1197,16 @@ export default function FPSBoostPage() {
 
                 {/* Results */}
                 {currentJob.status === 'completed' && jobVideos[currentJob.id] && (
-                  <div className="space-y-4 mt-4 pt-4 border-t">
+                  <div className="space-y-3 sm:space-y-4 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-semibold flex items-center space-x-2">
-                        <Video className="w-4 h-4 text-green-500" />
+                      <h4 className="text-sm sm:text-base font-semibold flex items-center space-x-1.5 sm:space-x-2">
+                        <Video className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500" />
                         <span>Your Boosted Video</span>
                       </h4>
                       {showComparison && uploadedVideoPreview && (
                         <button
                           onClick={() => setShowComparison(!showComparison)}
-                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          className="text-[10px] xs:text-xs text-blue-600 dark:text-blue-400 hover:underline active:scale-95"
                         >
                           {showComparison ? 'Hide' : 'Show'} Comparison
                         </button>
@@ -1215,7 +1214,7 @@ export default function FPSBoostPage() {
                     </div>
                     
                     {jobVideos[currentJob.id].map((video) => (
-                      <div key={video.id} className="space-y-3">
+                      <div key={video.id} className="space-y-2 sm:space-y-3">
                         <VideoPlayer
                           video={video}
                           onDownload={() => downloadVideo(video)}
@@ -1223,19 +1222,19 @@ export default function FPSBoostPage() {
                           label={`${params.targetFPS} FPS`}
                         />
                         
-                        <div className="flex space-x-2">
+                        <div className="flex space-x-1.5 sm:space-x-2">
                           <button
                             onClick={() => downloadVideo(video)}
-                            className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center justify-center space-x-2"
+                            className="flex-1 py-2 sm:py-2.5 px-3 sm:px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm active:scale-95"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             <span>Download</span>
                           </button>
                           <button
                             onClick={() => shareVideo(video)}
-                            className="flex-1 py-2 px-4 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-all flex items-center justify-center space-x-2"
+                            className="flex-1 py-2 sm:py-2.5 px-3 sm:px-4 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-all flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm active:scale-95"
                           >
-                            <Share2 className="w-4 h-4" />
+                            <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             <span>Share</span>
                           </button>
                         </div>

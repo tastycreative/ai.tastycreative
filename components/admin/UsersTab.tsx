@@ -162,10 +162,10 @@ export default function UsersTab() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Users Management</h3>
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="space-y-3 xs:space-y-4">
+        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Users Management</h3>
+        <div className="flex items-center justify-center py-8 xs:py-12">
+          <div className="animate-spin rounded-full h-6 w-6 xs:h-8 xs:w-8 border-b-2 border-blue-600"></div>
         </div>
       </div>
     );
@@ -173,13 +173,13 @@ export default function UsersTab() {
 
   if (error) {
     return (
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Users Management</h3>
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-800 dark:text-red-200">Error: {error}</p>
+      <div className="space-y-3 xs:space-y-4">
+        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Users Management</h3>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 xs:p-4">
+          <p className="text-red-800 dark:text-red-200 text-xs xs:text-sm sm:text-base">Error: {error}</p>
           <button
             onClick={fetchUsers}
-            className="mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="mt-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white px-3 xs:px-4 py-1.5 xs:py-2 rounded-lg text-xs xs:text-sm font-medium transition-all"
           >
             Retry
           </button>
@@ -189,30 +189,30 @@ export default function UsersTab() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Users Management</h3>
+    <div className="space-y-3 xs:space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 xs:gap-4">
+        <h3 className="text-base xs:text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">Users Management</h3>
         
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col xs:flex-row gap-2 xs:gap-3">
           {/* Search Bar */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-2.5 xs:left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5 xs:w-4 xs:h-4" />
             <input
               type="text"
               placeholder="Search users..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm"
+              className="pl-8 xs:pl-10 pr-3 xs:pr-4 py-1.5 xs:py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-xs xs:text-sm"
             />
           </div>
 
           {/* Sort Dropdown */}
           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Filter className="absolute left-2.5 xs:left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5 xs:w-4 xs:h-4" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="pl-10 pr-8 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white text-sm appearance-none"
+              className="pl-8 xs:pl-10 pr-7 xs:pr-8 py-1.5 xs:py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white text-xs xs:text-sm appearance-none"
             >
               <option value="created">Newest First</option>
               <option value="name">Name</option>
@@ -224,16 +224,16 @@ export default function UsersTab() {
       </div>
 
       {/* Users Count & Debug Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-900/10 dark:to-purple-900/10 border border-blue-200/30 dark:border-blue-700/20 rounded-lg p-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 xs:gap-4">
+        <div className="bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-900/10 dark:to-purple-900/10 border border-blue-200/30 dark:border-blue-700/20 rounded-lg p-2.5 xs:p-3 sm:p-4">
+          <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-300">
             Showing <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredUsers.length}</span> of{' '}
             <span className="font-semibold text-blue-600 dark:text-blue-400">{users.length}</span> total users
           </p>
         </div>
         
-        <div className="bg-gradient-to-r from-emerald-50/50 to-teal-50/50 dark:from-emerald-900/10 dark:to-teal-900/10 border border-emerald-200/30 dark:border-emerald-700/20 rounded-lg p-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
+        <div className="bg-gradient-to-r from-emerald-50/50 to-teal-50/50 dark:from-emerald-900/10 dark:to-teal-900/10 border border-emerald-200/30 dark:border-emerald-700/20 rounded-lg p-2.5 xs:p-3 sm:p-4">
+          <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-300">
             <span className="font-semibold text-green-600 dark:text-green-400">{users.filter(u => u.inDatabase && !u.isOrphaned).length}</span> Synced,{' '}
             <span className="font-semibold text-yellow-600 dark:text-yellow-400">{users.filter(u => !u.inDatabase).length}</span> Clerk only,{' '}
             <span className="font-semibold text-red-600 dark:text-red-400">{users.filter(u => u.isOrphaned).length}</span> Orphaned
@@ -242,30 +242,30 @@ export default function UsersTab() {
       </div>
 
       {/* Users Table */}
-      <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-900/30 border border-gray-200/50 dark:border-gray-700/30 rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
+      <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-900/30 border border-gray-200/50 dark:border-gray-700/30 rounded-lg sm:rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[800px]">
             <thead className="bg-gradient-to-r from-gray-50 to-blue-50/30 dark:from-gray-900/50 dark:to-blue-900/20 border-b border-gray-200/50 dark:border-gray-700/30">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   User
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Contact
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Role
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Activity
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Dates
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -281,22 +281,22 @@ export default function UsersTab() {
                   } hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors duration-200`}
                 >
                   {/* User Info */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
+                    <div className="flex items-center space-x-2 xs:space-x-3">
+                      <div className="w-8 h-8 xs:w-10 xs:h-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                         {user.imageUrl ? (
                           <img src={user.imageUrl} alt={user.firstName || 'User'} className="w-full h-full object-cover" />
                         ) : (
-                          <User className="w-5 h-5 text-white" />
+                          <User className="w-4 h-4 xs:w-5 xs:h-5 text-white" />
                         )}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">
+                        <p className="font-semibold text-gray-900 dark:text-white text-xs xs:text-sm">
                           {user.firstName && user.lastName
                             ? `${user.firstName} ${user.lastName}`
                             : user.firstName || user.lastName || 'Anonymous User'}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">
                           ID: {user.clerkId.slice(-8)}
                         </p>
                       </div>
@@ -304,22 +304,22 @@ export default function UsersTab() {
                   </td>
 
                   {/* Contact Info */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-1 text-sm">
-                      <Mail className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-700 dark:text-gray-300">
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
+                    <div className="flex items-center space-x-1 text-xs xs:text-sm">
+                      <Mail className="w-3 h-3 xs:w-4 xs:h-4 text-gray-400 flex-shrink-0" />
+                      <span className="text-gray-700 dark:text-gray-300 truncate max-w-[120px] xs:max-w-none">
                         {user.email || 'No email'}
                       </span>
                     </div>
                   </td>
 
                   {/* Role */}
-                  <td className="px-6 py-4">
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
                     <select
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.clerkId, e.target.value as 'USER' | 'CONTENT_CREATOR' | 'MANAGER' | 'ADMIN')}
                       disabled={updatingRoles.has(user.clerkId)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border-0 cursor-pointer transition-colors ${
+                      className={`px-2 xs:px-3 py-1 rounded-full text-[10px] xs:text-xs font-medium border-0 cursor-pointer transition-colors ${
                         updatingRoles.has(user.clerkId)
                           ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
                           : user.role === 'ADMIN'
@@ -337,34 +337,36 @@ export default function UsersTab() {
                       <option value="ADMIN">Admin</option>
                     </select>
                     {updatingRoles.has(user.clerkId) && (
-                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="mt-1 text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">
                         Updating...
                       </div>
                     )}
                   </td>
 
                   {/* Status */}
-                  <td className="px-6 py-4">
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
                     <div className="space-y-1">
                       {user.isOrphaned ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
-                          Orphaned (DB only)
+                        <span className="inline-flex items-center px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 whitespace-nowrap">
+                          <span className="hidden xs:inline">Orphaned (DB only)</span>
+                          <span className="xs:hidden">Orphaned</span>
                         </span>
                       ) : user.inDatabase ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                        <span className="inline-flex items-center px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                           Synced
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-                          Clerk only
+                        <span className="inline-flex items-center px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 whitespace-nowrap">
+                          <span className="hidden xs:inline">Clerk only</span>
+                          <span className="xs:hidden">Clerk</span>
                         </span>
                       )}
                     </div>
                   </td>
 
                   {/* Activity Stats */}
-                  <td className="px-6 py-4">
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
+                    <div className="flex flex-col gap-1 xs:grid xs:grid-cols-2 xs:gap-2 text-[10px] xs:text-xs min-w-[140px]">
                       <div className="bg-blue-100/50 dark:bg-blue-900/30 rounded px-2 py-1 text-center">
                         <span className="font-semibold text-blue-800 dark:text-blue-300">{user._count.influencers}</span>
                         <span className="text-blue-600 dark:text-blue-400 ml-1">Influencers</span>
@@ -385,14 +387,14 @@ export default function UsersTab() {
                   </td>
 
                   {/* Dates */}
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-xs xs:text-sm text-gray-600 dark:text-gray-300">
                     <div className="space-y-1">
                       <div className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3 text-gray-400" />
-                        <span>Joined: {new Date(user.createdAt).toLocaleDateString()}</span>
+                        <Calendar className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                        <span className="whitespace-nowrap">Joined: {new Date(user.createdAt).toLocaleDateString()}</span>
                       </div>
                       {user.lastSignInAt && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <div className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                           Last active: {new Date(user.lastSignInAt).toLocaleDateString()}
                         </div>
                       )}
@@ -400,9 +402,9 @@ export default function UsersTab() {
                   </td>
 
                   {/* Actions */}
-                  <td className="px-6 py-4">
-                    <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group">
-                      <Eye className="w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
+                    <button className="p-1.5 xs:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group active:scale-95">
+                      <Eye className="w-3.5 h-3.5 xs:w-4 xs:h-4 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
                     </button>
                   </td>
                 </tr>
@@ -413,10 +415,10 @@ export default function UsersTab() {
       </div>
 
       {filteredUsers.length === 0 && (
-        <div className="text-center py-12">
-          <User className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No users found</h3>
-          <p className="text-gray-500 dark:text-gray-400">
+        <div className="text-center py-8 xs:py-12">
+          <User className="w-10 h-10 xs:w-12 xs:h-12 text-gray-400 mx-auto mb-3 xs:mb-4" />
+          <h3 className="text-base xs:text-lg font-medium text-gray-900 dark:text-white mb-2">No users found</h3>
+          <p className="text-xs xs:text-sm sm:text-base text-gray-500 dark:text-gray-400">
             {searchTerm ? 'Try adjusting your search terms' : 'No users have signed up yet'}
           </p>
         </div>

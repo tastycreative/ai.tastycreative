@@ -68,25 +68,25 @@ export default function WorkflowGuide({ userRole }: WorkflowGuideProps) {
     <div className={`border rounded-lg overflow-hidden ${colorClasses[role.color as keyof typeof colorClasses]}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between p-2 sm:p-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors active:scale-[0.99]"
       >
-        <div className="flex items-center gap-2">
-          <Info className="w-4 h-4" />
-          <span className="font-medium text-sm">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <span className="font-medium text-xs sm:text-sm">
             Your Role: {role.title}
           </span>
         </div>
-        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {isOpen ? <ChevronUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
       </button>
 
       {isOpen && (
-        <div className="px-3 pb-3 space-y-3">
+        <div className="px-2 sm:px-3 pb-2 sm:pb-3 space-y-2 sm:space-y-3">
           {/* Permissions */}
           <div>
-            <p className="text-xs font-semibold mb-2 opacity-70">Your Permissions:</p>
-            <ul className="space-y-1">
+            <p className="text-[10px] sm:text-xs font-semibold mb-1.5 sm:mb-2 opacity-70">Your Permissions:</p>
+            <ul className="space-y-0.5 sm:space-y-1">
               {role.permissions.map((permission, index) => (
-                <li key={index} className="text-xs flex items-start gap-2">
+                <li key={index} className="text-[10px] sm:text-xs flex items-start gap-1.5 sm:gap-2">
                   <span className="opacity-50 mt-0.5">•</span>
                   <span>{permission}</span>
                 </li>
@@ -97,28 +97,28 @@ export default function WorkflowGuide({ userRole }: WorkflowGuideProps) {
           {/* Workflow */}
           {userRole !== 'USER' && (
             <div>
-              <p className="text-xs font-semibold mb-2 opacity-70">Content Workflow:</p>
-              <div className="space-y-1 text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-16 h-6 bg-gray-500 rounded flex items-center justify-center text-white text-[10px] font-bold">
+              <p className="text-[10px] sm:text-xs font-semibold mb-1.5 sm:mb-2 opacity-70">Content Workflow:</p>
+              <div className="space-y-1 text-xs overflow-x-auto scrollbar-hide">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
+                  <div className="w-14 sm:w-16 h-5 sm:h-6 bg-gray-500 rounded flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold">
                     DRAFT
                   </div>
-                  <span className="text-xs opacity-70">→</span>
-                  <div className="w-16 h-6 bg-yellow-500 rounded flex items-center justify-center text-white text-[10px] font-bold">
+                  <span className="text-[10px] sm:text-xs opacity-70">→</span>
+                  <div className="w-14 sm:w-16 h-5 sm:h-6 bg-yellow-500 rounded flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold">
                     REVIEW
                   </div>
-                  <span className="text-xs opacity-70">→</span>
-                  <div className="w-16 h-6 bg-green-500 rounded flex items-center justify-center text-white text-[10px] font-bold">
+                  <span className="text-[10px] sm:text-xs opacity-70">→</span>
+                  <div className="w-16 sm:w-16 h-5 sm:h-6 bg-green-500 rounded flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold">
                     APPROVED
                   </div>
                 </div>
-                <div className="flex items-center gap-2 pl-[68px]">
-                  <span className="text-xs opacity-70">→</span>
-                  <div className="w-20 h-6 bg-purple-500 rounded flex items-center justify-center text-white text-[10px] font-bold">
+                <div className="flex items-center gap-1.5 sm:gap-2 pl-0 sm:pl-[68px] min-w-max">
+                  <span className="text-[10px] sm:text-xs opacity-70">→</span>
+                  <div className="w-18 sm:w-20 h-5 sm:h-6 bg-purple-500 rounded flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold">
                     SCHEDULED
                   </div>
-                  <span className="text-xs opacity-70">→</span>
-                  <div className="w-20 h-6 bg-pink-500 rounded flex items-center justify-center text-white text-[10px] font-bold">
+                  <span className="text-[10px] sm:text-xs opacity-70">→</span>
+                  <div className="w-18 sm:w-20 h-5 sm:h-6 bg-pink-500 rounded flex items-center justify-center text-white text-[9px] sm:text-[10px] font-bold">
                     PUBLISHED
                   </div>
                 </div>

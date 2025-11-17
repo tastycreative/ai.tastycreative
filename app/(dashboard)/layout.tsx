@@ -276,23 +276,23 @@ export default function DashboardLayout({
       return sidebarOpen ? (
         <div
           key="flux-group-label"
-          className="mx-3 mt-3 mb-1.5"
+          className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
           <div className="relative">
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 rounded-lg blur-sm"></div>
             
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-blue-400/30 dark:border-blue-500/20 rounded-lg px-3 py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-blue-400/30 dark:border-blue-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
-                    <Sparkles className="h-4 w-4 text-blue-400 dark:text-blue-300 animate-pulse" />
-                    <div className="absolute inset-0 h-4 w-4 text-blue-400 dark:text-blue-300 opacity-50 blur-sm">
-                      <Sparkles className="h-4 w-4" />
+                    <Sparkles className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-blue-400 dark:text-blue-300 animate-pulse" />
+                    <div className="absolute inset-0 h-3.5 w-3.5 xs:h-4 xs:w-4 text-blue-400 dark:text-blue-300 opacity-50 blur-sm">
+                      <Sparkles className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
                     </div>
                   </div>
-                  <span className="text-xs font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 dark:from-blue-300 dark:via-purple-300 dark:to-pink-300 bg-clip-text text-transparent uppercase tracking-wider">
+                  <span className="text-[10px] xs:text-xs font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 dark:from-blue-300 dark:via-purple-300 dark:to-pink-300 bg-clip-text text-transparent uppercase tracking-wider">
                     Flux Models
                   </span>
                 </div>
@@ -309,23 +309,23 @@ export default function DashboardLayout({
       return sidebarOpen ? (
         <div
           key="wan-22-group-label"
-          className="mx-3 mt-3 mb-1.5"
+          className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
           <div className="relative">
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 rounded-lg blur-sm"></div>
             
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 dark:from-green-500/10 dark:via-emerald-500/10 dark:to-teal-500/10 border border-green-400/30 dark:border-green-500/20 rounded-lg px-3 py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 dark:from-green-500/10 dark:via-emerald-500/10 dark:to-teal-500/10 border border-green-400/30 dark:border-green-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
-                    <Video className="h-4 w-4 text-green-400 dark:text-green-300 animate-pulse" />
-                    <div className="absolute inset-0 h-4 w-4 text-green-400 dark:text-green-300 opacity-50 blur-sm">
-                      <Video className="h-4 w-4" />
+                    <Video className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-green-400 dark:text-green-300 animate-pulse" />
+                    <div className="absolute inset-0 h-3.5 w-3.5 xs:h-4 xs:w-4 text-green-400 dark:text-green-300 opacity-50 blur-sm">
+                      <Video className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
                     </div>
                   </div>
-                  <span className="text-xs font-bold bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 dark:from-green-300 dark:via-emerald-300 dark:to-teal-300 bg-clip-text text-transparent uppercase tracking-wider">
+                  <span className="text-[10px] xs:text-xs font-bold bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400 dark:from-green-300 dark:via-emerald-300 dark:to-teal-300 bg-clip-text text-transparent uppercase tracking-wider">
                     Wan 2.2 Models
                   </span>
                 </div>
@@ -342,23 +342,23 @@ export default function DashboardLayout({
       return sidebarOpen ? (
         <div
           key="advanced-tools-group-label"
-          className="mx-3 mt-3 mb-1.5"
+          className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
           <div className="relative">
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-orange-500/10 rounded-lg blur-sm"></div>
             
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-orange-500/20 dark:from-purple-500/10 dark:via-pink-500/10 dark:to-orange-500/10 border border-purple-400/30 dark:border-purple-500/20 rounded-lg px-3 py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-orange-500/20 dark:from-purple-500/10 dark:via-pink-500/10 dark:to-orange-500/10 border border-purple-400/30 dark:border-purple-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
-                    <Wand2 className="h-4 w-4 text-purple-400 dark:text-purple-300 animate-pulse" />
-                    <div className="absolute inset-0 h-4 w-4 text-purple-400 dark:text-purple-300 opacity-50 blur-sm">
-                      <Wand2 className="h-4 w-4" />
+                    <Wand2 className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-purple-400 dark:text-purple-300 animate-pulse" />
+                    <div className="absolute inset-0 h-3.5 w-3.5 xs:h-4 xs:w-4 text-purple-400 dark:text-purple-300 opacity-50 blur-sm">
+                      <Wand2 className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
                     </div>
                   </div>
-                  <span className="text-xs font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 dark:from-purple-300 dark:via-pink-300 dark:to-orange-300 bg-clip-text text-transparent uppercase tracking-wider">
+                  <span className="text-[10px] xs:text-xs font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 dark:from-purple-300 dark:via-pink-300 dark:to-orange-300 bg-clip-text text-transparent uppercase tracking-wider">
                     Advanced Tools
                   </span>
                 </div>
@@ -373,7 +373,7 @@ export default function DashboardLayout({
     // Handle divider
     if (item.name.startsWith("DIVIDER")) {
       return sidebarOpen ? (
-        <div key={item.name} className="mx-3 my-3">
+        <div key={item.name} className="mx-2.5 xs:mx-3 my-2.5 xs:my-3">
           <div className="relative">
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-500/20 to-transparent blur-sm"></div>
             <div className="relative border-t border-gray-600/40 dark:border-gray-700/40"></div>
@@ -401,8 +401,8 @@ export default function DashboardLayout({
           isActive
             ? "bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white shadow-lg shadow-blue-500/25"
             : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white",
-          "group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300",
-          isInSection ? "pl-8" : "",
+          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95",
+          isInSection ? "pl-6 xs:pl-7 sm:pl-8" : "",
           !sidebarOpen ? "justify-center" : ""
         )}
       >
@@ -411,8 +411,8 @@ export default function DashboardLayout({
             isActive
               ? "text-white"
               : "text-gray-400 dark:text-gray-400 group-hover:text-gray-300 dark:group-hover:text-white",
-            "h-6 w-6 flex-shrink-0",
-            sidebarOpen ? "mr-3" : ""
+            "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0",
+            sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : ""
           )}
           aria-hidden="true"
         />
@@ -468,21 +468,21 @@ export default function DashboardLayout({
         {section.collapsible && sidebarOpen ? (
           <button
             onClick={handleSectionToggle}
-            className="w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300"
+            className="w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300 active:scale-95"
           >
             <span className="flex items-center">
-              <SectionIcon className="h-6 w-6 flex-shrink-0 mr-3 text-gray-400 dark:text-gray-400" />
+              <SectionIcon className="h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 text-gray-400 dark:text-gray-400" />
               {section.name}
             </span>
             {isExpanded ? (
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUp className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
             ) : (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
             )}
           </button>
         ) : (
           sidebarOpen && (
-            <div className="px-2 py-2 text-xs font-semibold text-gray-400 dark:text-gray-400 uppercase tracking-wider">
+            <div className="px-2 py-2 text-[10px] xs:text-xs font-semibold text-gray-400 dark:text-gray-400 uppercase tracking-wider">
               {section.name}
             </div>
           )
@@ -512,26 +512,26 @@ export default function DashboardLayout({
         )}
       >
         {/* Sidebar header */}
-        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
+        <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
           {sidebarOpen && (
-            <h1 className="text-white text-base sm:text-lg font-semibold">
+            <h1 className="text-white text-sm xs:text-base sm:text-lg font-semibold">
               Creative Ink
             </h1>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-colors duration-200"
+            className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-colors duration-200 active:scale-95"
           >
             {sidebarOpen ? (
-              <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
             ) : (
-              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
+              <ChevronRight className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
             )}
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
+        <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
           {navigation.map((item) => {
             if ("items" in item) {
               return renderNavSection(item);
@@ -542,7 +542,7 @@ export default function DashboardLayout({
         </nav>
 
         {/* Theme toggle and footer */}
-        <div className="border-t border-gray-700 dark:border-gray-800 p-3 sm:p-4">
+        <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4">
           <div className="flex items-center justify-end">
             <ThemeToggle />
           </div>
@@ -572,20 +572,20 @@ export default function DashboardLayout({
           )}
         >
           {/* Sidebar header */}
-          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
-            <h1 className="text-white text-base sm:text-lg font-semibold">
+          <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
+            <h1 className="text-white text-sm xs:text-base sm:text-lg font-semibold">
               Creative Ink
             </h1>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-colors duration-200"
+              className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-colors duration-200 active:scale-95"
             >
-              <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
             </button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-2 py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
+          <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
             {navigation.map((item) => {
               if ("items" in item) {
                 return renderNavSection(item);
@@ -596,7 +596,7 @@ export default function DashboardLayout({
           </nav>
 
           {/* Theme toggle and footer */}
-          <div className="border-t border-gray-700 dark:border-gray-800 p-3 sm:p-4">
+          <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4">
             <div className="flex items-center justify-end">
               <ThemeToggle />
             </div>
@@ -607,14 +607,14 @@ export default function DashboardLayout({
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Mobile menu button */}
-        <div className="lg:hidden bg-white/90 dark:bg-gray-900/60 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-gray-700/30 px-3 sm:px-4 py-2">
+        <div className="lg:hidden bg-white/90 dark:bg-gray-900/60 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 sm:p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
+            className="p-1.5 xs:p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors active:scale-95"
           >
-            <div className="flex items-center space-x-1 sm:space-x-2">
-              <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
-              <span className="text-xs sm:text-sm font-medium">Menu</span>
+            <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2">
+              <ChevronRight className="h-4 w-4 xs:h-5 xs:w-5 sm:h-6 sm:w-6" />
+              <span className="text-[10px] xs:text-xs sm:text-sm font-medium">Menu</span>
             </div>
           </button>
         </div>
@@ -622,7 +622,7 @@ export default function DashboardLayout({
         {/* Content area */}
         <main className="flex-1 overflow-y-auto bg-gradient-to-br from-white to-gray-50/50 dark:bg-gradient-to-br dark:from-black dark:to-gray-900/30 custom-scrollbar">
           {/* Sticky Header with user info and credits */}
-          <div className="sticky top-0 z-20 bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/30 px-3 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-3 shadow-sm">
+          <div className="sticky top-0 z-20 bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 lg:px-6 xl:px-8 py-2 xs:py-2.5 sm:py-3 shadow-sm">
             <div className="flex items-center justify-between">
               {/* Left Side - Global Progress Indicator */}
               <div className="flex items-center">
@@ -630,7 +630,7 @@ export default function DashboardLayout({
               </div>
 
               {/* Right Side - Credits and User */}
-              <div className="flex items-center space-x-2 sm:space-x-4">
+              <div className="flex items-center space-x-1.5 xs:space-x-2 sm:space-x-4">
                 {/* Unified Notification Bell (includes both post notifications and production tasks) */}
                 <NotificationBell />
                 
@@ -638,48 +638,49 @@ export default function DashboardLayout({
                 <ThemeToggle />
                 
                 {/* Available Credits */}
-                <div className="flex items-center space-x-1 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg shadow-sm">
-                  <CreditCard className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
-                  <span className="text-xs sm:text-sm font-medium bg-gradient-to-r from-blue-700 to-purple-700 dark:from-blue-300 dark:to-purple-300 bg-clip-text text-transparent">
-                    25 Credits
+                <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg shadow-sm">
+                  <CreditCard className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-[10px] xs:text-xs sm:text-sm font-medium bg-gradient-to-r from-blue-700 to-purple-700 dark:from-blue-300 dark:to-purple-300 bg-clip-text text-transparent">
+                    <span className="hidden xs:inline">25 Credits</span>
+                    <span className="xs:hidden">25</span>
                   </span>
                 </div>
 
                 {/* User Dropdown */}
                 <div className="relative group">
-                  <button className="flex items-center space-x-1 sm:space-x-2 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-700 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-700 dark:hover:to-gray-600 border border-gray-200/50 dark:border-gray-600/30 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition-all duration-300 shadow-sm">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-md">
-                      <span className="text-white text-xs sm:text-sm font-semibold">
+                  <button className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-700 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-700 dark:hover:to-gray-600 border border-gray-200/50 dark:border-gray-600/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg transition-all duration-300 shadow-sm active:scale-95">
+                    <div className="w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-md">
+                      <span className="text-white text-[10px] xs:text-xs sm:text-sm font-semibold">
                         {initials}
                       </span>
                     </div>
-                    <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
+                    <span className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
                       {firstName}
                     </span>
-                    <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400" />
+                    <ChevronDown className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400" />
                   </button>
 
                   {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="absolute right-0 mt-2 w-44 xs:w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <div className="py-2">
-                      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      <div className="px-3 xs:px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                        <p className="text-xs xs:text-sm font-medium text-gray-900 dark:text-white truncate">
                           {firstName}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 truncate">
                           {email}
                         </p>
                       </div>
-                      <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <button className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                         Profile Settings
                       </button>
-                      <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <button className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                         Billing
                       </button>
                       <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
                         <button
                           onClick={() => signOut({ redirectUrl: "/" })}
-                          className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                         >
                           Sign Out
                         </button>
@@ -692,7 +693,7 @@ export default function DashboardLayout({
           </div>
 
           {/* Content */}
-          <div className="px-3 py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8">
+          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8">
             {children}
           </div>
         </main>

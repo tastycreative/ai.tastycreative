@@ -240,43 +240,43 @@ const CalendarView = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <CalendarIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{monthName}</h2>
+      <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{monthName}</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             onClick={goToToday}
-            className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+            className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors active:scale-95"
           >
             Today
           </button>
           <button
             onClick={goToPreviousMonth}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors active:scale-95"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <button
             onClick={goToNextMonth}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors active:scale-95"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </div>
 
       {/* Calendar Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Scheduled This Month</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+            <p className="text-[10px] sm:text-xs font-medium text-blue-700 dark:text-blue-300">Scheduled This Month</p>
           </div>
-          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+          <p className="text-xl sm:text-2xl font-bold text-blue-700 dark:text-blue-300">
             {posts.filter((p) => {
               if (!p.date || p.status !== "SCHEDULED") return false;
               const postDate = new Date(p.date);
@@ -288,32 +288,32 @@ const CalendarView = () => {
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <ImageIcon className="w-4 h-4 text-green-600 dark:text-green-400" />
-            <p className="text-xs font-medium text-green-700 dark:text-green-300">Posts</p>
+        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-700/30 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <ImageIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 dark:text-green-400" />
+            <p className="text-[10px] sm:text-xs font-medium text-green-700 dark:text-green-300">Posts</p>
           </div>
-          <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+          <p className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-300">
             {posts.filter((p) => p.type === "POST").length}
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-700/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Video className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <p className="text-xs font-medium text-purple-700 dark:text-purple-300">Reels</p>
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-700/30 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <Video className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
+            <p className="text-[10px] sm:text-xs font-medium text-purple-700 dark:text-purple-300">Reels</p>
           </div>
-          <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+          <p className="text-xl sm:text-2xl font-bold text-purple-700 dark:text-purple-300">
             {posts.filter((p) => p.type === "REEL").length}
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border border-orange-200 dark:border-orange-700/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <CalendarIcon className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-            <p className="text-xs font-medium text-orange-700 dark:text-orange-300">Stories</p>
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border border-orange-200 dark:border-orange-700/30 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+            <CalendarIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-600 dark:text-orange-400" />
+            <p className="text-[10px] sm:text-xs font-medium text-orange-700 dark:text-orange-300">Stories</p>
           </div>
-          <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+          <p className="text-xl sm:text-2xl font-bold text-orange-700 dark:text-orange-300">
             {posts.filter((p) => p.type === "STORY").length}
           </p>
         </div>
@@ -324,8 +324,8 @@ const CalendarView = () => {
         {/* Weekday Headers */}
         <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-            <div key={day} className="p-3 text-center">
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{day}</span>
+            <div key={day} className="p-2 sm:p-3 text-center">
+              <span className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">{day}</span>
             </div>
           ))}
         </div>
@@ -339,9 +339,9 @@ const CalendarView = () => {
             return (
               <div
                 key={index}
-                className={`min-h-[120px] border-r border-b border-gray-200 dark:border-gray-700 p-2 relative group ${
+                className={`min-h-[80px] sm:min-h-[100px] md:min-h-[120px] border-r border-b border-gray-200 dark:border-gray-700 p-1 sm:p-2 relative group ${
                   date ? "bg-white dark:bg-gray-800 hover:bg-gradient-to-br hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 cursor-pointer transition-all duration-300" : "bg-gray-50 dark:bg-gray-900/30"
-                } ${today ? "ring-2 ring-blue-500 ring-inset bg-blue-50/30 dark:bg-blue-900/10" : ""} ${
+                } ${today ? "ring-1 sm:ring-2 ring-blue-500 ring-inset bg-blue-50/30 dark:bg-blue-900/10" : ""} ${
                   dayPosts.length > 0 ? "hover:shadow-lg hover:scale-[1.02] hover:z-10" : ""
                 }`}
                 onClick={() => {
@@ -353,18 +353,18 @@ const CalendarView = () => {
               >
                 {date && (
                   <>
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-1 sm:mb-2">
                       <span
-                        className={`text-sm font-semibold ${
+                        className={`text-xs sm:text-sm font-semibold ${
                           today
-                            ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-lg"
+                            ? "bg-gradient-to-br from-blue-500 to-purple-600 text-white w-5 h-5 sm:w-7 sm:h-7 rounded-full flex items-center justify-center shadow-lg text-[10px] sm:text-sm"
                             : "text-gray-700 dark:text-gray-300"
                         }`}
                       >
                         {date.getDate()}
                       </span>
                       {dayPosts.length > 0 && (
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-sm">
+                        <span className="text-[9px] sm:text-xs font-bold px-1 sm:px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-sm">
                           {dayPosts.length}
                         </span>
                       )}
@@ -372,29 +372,29 @@ const CalendarView = () => {
 
                     {/* Post density indicator */}
                     {dayPosts.length > 0 && (
-                      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" 
+                      <div className="absolute top-0 left-0 right-0 h-0.5 sm:h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" 
                            style={{ opacity: Math.min(dayPosts.length * 0.2, 1) }}
                       />
                     )}
 
                     {/* Post thumbnails */}
-                    <div className="space-y-1">
+                    <div className="space-y-0.5 sm:space-y-1">
                       {dayPosts.slice(0, 2).map((post) => (
                         <div
                           key={post.id}
-                          className="flex items-center gap-1.5 p-1.5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-700/30 rounded-lg hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-200 group-hover:scale-105"
+                          className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-700/30 rounded hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-200 group-hover:scale-105"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <div className={`w-2 h-2 rounded-full ${getStatusColor(post.status)} shadow-sm`} />
-                          <span className="text-xs text-gray-600 dark:text-gray-400 truncate flex-1 font-medium">
+                          <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${getStatusColor(post.status)} shadow-sm`} />
+                          <span className="text-[9px] sm:text-xs text-gray-600 dark:text-gray-400 truncate flex-1 font-medium">
                             {post.fileName}
                           </span>
-                          {post.type === "REEL" && <Video className="w-3 h-3 text-purple-500" />}
-                          {post.type === "STORY" && <Clock className="w-3 h-3 text-orange-500" />}
+                          {post.type === "REEL" && <Video className="w-2 h-2 sm:w-3 sm:h-3 text-purple-500" />}
+                          {post.type === "STORY" && <Clock className="w-2 h-2 sm:w-3 sm:h-3 text-orange-500" />}
                         </div>
                       ))}
                       {dayPosts.length > 2 && (
-                        <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold text-center mt-1 bg-blue-50 dark:bg-blue-900/20 rounded py-0.5">
+                        <div className="text-[9px] sm:text-xs text-blue-600 dark:text-blue-400 font-semibold text-center mt-0.5 sm:mt-1 bg-blue-50 dark:bg-blue-900/20 rounded py-0.5">
                           +{dayPosts.length - 2} more
                         </div>
                       )}

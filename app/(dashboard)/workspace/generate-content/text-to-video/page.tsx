@@ -749,36 +749,36 @@ export default function TextToVideoPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
-              <Video className="w-8 h-8 text-white" />
+        <div className="mb-6 sm:mb-8 text-center">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
+              <Video className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
               Text to Video Studio
             </h1>
           </div>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base md:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-4">
             Generate stunning videos from text using Wan 2.2 models ⚡ Advanced AI with 4-step LoRA acceleration
           </p>
         </div>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
           {/* Left Column - Input */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Folder Selection - Moved to top */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                  <FolderOpen className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                  <FolderOpen className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h3>
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h3>
               </div>
               <select
                 value={targetFolder}
                 onChange={(e) => setTargetFolder(e.target.value)}
-                className="w-full px-4 py-3 border border-purple-300 dark:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-300"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-purple-300 dark:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-300"
                 disabled={isProcessing || isLoadingFolders}
               >
                 <option value="">Select a folder...</option>
@@ -798,17 +798,17 @@ export default function TextToVideoPage() {
             </div>
 
             {/* Preset Mode Dropdown */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                  <Sparkles className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Preset Mode</h3>
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Preset Mode</h3>
               </div>
               <select
                 value={presetMode}
                 onChange={(e) => setPresetMode(e.target.value)}
-                className="w-full px-4 py-3 border border-purple-300 dark:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-300"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-purple-300 dark:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-300"
                 disabled={isProcessing}
               >
                 <option value="">Select preset mode...</option>
@@ -830,22 +830,22 @@ export default function TextToVideoPage() {
             </div>
 
             {/* Custom LoRA Selection */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                  <Layers className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                  <Layers className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Custom LoRA Models</h3>
-                {loadingLoRAs && <Loader2 className="w-4 h-4 animate-spin text-purple-500" />}
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Custom LoRA Models</h3>
+                {loadingLoRAs && <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-purple-500" />}
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-4 sm:mb-6">
                 Add your own LoRA models on top of the {presetMode && presetMode !== 'custom' ? `${presetMode} and ` : ''}fixed 4-step acceleration LoRAs. Select separate LoRAs for high noise and low noise stages.
               </p>
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {/* High Noise LoRA Selection */}
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <div className="flex items-center justify-between mb-2 sm:mb-3">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
                       🎨 High Noise LoRAs
                     </label>
                     <button
@@ -853,7 +853,7 @@ export default function TextToVideoPage() {
                         setCustomHighNoiseLoraList([...customHighNoiseLoraList, {id: nextLoraId, fileName: '', strength: 1.0}]);
                         setNextLoraId(nextLoraId + 1);
                       }}
-                      className="px-3 py-1.5 text-xs bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-1"
+                      className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-1 active:scale-95"
                     disabled={isProcessing || loadingLoRAs}
                   >
                     <span>+</span> Add LoRA
@@ -861,7 +861,7 @@ export default function TextToVideoPage() {
                 </div>
                 <div className="space-y-2">
                     {customHighNoiseLoraList.map((lora, index) => (
-                      <div key={lora.id} className="flex gap-3 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                      <div key={lora.id} className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 md:p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700">
                         <div className="flex-1">
                           <select
                             value={lora.fileName}
@@ -997,33 +997,33 @@ export default function TextToVideoPage() {
             </div>
 
             {/* Video Parameters */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                  <Gauge className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                  <Gauge className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Video Parameters</h3>
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Video Parameters</h3>
               </div>
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Resolution */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">📏 Width</label>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">📏 Width</label>
                     <input
                       type="number"
                       value={width}
                       onChange={(e) => setWidth(parseInt(e.target.value) || 640)}
-                      className="w-full px-4 py-3 border border-purple-300 dark:border-purple-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 transition-all"
+                      className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base border border-purple-300 dark:border-purple-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 transition-all"
                       disabled={isProcessing}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">📏 Height</label>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">📏 Height</label>
                     <input
                       type="number"
                       value={height}
                       onChange={(e) => setHeight(parseInt(e.target.value) || 640)}
-                      className="w-full px-4 py-3 border border-purple-300 dark:border-purple-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 transition-all"
+                      className="w-full px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-base border border-purple-300 dark:border-purple-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 transition-all"
                       disabled={isProcessing}
                     />
                   </div>
@@ -1031,7 +1031,7 @@ export default function TextToVideoPage() {
 
                 {/* Video Length */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 sm:mb-2">
                     🎬 Video Length: {videoLength} frames
                   </label>
                   <input
@@ -1050,19 +1050,19 @@ export default function TextToVideoPage() {
                 </div>
 
                 {/* Two-column layout for High Noise and Low Noise samplers */}
-                <div className="grid grid-cols-2 gap-6 pt-6 border-t-2 border-gradient-to-r from-purple-200 to-pink-200 dark:from-purple-800 dark:to-pink-800">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 md:gap-6 pt-4 sm:pt-6 border-t-2 border-gradient-to-r from-purple-200 to-pink-200 dark:from-purple-800 dark:to-pink-800">
                   {/* High Noise Sampler (Steps 0-2) */}
-                  <div className="space-y-4 p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border-2 border-purple-200 dark:border-purple-700">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse"></div>
-                      <h4 className="text-sm font-bold text-purple-700 dark:text-purple-300">High Noise Sampler</h4>
+                  <div className="space-y-3 sm:space-y-4 p-2.5 sm:p-3 md:p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border-2 border-purple-200 dark:border-purple-700">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+                      <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse"></div>
+                      <h4 className="text-xs sm:text-sm font-bold text-purple-700 dark:text-purple-300">High Noise Sampler</h4>
                     </div>
-                    <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-3">
+                    <div className="text-[10px] sm:text-xs text-purple-600 dark:text-purple-400 font-medium mb-2 sm:mb-3">
                       ⚡ add_noise: enable | Steps 0 → 2
                     </div>
                   
                     {/* Step Range */}
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
                       <div>
                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Start Step</label>
                         <input
@@ -1198,18 +1198,18 @@ export default function TextToVideoPage() {
             </div>
 
             {/* Prompt Input */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
-                  <Wand2 className="w-5 h-5 text-white" />
+            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                  <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Positive Prompt</h3>
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Positive Prompt</h3>
               </div>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describe the video you want to generate..."
-                className="w-full px-4 py-3 border border-purple-300 dark:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none transition-all"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-purple-300 dark:border-purple-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none transition-all"
                 rows={4}
                 disabled={isProcessing}
               />
@@ -1219,20 +1219,20 @@ export default function TextToVideoPage() {
             <button
               onClick={handleGenerate}
               disabled={isProcessing || !prompt.trim() || !targetFolder}
-              className="group w-full py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
+              className="group w-full py-3 sm:py-4 md:py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-sm sm:text-base md:text-lg rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
               {isProcessing ? (
                 <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                   <span>Generating Video Magic...</span>
-                  <Sparkles className="w-5 h-5 animate-pulse" />
+                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" />
                 </>
               ) : (
                 <>
-                  <Video className="w-6 h-6" />
+                  <Video className="w-5 h-5 sm:w-6 sm:h-6" />
                   <span>Generate Video</span>
-                  <Zap className="w-5 h-5" />
+                  <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
                 </>
               )}
             </button>
@@ -1256,42 +1256,42 @@ export default function TextToVideoPage() {
           </div>
 
         {/* Right Column - Progress & Results */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Progress Indicator */}
           {isProcessing && currentJob && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Processing</h3>
-                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                  <Clock className="w-4 h-4" />
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Processing</h3>
+                <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span>{formattedElapsed}</span>
                 </div>
               </div>
 
               {/* Progress Stages */}
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {PROGRESS_STAGES.map((stage, index) => {
                   const isActive = index === activeStageIndex;
                   const isCompleted = index < activeStageIndex;
 
                   return (
-                    <div key={stage.key} className="flex items-start space-x-3">
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                    <div key={stage.key} className="flex items-start space-x-2 sm:space-x-3">
+                      <div className={`flex-shrink-0 w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${
                         isCompleted ? 'bg-green-500' : isActive ? 'bg-blue-500 animate-pulse' : 'bg-gray-300 dark:bg-gray-600'
                       }`}>
                         {isCompleted ? (
-                          <CheckCircle className="w-5 h-5 text-white" />
+                          <CheckCircle className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white" />
                         ) : (
-                          <span className="text-white text-sm font-medium">{index + 1}</span>
+                          <span className="text-white text-xs sm:text-sm font-medium">{index + 1}</span>
                         )}
                       </div>
                       <div className="flex-1">
-                        <p className={`text-sm font-medium ${
+                        <p className={`text-xs sm:text-sm font-medium ${
                           isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
                         }`}>
                           {stage.label}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{stage.description}</p>
+                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{stage.description}</p>
                       </div>
                     </div>
                   );
@@ -1302,17 +1302,17 @@ export default function TextToVideoPage() {
 
           {/* Results */}
           {resultVideos.length > 0 && currentJob && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generated Video</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-4 md:p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Generated Video</h3>
                 {lastJobDuration && (
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                     Completed in {lastJobDuration}
                   </div>
                 )}
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {jobVideos[currentJob.id]?.map((video) => (
                   <div key={video.id} className="group relative">
                     <video
@@ -1323,18 +1323,18 @@ export default function TextToVideoPage() {
                     />
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs text-gray-500 dark:text-gray-400">{video.filename}</span>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1.5 sm:space-x-2">
                         <button
                           onClick={() => downloadDatabaseVideo(video)}
-                          className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors active:scale-95"
                         >
-                          <Download className="w-4 h-4" />
+                          <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         </button>
                         <button
                           onClick={() => shareVideo(video)}
-                          className="p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                          className="p-1.5 sm:p-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors active:scale-95"
                         >
-                          <Share2 className="w-4 h-4" />
+                          <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         </button>
                       </div>
                     </div>
@@ -1344,9 +1344,9 @@ export default function TextToVideoPage() {
 
               <button
                 onClick={resetForm}
-                className="w-full mt-4 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                className="w-full mt-3 sm:mt-4 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 text-white font-bold py-3 sm:py-4 px-3 sm:px-4 text-sm sm:text-base rounded-xl transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
               >
-                <RefreshCw className="w-5 h-5" />
+                <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
                 Generate Another Video
               </button>
             </div>
