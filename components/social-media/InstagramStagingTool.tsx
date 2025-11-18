@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   Calendar,
@@ -36,12 +37,12 @@ import {
 import {
   initializeS3Folders,
   loadS3Folder,
+  S3_UPLOAD_FOLDERS,
   type S3Folder,
   type S3File,
 } from "@/lib/s3-helpers";
 import QueueTimelineView from "./QueueTimelineView";
 import WorkflowGuide from "./WorkflowGuide";
-import { ExportButton } from "./ExportButton";
 import { useUser } from "@clerk/nextjs";
 
 // Role types
@@ -84,6 +85,7 @@ interface Post {
   status: "DRAFT" | "REVIEW" | "APPROVED" | "SCHEDULED" | "PENDING" | "PUBLISHED";
   type: "POST" | "REEL" | "STORY";
   date: string;
+  profileId: string | null;
   driveFileId?: string | null;
   awsS3Key?: string | null;
   awsS3Url?: string | null;
@@ -150,6 +152,25 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
+  // Profile selection state
+  const [profiles, setProfiles] = useState<Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    instagramUsername: string | null;
+    isDefault: boolean;
+    _count: { posts: number };
+  }>>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
+  const [showProfileDialog, setShowProfileDialog] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: '',
+    description: '',
+    instagramUsername: '',
+    isDefault: false,
+  });
+
   // Rejection dialog state
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectingPost, setRejectingPost] = useState<Post | null>(null);
@@ -170,6 +191,14 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   
   // Media library visibility for mobile
   const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+
+  // Upload dialog state
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadFolder, setUploadFolder] = useState("instagram/posts/");
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [postsLoading, setPostsLoading] = useState(false);
 
   // Fetch user role from database on mount
   useEffect(() => {
@@ -196,6 +225,39 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     fetchUserRole();
   }, [isLoaded, user]);
 
+  // Load profiles on mount
+  useEffect(() => {
+    loadProfiles();
+  }, [isLoaded, user]);
+
+  // Load profiles from database
+  const loadProfiles = async () => {
+    if (!isLoaded || !user) return;
+
+    setLoadingProfiles(true);
+    try {
+      const response = await fetch('/api/instagram/profiles');
+      const data = await response.json();
+
+      if (data.success) {
+        setProfiles(data.profiles);
+        
+        // Auto-select default profile or first profile
+        const defaultProfile = data.profiles.find((p: any) => p.isDefault);
+        if (defaultProfile) {
+          setSelectedProfileId(defaultProfile.id);
+        } else if (data.profiles.length > 0) {
+          setSelectedProfileId(data.profiles[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading profiles:', error);
+      toast.error('Failed to load profiles');
+    } finally {
+      setLoadingProfiles(false);
+    }
+  };
+
   // Auto-select and scroll to highlighted post from URL
   useEffect(() => {
     if (highlightPostId && posts.length > 0) {
@@ -219,48 +281,52 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   }, [highlightPostId, posts]);
 
   // Load posts from database on mount
+  const loadPosts = async () => {
+    setPostsLoading(true);
+    try {
+      // Admin/Manager can view specific user's posts, otherwise view own posts
+      const userIdToFetch =
+        (userRole === "ADMIN" || userRole === "MANAGER") && selectedUserId
+          ? selectedUserId
+          : undefined;
+
+      const dbPosts = await fetchInstagramPosts(userIdToFetch, selectedProfileId || undefined);
+      // Convert database posts to component format
+      const convertedPosts: Post[] = dbPosts.map((dbPost) => ({
+        id: dbPost.id,
+        profileId: dbPost.profileId,
+        image: dbPost.awsS3Url || dbPost.driveFileUrl || "",
+        caption: dbPost.caption,
+        status: dbPost.status,
+        type: dbPost.postType,
+        date: dbPost.scheduledDate
+          ? toLocalDateTimeString(dbPost.scheduledDate)
+          : "", // Keep empty if no scheduled date (don't default to now)
+        driveFileId: dbPost.driveFileId ?? undefined,
+        awsS3Key: dbPost.awsS3Key ?? undefined,
+        awsS3Url: dbPost.awsS3Url ?? undefined,
+        originalFolder: dbPost.originalFolder || dbPost.folder, // Use originalFolder if available, fallback to folder
+        order: dbPost.order,
+        fileName: dbPost.fileName,
+        mimeType: dbPost.mimeType || undefined,
+        rejectedAt: dbPost.rejectedAt,
+        rejectionReason: dbPost.rejectionReason,
+        rejectedBy: dbPost.rejectedBy,
+        instagramUrl: dbPost.instagramUrl || undefined,
+        publishedAt: dbPost.publishedAt || undefined,
+      }));
+      setPosts(convertedPosts);
+      console.log(`✅ Loaded ${convertedPosts.length} posts from database for profile ${selectedProfileId || 'none'}`);
+    } catch (error) {
+      console.error("❌ Error loading posts from database:", error);
+    } finally {
+      setPostsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadPosts = async () => {
-      try {
-        // Admin/Manager can view specific user's posts, otherwise view own posts
-        const userIdToFetch =
-          (userRole === "ADMIN" || userRole === "MANAGER") && selectedUserId
-            ? selectedUserId
-            : undefined;
-
-        const dbPosts = await fetchInstagramPosts(userIdToFetch);
-        // Convert database posts to component format
-        const convertedPosts: Post[] = dbPosts.map((dbPost) => ({
-          id: dbPost.id,
-          image: dbPost.awsS3Url || dbPost.driveFileUrl || "",
-          caption: dbPost.caption,
-          status: dbPost.status,
-          type: dbPost.postType,
-          date: dbPost.scheduledDate
-            ? toLocalDateTimeString(dbPost.scheduledDate)
-            : "", // Keep empty if no scheduled date (don't default to now)
-          driveFileId: dbPost.driveFileId ?? undefined,
-          awsS3Key: dbPost.awsS3Key ?? undefined,
-          awsS3Url: dbPost.awsS3Url ?? undefined,
-          originalFolder: dbPost.originalFolder || dbPost.folder, // Use originalFolder if available, fallback to folder
-          order: dbPost.order,
-          fileName: dbPost.fileName,
-          mimeType: dbPost.mimeType || undefined,
-          rejectedAt: dbPost.rejectedAt,
-          rejectionReason: dbPost.rejectionReason,
-          rejectedBy: dbPost.rejectedBy,
-          instagramUrl: dbPost.instagramUrl || undefined,
-          publishedAt: dbPost.publishedAt || undefined,
-        }));
-        setPosts(convertedPosts);
-        console.log(`✅ Loaded ${convertedPosts.length} posts from database`);
-      } catch (error) {
-        console.error("❌ Error loading posts from database:", error);
-      }
-    };
-
     loadPosts();
-  }, [selectedUserId, userRole]); // Reload when selected user changes
+  }, [selectedUserId, userRole, selectedProfileId]); // Reload when selected user or profile changes
 
   // Load available users for Admin/Manager
   useEffect(() => {
@@ -793,6 +859,60 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     }
   };
 
+  // Handle file upload
+  const handleUpload = async () => {
+    if (uploadFiles.length === 0) {
+      toast.error('Please select files to upload');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    try {
+      const uploadedFiles = [];
+      const totalFiles = uploadFiles.length;
+
+      for (let i = 0; i < uploadFiles.length; i++) {
+        const file = uploadFiles[i];
+        console.log(`Uploading file ${i + 1}/${totalFiles}:`, file.name);
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folder', uploadFolder);
+
+        const response = await fetch('/api/s3/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+
+        const data = await response.json();
+        uploadedFiles.push(data.file);
+        setUploadProgress(Math.round(((i + 1) / totalFiles) * 100));
+      }
+
+      // Refresh the folder contents to show new files
+      const folderName = S3_UPLOAD_FOLDERS.find(f => f.prefix === uploadFolder)?.name || 'Misc';
+      await loadFolderContents(uploadFolder, folderName);
+
+      toast.success(`Successfully uploaded ${uploadedFiles.length} file(s)!`);
+      
+      // Reset and close dialog
+      setUploadFiles([]);
+      setShowUploadDialog(false);
+      setUploadProgress(0);
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to upload files');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Return all posts (filters removed)
   const getFilteredPosts = () => {
     return [...posts];
@@ -1102,14 +1222,18 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
             </span>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-3">
-            <button className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm active:scale-95">
-              <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Import from Drive</span>
-              <span className="xs:hidden">Import</span>
-            </button>
-            
-            {/* Export Button with Selection */}
+            {/* Selection Controls */}
             <div className="flex items-center gap-2 sm:gap-3">
+              {/* Show message if no profiles exist */}
+              {profiles.length === 0 && !loadingProfiles && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                  <span className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300">
+                    Create a profile to get started
+                  </span>
+                </div>
+              )}
+              
               {posts.length > 0 && (
                 <button
                   onClick={() => {
@@ -1142,12 +1266,81 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 </span>
               )}
               
-              <ExportButton 
-                selectedPostIds={selectedPostIds}
-                onExportComplete={() => {
-                  setSelectedPostIds([]);
-                }}
-              />
+              {/* Profile Selector */}
+              <div className="flex items-center gap-2">
+                {profiles.length > 0 && (
+                  <select
+                    value={selectedProfileId || ''}
+                    onChange={(e) => setSelectedProfileId(e.target.value)}
+                    className="px-3 py-1.5 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">📋 Original Feed Preview</option>
+                    {profiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name} ({profile._count.posts})
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {selectedProfileId && profiles.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      const profile = profiles.find(p => p.id === selectedProfileId);
+                      if (!profile) return;
+
+                      const postsCount = profile._count.posts;
+                      const confirmMessage = postsCount > 0
+                        ? `Delete "${profile.name}"? This will also delete ${postsCount} post${postsCount > 1 ? 's' : ''}.`
+                        : `Delete "${profile.name}"?`;
+
+                      if (!confirm(confirmMessage)) return;
+
+                      try {
+                        const response = await fetch(`/api/instagram/profiles/${selectedProfileId}`, {
+                          method: 'DELETE',
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                          toast.success('Profile deleted successfully');
+                          await loadProfiles();
+                          // Select first remaining profile or null
+                          setSelectedProfileId(null);
+                        } else {
+                          toast.error(data.error || 'Failed to delete profile');
+                        }
+                      } catch (error) {
+                        console.error('Error deleting profile:', error);
+                        toast.error('Failed to delete profile');
+                      }
+                    }}
+                    className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="Delete profile"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setProfileForm({ name: '', description: '', instagramUsername: '', isDefault: false });
+                    setShowProfileDialog(true);
+                  }}
+                  className="px-2 py-1.5 text-xs sm:text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  title="Create new profile"
+                >
+                  + Profile
+                </button>
+              </div>
+              
+              <button 
+                onClick={() => setShowUploadDialog(true)}
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm active:scale-95"
+              >
+                <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Upload</span>
+                <span className="xs:hidden">Upload</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1466,7 +1659,19 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                 </button>
               </div>
               <div className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-6 max-w-4xl mx-auto border border-gray-200 dark:border-gray-700">
-                {getFilteredPosts().length === 0 ? (
+                {postsLoading ? (
+                  // Skeleton Loader
+                  <div className="grid grid-cols-3 gap-0.5 sm:gap-1">
+                    {[...Array(9)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="relative aspect-square bg-gray-200 dark:bg-gray-700 animate-pulse rounded-lg overflow-hidden"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-600"></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : getFilteredPosts().length === 0 ? (
                   <div className="text-center py-16">
                     <Grid3x3 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -1596,6 +1801,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                     return {
                       id: p.id,
                       clerkId: currentUserId,
+                      profileId: p.profileId,
                       driveFileId,
                       driveFileUrl: driveFileId ? p.image : null,
                       awsS3Key: p.awsS3Key ?? null,
@@ -2427,8 +2633,15 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                       <div className="flex gap-2">
                                         <button
                                           onClick={async () => {
+                                            // Ensure a profile is selected
+                                            if (!selectedProfileId) {
+                                              toast.error('Please select a profile first');
+                                              return;
+                                            }
+
                                             try {
                                               const dbPost = await createInstagramPost({
+                                                profileId: selectedProfileId,
                                                 driveFileId: null,
                                                 driveFileUrl: null,
                                                 awsS3Key: file.key,
@@ -2444,6 +2657,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
 
                                               const newPost: Post = {
                                                 id: dbPost.id,
+                                                profileId: dbPost.profileId,
                                                 image: file.url,
                                                 caption: "",
                                                 status: "DRAFT",
@@ -2460,7 +2674,8 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                                 mimeType: file.mimeType,
                                               };
 
-                                              setPosts((prev) => [newPost, ...prev]);
+                                              // Reload posts from database to ensure sync
+                                              await loadPosts();
                                               
                                               toast.success("Added to Instagram queue");
                                             } catch (error) {
@@ -2682,10 +2897,17 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                     <>
                                       <button
                                         onClick={async () => {
+                                          // Ensure a profile is selected
+                                          if (!selectedProfileId) {
+                                            toast.error('Please select a profile first');
+                                            return;
+                                          }
+
                                           try {
                                             // Keep file in original location - no longer moving to status folders
                                             // Create Instagram post with existing S3 location
                                             const dbPost = await createInstagramPost({
+                                              profileId: selectedProfileId,
                                               driveFileId: null,
                                               driveFileUrl: null,
                                               awsS3Key: file.key,
@@ -2701,6 +2923,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
 
                                             const newPost: Post = {
                                               id: dbPost.id,
+                                              profileId: dbPost.profileId,
                                               image: file.url,
                                               caption: "",
                                               status: "DRAFT",
@@ -2717,7 +2940,8 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                               mimeType: file.mimeType,
                                             };
 
-                                            setPosts((prev) => [newPost, ...prev]);
+                                            // Reload posts from database to ensure sync
+                                            await loadPosts();
                                             
                                             toast.success("Added to Instagram queue");
                                           } catch (error) {
@@ -2969,6 +3193,266 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Upload Dialog */}
+      {showUploadDialog && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Upload Files
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Upload photos or videos to AWS S3
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Folder Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Destination Folder <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={uploadFolder}
+                    onChange={(e) => setUploadFolder(e.target.value)}
+                    disabled={isUploading}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {S3_UPLOAD_FOLDERS.map((folder) => (
+                      <option key={folder.prefix} value={folder.prefix}>
+                        {folder.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    💡 Files will be saved in your user folder: {uploadFolder}{currentUserId}/
+                  </p>
+                </div>
+
+                {/* File Input */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select Files <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setUploadFiles(files);
+                    }}
+                    disabled={isUploading}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300 dark:hover:file:bg-blue-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  {uploadFiles.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Selected Files ({uploadFiles.length}):
+                      </p>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {uploadFiles.map((file, index) => (
+                          <div key={index} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                            {file.type.startsWith('image/') ? (
+                              <ImageIcon className="w-3 h-3 text-blue-500" />
+                            ) : (
+                              <Video className="w-3 h-3 text-purple-500" />
+                            )}
+                            <span className="truncate">{file.name}</span>
+                            <span className="text-gray-400">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload Progress */}
+                {isUploading && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-700 dark:text-gray-300">Uploading...</span>
+                      <span className="text-blue-600 dark:text-blue-400 font-medium">{uploadProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-600 dark:bg-blue-500 transition-all duration-300 ease-out"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowUploadDialog(false);
+                      setUploadFiles([]);
+                      setUploadProgress(0);
+                    }}
+                    disabled={isUploading}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpload}
+                    disabled={uploadFiles.length === 0 || isUploading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isUploading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        Upload {uploadFiles.length > 0 && `(${uploadFiles.length})`}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Profile Creation/Management Dialog */}
+      {showProfileDialog && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Create New Profile
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Separate content for different accounts
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Profile Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={profileForm.name}
+                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                    placeholder="e.g., Personal Brand, Business Account"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Instagram Username <span className="text-gray-400 text-xs">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={profileForm.instagramUsername}
+                    onChange={(e) => setProfileForm({ ...profileForm, instagramUsername: e.target.value })}
+                    placeholder="@username"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Description <span className="text-gray-400 text-xs">(Optional)</span>
+                  </label>
+                  <textarea
+                    value={profileForm.description}
+                    onChange={(e) => setProfileForm({ ...profileForm, description: e.target.value })}
+                    placeholder="Brief description of this profile..."
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="isDefault"
+                    checked={profileForm.isDefault}
+                    onChange={(e) => setProfileForm({ ...profileForm, isDefault: e.target.checked })}
+                    className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 dark:focus:ring-purple-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-gray-300">
+                    Set as default profile
+                  </label>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowProfileDialog(false);
+                      setProfileForm({ name: '', description: '', instagramUsername: '', isDefault: false });
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!profileForm.name.trim()) {
+                        toast.error('Profile name is required');
+                        return;
+                      }
+
+                      try {
+                        const response = await fetch('/api/instagram/profiles', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(profileForm),
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                          toast.success('Profile created successfully!');
+                          setProfiles([...profiles, { ...data.profile, _count: { posts: 0 } }]);
+                          setSelectedProfileId(data.profile.id);
+                          setShowProfileDialog(false);
+                          setProfileForm({ name: '', description: '', instagramUsername: '', isDefault: false });
+                        } else {
+                          toast.error(data.error || 'Failed to create profile');
+                        }
+                      } catch (error) {
+                        console.error('Error creating profile:', error);
+                        toast.error('Failed to create profile');
+                      }
+                    }}
+                    disabled={!profileForm.name.trim()}
+                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Create Profile
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

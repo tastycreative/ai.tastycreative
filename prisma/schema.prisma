@@ -31,6 +31,7 @@ model User {
   instagramPosts         InstagramPost[]
   notifications          Notification[]
   fluxKontextConversations FluxKontextConversation[]
+  instagramProfiles      InstagramProfile[]
 
   @@map("users")
 }
@@ -270,6 +271,7 @@ model ProductionEntry {
 model InstagramPost {
   id              String              @id @default(cuid())
   clerkId         String
+  profileId       String?             // Link to InstagramProfile
   driveFileId     String?             // Made optional for S3 migration
   driveFileUrl    String?             // Made optional for S3 migration
   awsS3Key        String?             // S3 object key
@@ -295,8 +297,11 @@ model InstagramPost {
   commentsCount   Int?                // Manual entry of comments count
   lastMetricsUpdate DateTime?         // Last time metrics were updated
   user            User                @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  profile         InstagramProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
 
   @@index([clerkId])
+  @@index([profileId])
+  @@index([clerkId, profileId])
   @@index([clerkId, order])
   @@index([status])
   @@index([scheduledDate])
@@ -524,4 +529,24 @@ enum MessageRole {
   USER
   ASSISTANT
   SYSTEM
+}
+
+model InstagramProfile {
+  id                   String            @id @default(cuid())
+  clerkId              String
+  name                 String            // Profile name (e.g., "Personal Brand", "Business Account")
+  description          String?           // Optional description
+  instagramUsername    String?           // Instagram handle (optional)
+  instagramAccountId   String?           // Instagram account ID for API
+  instagramAccessToken String?           // Access token for this specific profile
+  instagramTokenExpiry DateTime?         // Token expiry
+  isDefault            Boolean           @default(false) // Mark one profile as default
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  user                 User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  posts                InstagramPost[]
+
+  @@index([clerkId])
+  @@index([clerkId, isDefault])
+  @@map("instagram_profiles")
 }

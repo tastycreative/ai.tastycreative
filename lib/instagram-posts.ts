@@ -3,6 +3,7 @@
 export interface InstagramPost {
   id: string;
   clerkId: string;
+  profileId: string | null;
   driveFileId: string | null;
   driveFileUrl: string | null;
   awsS3Key: string | null;
@@ -26,6 +27,7 @@ export interface InstagramPost {
 }
 
 export interface CreatePostData {
+  profileId?: string | null;
   driveFileId?: string | null;
   driveFileUrl?: string | null;
   awsS3Key?: string | null;
@@ -52,10 +54,14 @@ export interface UpdatePostData {
   rejectionReason?: string | null;
 }
 
-// Fetch all posts (optionally for a specific user if Admin/Manager)
-export async function fetchInstagramPosts(userId?: string): Promise<InstagramPost[]> {
-  const url = userId 
-    ? `/api/instagram-posts?userId=${encodeURIComponent(userId)}`
+// Fetch all posts (optionally for a specific user if Admin/Manager, optionally for a specific profile)
+export async function fetchInstagramPosts(userId?: string, profileId?: string): Promise<InstagramPost[]> {
+  const params = new URLSearchParams();
+  if (userId) params.append('userId', userId);
+  if (profileId) params.append('profileId', profileId);
+  
+  const url = params.toString() 
+    ? `/api/instagram-posts?${params.toString()}`
     : '/api/instagram-posts';
     
   const response = await fetch(url);

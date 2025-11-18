@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     // Check if requesting posts for a different user (Admin/Manager feature)
     const { searchParams } = new URL(request.url);
     const targetUserId = searchParams.get('userId');
+    const profileId = searchParams.get('profileId');
 
     let postsClerkId = userId; // Default to current user
 
@@ -38,8 +39,14 @@ export async function GET(request: NextRequest) {
       postsClerkId = targetUserId;
     }
 
+    // Build where clause with optional profileId filter
+    const whereClause: any = { clerkId: postsClerkId };
+    if (profileId) {
+      whereClause.profileId = profileId;
+    }
+
     const posts = await prisma.instagramPost.findMany({
-      where: { clerkId: postsClerkId },
+      where: whereClause,
       orderBy: { order: 'asc' },
     });
 
@@ -73,6 +80,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
+      profileId,
       driveFileId,
       driveFileUrl,
       awsS3Key,
@@ -116,6 +124,7 @@ export async function POST(request: NextRequest) {
     const post = await prisma.instagramPost.create({
       data: {
         clerkId: userId,
+        profileId: profileId || null,
   driveFileId: hasDrivePayload ? driveFileId : null,
   driveFileUrl: hasDrivePayload ? driveFileUrl : null,
   awsS3Key: hasS3Payload ? awsS3Key : null,
