@@ -6,7 +6,7 @@ import { prisma } from "@/lib/database";
 // DELETE - Remove a friend
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { friendId: string } }
+  { params }: { params: Promise<{ friendId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -14,7 +14,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { friendId } = params;
+    const { friendId } = await params;
 
     // Delete friendship
     await prisma.friendship.deleteMany({
