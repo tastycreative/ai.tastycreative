@@ -86,9 +86,14 @@ export default function DashboardLayout({
           icon: FileText,
         },
         {
-          name: "Social Media",
+          name: "Instagram Staging",
           href: "/workspace/social-media",
           icon: Share2,
+        },
+        {
+          name: "Social Media",
+          href: "/workspace/social-media-feed",
+          icon: Users,
         },
       ],
     },

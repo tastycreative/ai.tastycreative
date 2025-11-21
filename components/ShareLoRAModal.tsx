@@ -83,26 +83,26 @@ export default function ShareLoRAModal({
   const loadAvailableUsers = async () => {
     setIsLoadingUsers(true);
     try {
-      const response = await fetch('/api/users/list');
+      // Load friends instead of all users
+      const response = await fetch('/api/social/friends');
       if (response.ok) {
-        const data = await response.json();
-        const formattedUsers = data.users.map((u: any) => {
-          const displayName = u.firstName && u.lastName 
-            ? `${u.firstName} ${u.lastName}`
-            : u.firstName || u.lastName || u.email || 'Unknown User';
+        const friends = await response.json();
+        const formattedUsers = friends.map((friend: any) => {
+          const displayName = friend.firstName && friend.lastName 
+            ? `${friend.firstName} ${friend.lastName}`
+            : friend.firstName || friend.lastName || friend.email || 'Unknown User';
           return {
-            clerkId: u.clerkId,
-            email: u.email,
-            firstName: u.firstName,
-            lastName: u.lastName,
+            clerkId: friend.clerkId,
+            email: friend.email,
+            firstName: friend.firstName,
+            lastName: friend.lastName,
             displayName,
           };
         });
-        // Filter out current user
-        setAvailableUsers(formattedUsers.filter((u: any) => u.clerkId !== user?.id));
+        setAvailableUsers(formattedUsers);
       }
     } catch (error) {
-      console.error('Error loading users:', error);
+      console.error('Error loading friends:', error);
     } finally {
       setIsLoadingUsers(false);
     }
@@ -306,14 +306,14 @@ export default function ShareLoRAModal({
             <div className="flex items-center gap-2 mb-3">
               <UserPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               <h3 className="font-semibold text-gray-900 dark:text-white">
-                Add People
+                Share with Friends
               </h3>
             </div>
 
             {/* User search */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                User <span className="text-red-500">*</span>
+                Select Friend <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
@@ -325,7 +325,7 @@ export default function ShareLoRAModal({
                     if (selectedUser) setSelectedUser(null);
                   }}
                   onFocus={() => setShowUserDropdown(true)}
-                  placeholder="Search by name or email..."
+                  placeholder="Search your friends..."
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
                 />
                 {isLoadingUsers && (
@@ -369,12 +369,18 @@ export default function ShareLoRAModal({
                       ))
                     ) : (
                       <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No users found
+                        <p>No friends found</p>
+                        <p className="text-xs mt-1">Add friends in the Social Media tab</p>
                       </div>
                     )}
                   </div>
                 )}
               </div>
+              {availableUsers.length === 0 && !isLoadingUsers && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  You don't have any friends yet. Visit the Social Media tab to add friends!
+                </p>
+              )}
             </div>
 
             {/* Optional note */}
