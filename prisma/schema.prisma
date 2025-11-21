@@ -14,7 +14,6 @@ model User {
   email                  String?
   firstName              String?
   lastName               String?
-  username               String?
   imageUrl               String?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
@@ -33,11 +32,6 @@ model User {
   notifications          Notification[]
   fluxKontextConversations FluxKontextConversation[]
   instagramProfiles      InstagramProfile[]
-  posts                  Post[]
-  comments               Comment[]
-  likes                  Like[]
-  friendshipsInitiated   Friendship[]      @relation("UserFriendships1")
-  friendshipsReceived    Friendship[]      @relation("UserFriendships2")
 
   @@map("users")
 }
@@ -555,74 +549,4 @@ model InstagramProfile {
   @@index([clerkId])
   @@index([clerkId, isDefault])
   @@map("instagram_profiles")
-}
-
-// Social Media Models
-model Post {
-  id        String    @id @default(cuid())
-  userId    String
-  content   String?   @db.Text
-  imageUrl  String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes     Like[]
-  comments  Comment[]
-
-  @@index([userId])
-  @@index([createdAt])
-  @@map("posts")
-}
-
-model Comment {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  content   String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([postId])
-  @@index([userId])
-  @@index([createdAt])
-  @@map("comments")
-}
-
-model Like {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  createdAt DateTime @default(now())
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, postId])
-  @@index([postId])
-  @@index([userId])
-  @@map("likes")
-}
-
-model Friendship {
-  id           String           @id @default(cuid())
-  user1ClerkId String
-  user2ClerkId String
-  status       FriendshipStatus @default(PENDING)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  user1        User             @relation("UserFriendships1", fields: [user1ClerkId], references: [clerkId], onDelete: Cascade)
-  user2        User             @relation("UserFriendships2", fields: [user2ClerkId], references: [clerkId], onDelete: Cascade)
-
-  @@unique([user1ClerkId, user2ClerkId])
-  @@index([user1ClerkId])
-  @@index([user2ClerkId])
-  @@index([status])
-  @@map("friendships")
-}
-
-enum FriendshipStatus {
-  PENDING
-  ACCEPTED
-  REJECTED
 }

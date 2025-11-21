@@ -1,6 +1,6 @@
 // lib/database.ts - Updated with Clerk integration
 import { PrismaClient, SyncStatus } from './generated/prisma';
-import { auth, clerkClient } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 
 // Global Prisma instance (singleton pattern for Next.js)
 const globalForPrisma = globalThis as unknown as {
@@ -323,46 +323,13 @@ export async function incrementInfluencerUsage(clerkId: string, fileName: string
 // Helper to ensure user exists in database
 export async function ensureUserExists(clerkId: string): Promise<void> {
   try {
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    await prisma.user.upsert({
       where: { clerkId },
-    });
-
-    if (existingUser) {
-      return; // User already exists
-    }
-
-    // Fetch user data from Clerk
-    let userData: {
-      email?: string;
-      firstName?: string;
-      lastName?: string;
-      imageUrl?: string;
-    } = {};
-
-    try {
-      const clerk = await clerkClient();
-      const clerkUser = await clerk.users.getUser(clerkId);
-      userData = {
-        email: clerkUser.emailAddresses[0]?.emailAddress,
-        firstName: clerkUser.firstName || undefined,
-        lastName: clerkUser.lastName || undefined,
-        imageUrl: clerkUser.imageUrl || undefined,
-      };
-    } catch (clerkError) {
-      console.warn('Could not fetch user from Clerk:', clerkError);
-      // Continue with empty userData
-    }
-
-    // Create user with Clerk data
-    await prisma.user.create({
-      data: {
+      update: {},
+      create: { 
         clerkId,
-        email: userData.email,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        imageUrl: userData.imageUrl,
-      },
+        // You can add more user data from Clerk here if needed
+      }
     });
   } catch (error) {
     console.error('💥 Error ensuring user exists:', error);
