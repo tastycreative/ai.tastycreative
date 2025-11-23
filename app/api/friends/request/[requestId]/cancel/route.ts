@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-// POST - Cancel a friend request
-export async function POST(
+// DELETE - Cancel friend request
+export async function DELETE(
   request: NextRequest,
-  { params }: { params: { requestId: string } }
+  { params }: { params: Promise<{ requestId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -17,7 +17,7 @@ export async function POST(
       );
     }
 
-    const { requestId } = params;
+    const { requestId } = await params;
 
     // Get the current user's database ID
     const currentUser = await prisma.user.findUnique({

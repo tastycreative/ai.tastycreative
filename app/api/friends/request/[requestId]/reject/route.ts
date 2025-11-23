@@ -5,7 +5,7 @@ import { prisma } from '@/lib/database';
 // POST - Reject friend request
 export async function POST(
   request: NextRequest,
-  { params }: { params: { requestId: string } }
+  { params }: { params: Promise<{ requestId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -17,7 +17,7 @@ export async function POST(
       );
     }
 
-    const { requestId } = params;
+    const { requestId } = await params;
 
     // Get the current user's database ID
     const currentUser = await prisma.user.findUnique({
