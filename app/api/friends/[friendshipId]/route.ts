@@ -5,7 +5,7 @@ import { prisma } from '@/lib/database';
 // DELETE - Remove friend
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { friendshipId: string } }
+  { params }: { params: Promise<{ friendshipId: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -17,7 +17,7 @@ export async function DELETE(
       );
     }
 
-    const { friendshipId } = params;
+    const { friendshipId } = await params;
 
     // Get the current user's database ID
     const currentUser = await prisma.user.findUnique({
