@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useAuth } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
@@ -86,7 +86,7 @@ const tabs = [
   { id: "add", label: "Add Friend", icon: UserPlus },
 ];
 
-export default function FriendsPage() {
+function FriendsPageContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(tabParam || "friends");
@@ -820,5 +820,30 @@ export default function FriendsPage() {
         <div className="p-4 sm:p-6">{renderTabContent()}</div>
       </div>
     </div>
+  );
+}
+
+// Loading fallback component
+function FriendsPageFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[600px]">
+          <div className="text-center space-y-4">
+            <Loader2 className="w-12 h-12 text-blue-600 dark:text-blue-400 animate-spin mx-auto" />
+            <p className="text-sm text-gray-600 dark:text-gray-400">Loading friends...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main export with Suspense boundary
+export default function FriendsPage() {
+  return (
+    <Suspense fallback={<FriendsPageFallback />}>
+      <FriendsPageContent />
+    </Suspense>
   );
 }
