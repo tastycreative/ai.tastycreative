@@ -1,0 +1,824 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useApiClient } from "@/lib/apiClient";
+import { useAuth } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
+import {
+  UserPlus,
+  Users,
+  Mail,
+  Search,
+  MoreVertical,
+  UserCheck,
+  UserX,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  Share2,
+  Image as ImageIcon,
+  Sparkles,
+} from "lucide-react";
+import { toast } from "sonner";
+
+// Types
+interface Friend {
+  id: string;
+  userId: string;
+  friendId: string;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
+  updatedAt: string;
+  friend: {
+    clerkId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    imageUrl?: string;
+  };
+}
+
+interface FriendRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
+  fromUser: {
+    clerkId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    imageUrl?: string;
+  };
+}
+
+interface SentRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
+  toUser: {
+    clerkId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    imageUrl?: string;
+  };
+}
+
+interface UserSearchResult {
+  id: string;
+  clerkId: string;
+  email: string | null;
+  username: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  imageUrl?: string | null;
+}
+
+const tabs = [
+  { id: "friends", label: "My Friends", icon: Users, countKey: "friends" },
+  { id: "requests", label: "Friend Requests", icon: Mail, countKey: "requests" },
+  { id: "add", label: "Add Friend", icon: UserPlus },
+];
+
+export default function FriendsPage() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabParam || "friends");
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+  const [sentRequests, setSentRequests] = useState<SentRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [emailInput, setEmailInput] = useState("");
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [sendingRequest, setSendingRequest] = useState(false);
+  const apiClient = useApiClient();
+  const { userId } = useAuth();
+
+  // Update active tab when URL parameter changes
+  useEffect(() => {
+    if (tabParam && ['friends', 'requests', 'add'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  // Load friends and requests
+  useEffect(() => {
+    if (userId) {
+      loadFriends();
+      loadFriendRequests();
+      loadSentRequests();
+    }
+  }, [userId]);
+
+  const loadFriends = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/friends");
+      if (response.ok) {
+        const data = await response.json();
+        setFriends(data);
+      } else {
+        toast.error("Failed to load friends");
+      }
+    } catch (error) {
+      console.error("Error loading friends:", error);
+      toast.error("Failed to load friends");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFriendRequests = async () => {
+    try {
+      const response = await fetch("/api/friends/requests");
+      if (response.ok) {
+        const data = await response.json();
+        setFriendRequests(data);
+      }
+    } catch (error) {
+      console.error("Error loading friend requests:", error);
+    }
+  };
+
+  const loadSentRequests = async () => {
+    try {
+      const response = await fetch("/api/friends/requests?type=sent");
+      if (response.ok) {
+        const data = await response.json();
+        setSentRequests(data);
+      }
+    } catch (error) {
+      console.error("Error loading sent requests:", error);
+    }
+  };
+
+  const handleSendFriendRequest = async () => {
+    if (!emailInput.trim()) {
+      toast.error("Please enter an email address");
+      return;
+    }
+
+    try {
+      setSendingRequest(true);
+      // TODO: Implement API endpoint for sending friend request
+      // await apiClient.post('/api/friends/request', { email: emailInput });
+      toast.success("Friend request sent!");
+      setEmailInput("");
+      setSearchResults([]); // Clear search results after sending request
+    } catch (error: any) {
+      console.error("Error sending friend request:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to send friend request"
+      );
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  const handleSendFriendRequestToUser = async (user: UserSearchResult) => {
+    try {
+      setSendingRequest(true);
+      const response = await fetch("/api/friends/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clerkId: user.clerkId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(
+          `Friend request sent to ${user.firstName || user.email}!`
+        );
+        // Remove user from search results after sending request
+        setSearchResults(
+          searchResults.filter((u) => u.clerkId !== user.clerkId)
+        );
+      } else {
+        toast.error(data.error || "Failed to send friend request");
+      }
+    } catch (error: any) {
+      console.error("Error sending friend request:", error);
+      toast.error("Failed to send friend request");
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
+  const handleSearchUsers = async (query: string) => {
+    if (!query.trim() || query.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      setSearchingUsers(true);
+      const response = await fetch(
+        `/api/users/search?q=${encodeURIComponent(query.trim())}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error: any) {
+      console.error("Error searching users:", error);
+      toast.error("Failed to search users");
+      setSearchResults([]);
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  const handleAcceptRequest = async (requestId: string) => {
+    try {
+      const response = await fetch(`/api/friends/request/${requestId}/accept`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        toast.success("Friend request accepted!");
+        loadFriends();
+        loadFriendRequests();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to accept friend request");
+      }
+    } catch (error) {
+      console.error("Error accepting friend request:", error);
+      toast.error("Failed to accept friend request");
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    try {
+      const response = await fetch(`/api/friends/request/${requestId}/reject`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        toast.success("Friend request rejected");
+        loadFriendRequests();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to reject friend request");
+      }
+    } catch (error) {
+      console.error("Error rejecting friend request:", error);
+      toast.error("Failed to reject friend request");
+    }
+  };
+
+  const handleCancelRequest = async (requestId: string) => {
+    try {
+      const response = await fetch(`/api/friends/request/${requestId}/cancel`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        toast.success("Friend request cancelled");
+        loadSentRequests();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to cancel friend request");
+      }
+    } catch (error) {
+      console.error("Error cancelling friend request:", error);
+      toast.error("Failed to cancel friend request");
+    }
+  };
+
+  const handleRemoveFriend = async (friendId: string) => {
+    if (!confirm("Are you sure you want to remove this friend?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/friends/${friendId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast.success("Friend removed");
+        loadFriends();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to remove friend");
+      }
+    } catch (error) {
+      console.error("Error removing friend:", error);
+      toast.error("Failed to remove friend");
+    }
+  };
+
+  const filteredFriends = friends.filter((friend) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      friend.friend.email.toLowerCase().includes(query) ||
+      friend.friend.firstName?.toLowerCase().includes(query) ||
+      friend.friend.lastName?.toLowerCase().includes(query)
+    );
+  });
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "friends":
+        return (
+          <div className="space-y-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
+              <input
+                type="text"
+                placeholder="Search friends..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            {/* Friends List */}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              </div>
+            ) : filteredFriends.length === 0 ? (
+              <div className="text-center py-12">
+                <Users className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  {searchQuery ? "No friends found" : "No friends yet"}
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  {searchQuery
+                    ? "Try a different search term"
+                    : "Start by adding friends to share content and collaborate"}
+                </p>
+                {!searchQuery && (
+                  <button
+                    onClick={() => setActiveTab("add")}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all shadow-md active:scale-95"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Add Friend
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {filteredFriends.map((friend) => (
+                  <div
+                    key={friend.id}
+                    className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-900/30 border border-gray-200/50 dark:border-gray-700/30 rounded-xl p-4 sm:p-5 shadow-md hover:shadow-lg transition-all"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        {friend.friend.imageUrl ? (
+                          <img
+                            src={friend.friend.imageUrl}
+                            alt={friend.friend.firstName || friend.friend.email}
+                            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                            <span className="text-white text-sm sm:text-base font-semibold">
+                              {friend.friend.firstName?.[0] ||
+                                friend.friend.email[0].toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                            {friend.friend.firstName && friend.friend.lastName
+                              ? `${friend.friend.firstName} ${friend.friend.lastName}`
+                              : friend.friend.email}
+                          </h4>
+                          <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
+                            {friend.friend.email}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="relative group">
+                        <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors">
+                          <MoreVertical className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        </button>
+                        <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                          <button
+                            onClick={() => handleRemoveFriend(friend.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                            Remove Friend
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case "requests":
+        return (
+          <div className="space-y-6">
+            {/* Received Requests Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                  Received Requests
+                </h3>
+                <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
+                  {friendRequests.length}
+                </span>
+              </div>
+
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                </div>
+              ) : friendRequests.length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-900/30">
+                  <Mail className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                    No received requests
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {friendRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-800/50 dark:to-blue-900/20 border border-blue-200/50 dark:border-blue-700/30 rounded-xl p-4 sm:p-5 shadow-md"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {request.fromUser.imageUrl ? (
+                            <img
+                              src={request.fromUser.imageUrl}
+                              alt={
+                                request.fromUser.firstName ||
+                                request.fromUser.email
+                              }
+                              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                              <span className="text-white text-sm sm:text-base font-semibold">
+                                {request.fromUser.firstName?.[0] ||
+                                  request.fromUser.email[0].toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                              {request.fromUser.firstName &&
+                              request.fromUser.lastName
+                                ? `${request.fromUser.firstName} ${request.fromUser.lastName}`
+                                : request.fromUser.email}
+                            </h4>
+                            <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
+                              {request.fromUser.email}
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1 mt-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(request.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-3">
+                          <button
+                            onClick={() => handleAcceptRequest(request.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-green-500 hover:bg-green-600 text-white text-[10px] sm:text-xs font-medium rounded-lg transition-colors shadow-sm active:scale-95"
+                          >
+                            <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                            <span className="hidden sm:inline">Accept</span>
+                          </button>
+                          <button
+                            onClick={() => handleRejectRequest(request.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-red-500 hover:bg-red-600 text-white text-[10px] sm:text-xs font-medium rounded-lg transition-colors shadow-sm active:scale-95"
+                          >
+                            <XCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                            <span className="hidden sm:inline">Reject</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sent Requests Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white">
+                  Sent Requests
+                </h3>
+                <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full">
+                  {sentRequests.length}
+                </span>
+              </div>
+
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+                </div>
+              ) : sentRequests.length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-900/30">
+                  <Clock className="w-10 h-10 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                    No pending sent requests
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sentRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="bg-gradient-to-br from-white to-purple-50/50 dark:from-gray-800/50 dark:to-purple-900/20 border border-purple-200/50 dark:border-purple-700/30 rounded-xl p-4 sm:p-5 shadow-md"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {request.toUser.imageUrl ? (
+                            <img
+                              src={request.toUser.imageUrl}
+                              alt={
+                                request.toUser.firstName || request.toUser.email
+                              }
+                              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center flex-shrink-0">
+                              <span className="text-white text-sm sm:text-base font-semibold">
+                                {request.toUser.firstName?.[0] ||
+                                  request.toUser.email[0].toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                              {request.toUser.firstName &&
+                              request.toUser.lastName
+                                ? `${request.toUser.firstName} ${request.toUser.lastName}`
+                                : request.toUser.email}
+                            </h4>
+                            <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
+                              {request.toUser.email}
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1 mt-1">
+                              <Clock className="w-3 h-3" />
+                              Sent{" "}
+                              {new Date(request.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-3">
+                          <button
+                            onClick={() => handleCancelRequest(request.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 sm:py-2 bg-gray-500 hover:bg-gray-600 text-white text-[10px] sm:text-xs font-medium rounded-lg transition-colors shadow-sm active:scale-95"
+                          >
+                            <XCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                            <span className="hidden sm:inline">Cancel</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case "add":
+        return (
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-gradient-to-br from-white to-purple-50/50 dark:from-gray-800/50 dark:to-purple-900/20 border border-purple-200/50 dark:border-purple-700/30 rounded-xl p-6 sm:p-8 shadow-lg">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  <UserPlus className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                    Add Friend
+                  </h3>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                    Search by username
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="search"
+                    className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                  >
+                    Search for Users
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 z-10" />
+                    <input
+                      type="text"
+                      id="search"
+                      value={emailInput}
+                      onChange={(e) => {
+                        setEmailInput(e.target.value);
+                        handleSearchUsers(e.target.value);
+                      }}
+                      placeholder="Search by username..."
+                      className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    />
+                    {searchingUsers && (
+                      <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 animate-spin text-gray-400 z-10" />
+                    )}
+
+                    {/* Search Results Dropdown */}
+                    {emailInput.trim().length >= 2 && (
+                      <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-[300px] overflow-y-scroll">
+                        {searchingUsers ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+                          </div>
+                        ) : searchResults.length === 0 ? (
+                          <div className="text-center py-8">
+                            <Users className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                              No users found
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {searchResults.map((user) => (
+                              <div
+                                key={user.clerkId}
+                                className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    {user.imageUrl ? (
+                                      <img
+                                        src={user.imageUrl}
+                                        alt={
+                                          user.firstName || user.email || "User"
+                                        }
+                                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-white text-sm font-semibold">
+                                          {user.username?.[0]?.toUpperCase() ||
+                                            user.firstName?.[0] ||
+                                            user.email?.[0]?.toUpperCase() ||
+                                            "U"}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                        {user.username ||
+                                          `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+                                          user.email ||
+                                          "Unknown User"}
+                                      </h4>
+                                      {user.username &&
+                                        (user.firstName || user.lastName) && (
+                                          <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
+                                            {`${user.firstName || ""} ${user.lastName || ""}`.trim()}
+                                          </p>
+                                        )}
+                                      <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
+                                        {user.email || "No email"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() =>
+                                      handleSendFriendRequestToUser(user)
+                                    }
+                                    disabled={sendingRequest}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[10px] sm:text-xs font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 flex-shrink-0"
+                                  >
+                                    {sendingRequest ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <UserPlus className="w-3 h-3" />
+                                        <span className="hidden sm:inline">
+                                          Add
+                                        </span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-[10px] sm:text-xs text-blue-900 dark:text-blue-200">
+                    <p className="font-semibold mb-1">Friend Features</p>
+                    <ul className="space-y-1 list-disc list-inside">
+                      <li>Share your LoRA models</li>
+                      <li>Collaborate on content generation</li>
+                      <li>View each other's galleries (with permission)</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      {/* Header */}
+      <div className="space-y-2 sm:space-y-3">
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+            Friends
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+            Connect with friends and collaborate on creative projects
+          </p>
+        </div>
+      </div>
+
+      {/* Tab Navigation and Content */}
+      <div className="bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900/30 dark:to-gray-800/20 border border-gray-200/50 dark:border-gray-700/30 rounded-xl shadow-lg backdrop-blur-sm overflow-hidden">
+        <div className="border-b border-gray-200/50 dark:border-gray-700/30">
+          <nav
+            className="flex gap-4 sm:gap-6 md:gap-8 px-4 sm:px-6 overflow-x-auto scrollbar-hide"
+            aria-label="Tabs"
+          >
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              let count = 0;
+              if (tab.countKey === "friends") {
+                count = friends.length;
+              } else if (tab.countKey === "requests") {
+                count = friendRequests.length;
+              }
+              
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`${
+                    isActive
+                      ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
+                  } whitespace-nowrap border-b-2 py-3 sm:py-4 px-1 font-medium text-xs sm:text-sm transition-colors flex items-center gap-1.5 sm:gap-2 active:scale-95`}
+                >
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">{tab.label}</span>
+                  <span className="xs:hidden">
+                    {tab.label.split(" ").pop()}
+                  </span>
+                  {tab.countKey && count > 0 && (
+                    <span className={`ml-1 px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold rounded-full ${
+                      isActive 
+                        ? "bg-blue-500 text-white" 
+                        : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="p-4 sm:p-6">{renderTabContent()}</div>
+      </div>
+    </div>
+  );
+}

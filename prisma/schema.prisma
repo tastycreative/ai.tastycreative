@@ -12,6 +12,7 @@ model User {
   id                     String            @id @default(cuid())
   clerkId                String            @unique
   email                  String?
+  username               String?
   firstName              String?
   lastName               String?
   imageUrl               String?
@@ -32,6 +33,12 @@ model User {
   notifications          Notification[]
   fluxKontextConversations FluxKontextConversation[]
   instagramProfiles      InstagramProfile[]
+  sentFriendRequests     Friendship[] @relation("SentFriendRequests")
+  receivedFriendRequests Friendship[] @relation("ReceivedFriendRequests")
+  feedPosts              FeedPost[]
+  feedPostLikes          FeedPostLike[]
+  feedPostComments       FeedPostComment[]
+  feedPostBookmarks      FeedPostBookmark[]
 
   @@map("users")
 }
@@ -549,4 +556,91 @@ model InstagramProfile {
   @@index([clerkId])
   @@index([clerkId, isDefault])
   @@map("instagram_profiles")
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  senderId    String           // User who sent the request
+  receiverId  String           // User who received the request
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  sender      User             @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User             @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([senderId, status])
+  @@index([receiverId, status])
+  @@map("friendships")
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
+}
+
+model FeedPost {
+  id        String              @id @default(cuid())
+  userId    String
+  imageUrl  String              // S3 or storage URL for the post image
+  caption   String              @db.Text
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes     FeedPostLike[]
+  comments  FeedPostComment[]
+  bookmarks FeedPostBookmark[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("feed_posts")
+}
+
+model FeedPostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@map("feed_post_likes")
+}
+
+model FeedPostComment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+  @@index([postId, createdAt])
+  @@map("feed_post_comments")
+}
+
+model FeedPostBookmark {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+  @@map("feed_post_bookmarks")
 }

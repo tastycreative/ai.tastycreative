@@ -1,9 +1,21 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { Loader2, X, UserPlus, Trash2, Users, Eye, Zap, Mail, Calendar, Shield, Info } from 'lucide-react';
-import { useUser } from '@clerk/nextjs';
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import {
+  Loader2,
+  X,
+  UserPlus,
+  Trash2,
+  Users,
+  Eye,
+  Zap,
+  Mail,
+  Calendar,
+  Shield,
+  Info,
+} from "lucide-react";
+import { useUser } from "@clerk/nextjs";
 
 interface ShareLoRAModalProps {
   isOpen: boolean;
@@ -38,19 +50,25 @@ export default function ShareLoRAModal({
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingShares, setIsLoadingShares] = useState(false);
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState("");
   const [currentShares, setCurrentShares] = useState<ShareInfo[]>([]);
-  const [toast, setToast] = useState<{ title: string; description: string; variant?: 'error' | 'success' } | null>(null);
+  const [toast, setToast] = useState<{
+    title: string;
+    description: string;
+    variant?: "error" | "success";
+  } | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [availableUsers, setAvailableUsers] = useState<Array<{
-    clerkId: string;
-    email: string | null;
-    firstName: string | null;
-    lastName: string | null;
-    displayName: string;
-  }>>([]);
+  const [availableUsers, setAvailableUsers] = useState<
+    Array<{
+      clerkId: string;
+      email: string | null;
+      firstName: string | null;
+      lastName: string | null;
+      displayName: string;
+    }>
+  >([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userSearchQuery, setUserSearchQuery] = useState("");
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [selectedUser, setSelectedUser] = useState<{
     clerkId: string;
@@ -83,26 +101,31 @@ export default function ShareLoRAModal({
   const loadAvailableUsers = async () => {
     setIsLoadingUsers(true);
     try {
-      const response = await fetch('/api/users/list');
+      // Fetch only friends instead of all users
+      const response = await fetch("/api/friends");
       if (response.ok) {
-        const data = await response.json();
-        const formattedUsers = data.users.map((u: any) => {
-          const displayName = u.firstName && u.lastName 
-            ? `${u.firstName} ${u.lastName}`
-            : u.firstName || u.lastName || u.email || 'Unknown User';
+        const friends = await response.json();
+        const formattedUsers = friends.map((friendship: any) => {
+          const friend = friendship.friend;
+          const displayName =
+            friend.firstName && friend.lastName
+              ? `${friend.firstName} ${friend.lastName}`
+              : friend.firstName ||
+                friend.lastName ||
+                friend.email ||
+                "Unknown User";
           return {
-            clerkId: u.clerkId,
-            email: u.email,
-            firstName: u.firstName,
-            lastName: u.lastName,
+            clerkId: friend.clerkId,
+            email: friend.email,
+            firstName: friend.firstName,
+            lastName: friend.lastName,
             displayName,
           };
         });
-        // Filter out current user
-        setAvailableUsers(formattedUsers.filter((u: any) => u.clerkId !== user?.id));
+        setAvailableUsers(formattedUsers);
       }
     } catch (error) {
-      console.error('Error loading users:', error);
+      console.error("Error loading friends:", error);
     } finally {
       setIsLoadingUsers(false);
     }
@@ -114,15 +137,15 @@ export default function ShareLoRAModal({
       const response = await fetch(
         `/api/user/influencers/share?loraId=${encodeURIComponent(loraId)}`
       );
-      
+
       if (response.ok) {
         const data = await response.json();
         setCurrentShares(data.shares || []);
       } else {
-        console.error('Failed to load shares');
+        console.error("Failed to load shares");
       }
     } catch (error) {
-      console.error('Error loading shares:', error);
+      console.error("Error loading shares:", error);
     } finally {
       setIsLoadingShares(false);
     }
@@ -131,9 +154,9 @@ export default function ShareLoRAModal({
   const handleShare = async () => {
     if (!selectedUser) {
       setToast({
-        title: 'User required',
-        description: 'Please select a user to share with',
-        variant: 'error',
+        title: "User required",
+        description: "Please select a user to share with",
+        variant: "error",
       });
       return;
     }
@@ -142,13 +165,13 @@ export default function ShareLoRAModal({
     try {
       const targetClerkId = selectedUser.clerkId;
 
-      console.log('Sharing LoRA:', loraId, 'with user:', targetClerkId);
+      console.log("Sharing LoRA:", loraId, "with user:", targetClerkId);
 
       // Share the LoRA
-      const shareResponse = await fetch('/api/user/influencers/share', {
-        method: 'POST',
+      const shareResponse = await fetch("/api/user/influencers/share", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           loraId,
@@ -157,51 +180,55 @@ export default function ShareLoRAModal({
         }),
       });
 
-      console.log('Share response:', shareResponse.status);
+      console.log("Share response:", shareResponse.status);
 
       if (!shareResponse.ok) {
         const errorData = await shareResponse.json();
-        console.error('Share failed:', errorData);
-        throw new Error(errorData.error || 'Failed to share LoRA');
+        console.error("Share failed:", errorData);
+        throw new Error(errorData.error || "Failed to share LoRA");
       }
 
       const shareData = await shareResponse.json();
-      console.log('Share successful:', shareData);
+      console.log("Share successful:", shareData);
 
       setToast({
-        title: 'LoRA shared',
+        title: "LoRA shared",
         description: `"${loraName}" has been shared with ${selectedUser.displayName}`,
-        variant: 'success',
+        variant: "success",
       });
 
       // Reset form and reload shares
       setSelectedUser(null);
-      setUserSearchQuery('');
-      setNote('');
+      setUserSearchQuery("");
+      setNote("");
       loadCurrentShares();
-      
+
       // Notify parent component
       if (onShareComplete) {
         onShareComplete();
       }
     } catch (error) {
-      console.error('Error sharing LoRA:', error);
+      console.error("Error sharing LoRA:", error);
       setToast({
-        title: 'Failed to share LoRA',
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
-        variant: 'error',
+        title: "Failed to share LoRA",
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "error",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRemoveShare = async (sharedWithClerkId: string, displayName: string) => {
+  const handleRemoveShare = async (
+    sharedWithClerkId: string,
+    displayName: string
+  ) => {
     try {
-      const response = await fetch('/api/user/influencers/share', {
-        method: 'DELETE',
+      const response = await fetch("/api/user/influencers/share", {
+        method: "DELETE",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           loraId,
@@ -210,22 +237,22 @@ export default function ShareLoRAModal({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to remove share');
+        throw new Error("Failed to remove share");
       }
 
       setToast({
-        title: 'Share removed',
+        title: "Share removed",
         description: `"${loraName}" is no longer shared with ${displayName}`,
-        variant: 'success',
+        variant: "success",
       });
 
       loadCurrentShares();
     } catch (error) {
-      console.error('Error removing share:', error);
+      console.error("Error removing share:", error);
       setToast({
-        title: 'Failed to remove share',
-        description: 'Please try again',
-        variant: 'error',
+        title: "Failed to remove share",
+        description: "Please try again",
+        variant: "error",
       });
     }
   };
@@ -235,9 +262,10 @@ export default function ShareLoRAModal({
   // Don't render on server
   if (!mounted) return null;
 
-  const filteredUsers = availableUsers.filter((u) =>
-    u.displayName.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
-    u.email?.toLowerCase().includes(userSearchQuery.toLowerCase())
+  const filteredUsers = availableUsers.filter(
+    (u) =>
+      u.displayName.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+      u.email?.toLowerCase().includes(userSearchQuery.toLowerCase())
   );
 
   const modalContent = (
@@ -259,7 +287,8 @@ export default function ShareLoRAModal({
               <div>
                 <h2 className="text-2xl font-bold">Share LoRA Model</h2>
                 <p className="text-purple-100 text-sm mt-1">
-                  Give others access to <span className="font-semibold">{loraName}</span>
+                  Give others access to{" "}
+                  <span className="font-semibold">{loraName}</span>
                 </p>
               </div>
             </div>
@@ -274,24 +303,38 @@ export default function ShareLoRAModal({
 
         {/* Toast notification */}
         {toast && (
-          <div className={`mx-6 mt-4 p-4 rounded-lg border ${
-            toast.variant === 'error' 
-              ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' 
-              : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-          }`}>
+          <div
+            className={`mx-6 mt-4 p-4 rounded-lg border ${
+              toast.variant === "error"
+                ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+                : "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+            }`}
+          >
             <div className="flex items-start gap-2">
-              <Info className={`w-5 h-5 mt-0.5 ${
-                toast.variant === 'error' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
-              }`} />
+              <Info
+                className={`w-5 h-5 mt-0.5 ${
+                  toast.variant === "error"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-green-600 dark:text-green-400"
+                }`}
+              />
               <div className="flex-1">
-                <p className={`font-medium ${
-                  toast.variant === 'error' ? 'text-red-900 dark:text-red-100' : 'text-green-900 dark:text-green-100'
-                }`}>
+                <p
+                  className={`font-medium ${
+                    toast.variant === "error"
+                      ? "text-red-900 dark:text-red-100"
+                      : "text-green-900 dark:text-green-100"
+                  }`}
+                >
                   {toast.title}
                 </p>
-                <p className={`text-sm mt-1 ${
-                  toast.variant === 'error' ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'
-                }`}>
+                <p
+                  className={`text-sm mt-1 ${
+                    toast.variant === "error"
+                      ? "text-red-700 dark:text-red-300"
+                      : "text-green-700 dark:text-green-300"
+                  }`}
+                >
                   {toast.description}
                 </p>
               </div>
@@ -306,26 +349,28 @@ export default function ShareLoRAModal({
             <div className="flex items-center gap-2 mb-3">
               <UserPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               <h3 className="font-semibold text-gray-900 dark:text-white">
-                Add People
+                Share with Friends
               </h3>
             </div>
 
             {/* User search */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                User <span className="text-red-500">*</span>
+                Select Friend <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type="text"
-                  value={selectedUser ? selectedUser.displayName : userSearchQuery}
+                  value={
+                    selectedUser ? selectedUser.displayName : userSearchQuery
+                  }
                   onChange={(e) => {
                     setUserSearchQuery(e.target.value);
                     setShowUserDropdown(true);
                     if (selectedUser) setSelectedUser(null);
                   }}
                   onFocus={() => setShowUserDropdown(true)}
-                  placeholder="Search by name or email..."
+                  placeholder="Search your friends by name or email..."
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
                 />
                 {isLoadingUsers && (
@@ -333,7 +378,7 @@ export default function ShareLoRAModal({
                     <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
                   </div>
                 )}
-                
+
                 {/* User dropdown */}
                 {showUserDropdown && !selectedUser && userSearchQuery && (
                   <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -344,7 +389,7 @@ export default function ShareLoRAModal({
                           type="button"
                           onClick={() => {
                             setSelectedUser(u);
-                            setUserSearchQuery('');
+                            setUserSearchQuery("");
                             setShowUserDropdown(false);
                           }}
                           className="w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
@@ -369,7 +414,10 @@ export default function ShareLoRAModal({
                       ))
                     ) : (
                       <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No users found
+                        <p className="mb-1">No friends found</p>
+                        <p className="text-xs">
+                          Add friends to share LoRAs with them
+                        </p>
                       </div>
                     )}
                   </div>
@@ -455,7 +503,9 @@ export default function ShareLoRAModal({
                         />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white font-bold text-sm">
-                          {share.sharedWithUser?.displayName.charAt(0).toUpperCase() || '?'}
+                          {share.sharedWithUser?.displayName
+                            .charAt(0)
+                            .toUpperCase() || "?"}
                         </div>
                       )}
                     </div>
@@ -463,14 +513,14 @@ export default function ShareLoRAModal({
                     {/* User Info */}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 dark:text-white truncate">
-                        {share.sharedWithUser?.displayName || 'Unknown User'}
+                        {share.sharedWithUser?.displayName || "Unknown User"}
                       </p>
                       {share.sharedWithUser?.email && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                           {share.sharedWithUser.email}
                         </p>
                       )}
-                      
+
                       {/* Shared date */}
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
@@ -488,7 +538,12 @@ export default function ShareLoRAModal({
 
                     {/* Remove button */}
                     <button
-                      onClick={() => handleRemoveShare(share.sharedWithClerkId, share.sharedWithUser?.displayName || 'user')}
+                      onClick={() =>
+                        handleRemoveShare(
+                          share.sharedWithClerkId,
+                          share.sharedWithUser?.displayName || "user"
+                        )
+                      }
                       className="shrink-0 p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200 opacity-0 group-hover:opacity-100"
                       title="Remove access"
                     >

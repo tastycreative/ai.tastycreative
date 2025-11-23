@@ -30,6 +30,7 @@ import {
   PlayCircle,
   Bot,
   Shield,
+  Bookmark,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -54,6 +55,7 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   const [generateContentOpen, setGenerateContentOpen] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [trainModelsOpen, setTrainModelsOpen] = useState(false);
@@ -89,6 +91,27 @@ export default function DashboardLayout({
           name: "Social Media",
           href: "/workspace/social-media",
           icon: Share2,
+        },
+      ],
+    },
+    {
+      name: "Friends",
+      collapsible: true,
+      items: [
+        {
+          name: "Friends",
+          href: "/workspace/friends",
+          icon: UserCheck,
+        },
+        {
+          name: "User Feed",
+          href: "/workspace/user-feed",
+          icon: Share2,
+        },
+        {
+          name: "Bookmarks",
+          href: "/workspace/bookmarks",
+          icon: Bookmark,
         },
       ],
     },
@@ -211,17 +234,25 @@ export default function DashboardLayout({
       ],
     },
     // Conditionally add content creator link
-    ...(isContentCreator ? [{
-      name: "Content Creator",
-      href: "/content-creator",
-      icon: BarChart3,
-    }] : []),
+    ...(isContentCreator
+      ? [
+          {
+            name: "Content Creator",
+            href: "/content-creator",
+            icon: BarChart3,
+          },
+        ]
+      : []),
     // Conditionally add admin link
-    ...(isAdmin ? [{
-      name: "Admin",
-      href: "/admin",
-      icon: Shield,
-    }] : []),
+    ...(isAdmin
+      ? [
+          {
+            name: "Admin",
+            href: "/admin",
+            icon: Shield,
+          },
+        ]
+      : []),
     {
       name: "Settings",
       href: "/settings",
@@ -281,7 +312,7 @@ export default function DashboardLayout({
           <div className="relative">
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 rounded-lg blur-sm"></div>
-            
+
             {/* Main label container */}
             <div className="relative bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-blue-400/30 dark:border-blue-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
               <div className="flex items-center justify-between">
@@ -314,7 +345,7 @@ export default function DashboardLayout({
           <div className="relative">
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 rounded-lg blur-sm"></div>
-            
+
             {/* Main label container */}
             <div className="relative bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 dark:from-green-500/10 dark:via-emerald-500/10 dark:to-teal-500/10 border border-green-400/30 dark:border-green-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
               <div className="flex items-center justify-between">
@@ -347,7 +378,7 @@ export default function DashboardLayout({
           <div className="relative">
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-orange-500/10 rounded-lg blur-sm"></div>
-            
+
             {/* Main label container */}
             <div className="relative bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-orange-500/20 dark:from-purple-500/10 dark:via-pink-500/10 dark:to-orange-500/10 border border-purple-400/30 dark:border-purple-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
               <div className="flex items-center justify-between">
@@ -423,6 +454,7 @@ export default function DashboardLayout({
 
   const renderNavSection = (section: NavSection) => {
     const isWorkspaceSection = section.name === "Workspace";
+    const isFriendsSection = section.name === "Friends";
     const isGenerateContentSection = section.name === "Generate Content";
     const isAiToolsSection = section.name === "AI Tools";
     const isTrainModelsSection = section.name === "Train Models";
@@ -431,6 +463,8 @@ export default function DashboardLayout({
     let isExpanded = true;
     if (isWorkspaceSection) {
       isExpanded = workspaceOpen;
+    } else if (isFriendsSection) {
+      isExpanded = friendsOpen;
     } else if (isGenerateContentSection) {
       isExpanded = generateContentOpen;
     } else if (isAiToolsSection) {
@@ -442,6 +476,7 @@ export default function DashboardLayout({
     // Get the appropriate icon for the section
     const getSectionIcon = () => {
       if (isWorkspaceSection) return Users;
+      if (isFriendsSection) return UserCheck;
       if (isGenerateContentSection) return PlusCircle;
       if (isAiToolsSection) return Bot;
       if (isTrainModelsSection) return Settings;
@@ -454,6 +489,8 @@ export default function DashboardLayout({
     const handleSectionToggle = () => {
       if (isWorkspaceSection) {
         setWorkspaceOpen(!workspaceOpen);
+      } else if (isFriendsSection) {
+        setFriendsOpen(!friendsOpen);
       } else if (isGenerateContentSection) {
         setGenerateContentOpen(!generateContentOpen);
       } else if (isAiToolsSection) {
@@ -614,7 +651,9 @@ export default function DashboardLayout({
           >
             <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2">
               <ChevronRight className="h-4 w-4 xs:h-5 xs:w-5 sm:h-6 sm:w-6" />
-              <span className="text-[10px] xs:text-xs sm:text-sm font-medium">Menu</span>
+              <span className="text-[10px] xs:text-xs sm:text-sm font-medium">
+                Menu
+              </span>
             </div>
           </button>
         </div>
@@ -633,10 +672,10 @@ export default function DashboardLayout({
               <div className="flex items-center space-x-1.5 xs:space-x-2 sm:space-x-4">
                 {/* Unified Notification Bell (includes both post notifications and production tasks) */}
                 <NotificationBell />
-                
+
                 {/* Theme Toggle */}
                 <ThemeToggle />
-                
+
                 {/* Available Credits */}
                 <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg shadow-sm">
                   <CreditCard className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
@@ -671,12 +710,18 @@ export default function DashboardLayout({
                           {email}
                         </p>
                       </div>
-                      <button className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      <Link
+                        href="/settings"
+                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors block"
+                      >
                         Profile Settings
-                      </button>
-                      <button className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                      </Link>
+                      <Link
+                        href="/billing"
+                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors block"
+                      >
                         Billing
-                      </button>
+                      </Link>
                       <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
                         <button
                           onClick={() => signOut({ redirectUrl: "/" })}
