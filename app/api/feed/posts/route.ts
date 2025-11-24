@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     const userIds = [currentUser.id, ...friendIds];
 
     // Fetch posts from user and friends
-    const posts = await prisma.feedPost.findMany({
+    const friendsPosts = await prisma.feedPost.findMany({
       where: {
         userId: { in: userIds },
       },
@@ -72,24 +72,80 @@ export async function GET(request: NextRequest) {
       orderBy: {
         createdAt: 'desc',
       },
-      take: 50, // Limit to 50 posts
+      take: 30, // Limit friends posts
+    });
+
+    // Fetch posts from other users (not friends)
+    const otherUsersPosts = await prisma.feedPost.findMany({
+      where: {
+        userId: { notIn: userIds },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+            email: true,
+            imageUrl: true,
+          },
+        },
+        likes: {
+          where: { userId: currentUser.id },
+          select: { id: true },
+        },
+        bookmarks: {
+          where: { userId: currentUser.id },
+          select: { id: true },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 20, // Limit other users posts
     });
 
     // Transform posts to match frontend interface
-    const transformedPosts = posts.map(post => ({
+    const transformedFriendsPosts = friendsPosts.map(post => ({
       id: post.id,
       userId: post.userId,
       user: post.user,
-      imageUrl: post.imageUrl,
+      imageUrls: post.imageUrls,
       caption: post.caption,
       likes: post._count.likes,
       comments: post._count.comments,
       createdAt: post.createdAt.toISOString(),
       liked: post.likes.length > 0,
       bookmarked: post.bookmarks.length > 0,
+      isFriend: true,
     }));
 
-    return NextResponse.json(transformedPosts);
+    const transformedOtherPosts = otherUsersPosts.map(post => ({
+      id: post.id,
+      userId: post.userId,
+      user: post.user,
+      imageUrls: post.imageUrls,
+      caption: post.caption,
+      likes: post._count.likes,
+      comments: post._count.comments,
+      createdAt: post.createdAt.toISOString(),
+      liked: post.likes.length > 0,
+      bookmarked: post.bookmarks.length > 0,
+      isFriend: false,
+    }));
+
+    // Combine friends posts first, then other users posts
+    const allPosts = [...transformedFriendsPosts, ...transformedOtherPosts];
+
+    return NextResponse.json(allPosts);
   } catch (error) {
     console.error('Error fetching feed posts:', error);
     return NextResponse.json(
@@ -110,14 +166,14 @@ export async function POST(request: NextRequest) {
     console.log('[Create Post] Starting for user:', clerkId);
 
     const body = await request.json();
-    const { imageUrl, caption } = body;
+    const { imageUrls, caption } = body;
 
-    console.log('[Create Post] Received data:', { imageUrl, caption: caption?.substring(0, 50) });
+    console.log('[Create Post] Received data:', { imageUrls, caption: caption?.substring(0, 50) });
 
-    if (!imageUrl || !caption) {
+    if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0 || !caption) {
       console.error('[Create Post] Missing required fields');
       return NextResponse.json(
-        { error: 'Image URL and caption are required' },
+        { error: 'Image URLs array and caption are required' },
         { status: 400 }
       );
     }
@@ -138,7 +194,7 @@ export async function POST(request: NextRequest) {
     const post = await prisma.feedPost.create({
       data: {
         userId: currentUser.id,
-        imageUrl,
+        imageUrls,
         caption,
       },
       include: {
@@ -169,7 +225,7 @@ export async function POST(request: NextRequest) {
       id: post.id,
       userId: post.userId,
       user: post.user,
-      imageUrl: post.imageUrl,
+      imageUrls: post.imageUrls,
       caption: post.caption,
       likes: post._count.likes,
       comments: post._count.comments,

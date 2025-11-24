@@ -1,6 +1,7 @@
+// app\(dashboard)\workspace\user-feed\page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
@@ -29,6 +30,8 @@ import {
   Link2,
   Flag,
   Copy,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -37,6 +40,7 @@ interface Post {
   id: string;
   userId: string;
   user: {
+    id: string;
     clerkId: string;
     firstName: string | null;
     lastName: string | null;
@@ -44,13 +48,14 @@ interface Post {
     email: string | null;
     imageUrl: string | null;
   };
-  imageUrl: string;
+  imageUrls: string[]; // Changed from imageUrl to imageUrls array
   caption: string;
   likes: number;
   comments: number;
   createdAt: string;
   liked: boolean;
   bookmarked: boolean;
+  isFriend: boolean;
 }
 
 interface Comment {
@@ -59,6 +64,11 @@ interface Comment {
   userId: string;
   content: string;
   createdAt: string;
+  liked: boolean;
+  likeCount: number;
+  replyCount: number;
+  parentCommentId?: string | null;
+  replies?: Comment[];
   user: {
     id: string;
     clerkId: string;
@@ -74,13 +84,15 @@ export default function UserFeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [showPostModal, setShowPostModal] = useState(false);
   const [postCaption, setPostCaption] = useState('');
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [currentImageIndexes, setCurrentImageIndexes] = useState<Record<string, number>>({});
   const [mounted, setMounted] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedPostForComments, setSelectedPostForComments] = useState<Post | null>(null);
   const [postComments, setPostComments] = useState<Record<string, Comment[]>>({});
   const [commentTexts, setCommentTexts] = useState<Record<string, string>>({});
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [loadingComments, setLoadingComments] = useState<Set<string>>(new Set());
   const [processingLikes, setProcessingLikes] = useState<Set<string>>(new Set());
   const [processingBookmarks, setProcessingBookmarks] = useState<Set<string>>(new Set());
@@ -98,6 +110,7 @@ export default function UserFeedPage() {
   const [trendingHashtags, setTrendingHashtags] = useState<Array<{ tag: string; count: number }>>([]);
   const [friendSuggestions, setFriendSuggestions] = useState<Array<any>>([]);
   const [sendingRequests, setSendingRequests] = useState<Set<string>>(new Set());
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { userId } = useAuth();
   const router = useRouter();
 
@@ -113,6 +126,7 @@ export default function UserFeedPage() {
       loadUserStats();
       loadTrendingHashtags();
       loadFriendSuggestions();
+      loadCurrentUser();
     }
   }, [userId]);
 
@@ -246,6 +260,14 @@ export default function UserFeedPage() {
       if (response.ok) {
         const data = await response.json();
         setPosts(data);
+        
+        // Extract current user's ID from the first post where user.clerkId matches
+        if (data.length > 0 && !currentUserId) {
+          const currentUserPost = data.find((p: Post) => p.user.clerkId === userId);
+          if (currentUserPost) {
+            setCurrentUserId(currentUserPost.user.id);
+          }
+        }
       } else {
         if (!silent) {
           toast.error('Failed to load feed posts');
@@ -262,6 +284,18 @@ export default function UserFeedPage() {
       } else {
         setRefreshing(false);
       }
+    }
+  };
+
+  const loadCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/user/me');
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentUserId(data.id);
+      }
+    } catch (error) {
+      console.error('Error loading current user:', error);
     }
   };
 
@@ -454,7 +488,10 @@ export default function UserFeedPage() {
       const response = await fetch(`/api/feed/posts/${postId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ 
+          content,
+          parentCommentId: replyingTo,
+        }),
       });
 
       if (!response.ok) {
@@ -463,11 +500,23 @@ export default function UserFeedPage() {
 
       const { comment, commentCount } = await response.json();
 
-      // Update comments list
-      setPostComments(prev => ({
-        ...prev,
-        [postId]: [comment, ...(prev[postId] || [])],
-      }));
+      // If it's a reply, add it to the parent comment's replies
+      if (replyingTo) {
+        setPostComments(prev => ({
+          ...prev,
+          [postId]: prev[postId]?.map(c => 
+            c.id === replyingTo 
+              ? { ...c, replies: [...(c.replies || []), comment], replyCount: c.replyCount + 1 }
+              : c
+          ) || [],
+        }));
+      } else {
+        // If it's a top-level comment, add it to the list
+        setPostComments(prev => ({
+          ...prev,
+          [postId]: [...(prev[postId] || []), comment],
+        }));
+      }
 
       // Update comment count
       setPosts(prevPosts => prevPosts.map(p => {
@@ -477,12 +526,103 @@ export default function UserFeedPage() {
         return p;
       }));
 
-      // Clear input
+      // Clear input and reset reply state
       setCommentTexts(prev => ({ ...prev, [postId]: '' }));
-      toast.success('Comment added!');
+      setReplyingTo(null);
+      toast.success(replyingTo ? 'Reply added!' : 'Comment added!');
     } catch (error) {
       console.error('Error adding comment:', error);
       toast.error('Failed to add comment');
+    }
+  };
+
+  const handleLikeComment = async (postId: string, commentId: string, isReply: boolean = false, parentCommentId?: string) => {
+    const comment = isReply 
+      ? postComments[postId]?.find(c => c.id === parentCommentId)?.replies?.find(r => r.id === commentId)
+      : postComments[postId]?.find(c => c.id === commentId);
+    
+    if (!comment) return;
+
+    const wasLiked = comment.liked;
+
+    // Optimistic update
+    setPostComments(prev => ({
+      ...prev,
+      [postId]: prev[postId]?.map(c => {
+        if (isReply && c.id === parentCommentId) {
+          return {
+            ...c,
+            replies: c.replies?.map(r => 
+              r.id === commentId 
+                ? { ...r, liked: !r.liked, likeCount: r.liked ? r.likeCount - 1 : r.likeCount + 1 }
+                : r
+            ),
+          };
+        } else if (!isReply && c.id === commentId) {
+          return {
+            ...c,
+            liked: !c.liked,
+            likeCount: c.liked ? c.likeCount - 1 : c.likeCount + 1,
+          };
+        }
+        return c;
+      }) || [],
+    }));
+
+    try {
+      const response = await fetch(`/api/feed/comments/${commentId}/like`, {
+        method: wasLiked ? 'DELETE' : 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update like');
+      }
+
+      const { likeCount, liked } = await response.json();
+
+      // Update with server response
+      setPostComments(prev => ({
+        ...prev,
+        [postId]: prev[postId]?.map(c => {
+          if (isReply && c.id === parentCommentId) {
+            return {
+              ...c,
+              replies: c.replies?.map(r => 
+                r.id === commentId ? { ...r, liked, likeCount } : r
+              ),
+            };
+          } else if (!isReply && c.id === commentId) {
+            return { ...c, liked, likeCount };
+          }
+          return c;
+        }) || [],
+      }));
+    } catch (error) {
+      console.error('Error updating comment like:', error);
+      // Revert on error
+      setPostComments(prev => ({
+        ...prev,
+        [postId]: prev[postId]?.map(c => {
+          if (isReply && c.id === parentCommentId) {
+            return {
+              ...c,
+              replies: c.replies?.map(r => 
+                r.id === commentId 
+                  ? { ...r, liked: wasLiked, likeCount: wasLiked ? r.likeCount + 1 : r.likeCount - 1 }
+                  : r
+              ),
+            };
+          } else if (!isReply && c.id === commentId) {
+            return {
+              ...c,
+              liked: wasLiked,
+              likeCount: wasLiked ? c.likeCount + 1 : c.likeCount - 1,
+            };
+          }
+          return c;
+        }) || [],
+      }));
+      toast.error('Failed to update like');
     }
   };
 
@@ -588,24 +728,43 @@ export default function UserFeedPage() {
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('Image size must be less than 10MB');
-        return;
-      }
-      setSelectedImage(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Validate file count (max 10 images)
+    if (files.length + selectedImages.length > 10) {
+      toast.error('You can upload a maximum of 10 images');
+      return;
+    }
+
+    // Validate file sizes
+    const oversizedFiles = files.filter(file => file.size > 10 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      toast.error('Each image must be less than 10MB');
+      return;
+    }
+
+    // Add new files to existing selection
+    setSelectedImages(prev => [...prev, ...files]);
+
+    // Generate previews for new files
+    files.forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+        setImagePreviews(prev => [...prev, reader.result as string]);
       };
       reader.readAsDataURL(file);
-    }
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleCreatePost = async () => {
-    if (!selectedImage) {
-      toast.error('Please select an image');
+    if (selectedImages.length === 0) {
+      toast.error('Please select at least one image');
       return;
     }
     if (!postCaption.trim()) {
@@ -616,28 +775,33 @@ export default function UserFeedPage() {
     try {
       setUploading(true);
 
-      // Upload image to S3
-      const formData = new FormData();
-      formData.append('image', selectedImage);
+      // Upload all images to S3
+      const imageUrls: string[] = [];
+      
+      for (const image of selectedImages) {
+        const formData = new FormData();
+        formData.append('image', image);
 
-      const uploadResponse = await fetch('/api/feed/upload-image', {
-        method: 'POST',
-        body: formData,
-      });
+        const uploadResponse = await fetch('/api/feed/upload-image', {
+          method: 'POST',
+          body: formData,
+        });
 
-      if (!uploadResponse.ok) {
-        const error = await uploadResponse.json();
-        throw new Error(error.error || 'Failed to upload image');
+        if (!uploadResponse.ok) {
+          const error = await uploadResponse.json();
+          throw new Error(error.error || 'Failed to upload image');
+        }
+
+        const { imageUrl } = await uploadResponse.json();
+        imageUrls.push(imageUrl);
       }
-
-      const { imageUrl } = await uploadResponse.json();
 
       // Create the post
       const postResponse = await fetch('/api/feed/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrl,
+          imageUrls,
           caption: postCaption,
         }),
       });
@@ -685,8 +849,8 @@ export default function UserFeedPage() {
       // Reset form
       setShowPostModal(false);
       setPostCaption('');
-      setSelectedImage(null);
-      setImagePreview(null);
+      setSelectedImages([]);
+      setImagePreviews([]);
     } catch (error: any) {
       console.error('Error creating post:', error);
       toast.error(error.message || 'Failed to create post');
@@ -698,8 +862,114 @@ export default function UserFeedPage() {
   const closeModal = () => {
     setShowPostModal(false);
     setPostCaption('');
-    setSelectedImage(null);
-    setImagePreview(null);
+    setSelectedImages([]);
+    setImagePreviews([]);
+  };
+
+  // Image Carousel Component
+  const ImageCarousel = ({ images, postId }: { images: string[], postId: string }) => {
+    const currentIndex = currentImageIndexes[postId] || 0;
+
+    const goToNext = () => {
+      if (currentIndex < images.length - 1) {
+        setCurrentImageIndexes(prev => ({
+          ...prev,
+          [postId]: currentIndex + 1
+        }));
+      }
+    };
+
+    const goToPrev = () => {
+      if (currentIndex > 0) {
+        setCurrentImageIndexes(prev => ({
+          ...prev,
+          [postId]: currentIndex - 1
+        }));
+      }
+    };
+
+    const goToIndex = (index: number) => {
+      setCurrentImageIndexes(prev => ({ ...prev, [postId]: index }));
+    };
+
+    if (images.length === 0) return null;
+
+    return (
+      <div className="relative w-full h-[500px] bg-black group flex items-center justify-center overflow-hidden">
+        {/* Main Image */}
+        {images.map((image, index) => (
+          <img
+            key={index}
+            src={image}
+            alt={`Post image ${index + 1}`}
+            loading="eager"
+            className={`absolute max-w-full max-h-full object-contain transition-opacity duration-500 ease-in-out ${
+              index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
+            }`}
+          />
+        ))}
+
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+
+        {/* Navigation Arrows - Only show if multiple images */}
+        {images.length > 1 && (
+          <>
+            {/* Previous Button - Only show if not first image */}
+            {currentIndex > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToPrev();
+                }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 transition-all duration-200 z-10"
+              >
+                <ChevronLeft className="w-6 h-6 text-gray-800 dark:text-white" />
+              </button>
+            )}
+            {/* Next Button - Only show if not last image */}
+            {currentIndex < images.length - 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToNext();
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 transition-all duration-200 z-10"
+              >
+                <ChevronRight className="w-6 h-6 text-gray-800 dark:text-white" />
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Image Counter Badge */}
+        {images.length > 1 && (
+          <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/70 backdrop-blur-md rounded-full text-white text-xs font-semibold shadow-lg z-10">
+            {currentIndex + 1} / {images.length}
+          </div>
+        )}
+
+        {/* Dots Indicator - Only show if multiple images */}
+        {images.length > 1 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+            {images.map((_, index) => (
+              <button
+                key={index}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToIndex(index);
+                }}
+                className={`transition-all duration-300 rounded-full ${
+                  index === currentIndex
+                    ? 'w-8 h-2 bg-white shadow-lg'
+                    : 'w-2 h-2 bg-white/60 hover:bg-white/80 hover:scale-125'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -882,6 +1152,15 @@ export default function UserFeedPage() {
                   Quick Links
                 </h3>
                 <div className="space-y-2">
+                  {currentUserId && (
+                    <button 
+                      onClick={() => router.push(`/workspace/user-feed/profile/${currentUserId}`)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-gradient-to-r hover:from-indigo-500/10 hover:to-purple-500/10 text-gray-700 dark:text-gray-300 transition-all group"
+                    >
+                      <Users className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />
+                      <span className="text-sm font-medium">My Profile</span>
+                    </button>
+                  )}
                   <button 
                     onClick={() => router.push('/workspace/friends?tab=friends')}
                     className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-pink-500/10 text-gray-700 dark:text-gray-300 transition-all group"
@@ -946,7 +1225,7 @@ export default function UserFeedPage() {
 
           {/* Main Feed */}
           <div className="lg:col-span-6">
-            <div className="max-w-2xl mx-auto space-y-6 pb-8">
+            <div className="max-w-xl mx-auto space-y-6 pb-8">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg border border-blue-200 dark:border-purple-800 p-4 sm:p-6 text-white">
         <div className="flex items-center justify-between">
@@ -984,16 +1263,38 @@ export default function UserFeedPage() {
 
       {/* Feed Posts */}
       <div className="space-y-6">
-        {posts.map((post) => (
-          <div
-            key={post.id}
-            className="bg-white dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
-          >
+        {posts.map((post, index) => {
+          // Check if we need to show separator (transition from friends to non-friends)
+          const showSeparator = index > 0 && posts[index - 1].isFriend && !post.isFriend;
+          
+          return (
+            <React.Fragment key={post.id}>
+              {/* Separator for non-friend posts */}
+              {showSeparator && (
+                <div className="relative flex items-center justify-center py-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+                  </div>
+                  <div className="relative flex items-center gap-2 px-4 bg-white dark:bg-gray-900">
+                    <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      Suggested Posts from the Community
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              <div
+                className="bg-white dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
+              >
             {/* Post Header */}
             <div className="flex items-center justify-between p-4 sm:p-5 bg-gradient-to-r from-gray-50/50 to-transparent dark:from-gray-900/30 dark:to-transparent">
               <div className="flex items-center space-x-3">
                 {/* User Avatar with gradient ring */}
-                <div className="relative">
+                <button
+                  onClick={() => router.push(`/workspace/user-feed/profile/${post.user.id}`)}
+                  className="relative cursor-pointer"
+                >
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full blur-sm opacity-75"></div>
                   <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-0.5">
                     <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center">
@@ -1006,16 +1307,19 @@ export default function UserFeedPage() {
                       )}
                     </div>
                   </div>
-                </div>
+                </button>
                 {/* User Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm sm:text-base font-bold text-gray-900 dark:text-white truncate">
+                <button
+                  onClick={() => router.push(`/workspace/user-feed/profile/${post.user.id}`)}
+                  className="flex-1 min-w-0 text-left"
+                >
+                  <p className="text-sm sm:text-base font-bold text-gray-900 dark:text-white truncate hover:underline">
                     {post.user.username || `${post.user.firstName || ''} ${post.user.lastName || ''}`.trim() || post.user.email}
                   </p>
                   <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
                     {post.user.username ? `${post.user.firstName || ''} ${post.user.lastName || ''}`.trim() : post.user.email}
                   </p>
-                </div>
+                </button>
               </div>
               {/* More Options */}
               <div className="relative dropdown-menu">
@@ -1080,16 +1384,8 @@ export default function UserFeedPage() {
               </div>
             </div>
 
-            {/* Post Image with gradient overlay on hover */}
-            <div className="relative w-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 group">
-              <img
-                src={post.imageUrl}
-                alt="Post content"
-                className="w-full h-auto max-h-[600px] object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-              />
-              {/* Subtle gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            </div>
+            {/* Post Images - Use Carousel */}
+            <ImageCarousel images={post.imageUrls} postId={post.id} />
 
             {/* Post Actions */}
             <div className="p-4 sm:p-5 space-y-3 bg-gradient-to-b from-transparent to-gray-50/30 dark:to-gray-900/20">
@@ -1173,7 +1469,9 @@ export default function UserFeedPage() {
               </p>
             </div>
           </div>
-        ))}
+            </React.Fragment>
+          );
+        })}
       </div>
 
       {/* Load More */}
@@ -1222,41 +1520,52 @@ export default function UserFeedPage() {
               {/* Image Upload Area */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Select Image
+                  Select Images (Up to 10)
                 </label>
-                {imagePreview ? (
-                  <div className="relative group">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-full h-auto max-h-96 object-cover rounded-2xl border-2 border-gray-200 dark:border-gray-700 shadow-lg"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl"></div>
-                    <button
-                      onClick={() => {
-                        setSelectedImage(null);
-                        setImagePreview(null);
-                      }}
-                      className="absolute top-3 right-3 p-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-xl hover:shadow-2xl active:scale-95 opacity-0 group-hover:opacity-100"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
+                
+                {/* Preview Grid */}
+                {imagePreviews.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                    {imagePreviews.map((preview, index) => (
+                      <div key={index} className="relative group aspect-square">
+                        <img
+                          src={preview}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-full object-cover rounded-xl border-2 border-gray-200 dark:border-gray-700 shadow-md"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl"></div>
+                        <button
+                          onClick={() => removeImage(index)}
+                          className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95 opacity-0 group-hover:opacity-100"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                        <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 backdrop-blur-sm rounded-full text-white text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                          {index + 1}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ) : (
-                  <label className="relative flex flex-col items-center justify-center w-full h-72 border-3 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300 bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-900/50 dark:to-blue-900/20 hover:shadow-lg group">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6 space-y-4">
+                )}
+
+                {/* Upload Button */}
+                {imagePreviews.length < 10 && (
+                  <label className="relative flex flex-col items-center justify-center w-full h-48 border-3 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl cursor-pointer hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300 bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-900/50 dark:to-blue-900/20 hover:shadow-lg group">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6 space-y-3">
                       <div className="relative">
                         <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                        <div className="relative w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                          <Upload className="w-8 h-8 text-white" />
+                        <div className="relative w-14 h-14 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                          <Upload className="w-7 h-7 text-white" />
                         </div>
                       </div>
                       <div className="text-center">
-                        <p className="mb-2 text-base font-semibold text-gray-700 dark:text-gray-300">
-                          <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Click to upload</span> or drag and drop
+                        <p className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                          <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                            {imagePreviews.length > 0 ? 'Add more images' : 'Click to upload'}
+                          </span>
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          PNG, JPG, WebP up to 10MB
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          PNG, JPG, WebP up to 10MB ({imagePreviews.length}/10)
                         </p>
                       </div>
                     </div>
@@ -1264,6 +1573,7 @@ export default function UserFeedPage() {
                       type="file"
                       className="hidden"
                       accept="image/*"
+                      multiple
                       onChange={handleImageSelect}
                     />
                   </label>
@@ -1385,17 +1695,14 @@ export default function UserFeedPage() {
             className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col md:flex-row border border-gray-200/20 dark:border-gray-700/30 animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Left Side - Image */}
-            <div className="md:w-[55%] bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center relative group">
-              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              <img
-                src={selectedPostForComments.imageUrl}
-                alt="Post"
-                className="max-w-full max-h-[95vh] object-contain relative z-10 drop-shadow-2xl"
-              />
+            {/* Left Side - Image Carousel */}
+            <div className="md:w-[55%] bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center relative">
+              <div className="w-full h-full flex items-center justify-center">
+                <ImageCarousel images={selectedPostForComments.imageUrls} postId={`modal-${selectedPostForComments.id}`} />
+              </div>
               {/* Decorative blur circles */}
-              <div className="absolute top-10 left-10 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl"></div>
-              <div className="absolute bottom-10 right-10 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl"></div>
+              <div className="absolute top-10 left-10 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute bottom-10 right-10 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
             </div>
 
             {/* Right Side - Comments */}
@@ -1483,7 +1790,7 @@ export default function UserFeedPage() {
               </div>
 
               {/* Comments List */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent">
+              <div className="flex-1 overflow-y-auto p-5 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-2 [&::-webkit-scrollbar-thumb]:border-transparent hover:[&::-webkit-scrollbar-thumb]:bg-gray-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-gray-600">
                 {loadingComments.has(selectedPostForComments.id) ? (
                   <div className="flex flex-col items-center justify-center py-12">
                     <div className="relative">
@@ -1494,49 +1801,129 @@ export default function UserFeedPage() {
                   </div>
                 ) : postComments[selectedPostForComments.id]?.length > 0 ? (
                   postComments[selectedPostForComments.id].map((comment, index) => (
-                    <div 
-                      key={comment.id} 
-                      className="flex items-start space-x-3 group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 p-2 rounded-xl transition-all duration-200 animate-in slide-in-from-bottom"
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                      <div className="flex-shrink-0">
-                        {comment.user.imageUrl ? (
-                          <img
-                            src={comment.user.imageUrl}
-                            alt={comment.user.username || 'User'}
-                            className="w-9 h-9 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-800"
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ring-2 ring-gray-100 dark:ring-gray-800">
-                            <span className="text-white text-xs font-bold">
-                              {(comment.user.username || comment.user.firstName || 'U')[0].toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-800 dark:to-gray-800/50 rounded-2xl px-4 py-3 shadow-sm border border-gray-200/50 dark:border-gray-700/30">
-                          <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
-                            {comment.user.username || comment.user.firstName || 'User'}
-                          </p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 break-words leading-relaxed">
-                            {comment.content}
-                          </p>
-                        </div>
-                        <div className="flex items-center space-x-4 mt-2 px-4">
-                          <span className="text-xs text-gray-400 font-medium">
-                            {new Date(comment.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          {comment.userId === userId && (
-                            <button
-                              onClick={() => handleDeleteComment(selectedPostForComments.id, comment.id)}
-                              className="text-xs text-red-500 hover:text-red-600 font-medium transition-colors hover:underline"
-                            >
-                              Delete
-                            </button>
+                    <div key={comment.id} className="space-y-2">
+                      {/* Main Comment */}
+                      <div 
+                        className="flex items-start space-x-3 group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 p-2 rounded-xl transition-all duration-200 animate-in slide-in-from-bottom"
+                        style={{ animationDelay: `${index * 50}ms` }}
+                      >
+                        <div className="flex-shrink-0">
+                          {comment.user.imageUrl ? (
+                            <img
+                              src={comment.user.imageUrl}
+                              alt={comment.user.username || 'User'}
+                              className="w-9 h-9 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-800"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ring-2 ring-gray-100 dark:ring-gray-800">
+                              <span className="text-white text-xs font-bold">
+                                {(comment.user.username || comment.user.firstName || 'U')[0].toUpperCase()}
+                              </span>
+                            </div>
                           )}
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-800 dark:to-gray-800/50 rounded-2xl px-4 py-3 shadow-sm border border-gray-200/50 dark:border-gray-700/30">
+                            <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+                              {comment.user.username || comment.user.firstName || 'User'}
+                            </p>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 break-words leading-relaxed">
+                              {comment.content}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-4 mt-2 px-4">
+                            <span className="text-xs text-gray-400 font-medium">
+                              {new Date(comment.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <button
+                              onClick={() => handleLikeComment(selectedPostForComments.id, comment.id)}
+                              className={`text-xs font-medium transition-colors flex items-center gap-1 ${
+                                comment.liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
+                              }`}
+                            >
+                              <Heart className={`w-3.5 h-3.5 ${comment.liked ? 'fill-red-500' : ''}`} />
+                              {comment.likeCount > 0 && <span>{comment.likeCount}</span>}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setReplyingTo(comment.id);
+                                setCommentTexts(prev => ({ ...prev, [selectedPostForComments.id]: `@${comment.user.username || comment.user.firstName || 'User'} ` }));
+                              }}
+                              className="text-xs text-gray-500 hover:text-blue-500 font-medium transition-colors"
+                            >
+                              Reply
+                            </button>
+                            {comment.userId === userId && (
+                              <button
+                                onClick={() => handleDeleteComment(selectedPostForComments.id, comment.id)}
+                                className="text-xs text-red-500 hover:text-red-600 font-medium transition-colors hover:underline"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Replies */}
+                      {comment.replies && comment.replies.length > 0 && (
+                        <div className="ml-12 space-y-2 border-l-2 border-gray-200 dark:border-gray-700 pl-4">
+                          {comment.replies.map((reply, replyIndex) => (
+                            <div 
+                              key={reply.id} 
+                              className="flex items-start space-x-3 group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 p-2 rounded-xl transition-all duration-200"
+                            >
+                              <div className="flex-shrink-0">
+                                {reply.user.imageUrl ? (
+                                  <img
+                                    src={reply.user.imageUrl}
+                                    alt={reply.user.username || 'User'}
+                                    className="w-8 h-8 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-800"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center ring-2 ring-gray-100 dark:ring-gray-800">
+                                    <span className="text-white text-xs font-bold">
+                                      {(reply.user.username || reply.user.firstName || 'U')[0].toUpperCase()}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl px-3 py-2 shadow-sm border border-gray-200/50 dark:border-gray-700/30">
+                                  <p className="text-xs font-bold text-gray-900 dark:text-white mb-1">
+                                    {reply.user.username || reply.user.firstName || 'User'}
+                                  </p>
+                                  <p className="text-xs text-gray-700 dark:text-gray-300 break-words leading-relaxed">
+                                    {reply.content}
+                                  </p>
+                                </div>
+                                <div className="flex items-center space-x-3 mt-1.5 px-3">
+                                  <span className="text-xs text-gray-400 font-medium">
+                                    {new Date(reply.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                  <button
+                                    onClick={() => handleLikeComment(selectedPostForComments.id, reply.id, true, comment.id)}
+                                    className={`text-xs font-medium transition-colors flex items-center gap-1 ${
+                                      reply.liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'
+                                    }`}
+                                  >
+                                    <Heart className={`w-3 h-3 ${reply.liked ? 'fill-red-500' : ''}`} />
+                                    {reply.likeCount > 0 && <span>{reply.likeCount}</span>}
+                                  </button>
+                                  {reply.userId === userId && (
+                                    <button
+                                      onClick={() => handleDeleteComment(selectedPostForComments.id, reply.id)}
+                                      className="text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
@@ -1557,6 +1944,22 @@ export default function UserFeedPage() {
 
               {/* Comment Input */}
               <div className="p-5 border-t border-gray-200 dark:border-gray-700/50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+                {replyingTo && (
+                  <div className="mb-3 flex items-center justify-between px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                      Replying to comment...
+                    </span>
+                    <button
+                      onClick={() => {
+                        setReplyingTo(null);
+                        setCommentTexts(prev => ({ ...prev, [selectedPostForComments.id]: '' }));
+                      }}
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-center space-x-3">
                   <div className="flex-1 relative">
                     <input
@@ -1569,7 +1972,7 @@ export default function UserFeedPage() {
                           handleAddComment(selectedPostForComments.id);
                         }
                       }}
-                      placeholder="Add a comment..."
+                      placeholder={replyingTo ? "Write a reply..." : "Add a comment..."}
                       className="w-full px-5 py-3 text-sm border-2 border-gray-200 dark:border-gray-700 rounded-full bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all duration-200"
                     />
                   </div>

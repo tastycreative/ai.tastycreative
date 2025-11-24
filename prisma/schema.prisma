@@ -16,6 +16,7 @@ model User {
   firstName              String?
   lastName               String?
   imageUrl               String?
+  coverImageUrl          String?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
   role                   UserRole          @default(USER)
@@ -38,6 +39,7 @@ model User {
   feedPosts              FeedPost[]
   feedPostLikes          FeedPostLike[]
   feedPostComments       FeedPostComment[]
+  feedPostCommentLikes   FeedPostCommentLike[]
   feedPostBookmarks      FeedPostBookmark[]
 
   @@map("users")
@@ -586,7 +588,7 @@ enum FriendshipStatus {
 model FeedPost {
   id        String              @id @default(cuid())
   userId    String
-  imageUrl  String              // S3 or storage URL for the post image
+  imageUrls String[]            // Array of S3 or storage URLs for post images
   caption   String              @db.Text
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
@@ -616,19 +618,38 @@ model FeedPostLike {
 }
 
 model FeedPostComment {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  content   String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String                  @id @default(cuid())
+  postId          String
+  userId          String
+  content         String                  @db.Text
+  parentCommentId String?                 // For nested replies
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  post            FeedPost                @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes           FeedPostCommentLike[]
+  parentComment   FeedPostComment?        @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         FeedPostComment[]       @relation("CommentReplies")
 
   @@index([postId])
   @@index([userId])
   @@index([postId, createdAt])
+  @@index([parentCommentId])
   @@map("feed_post_comments")
+}
+
+model FeedPostCommentLike {
+  id        String          @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime        @default(now())
+  comment   FeedPostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+  @@map("feed_post_comment_likes")
 }
 
 model FeedPostBookmark {

@@ -15,9 +15,21 @@ export async function GET(
 
     const { postId } = await params;
 
-    // Fetch comments
+    // Get current user
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Fetch comments (only top-level comments, not replies)
     const comments = await prisma.feedPostComment.findMany({
-      where: { postId },
+      where: { 
+        postId,
+        parentCommentId: null, // Only get top-level comments
+      },
       include: {
         user: {
           select: {
@@ -29,9 +41,45 @@ export async function GET(
             imageUrl: true,
           },
         },
+        likes: {
+          where: { userId: currentUser.id },
+          select: { id: true },
+        },
+        _count: {
+          select: {
+            likes: true,
+            replies: true,
+          },
+        },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                clerkId: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+                imageUrl: true,
+              },
+            },
+            likes: {
+              where: { userId: currentUser.id },
+              select: { id: true },
+            },
+            _count: {
+              select: {
+                likes: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: 'asc',
       },
     });
 
@@ -43,6 +91,20 @@ export async function GET(
       content: comment.content,
       createdAt: comment.createdAt.toISOString(),
       user: comment.user,
+      liked: comment.likes.length > 0,
+      likeCount: comment._count.likes,
+      replyCount: comment._count.replies,
+      replies: comment.replies.map(reply => ({
+        id: reply.id,
+        postId: reply.postId,
+        userId: reply.userId,
+        content: reply.content,
+        createdAt: reply.createdAt.toISOString(),
+        user: reply.user,
+        liked: reply.likes.length > 0,
+        likeCount: reply._count.likes,
+        parentCommentId: reply.parentCommentId,
+      })),
     }));
 
     return NextResponse.json(transformedComments);
@@ -67,7 +129,7 @@ export async function POST(
     }
 
     const { postId } = await params;
-    const { content } = await request.json();
+    const { content, parentCommentId } = await request.json();
 
     if (!content || !content.trim()) {
       return NextResponse.json(
@@ -91,6 +153,7 @@ export async function POST(
         postId,
         userId: currentUser.id,
         content: content.trim(),
+        parentCommentId: parentCommentId || null,
       },
       include: {
         user: {
@@ -103,12 +166,21 @@ export async function POST(
             imageUrl: true,
           },
         },
+        _count: {
+          select: {
+            likes: true,
+            replies: true,
+          },
+        },
       },
     });
 
-    // Get updated comment count
+    // Get updated comment count (only top-level comments)
     const commentCount = await prisma.feedPostComment.count({
-      where: { postId },
+      where: { 
+        postId,
+        parentCommentId: null,
+      },
     });
 
     // Transform comment
@@ -119,6 +191,11 @@ export async function POST(
       content: comment.content,
       createdAt: comment.createdAt.toISOString(),
       user: comment.user,
+      liked: false,
+      likeCount: comment._count.likes,
+      replyCount: comment._count.replies,
+      parentCommentId: comment.parentCommentId,
+      replies: [],
     };
 
     return NextResponse.json({ comment: transformedComment, commentCount });
