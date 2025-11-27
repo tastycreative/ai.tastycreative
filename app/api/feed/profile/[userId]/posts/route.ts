@@ -64,6 +64,7 @@ export async function GET(
     const transformedPosts = posts.map((post) => ({
       id: post.id,
       imageUrls: post.imageUrls,
+      mediaType: post.mediaType as 'image' | 'video',
       caption: post.caption,
       createdAt: post.createdAt.toISOString(),
       likesCount: post.likes.length,

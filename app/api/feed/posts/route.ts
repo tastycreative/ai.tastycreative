@@ -119,6 +119,7 @@ export async function GET(request: NextRequest) {
       userId: post.userId,
       user: post.user,
       imageUrls: post.imageUrls,
+      mediaType: post.mediaType as 'image' | 'video',
       caption: post.caption,
       likes: post._count.likes,
       comments: post._count.comments,
@@ -133,6 +134,7 @@ export async function GET(request: NextRequest) {
       userId: post.userId,
       user: post.user,
       imageUrls: post.imageUrls,
+      mediaType: post.mediaType as 'image' | 'video',
       caption: post.caption,
       likes: post._count.likes,
       comments: post._count.comments,
@@ -166,9 +168,9 @@ export async function POST(request: NextRequest) {
     console.log('[Create Post] Starting for user:', clerkId);
 
     const body = await request.json();
-    const { imageUrls, caption } = body;
+    const { imageUrls, caption, mediaType = 'image' } = body;
 
-    console.log('[Create Post] Received data:', { imageUrls, caption: caption?.substring(0, 50) });
+    console.log('[Create Post] Received data:', { imageUrls, caption: caption?.substring(0, 50), mediaType });
 
     if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0 || !caption) {
       console.error('[Create Post] Missing required fields');
@@ -195,6 +197,7 @@ export async function POST(request: NextRequest) {
       data: {
         userId: currentUser.id,
         imageUrls,
+        mediaType,
         caption,
       },
       include: {
@@ -226,6 +229,7 @@ export async function POST(request: NextRequest) {
       userId: post.userId,
       user: post.user,
       imageUrls: post.imageUrls,
+      mediaType: post.mediaType as 'image' | 'video',
       caption: post.caption,
       likes: post._count.likes,
       comments: post._count.comments,

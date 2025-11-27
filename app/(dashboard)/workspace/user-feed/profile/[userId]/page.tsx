@@ -10,6 +10,7 @@ import type { Point, Area } from 'react-easy-crop';
 import {
   Camera,
   Image as ImageIcon,
+  Video,
   Users,
   Heart,
   MessageCircle,
@@ -70,6 +71,7 @@ interface UserProfile {
 interface Post {
   id: string;
   imageUrls: string[];
+  mediaType?: 'image' | 'video';
   caption: string;
   createdAt: string;
   likesCount: number;
@@ -893,15 +895,30 @@ export default function UserProfilePage() {
                   className="group relative aspect-square bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-2xl overflow-hidden cursor-pointer shadow-lg hover:shadow-2xl hover:shadow-purple-500/30 transition-all duration-500 hover:scale-105"
                   onClick={() => setSelectedPost(post)}
                 >
-                  <img
-                    src={post.imageUrls[0]}
-                    alt="Post"
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-2"
-                  />
+                  {post.mediaType === 'video' ? (
+                    <video
+                      src={post.imageUrls[0]}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-2"
+                      muted
+                    />
+                  ) : (
+                    <img
+                      src={post.imageUrls[0]}
+                      alt="Post"
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-2"
+                    />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   
-                  {/* Multiple images indicator */}
-                  {post.imageUrls.length > 1 && (
+                  {/* Multiple images/videos indicator or video badge */}
+                  {post.mediaType === 'video' ? (
+                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
+                      <span className="text-white text-xs font-medium flex items-center gap-1">
+                        <Video className="w-3 h-3" />
+                        Video
+                      </span>
+                    </div>
+                  ) : post.imageUrls.length > 1 && (
                     <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
                       <span className="text-white text-xs font-medium flex items-center gap-1">
                         <ImageIcon className="w-3 h-3" />
@@ -971,10 +988,64 @@ export default function UserProfilePage() {
               className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col md:flex-row border border-gray-200/20 dark:border-gray-700/30 animate-in zoom-in-95 duration-300"
               onClick={(e) => e.stopPropagation()}
             >
-            {/* Left Side - Image Carousel */}
+            {/* Left Side - Image/Video Display */}
             <div className="md:w-[55%] bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center relative">
-              <div className="w-full h-full flex items-center justify-center">
-                <ImageCarousel images={selectedPost.imageUrls} postId={`modal-${selectedPost.id}`} />
+              <div className="w-full h-full flex items-center justify-center p-4">
+                {selectedPost.mediaType === 'video' ? (
+                  <video
+                    src={selectedPost.imageUrls[0]}
+                    autoPlay
+                    controls
+                    playsInline
+                    preload="auto"
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                  />
+                ) : selectedPost.imageUrls.length === 1 ? (
+                  <img
+                    src={selectedPost.imageUrls[0]}
+                    alt="Post"
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                  />
+                ) : (
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <img
+                      src={selectedPost.imageUrls[currentImageIndexes[selectedPost.id] || 0]}
+                      alt="Post"
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                    />
+                    {selectedPost.imageUrls.length > 1 && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const currentIndex = currentImageIndexes[selectedPost.id] || 0;
+                            if (currentIndex > 0) {
+                              setCurrentImageIndexes(prev => ({ ...prev, [selectedPost.id]: currentIndex - 1 }));
+                            }
+                          }}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200"
+                        >
+                          <ChevronLeft className="w-6 h-6 text-gray-800 dark:text-white" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const currentIndex = currentImageIndexes[selectedPost.id] || 0;
+                            if (currentIndex < selectedPost.imageUrls.length - 1) {
+                              setCurrentImageIndexes(prev => ({ ...prev, [selectedPost.id]: currentIndex + 1 }));
+                            }
+                          }}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200"
+                        >
+                          <ChevronRight className="w-6 h-6 text-gray-800 dark:text-white" />
+                        </button>
+                        <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/70 backdrop-blur-md rounded-full text-white text-xs font-semibold shadow-lg">
+                          {(currentImageIndexes[selectedPost.id] || 0) + 1} / {selectedPost.imageUrls.length}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="absolute top-10 left-10 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
               <div className="absolute bottom-10 right-10 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>

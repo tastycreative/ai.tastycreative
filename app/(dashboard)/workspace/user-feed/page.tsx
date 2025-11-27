@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import {
   Users,
   Image as ImageIcon,
+  Video,
   Heart,
   MessageCircle,
   Share2,
@@ -49,6 +50,7 @@ interface Post {
     imageUrl: string | null;
   };
   imageUrls: string[]; // Changed from imageUrl to imageUrls array
+  mediaType?: 'image' | 'video'; // Type of media
   caption: string;
   likes: number;
   comments: number;
@@ -79,6 +81,245 @@ interface Comment {
   };
 }
 
+// ImageCarousel component moved outside to prevent recreation on parent re-renders
+const ImageCarousel = React.memo(({ 
+  images, 
+  postId, 
+  mediaType = 'image',
+  currentImageIndexes,
+  setCurrentImageIndexes,
+  isPaused = false
+}: { 
+  images: string[], 
+  postId: string, 
+  mediaType?: 'image' | 'video',
+  currentImageIndexes: Record<string, number>,
+  setCurrentImageIndexes: React.Dispatch<React.SetStateAction<Record<string, number>>>,
+  isPaused?: boolean
+}) => {
+  const currentIndex = currentImageIndexes[postId] || 0;
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [isMuted, setIsMuted] = React.useState(true);
+  const [currentTime, setCurrentTime] = React.useState(0);
+  const [isVisible, setIsVisible] = React.useState(false);
+
+  // Intersection Observer to detect if video is visible on screen
+  React.useEffect(() => {
+    if (!containerRef.current || mediaType !== 'video') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setIsVisible(entry.isIntersecting);
+        });
+      },
+      {
+        threshold: 0.5, // Video must be at least 50% visible
+        rootMargin: '0px'
+      }
+    );
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [mediaType]);
+
+  // Handle video pause/play based on visibility and modal state
+  React.useEffect(() => {
+    if (videoRef.current && mediaType === 'video') {
+      const video = videoRef.current;
+      
+      if (isPaused || !isVisible) {
+        video.pause();
+      } else {
+        video.play().catch(err => console.log('Play prevented:', err));
+      }
+    }
+  }, [isPaused, isVisible, mediaType]);
+
+  // Preserve video playback position and mute state
+  React.useEffect(() => {
+    if (videoRef.current && mediaType === 'video' && !isPaused && isVisible) {
+      const video = videoRef.current;
+      
+      // Restore playback position if it changed
+      if (currentTime > 0 && Math.abs(video.currentTime - currentTime) > 0.5) {
+        video.currentTime = currentTime;
+      }
+      
+      // Only set muted state, don't interrupt playback
+      if (video.muted !== isMuted) {
+        video.muted = isMuted;
+      }
+      
+      // Ensure video is playing
+      if (video.paused) {
+        video.play().catch(err => console.log('Play prevented:', err));
+      }
+    }
+  }, [isMuted, mediaType, currentTime, isPaused, isVisible]);
+
+  // Prevent video reload on component updates
+  const videoSrc = React.useMemo(() => images[0], [images[0]]);
+
+  const goToNext = () => {
+    if (currentIndex < images.length - 1) {
+      setCurrentImageIndexes(prev => ({
+        ...prev,
+        [postId]: currentIndex + 1
+      }));
+    }
+  };
+
+  const goToPrev = () => {
+    if (currentIndex > 0) {
+      setCurrentImageIndexes(prev => ({
+        ...prev,
+        [postId]: currentIndex - 1
+      }));
+    }
+  };
+
+  const goToIndex = (index: number) => {
+    setCurrentImageIndexes(prev => ({ ...prev, [postId]: index }));
+  };
+
+  if (images.length === 0) return null;
+
+  return (
+    <div ref={containerRef} className="relative w-full h-[300px] sm:h-[400px] md:h-[500px] bg-gradient-to-br from-gray-900 via-black to-gray-900 group flex items-center justify-center overflow-hidden">
+      {/* Main Media */}
+      {mediaType === 'video' ? (
+        <>
+          <video
+            ref={videoRef}
+            src={videoSrc}
+            autoPlay
+            loop
+            playsInline
+            preload="auto"
+            disablePictureInPicture
+            disableRemotePlayback
+            muted={isMuted}
+            onTimeUpdate={(e) => {
+              // Track current playback position
+              setCurrentTime(e.currentTarget.currentTime);
+            }}
+            onCanPlay={(e) => {
+              // Auto-play when ready, only if not already playing
+              const video = e.currentTarget;
+              if (video.paused && video.readyState >= 3) {
+                video.play().catch(err => console.log('Autoplay prevented:', err));
+              }
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMuted(!isMuted);
+            }}
+            className="absolute max-w-full max-h-full object-contain z-10 cursor-pointer"
+          />
+          {/* Mute indicator with modern design */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMuted(!isMuted);
+            }}
+            className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 p-2 sm:p-3 bg-black/60 hover:bg-black/80 backdrop-blur-md rounded-full transition-all z-20 group/mute border border-white/10"
+          >
+            {isMuted ? (
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clipRule="evenodd" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              </svg>
+            )}
+          </button>
+        </>
+      ) : (
+        images.map((mediaUrl, index) => (
+          <img
+            key={index}
+            src={mediaUrl}
+            alt={`Post image ${index + 1}`}
+            loading="eager"
+            className={`absolute max-w-full max-h-full object-contain transition-opacity duration-500 ease-in-out ${
+              index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
+            }`}
+          />
+        ))
+      )}
+
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+
+      {/* Navigation Arrows - Only show if multiple images (not for video) */}
+      {mediaType !== 'video' && images.length > 1 && (
+        <>
+          {/* Previous Button - Only show if not first image */}
+          {currentIndex > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                goToPrev();
+              }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 transition-all duration-200 z-10"
+            >
+              <ChevronLeft className="w-6 h-6 text-gray-800 dark:text-white" />
+            </button>
+          )}
+          {/* Next Button - Only show if not last image */}
+          {currentIndex < images.length - 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                goToNext();
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 transition-all duration-200 z-10"
+            >
+              <ChevronRight className="w-6 h-6 text-gray-800 dark:text-white" />
+            </button>
+          )}
+        </>
+      )}
+
+      {/* Image Counter Badge - Only for multiple images (not video) */}
+      {mediaType !== 'video' && images.length > 1 && (
+        <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/70 backdrop-blur-md rounded-full text-white text-xs font-semibold shadow-lg z-10">
+          {currentIndex + 1} / {images.length}
+        </div>
+      )}
+
+      {/* Dots Indicator - Only show if multiple images (not video) */}
+      {mediaType !== 'video' && images.length > 1 && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+          {images.map((_, index) => (
+            <button
+              key={index}
+              onClick={(e) => {
+                e.stopPropagation();
+                goToIndex(index);
+              }}
+              className={`transition-all duration-300 rounded-full ${
+                index === currentIndex
+                  ? 'w-8 h-2 bg-white shadow-lg'
+                  : 'w-2 h-2 bg-white/60 hover:bg-white/80 hover:scale-125'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+});
+
+ImageCarousel.displayName = 'ImageCarousel';
+
 export default function UserFeedPage() {
   const [loading, setLoading] = useState(true);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -86,6 +327,9 @@ export default function UserFeedPage() {
   const [postCaption, setPostCaption] = useState('');
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [selectedVideos, setSelectedVideos] = useState<File[]>([]);
+  const [videoPreviews, setVideoPreviews] = useState<string[]>([]);
+  const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [currentImageIndexes, setCurrentImageIndexes] = useState<Record<string, number>>({});
   const [mounted, setMounted] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -111,6 +355,7 @@ export default function UserFeedPage() {
   const [friendSuggestions, setFriendSuggestions] = useState<Array<any>>([]);
   const [sendingRequests, setSendingRequests] = useState<Set<string>>(new Set());
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { userId } = useAuth();
   const router = useRouter();
 
@@ -145,19 +390,22 @@ export default function UserFeedPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openMenuPostId]);
 
-  // Real-time polling effect
-  useEffect(() => {
-    if (!userId) return;
+  // Real-time polling effect - DISABLED
+  // useEffect(() => {
+  //   if (!userId) return;
 
-    // Poll every 10 seconds for new posts and updates
-    const pollInterval = setInterval(() => {
-      loadFeedPosts(true); // Silent refresh without loading state
-      loadUserStats(); // Refresh activity stats
-      loadTrendingHashtags(); // Refresh trending hashtags
-    }, 10000);
+  //   // Poll every 10 seconds for new posts and updates
+  //   // Pause polling when viewing a modal to prevent video restart
+  //   const pollInterval = setInterval(() => {
+  //     if (!selectedPostForComments && !showPostModal && !editingPost) {
+  //       loadFeedPosts(true); // Silent refresh without loading state
+  //       loadUserStats(); // Refresh activity stats
+  //       loadTrendingHashtags(); // Refresh trending hashtags
+  //     }
+  //   }, 10000);
 
-    return () => clearInterval(pollInterval);
-  }, [userId]);
+  //   return () => clearInterval(pollInterval);
+  // }, [userId, selectedPostForComments, showPostModal, editingPost]);
 
   const loadFriendsCounts = async () => {
     try {
@@ -757,14 +1005,48 @@ export default function UserFeedPage() {
     });
   };
 
+  const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    // Validate file count (max 1 video for now)
+    if (files.length + selectedVideos.length > 1) {
+      toast.error('You can upload a maximum of 1 video');
+      return;
+    }
+
+    // Validate file sizes (max 100MB for videos)
+    const oversizedFiles = files.filter(file => file.size > 100 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      toast.error('Video must be less than 100MB');
+      return;
+    }
+
+    // Add new files to existing selection
+    setSelectedVideos(prev => [...prev, ...files]);
+
+    // Generate previews for new files
+    files.forEach(file => {
+      const url = URL.createObjectURL(file);
+      setVideoPreviews(prev => [...prev, url]);
+    });
+  };
+
   const removeImage = (index: number) => {
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
   };
 
+  const removeVideo = (index: number) => {
+    // Revoke the object URL to free memory
+    URL.revokeObjectURL(videoPreviews[index]);
+    setSelectedVideos(prev => prev.filter((_, i) => i !== index));
+    setVideoPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleCreatePost = async () => {
-    if (selectedImages.length === 0) {
-      toast.error('Please select at least one image');
+    if (selectedImages.length === 0 && selectedVideos.length === 0) {
+      toast.error('Please select at least one image or video');
       return;
     }
     if (!postCaption.trim()) {
@@ -775,25 +1057,47 @@ export default function UserFeedPage() {
     try {
       setUploading(true);
 
-      // Upload all images to S3
-      const imageUrls: string[] = [];
+      const mediaUrls: string[] = [];
+      const currentMediaType = selectedVideos.length > 0 ? 'video' : 'image';
       
-      for (const image of selectedImages) {
-        const formData = new FormData();
-        formData.append('image', image);
+      // Upload videos if selected
+      if (selectedVideos.length > 0) {
+        for (const video of selectedVideos) {
+          const formData = new FormData();
+          formData.append('video', video);
 
-        const uploadResponse = await fetch('/api/feed/upload-image', {
-          method: 'POST',
-          body: formData,
-        });
+          const uploadResponse = await fetch('/api/feed/upload-video', {
+            method: 'POST',
+            body: formData,
+          });
 
-        if (!uploadResponse.ok) {
-          const error = await uploadResponse.json();
-          throw new Error(error.error || 'Failed to upload image');
+          if (!uploadResponse.ok) {
+            const error = await uploadResponse.json();
+            throw new Error(error.error || 'Failed to upload video');
+          }
+
+          const { videoUrl } = await uploadResponse.json();
+          mediaUrls.push(videoUrl);
         }
+      } else {
+        // Upload images
+        for (const image of selectedImages) {
+          const formData = new FormData();
+          formData.append('image', image);
 
-        const { imageUrl } = await uploadResponse.json();
-        imageUrls.push(imageUrl);
+          const uploadResponse = await fetch('/api/feed/upload-image', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!uploadResponse.ok) {
+            const error = await uploadResponse.json();
+            throw new Error(error.error || 'Failed to upload image');
+          }
+
+          const { imageUrl } = await uploadResponse.json();
+          mediaUrls.push(imageUrl);
+        }
       }
 
       // Create the post
@@ -801,7 +1105,8 @@ export default function UserFeedPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageUrls,
+          imageUrls: mediaUrls,
+          mediaType: currentMediaType,
           caption: postCaption,
         }),
       });
@@ -864,114 +1169,14 @@ export default function UserFeedPage() {
     setPostCaption('');
     setSelectedImages([]);
     setImagePreviews([]);
+    // Clean up video URLs
+    videoPreviews.forEach(url => URL.revokeObjectURL(url));
+    setSelectedVideos([]);
+    setVideoPreviews([]);
+    setMediaType('image');
   };
 
-  // Image Carousel Component
-  const ImageCarousel = ({ images, postId }: { images: string[], postId: string }) => {
-    const currentIndex = currentImageIndexes[postId] || 0;
-
-    const goToNext = () => {
-      if (currentIndex < images.length - 1) {
-        setCurrentImageIndexes(prev => ({
-          ...prev,
-          [postId]: currentIndex + 1
-        }));
-      }
-    };
-
-    const goToPrev = () => {
-      if (currentIndex > 0) {
-        setCurrentImageIndexes(prev => ({
-          ...prev,
-          [postId]: currentIndex - 1
-        }));
-      }
-    };
-
-    const goToIndex = (index: number) => {
-      setCurrentImageIndexes(prev => ({ ...prev, [postId]: index }));
-    };
-
-    if (images.length === 0) return null;
-
-    return (
-      <div className="relative w-full h-[500px] bg-black group flex items-center justify-center overflow-hidden">
-        {/* Main Image */}
-        {images.map((image, index) => (
-          <img
-            key={index}
-            src={image}
-            alt={`Post image ${index + 1}`}
-            loading="eager"
-            className={`absolute max-w-full max-h-full object-contain transition-opacity duration-500 ease-in-out ${
-              index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
-            }`}
-          />
-        ))}
-
-        {/* Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-
-        {/* Navigation Arrows - Only show if multiple images */}
-        {images.length > 1 && (
-          <>
-            {/* Previous Button - Only show if not first image */}
-            {currentIndex > 0 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToPrev();
-                }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 transition-all duration-200 z-10"
-              >
-                <ChevronLeft className="w-6 h-6 text-gray-800 dark:text-white" />
-              </button>
-            )}
-            {/* Next Button - Only show if not last image */}
-            {currentIndex < images.length - 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToNext();
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95 transition-all duration-200 z-10"
-              >
-                <ChevronRight className="w-6 h-6 text-gray-800 dark:text-white" />
-              </button>
-            )}
-          </>
-        )}
-
-        {/* Image Counter Badge */}
-        {images.length > 1 && (
-          <div className="absolute top-4 right-4 px-3 py-1.5 bg-black/70 backdrop-blur-md rounded-full text-white text-xs font-semibold shadow-lg z-10">
-            {currentIndex + 1} / {images.length}
-          </div>
-        )}
-
-        {/* Dots Indicator - Only show if multiple images */}
-        {images.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
-            {images.map((_, index) => (
-              <button
-                key={index}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToIndex(index);
-                }}
-                className={`transition-all duration-300 rounded-full ${
-                  index === currentIndex
-                    ? 'w-8 h-2 bg-white shadow-lg'
-                    : 'w-2 h-2 bg-white/60 hover:bg-white/80 hover:scale-125'
-                }`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
+  // Image/Video Carousel Component
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20">
@@ -1140,8 +1345,8 @@ export default function UserFeedPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20">
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6">
           {/* Left Sidebar */}
           <div className="hidden lg:block lg:col-span-3">
             <div className="sticky top-24 space-y-6">
@@ -1225,37 +1430,54 @@ export default function UserFeedPage() {
 
           {/* Main Feed */}
           <div className="lg:col-span-6">
-            <div className="max-w-xl mx-auto space-y-6 pb-8">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg border border-blue-200 dark:border-purple-800 p-4 sm:p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3 sm:space-x-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-              <Share2 className="w-6 h-6 sm:w-7 sm:h-7" />
+            <div className="max-w-xl mx-auto space-y-4 sm:space-y-6 pb-4 sm:pb-8">
+      {/* Header - Glassmorphism Design */}
+      <div className="relative bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl rounded-xl sm:rounded-2xl shadow-xl border border-white/20 dark:border-gray-700/30 p-3 sm:p-4 md:p-6 overflow-hidden">
+        {/* Animated gradient background */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 animate-gradient-x pointer-events-none"></div>
+        
+        <div className="relative flex items-center justify-between">
+          <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl sm:rounded-2xl blur-lg opacity-60 animate-pulse"></div>
+              <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg">
+                <Share2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-white" />
+              </div>
             </div>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold">User Feed</h1>
-              <p className="text-blue-100 text-xs sm:text-sm mt-1">
-                See what your friends are creating
+              <h1 className="text-base sm:text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-900 via-purple-900 to-blue-900 dark:from-white dark:via-purple-200 dark:to-blue-200 bg-clip-text text-transparent">User Feed</h1>
+              <p className="hidden sm:block text-gray-600 dark:text-gray-400 text-xs md:text-sm mt-1">
+                ✨ Discover amazing creations
               </p>
             </div>
           </div>
           {/* Action Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Mobile Menu Button - Only visible on mobile */}
+            <button
+              onClick={() => setShowMobileMenu(true)}
+              className="lg:hidden group relative flex items-center gap-2 px-2 sm:px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 overflow-hidden"
+              title="Menu"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Compass className="relative w-4 h-4 sm:w-5 sm:h-5 text-gray-700 dark:text-gray-300" />
+            </button>
             <button
               onClick={handleManualRefresh}
               disabled={refreshing}
-              className="flex items-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative flex items-center gap-2 px-2 sm:px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
               title="Refresh feed"
             >
-              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <RefreshCw className={`relative w-4 h-4 sm:w-5 sm:h-5 text-gray-700 dark:text-gray-300 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={() => setShowPostModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg transition-all shadow-md hover:shadow-lg active:scale-95"
+              className="group relative flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white font-medium rounded-lg sm:rounded-xl transition-all shadow-lg hover:shadow-xl active:scale-95 overflow-hidden"
             >
-              <Plus className="w-5 h-5" />
-              <span className="hidden sm:inline font-medium">Post</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 opacity-0 group-hover:opacity-30 blur-xl transition-opacity"></div>
+              <Plus className="relative w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="relative text-sm sm:text-base">Post</span>
             </button>
           </div>
         </div>
@@ -1285,18 +1507,21 @@ export default function UserFeedPage() {
               )}
               
               <div
-                className="bg-white dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
+                className="group/card relative bg-white/80 dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/30 rounded-2xl sm:rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 overflow-hidden"
               >
+                {/* Hover gradient effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                <div className="relative">
             {/* Post Header */}
-            <div className="flex items-center justify-between p-4 sm:p-5 bg-gradient-to-r from-gray-50/50 to-transparent dark:from-gray-900/30 dark:to-transparent">
-              <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-between p-3 sm:p-4 md:p-5 bg-gradient-to-r from-gray-50/50 to-transparent dark:from-gray-900/30 dark:to-transparent">
+              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
                 {/* User Avatar with gradient ring */}
                 <button
                   onClick={() => router.push(`/workspace/user-feed/profile/${post.user.id}`)}
-                  className="relative cursor-pointer"
+                  className="relative cursor-pointer flex-shrink-0"
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full blur-sm opacity-75"></div>
-                  <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-0.5">
+                  <div className="relative w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center p-0.5">
                     <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center">
                       {post.user.imageUrl ? (
                         <img src={post.user.imageUrl} alt={post.user.username || 'User'} className="w-full h-full rounded-full object-cover" />
@@ -1384,90 +1609,106 @@ export default function UserFeedPage() {
               </div>
             </div>
 
-            {/* Post Images - Use Carousel */}
-            <ImageCarousel images={post.imageUrls} postId={post.id} />
+            {/* Post Media - Images or Video */}
+            <ImageCarousel 
+              images={post.imageUrls} 
+              postId={post.id} 
+              mediaType={post.mediaType}
+              currentImageIndexes={currentImageIndexes}
+              setCurrentImageIndexes={setCurrentImageIndexes}
+              isPaused={selectedPostForComments?.id === post.id}
+            />
 
             {/* Post Actions */}
-            <div className="p-4 sm:p-5 space-y-3 bg-gradient-to-b from-transparent to-gray-50/30 dark:to-gray-900/20">
-              {/* Action Buttons with enhanced animations */}
+            <div className="p-3 sm:p-4 md:p-5 space-y-3 sm:space-y-4 bg-gradient-to-b from-transparent to-gray-50/50 dark:to-gray-900/30">
+              {/* Action Buttons with micro-interactions */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-5">
+                <div className="flex items-center space-x-4 sm:space-x-6">
                   <button
                     onClick={() => handleLike(post.id)}
-                    className="flex items-center space-x-1 group transition-all duration-300 active:scale-110"
+                    className="group relative flex items-center gap-1.5 sm:gap-2 transition-all duration-300 active:scale-95"
                   >
                     <div className="relative">
                       <Heart
                         className={`w-6 h-6 sm:w-7 sm:h-7 transition-all duration-300 ${
                           post.liked
                             ? 'fill-red-500 text-red-500 scale-110'
-                            : 'text-gray-700 dark:text-gray-300 group-hover:text-red-500 group-hover:scale-110'
+                            : 'text-gray-600 dark:text-gray-400 group-hover:text-red-500 group-hover:scale-110'
                         }`}
                       />
                       {post.liked && (
-                        <div className="absolute inset-0 bg-red-500 rounded-full blur-xl opacity-30 animate-pulse"></div>
+                        <div className="absolute inset-0 bg-red-500 rounded-full blur-xl opacity-40 animate-pulse"></div>
                       )}
                     </div>
+                    <span className={`text-xs sm:text-sm font-medium transition-colors ${
+                      post.liked ? 'text-red-500' : 'text-gray-700 dark:text-gray-300 group-hover:text-red-500'
+                    }`}>
+                      {post.likes > 0 && post.likes.toLocaleString()}
+                    </span>
                   </button>
                   <button 
                     onClick={() => openCommentsModal(post)}
-                    className="flex items-center space-x-1 group transition-all duration-300 active:scale-110"
+                    className="group relative flex items-center gap-1.5 sm:gap-2 transition-all duration-300 active:scale-95"
                   >
-                    <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-gray-700 dark:text-gray-300 group-hover:text-blue-500 group-hover:scale-110 transition-all duration-300" />
+                    <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7 text-gray-600 dark:text-gray-400 group-hover:text-blue-500 group-hover:scale-110 transition-all duration-300" />
+                    <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-500 transition-colors">
+                      {post.comments > 0 && post.comments.toLocaleString()}
+                    </span>
                   </button>
                   <button 
                     onClick={() => handleShare(post.id)}
-                    className="flex items-center space-x-1 group transition-all duration-300 active:scale-110"
+                    className="group relative p-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-full transition-all duration-300 active:scale-95"
                   >
-                    <Send className="w-6 h-6 sm:w-7 sm:h-7 text-gray-700 dark:text-gray-300 group-hover:text-purple-500 group-hover:scale-110 transition-all duration-300" />
+                    <Send className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 dark:text-gray-400 group-hover:text-purple-500 group-hover:scale-110 transition-all duration-300" />
                   </button>
                 </div>
                 <button
                   onClick={() => handleBookmark(post.id)}
-                  className="transition-all duration-300 active:scale-110 group"
+                  className="group relative p-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-full transition-all duration-300 active:scale-95"
                 >
                   <Bookmark
-                    className={`w-6 h-6 sm:w-7 sm:h-7 transition-all duration-300 ${
+                    className={`w-5 h-5 sm:w-6 sm:h-6 transition-all duration-300 ${
                       post.bookmarked
                         ? 'fill-amber-500 text-amber-500 scale-110'
-                        : 'text-gray-700 dark:text-gray-300 group-hover:text-amber-500 group-hover:scale-110'
+                        : 'text-gray-600 dark:text-gray-400 group-hover:text-amber-500 group-hover:scale-110'
                     }`}
                   />
                 </button>
               </div>
 
-              {/* Likes Count with gradient */}
-              <div>
-                <p className="text-sm sm:text-base font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                  {post.likes.toLocaleString()} likes
-                </p>
-              </div>
-
-              {/* Caption */}
-              <div>
-                <p className="text-sm sm:text-base text-gray-900 dark:text-white leading-relaxed">
-                  <span className="font-bold mr-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              {/* Caption with better typography */}
+              <div className="px-1">
+                <p className="text-sm sm:text-base text-gray-800 dark:text-gray-200 leading-relaxed">
+                  <button
+                    onClick={() => router.push(`/workspace/user-feed/profile/${post.user.id}`)}
+                    className="font-bold mr-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hover:from-blue-700 hover:to-purple-700 transition-all"
+                  >
                     {post.user.username || post.user.firstName || 'User'}
-                  </span>
-                  {post.caption}
+                  </button>
+                  <span className="text-gray-700 dark:text-gray-300">{post.caption}</span>
                 </p>
               </div>
 
-              {/* View Comments */}
+              {/* View Comments with hover effect */}
               {post.comments > 0 && (
                 <button 
                   onClick={() => openCommentsModal(post)}
-                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  className="px-1 text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-1 group"
                 >
-                  View all {post.comments} comments
+                  <span>View all {post.comments} {post.comments === 1 ? 'comment' : 'comments'}</span>
+                  <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 group-hover:translate-x-1 transition-transform" />
                 </button>
               )}
 
-              {/* Time with subtle styling */}
-              <p className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                {new Date(post.createdAt).toLocaleDateString()}
-              </p>
+              {/* Time with icon */}
+              <div className="px-1 flex items-center gap-1.5">
+                <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-400 dark:text-gray-500" />
+                <p className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-medium">
+                  {new Date(post.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
             </div>
+                </div>
           </div>
             </React.Fragment>
           );
@@ -1475,17 +1716,241 @@ export default function UserFeedPage() {
       </div>
 
       {/* Load More */}
-      <div className="text-center py-8">
-        <button className="group relative px-8 py-3 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-2xl active:scale-95 overflow-hidden">
+      <div className="text-center py-6 sm:py-8">
+        <button className="group relative px-6 py-2.5 sm:px-8 sm:py-3 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white text-sm sm:text-base font-semibold rounded-xl transition-all shadow-lg hover:shadow-2xl active:scale-95 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 opacity-0 group-hover:opacity-20 blur-xl transition-opacity"></div>
           <span className="relative flex items-center gap-2">
-            <Sparkles className="w-5 h-5" />
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
             Load More Posts
           </span>
         </button>
       </div>
             </div>
           </div>
+
+      {/* Mobile Menu Drawer */}
+      {mounted && showMobileMenu && createPortal(
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 animate-in fade-in duration-200 lg:hidden"
+          onClick={() => setShowMobileMenu(false)}
+        >
+          <div
+            className="fixed right-0 top-0 bottom-0 w-[85vw] max-w-sm bg-white dark:bg-gray-900 shadow-2xl animate-in slide-in-from-right duration-300 overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-900/50 dark:to-gray-800/50 backdrop-blur-xl">
+              <h2 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                Menu
+              </h2>
+              <button
+                onClick={() => setShowMobileMenu(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-6">
+              {/* Quick Navigation */}
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/50 shadow-lg">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <Compass className="w-4 h-4" />
+                  Quick Links
+                </h3>
+                <div className="space-y-2">
+                  {currentUserId && (
+                    <button 
+                      onClick={() => {
+                        router.push(`/workspace/user-feed/profile/${currentUserId}`);
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gradient-to-r hover:from-indigo-500/10 hover:to-purple-500/10 text-gray-700 dark:text-gray-300 transition-all group"
+                    >
+                      <Users className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />
+                      <span className="text-sm font-medium">My Profile</span>
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => {
+                      router.push('/workspace/friends?tab=friends');
+                      setShowMobileMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-pink-500/10 text-gray-700 dark:text-gray-300 transition-all group"
+                  >
+                    <Users className="w-4 h-4 text-purple-500 group-hover:scale-110 transition-transform" />
+                    <span className="text-sm font-medium">Friends</span>
+                    {friendsCount > 0 && (
+                      <span className="ml-auto bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                        {friendsCount}
+                      </span>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => {
+                      router.push('/workspace/friends?tab=add');
+                      setShowMobileMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gradient-to-r hover:from-blue-500/10 hover:to-cyan-500/10 text-gray-700 dark:text-gray-300 transition-all group"
+                  >
+                    <UserPlus className="w-4 h-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                    <span className="text-sm font-medium">Add Friends</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      router.push('/workspace/friends?tab=requests');
+                      setShowMobileMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gradient-to-r hover:from-pink-500/10 hover:to-rose-500/10 text-gray-700 dark:text-gray-300 transition-all group"
+                  >
+                    <Mail className="w-4 h-4 text-pink-500 group-hover:scale-110 transition-transform" />
+                    <span className="text-sm font-medium">Friend Requests</span>
+                    {friendRequestsCount > 0 && (
+                      <span className="ml-auto bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
+                        {friendRequestsCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Trending Hashtags */}
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/50 shadow-lg">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  Trending
+                </h3>
+                <div className="space-y-2">
+                  {trendingHashtags.length > 0 ? (
+                    trendingHashtags.slice(0, 5).map((hashtag, index) => (
+                      <button
+                        key={index}
+                        className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-700/50 dark:hover:to-gray-600/50 transition-all group"
+                      >
+                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform">
+                          #{hashtag.tag}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 font-semibold">
+                          {hashtag.count} posts
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-3">
+                      No trending hashtags yet
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Friend Suggestions */}
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/50 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <UserPlus className="w-4 h-4" />
+                    Suggested Friends
+                  </h3>
+                </div>
+                <div className="space-y-3">
+                  {friendSuggestions.length > 0 ? (
+                    friendSuggestions.slice(0, 3).map((suggestion) => (
+                      <div key={suggestion.id} className="flex items-center justify-between group">
+                        <button
+                          onClick={() => {
+                            router.push(`/workspace/user-feed/profile/${suggestion.id}`);
+                            setShowMobileMenu(false);
+                          }}
+                          className="flex items-center gap-2 flex-1 min-w-0"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                            {suggestion.imageUrl ? (
+                              <img src={suggestion.imageUrl} alt={suggestion.username || 'User'} className="w-full h-full rounded-full object-cover" />
+                            ) : (
+                              <span className="text-white font-bold text-sm">
+                                {(suggestion.username?.[0] || suggestion.firstName?.[0] || 'U').toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0 text-left">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {suggestion.username || `${suggestion.firstName || ''} ${suggestion.lastName || ''}`.trim()}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {suggestion.mutualFriendsCount > 0 && `${suggestion.mutualFriendsCount} mutual`}
+                            </p>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => handleSendFriendRequest(suggestion.id)}
+                          disabled={sendingRequests.has(suggestion.id)}
+                          className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                        >
+                          {sendingRequests.has(suggestion.id) ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            'Add'
+                          )}
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-3">
+                      No suggestions available
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Your Activity */}
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl p-4 border border-gray-200/50 dark:border-gray-700/50 shadow-lg">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  Your Activity
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
+                        <ImageIcon className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Posts</span>
+                    </div>
+                    <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{userStats.posts}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-gradient-to-r from-red-50 to-pink-100 dark:from-red-900/20 dark:to-pink-800/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center shadow-md">
+                        <Heart className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Likes</span>
+                    </div>
+                    <span className="text-sm font-bold text-red-600 dark:text-red-400">{userStats.likes}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-gradient-to-r from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-md">
+                        <MessageCircle className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Comments</span>
+                    </div>
+                    <span className="text-sm font-bold text-green-600 dark:text-green-400">{userStats.comments}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-gradient-to-r from-amber-50 to-yellow-100 dark:from-amber-900/20 dark:to-yellow-800/20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center shadow-md">
+                        <Bookmark className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Saved</span>
+                    </div>
+                    <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{userStats.bookmarks}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Create Post Modal */}
       {mounted && showPostModal && createPortal(
@@ -1517,11 +1982,49 @@ export default function UserFeedPage() {
 
             {/* Modal Content */}
             <div className="p-5 sm:p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-200px)] custom-scrollbar">
+              {/* Media Type Selector */}
+              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-gray-800 dark:to-gray-700 rounded-xl">
+                <button
+                  onClick={() => {
+                    setMediaType('image');
+                    // Clear videos when switching to images
+                    videoPreviews.forEach(url => URL.revokeObjectURL(url));
+                    setSelectedVideos([]);
+                    setVideoPreviews([]);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-all ${
+                    mediaType === 'image'
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <ImageIcon className="w-5 h-5" />
+                  Images
+                </button>
+                <button
+                  onClick={() => {
+                    setMediaType('video');
+                    // Clear images when switching to videos
+                    setSelectedImages([]);
+                    setImagePreviews([]);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-all ${
+                    mediaType === 'video'
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg scale-105'
+                      : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <Video className="w-5 h-5" />
+                  Video
+                </button>
+              </div>
+
               {/* Image Upload Area */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Select Images (Up to 10)
-                </label>
+              {mediaType === 'image' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    Select Images (Up to 10)
+                  </label>
                 
                 {/* Preview Grid */}
                 {imagePreviews.length > 0 && (
@@ -1571,14 +2074,75 @@ export default function UserFeedPage() {
                     </div>
                     <input
                       type="file"
-                      className="hidden"
                       accept="image/*"
                       multiple
                       onChange={handleImageSelect}
+                      className="hidden"
                     />
                   </label>
                 )}
               </div>
+              )}
+
+              {/* Video Upload Area */}
+              {mediaType === 'video' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    Select Video (Max 100MB)
+                  </label>
+                  
+                  {/* Video Preview */}
+                  {videoPreviews.length > 0 && (
+                    <div className="mb-4">
+                      {videoPreviews.map((preview, index) => (
+                        <div key={index} className="relative group">
+                          <video
+                            src={preview}
+                            controls
+                            className="w-full rounded-xl border-2 border-gray-200 dark:border-gray-700 shadow-md"
+                          />
+                          <button
+                            onClick={() => removeVideo(index)}
+                            className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg hover:shadow-xl active:scale-95"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Upload Button */}
+                  {videoPreviews.length === 0 && (
+                    <label className="relative flex flex-col items-center justify-center w-full h-48 border-3 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl cursor-pointer hover:border-purple-500 dark:hover:border-purple-400 transition-all duration-300 bg-gradient-to-br from-gray-50 to-purple-50/30 dark:from-gray-900/50 dark:to-purple-900/20 hover:shadow-lg group">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6 space-y-3">
+                        <div className="relative">
+                          <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+                          <div className="relative w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <Video className="w-7 h-7 text-white" />
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <p className="mb-1 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                            <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                              Click to upload video
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            MP4, WebM, MOV up to 100MB
+                          </p>
+                        </div>
+                      </div>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        onChange={handleVideoSelect}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
 
               {/* Caption */}
               <div>
@@ -1698,7 +2262,14 @@ export default function UserFeedPage() {
             {/* Left Side - Image Carousel */}
             <div className="md:w-[55%] bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center relative">
               <div className="w-full h-full flex items-center justify-center">
-                <ImageCarousel images={selectedPostForComments.imageUrls} postId={`modal-${selectedPostForComments.id}`} />
+                <ImageCarousel 
+                  images={selectedPostForComments.imageUrls} 
+                  postId={`modal-${selectedPostForComments.id}`} 
+                  mediaType={selectedPostForComments.mediaType}
+                  currentImageIndexes={currentImageIndexes}
+                  setCurrentImageIndexes={setCurrentImageIndexes}
+                  isPaused={false}
+                />
               </div>
               {/* Decorative blur circles */}
               <div className="absolute top-10 left-10 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>

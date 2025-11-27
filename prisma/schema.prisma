@@ -588,7 +588,8 @@ enum FriendshipStatus {
 model FeedPost {
   id        String              @id @default(cuid())
   userId    String
-  imageUrls String[]            // Array of S3 or storage URLs for post images
+  imageUrls String[]            // Array of S3 or storage URLs for post images/videos
+  mediaType String              @default("image") // 'image' or 'video'
   caption   String              @db.Text
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
