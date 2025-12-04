@@ -55,7 +55,7 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
-  const [friendsOpen, setFriendsOpen] = useState(false);
+  const [socialMediaOpen, setSocialMediaOpen] = useState(false);
   const [generateContentOpen, setGenerateContentOpen] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [trainModelsOpen, setTrainModelsOpen] = useState(false);
@@ -87,31 +87,31 @@ export default function DashboardLayout({
           href: "/workspace/generated-content",
           icon: FileText,
         },
-        {
-          name: "Social Media",
-          href: "/workspace/social-media",
-          icon: Share2,
-        },
       ],
     },
     {
-      name: "Friends",
+      name: "Social Media",
       collapsible: true,
       items: [
-        {
-          name: "Friends",
-          href: "/workspace/friends",
-          icon: UserCheck,
-        },
         {
           name: "User Feed",
           href: "/workspace/user-feed",
           icon: Share2,
         },
         {
+          name: "Friends",
+          href: "/workspace/friends",
+          icon: UserCheck,
+        },
+        {
           name: "Bookmarks",
           href: "/workspace/bookmarks",
           icon: Bookmark,
+        },
+        {
+          name: "Instagram Staging",
+          href: "/workspace/instagram-staging",
+          icon: Share2,
         },
       ],
     },
@@ -138,6 +138,11 @@ export default function DashboardLayout({
           name: "Skin Enhancer",
           href: "/workspace/generate-content/skin-enhancer",
           icon: Sparkles,
+        },
+        {
+          name: "Flux Kontext",
+          href: "/workspace/generate-content/flux-kontext",
+          icon: Wand2,
         },
         {
           name: "DIVIDER_1",
@@ -178,11 +183,6 @@ export default function DashboardLayout({
           name: "Image-to-Image Skin Enhancer",
           href: "/workspace/generate-content/image-to-image-skin-enhancer",
           icon: Palette,
-        },
-        {
-          name: "Flux Kontext",
-          href: "/workspace/generate-content/flux-kontext",
-          icon: Wand2,
         },
         {
           name: "FPS Boost",
@@ -454,7 +454,7 @@ export default function DashboardLayout({
 
   const renderNavSection = (section: NavSection) => {
     const isWorkspaceSection = section.name === "Workspace";
-    const isFriendsSection = section.name === "Friends";
+    const isSocialMediaSection = section.name === "Social Media";
     const isGenerateContentSection = section.name === "Generate Content";
     const isAiToolsSection = section.name === "AI Tools";
     const isTrainModelsSection = section.name === "Train Models";
@@ -463,8 +463,8 @@ export default function DashboardLayout({
     let isExpanded = true;
     if (isWorkspaceSection) {
       isExpanded = workspaceOpen;
-    } else if (isFriendsSection) {
-      isExpanded = friendsOpen;
+    } else if (isSocialMediaSection) {
+      isExpanded = socialMediaOpen;
     } else if (isGenerateContentSection) {
       isExpanded = generateContentOpen;
     } else if (isAiToolsSection) {
@@ -476,7 +476,7 @@ export default function DashboardLayout({
     // Get the appropriate icon for the section
     const getSectionIcon = () => {
       if (isWorkspaceSection) return Users;
-      if (isFriendsSection) return UserCheck;
+      if (isSocialMediaSection) return Share2;
       if (isGenerateContentSection) return PlusCircle;
       if (isAiToolsSection) return Bot;
       if (isTrainModelsSection) return Settings;
@@ -489,8 +489,8 @@ export default function DashboardLayout({
     const handleSectionToggle = () => {
       if (isWorkspaceSection) {
         setWorkspaceOpen(!workspaceOpen);
-      } else if (isFriendsSection) {
-        setFriendsOpen(!friendsOpen);
+      } else if (isSocialMediaSection) {
+        setSocialMediaOpen(!socialMediaOpen);
       } else if (isGenerateContentSection) {
         setGenerateContentOpen(!generateContentOpen);
       } else if (isAiToolsSection) {

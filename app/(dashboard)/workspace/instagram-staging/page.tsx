@@ -53,8 +53,8 @@ function SocialMediaContent() {
     <div className="space-y-3 sm:space-y-4">
       <div className="space-y-2 sm:space-y-3">
         <div>
-          <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Social Media</h1>
-          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Manage your social media content and posting schedule</p>
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Instagram Staging</h1>
+          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">Manage your instagram content and posting schedule</p>
         </div>
       </div>
 
