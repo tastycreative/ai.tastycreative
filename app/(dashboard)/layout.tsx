@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
@@ -31,6 +31,7 @@ import {
   Bot,
   Shield,
   Bookmark,
+  ShoppingBag,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -60,6 +61,8 @@ export default function DashboardLayout({
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [trainModelsOpen, setTrainModelsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const pathname = usePathname();
   const { signOut } = useClerk();
   const { user } = useUser();
@@ -233,6 +236,11 @@ export default function DashboardLayout({
         },
       ],
     },
+    {
+      name: "AI Marketplace",
+      href: "/workspace/ai-marketplace",
+      icon: ShoppingBag,
+    },
     // Conditionally add content creator link
     ...(isContentCreator
       ? [
@@ -240,16 +248,6 @@ export default function DashboardLayout({
             name: "Content Creator",
             href: "/content-creator",
             icon: BarChart3,
-          },
-        ]
-      : []),
-    // Conditionally add admin link
-    ...(isAdmin
-      ? [
-          {
-            name: "Admin",
-            href: "/admin",
-            icon: Shield,
           },
         ]
       : []),
@@ -423,16 +421,30 @@ export default function DashboardLayout({
       }
     };
 
+    const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
+      if (!sidebarOpen) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setTooltipPosition({ x: rect.right + 8, y: rect.top + rect.height / 2 });
+        setHoveredItem(item.name);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      setHoveredItem(null);
+    };
+
     return (
       <Link
         key={item.name}
         href={item.href}
         onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={classNames(
           isActive
-            ? "bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white shadow-lg shadow-blue-500/25"
-            : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white",
-          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95",
+            ? "bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 text-white shadow-lg shadow-blue-500/25 scale-[1.02]"
+            : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white hover:scale-[1.02] hover:shadow-md",
+          "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
           isInSection ? "pl-6 xs:pl-7 sm:pl-8" : "",
           !sidebarOpen ? "justify-center" : ""
         )}
@@ -442,12 +454,13 @@ export default function DashboardLayout({
             isActive
               ? "text-white"
               : "text-gray-400 dark:text-gray-400 group-hover:text-gray-300 dark:group-hover:text-white",
-            "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0",
-            sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : ""
+            "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300",
+            sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : "",
+            isActive ? "scale-110" : "group-hover:scale-110"
           )}
           aria-hidden="true"
         />
-        {sidebarOpen && item.name}
+        {sidebarOpen && <span className="truncate">{item.name}</span>}
       </Link>
     );
   };
@@ -505,16 +518,16 @@ export default function DashboardLayout({
         {section.collapsible && sidebarOpen ? (
           <button
             onClick={handleSectionToggle}
-            className="w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300 active:scale-95"
+            className="w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
           >
             <span className="flex items-center">
-              <SectionIcon className="h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 text-gray-400 dark:text-gray-400" />
-              {section.name}
+              <SectionIcon className="h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 text-gray-400 dark:text-gray-400 transition-transform duration-300 group-hover:scale-110" />
+              <span className="truncate">{section.name}</span>
             </span>
             {isExpanded ? (
-              <ChevronUp className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
+              <ChevronUp className="h-3.5 w-3.5 xs:h-4 xs:w-4 transition-transform duration-300" />
             ) : (
-              <ChevronDown className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
+              <ChevronDown className="h-3.5 w-3.5 xs:h-4 xs:w-4 transition-transform duration-300" />
             )}
           </button>
         ) : (
@@ -527,7 +540,7 @@ export default function DashboardLayout({
         {isExpanded && (
           <div
             className={classNames(
-              section.collapsible ? "space-y-1" : "space-y-1"
+              section.collapsible ? "space-y-1 animate-fadeIn" : "space-y-1"
             )}
           >
             {section.items.map((item) =>
@@ -544,20 +557,23 @@ export default function DashboardLayout({
       {/* Desktop Sidebar */}
       <div
         className={classNames(
-          "hidden lg:flex bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30",
+          "hidden lg:flex bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 relative",
           sidebarOpen ? "w-64" : "w-16"
         )}
       >
+        {/* Animated gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
         {/* Sidebar header */}
-        <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
+        <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800 relative">
           {sidebarOpen && (
-            <h1 className="text-white text-sm xs:text-base sm:text-lg font-semibold">
+            <h1 className="text-white text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient">
               Creative Ink
             </h1>
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-colors duration-200 active:scale-95"
+            className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:rotate-180 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
             {sidebarOpen ? (
               <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
@@ -568,7 +584,7 @@ export default function DashboardLayout({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
+        <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto custom-scrollbar">
           {navigation.map((item) => {
             if ("items" in item) {
               return renderNavSection(item);
@@ -579,9 +595,11 @@ export default function DashboardLayout({
         </nav>
 
         {/* Theme toggle and footer */}
-        <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4">
+        <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4 bg-gradient-to-t from-gray-900/50 to-transparent">
           <div className="flex items-center justify-end">
-            <ThemeToggle />
+            <div className="transform transition-transform duration-300 hover:scale-110">
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </div>
@@ -595,27 +613,28 @@ export default function DashboardLayout({
       >
         {/* Backdrop */}
         <div
-          className="absolute inset-0 bg-black/20 dark:bg-opacity-30 transition-opacity duration-300"
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm dark:bg-black/60 transition-all duration-300"
           onClick={() => setSidebarOpen(false)}
         />
 
         {/* Mobile Sidebar */}
         <div
           className={classNames(
-            "relative w-64 h-full bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm flex flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 transition-transform duration-300 ease-in-out",
+            "relative w-64 h-full bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm flex flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 transition-all duration-300 ease-out",
             sidebarOpen
-              ? "transform translate-x-0"
-              : "transform -translate-x-full"
+              ? "transform translate-x-0 opacity-100"
+              : "transform -translate-x-full opacity-0"
           )}
         >
           {/* Sidebar header */}
           <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
-            <h1 className="text-white text-sm xs:text-base sm:text-lg font-semibold">
+            <h1 className="text-white text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               Creative Ink
             </h1>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-colors duration-200 active:scale-95"
+              className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Close sidebar"
             >
               <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
             </button>
@@ -633,9 +652,11 @@ export default function DashboardLayout({
           </nav>
 
           {/* Theme toggle and footer */}
-          <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4">
+          <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4 bg-gradient-to-t from-gray-900/50 to-transparent">
             <div className="flex items-center justify-end">
-              <ThemeToggle />
+              <div className="transform transition-transform duration-300 hover:scale-110">
+                <ThemeToggle />
+              </div>
             </div>
           </div>
         </div>
@@ -647,10 +668,11 @@ export default function DashboardLayout({
         <div className="lg:hidden bg-white/90 dark:bg-gray-900/60 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 xs:p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors active:scale-95"
+            className="p-1.5 xs:p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-all duration-300 active:scale-95 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Open menu"
           >
             <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2">
-              <ChevronRight className="h-4 w-4 xs:h-5 xs:w-5 sm:h-6 sm:w-6" />
+              <ChevronRight className="h-4 w-4 xs:h-5 xs:w-5 sm:h-6 sm:w-6 transition-transform duration-300 group-hover:translate-x-1" />
               <span className="text-[10px] xs:text-xs sm:text-sm font-medium">
                 Menu
               </span>
@@ -661,7 +683,7 @@ export default function DashboardLayout({
         {/* Content area */}
         <main className="flex-1 overflow-y-auto bg-gradient-to-br from-white to-gray-50/50 dark:bg-gradient-to-br dark:from-black dark:to-gray-900/30 custom-scrollbar">
           {/* Sticky Header with user info and credits */}
-          <div className="sticky top-0 z-20 bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 lg:px-6 xl:px-8 py-2 xs:py-2.5 sm:py-3 shadow-sm">
+          <div className="sticky top-0 z-20 bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 lg:px-6 xl:px-8 py-2 xs:py-2.5 sm:py-3 shadow-sm transition-all duration-300 hover:shadow-md">
             <div className="flex items-center justify-between">
               {/* Left Side - Global Progress Indicator */}
               <div className="flex items-center">
@@ -677,8 +699,8 @@ export default function DashboardLayout({
                 <ThemeToggle />
 
                 {/* Available Credits */}
-                <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg shadow-sm">
-                  <CreditCard className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+                <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 cursor-pointer group">
+                  <CreditCard className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400 group-hover:animate-pulse" />
                   <span className="text-[10px] xs:text-xs sm:text-sm font-medium bg-gradient-to-r from-blue-700 to-purple-700 dark:from-blue-300 dark:to-purple-300 bg-clip-text text-transparent">
                     <span className="hidden xs:inline">25 Credits</span>
                     <span className="xs:hidden">25</span>
@@ -687,8 +709,8 @@ export default function DashboardLayout({
 
                 {/* User Dropdown */}
                 <div className="relative group">
-                  <button className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-700 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-700 dark:hover:to-gray-600 border border-gray-200/50 dark:border-gray-600/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg transition-all duration-300 shadow-sm active:scale-95">
-                    <div className="w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-md">
+                  <button className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-700 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-700 dark:hover:to-gray-600 border border-gray-200/50 dark:border-gray-600/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg transition-all duration-300 shadow-sm active:scale-95 hover:shadow-md hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                    <div className="w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-md ring-2 ring-white/20 group-hover:ring-white/40 transition-all duration-300">
                       <span className="text-white text-[10px] xs:text-xs sm:text-sm font-semibold">
                         {initials}
                       </span>
@@ -696,11 +718,11 @@ export default function DashboardLayout({
                     <span className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
                       {firstName}
                     </span>
-                    <ChevronDown className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400" />
+                    <ChevronDown className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400 transition-transform duration-300 group-hover:rotate-180" />
                   </button>
 
                   {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-44 xs:w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="absolute right-0 mt-2 w-44 xs:w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform group-hover:translate-y-0 translate-y-2">
                     <div className="py-2">
                       <div className="px-3 xs:px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                         <p className="text-xs xs:text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -712,22 +734,34 @@ export default function DashboardLayout({
                       </div>
                       <Link
                         href="/settings"
-                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors block"
+                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 block hover:translate-x-1 flex items-center space-x-2"
                       >
-                        Profile Settings
+                        <Settings className="w-3.5 h-3.5" />
+                        <span>Profile Settings</span>
                       </Link>
                       <Link
                         href="/billing"
-                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors block"
+                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 block hover:translate-x-1 flex items-center space-x-2"
                       >
-                        Billing
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Billing</span>
                       </Link>
+                      {isAdmin && (
+                        <Link
+                          href="/admin"
+                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 block hover:translate-x-1 flex items-center space-x-2"
+                        >
+                          <Shield className="w-3.5 h-3.5" />
+                          <span>Admin</span>
+                        </Link>
+                      )}
                       <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
                         <button
                           onClick={() => signOut({ redirectUrl: "/" })}
-                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset rounded"
                         >
-                          Sign Out
+                          <ChevronRight className="w-3.5 h-3.5" />
+                          <span>Sign Out</span>
                         </button>
                       </div>
                     </div>
@@ -738,11 +772,26 @@ export default function DashboardLayout({
           </div>
 
           {/* Content */}
-          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8">
+          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Tooltip for collapsed sidebar */}
+      {!sidebarOpen && hoveredItem && (
+        <div
+          className="hidden lg:block fixed z-50 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg shadow-lg border border-gray-700 dark:border-gray-600 pointer-events-none animate-fadeIn"
+          style={{
+            left: `${tooltipPosition.x}px`,
+            top: `${tooltipPosition.y}px`,
+            transform: 'translateY(-50%)'
+          }}
+        >
+          {hoveredItem}
+          <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2 w-2 h-2 bg-gray-900 dark:bg-gray-800 rotate-45 border-l border-b border-gray-700 dark:border-gray-600"></div>
+        </div>
+      )}
     </div>
   );
 }

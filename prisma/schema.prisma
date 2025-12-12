@@ -666,3 +666,28 @@ model FeedPostBookmark {
   @@index([userId])
   @@map("feed_post_bookmarks")
 }
+
+model MarketplaceModel {
+  id          String              @id @default(cuid())
+  name        String
+  price       Float
+  status      MarketplaceStatus   @default(AVAILABLE)
+  imageUrl    String
+  category    String              @default("Premium")
+  gallery     String[]            @default([])
+  description String              @db.Text
+  included    String[]            @default([])
+  usedFor     String[]            @default([])
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("marketplace_models")
+}
+
+enum MarketplaceStatus {
+  AVAILABLE
+  SOLD
+  RESERVED
+}
