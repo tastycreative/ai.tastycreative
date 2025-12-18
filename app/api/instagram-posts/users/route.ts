@@ -64,7 +64,37 @@ export async function GET(request: NextRequest) {
           role: dbUser?.role || 'USER',
           postCount,
         };
-      } catch (error) {
+      } catch (error: any) {
+        // If user not found in Clerk (deleted), use database fallback
+        if (error?.status === 404) {
+          const dbUser = await prisma.user.findUnique({
+            where: { clerkId },
+            select: { 
+              role: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              imageUrl: true
+            }
+          });
+
+          const postCount = await prisma.instagramPost.count({
+            where: { clerkId }
+          });
+
+          if (dbUser) {
+            return {
+              clerkId,
+              email: dbUser.email || 'Unknown User',
+              firstName: dbUser.firstName || 'Deleted',
+              lastName: dbUser.lastName || 'User',
+              imageUrl: dbUser.imageUrl || null,
+              role: dbUser.role || 'USER',
+              postCount,
+            };
+          }
+        }
+        
         console.error(`Error fetching user ${clerkId}:`, error);
         return null;
       }

@@ -13,11 +13,17 @@ import {
   Edit2,
   MessageSquare,
   ExternalLink,
+  LayoutGrid,
+  List,
+  User,
+  ChevronDown,
+  Plus,
 } from "lucide-react";
 import { fetchInstagramPosts, type InstagramPost } from "@/lib/instagram-posts";
 import { useUser } from "@clerk/nextjs";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import WeeklyCalendarView from "./WeeklyCalendarView";
 
 interface Post {
   id: string;
@@ -34,7 +40,18 @@ interface Post {
   mimeType?: string | null;
 }
 
-const CalendarView = () => {
+interface Profile {
+  id: string;
+  name: string;
+  instagramUsername: string | null;
+  isDefault: boolean;
+}
+
+interface CalendarViewProps {
+  profileId?: string | null;
+}
+
+const CalendarView = ({ profileId }: CalendarViewProps) => {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
@@ -53,6 +70,9 @@ const CalendarView = () => {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  
+  // View mode: 'monthly' or 'weekly'
+  const [viewMode, setViewMode] = useState<'monthly' | 'weekly'>('monthly');
 
   // Fetch posts
   useEffect(() => {
@@ -241,37 +261,77 @@ const CalendarView = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 sm:gap-4">
-          <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
-          <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{monthName}</h2>
+      {/* Header with View Toggle */}
+      <div className="flex flex-col gap-3">
+        {/* Title and View Toggle */}
+        <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">
+              {viewMode === 'monthly' ? monthName : 'Weekly Planning'}
+            </h2>
+          </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('monthly')}
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                viewMode === 'monthly'
+                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Monthly</span>
+            </button>
+            <button
+              onClick={() => setViewMode('weekly')}
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                viewMode === 'weekly'
+                  ? 'bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">Weekly</span>
+            </button>
+          </div>
+          
+          {viewMode === 'monthly' && (
+            <>
+              <button
+                onClick={goToToday}
+                className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors active:scale-95"
+              >
+                Today
+              </button>
+              <button
+                onClick={goToPreviousMonth}
+                className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors active:scale-95"
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              <button
+                onClick={goToNextMonth}
+                className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors active:scale-95"
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </>
+          )}
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <button
-            onClick={goToToday}
-            className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors active:scale-95"
-          >
-            Today
-          </button>
-          <button
-            onClick={goToPreviousMonth}
-            className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors active:scale-95"
-          >
-            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-          <button
-            onClick={goToNextMonth}
-            className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors active:scale-95"
-          >
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
         </div>
       </div>
 
-      {/* Calendar Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-3 sm:p-4">
+      {/* Render either Monthly or Weekly View */}
+      {viewMode === 'weekly' ? (
+        <WeeklyCalendarView profileId={profileId} />
+      ) : (
+        <>
+          {/* Calendar Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-3 sm:p-4">
           <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
             <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
             <p className="text-[10px] sm:text-xs font-medium text-blue-700 dark:text-blue-300">Scheduled This Month</p>
@@ -295,7 +355,7 @@ const CalendarView = () => {
           </div>
           <p className="text-xl sm:text-2xl font-bold text-green-700 dark:text-green-300">
             {posts.filter((p) => p.type === "POST").length}
-          </p>
+          </p>p
         </div>
 
         <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-700/30 rounded-lg p-3 sm:p-4">
@@ -406,6 +466,8 @@ const CalendarView = () => {
           })}
         </div>
       </div>
+        </>
+      )}
 
       {/* Modal for Selected Date */}
       {showModal && selectedDate && typeof window !== 'undefined' && createPortal(

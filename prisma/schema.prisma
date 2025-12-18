@@ -307,6 +307,9 @@ model InstagramPost {
   lastMetricsUpdate DateTime?         // Last time metrics were updated
   user            User                @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   profile         InstagramProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  weeklySlots     WeeklyPlanningSlot[] // Slots where this post is assigned
+  pipelineItems   ContentPipelineItem[] // Pipeline tracking items linked to this post
+  storySlots      StoryPlanningSlot[] @relation("StorySlots") // Story planning slots
 
   @@index([clerkId])
   @@index([profileId])
@@ -690,4 +693,366 @@ enum MarketplaceStatus {
   AVAILABLE
   SOLD
   RESERVED
+}
+
+// Weekly content planning for Instagram
+model WeeklyPlanningSlot {
+  id              String           @id @default(cuid())
+  clerkId         String
+  profileId       String?          // Link to InstagramProfile
+  date            DateTime         // The day this slot belongs to
+  slotType        WeeklySlotType   // REEL_1, REEL_2, STORY_BATCH, FEED_POST
+  slotIndex       Int              @default(0) // For ordering slots of the same type
+  status          WeeklySlotStatus @default(PLANNING)
+  linkedPostId    String?          // Link to InstagramPost if assigned
+  notes           String?          @db.Text // Notes, ideas, trending audio
+  hashtags        String[]         @default([]) // Suggested hashtags
+  trendingAudio   String?          // Trending audio/music suggestions
+  contentIdeas    String?          @db.Text // Content ideas for this slot
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  linkedPost      InstagramPost?   @relation(fields: [linkedPostId], references: [id], onDelete: SetNull)
+
+  @@unique([clerkId, date, slotType, slotIndex])
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([date])
+  @@index([clerkId, date])
+  @@index([linkedPostId])
+  @@map("weekly_planning_slots")
+}
+
+enum WeeklySlotType {
+  REEL_1          // First reel slot
+  REEL_2          // Second reel slot
+  STORY_BATCH     // Story batch slot
+  FEED_POST       // Feed post slot
+}
+
+enum WeeklySlotStatus {
+  PLANNING        // Just an idea/plan
+  IN_PROGRESS     // Content being created
+  READY           // Content ready to be assigned
+  ASSIGNED        // Post assigned to this slot
+  POSTED          // Successfully posted
+}
+
+// Content Pipeline for tracking all content across workflow stages
+model ContentPipelineItem {
+  id              String                @id @default(cuid())
+  clerkId         String
+  contentId       String                @unique // Unique identifier for tracking (e.g., "REEL-2025-001")
+  title           String                // Content title/description
+  contentType     ContentType           // REEL, POST, STORY, etc.
+  status          PipelineStatus        @default(IDEA)
+  linkedPostId    String?               // Link to InstagramPost if scheduled
+  notes           String?               @db.Text
+  dateCreated     DateTime?             // When content was created
+  datePosted      DateTime?             // When content was posted
+  // Stage timestamps
+  ideaDate        DateTime?
+  filmingDate     DateTime?
+  editingDate     DateTime?
+  reviewDate      DateTime?
+  approvedDate    DateTime?
+  scheduledDate   DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  linkedPost      InstagramPost?        @relation(fields: [linkedPostId], references: [id], onDelete: SetNull)
+  storySlot       StoryPlanningSlot?    // Link back to story slot if this is a story content
+  reelSlot        ReelPlanningSlot?     @relation("ReelPipeline") // Link back to reel slot if this is a reel content
+  feedPostSlot    FeedPostPlanningSlot? @relation("FeedPostPipeline") // Link back to feed post slot if this is a feed post content
+
+  @@index([clerkId])
+  @@index([status])
+  @@index([clerkId, status])
+  @@index([contentType])
+  @@index([linkedPostId])
+  @@map("content_pipeline_items")
+}
+
+enum ContentType {
+  REEL
+  POST
+  STORY
+  CAROUSEL
+  VIDEO
+}
+
+enum PipelineStatus {
+  IDEA          // Initial idea stage
+  FILMING       // Currently filming
+  EDITING       // In editing
+  REVIEW        // Under review
+  APPROVED      // Approved for scheduling
+  SCHEDULED     // Scheduled for posting
+  POSTED        // Successfully posted
+  ARCHIVED      // Archived/not used
+}
+
+
+
+// Story Planning for Instagram Stories with time slots
+model StoryPlanningSlot {
+  id                String              @id @default(cuid())
+  clerkId           String
+  profileId         String?             // Link to InstagramProfile
+  contentId         String?             @unique // Unique content ID for pipeline tracking (e.g., "STORY-2025-001")
+  pipelineItemId    String?             @unique // Link to ContentPipelineItem
+  date              DateTime            // The day this slot belongs to
+  timeSlot          DateTime?           // Actual time for this story slot
+  storyType         StoryType           // SELFIE, BEHIND_SCENES, PROMO, etc.
+  interactiveElement InteractiveElement? // POLL, SLIDER, QUESTION, etc.
+  linkedPostId      String?             // Link to InstagramPost if created
+  // Direct file storage for story content (independent of Instagram staging)
+  awsS3Key          String?             // S3 object key for uploaded content
+  awsS3Url          String?             // Direct S3 URL for uploaded content
+  fileName          String?             // Original filename
+  mimeType          String?             // File MIME type
+  notes             String?             @db.Text
+  caption           String?             @db.Text
+  hashtags          String[]            @default([])
+  isPosted          Boolean             @default(false)
+  postedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  linkedPost        InstagramPost?      @relation("StorySlots", fields: [linkedPostId], references: [id], onDelete: SetNull)
+  pipelineItem      ContentPipelineItem? @relation(fields: [pipelineItemId], references: [id], onDelete: SetNull)
+
+  @@unique([clerkId, profileId, timeSlot])
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([date])
+  @@index([clerkId, date])
+  @@index([linkedPostId])
+  @@index([pipelineItemId])
+  @@index([contentId])
+  @@map("story_planning_slots")
+}
+
+enum StoryTimeSlot {
+  SLOT_9AM    // 9:00 AM
+  SLOT_11AM   // 11:00 AM
+  SLOT_1PM    // 1:00 PM
+  SLOT_3PM    // 3:00 PM
+  SLOT_5PM    // 5:00 PM
+  SLOT_7PM    // 7:00 PM
+  SLOT_9PM    // 9:00 PM
+  SLOT_OTHER  // Custom time
+}
+
+enum StoryType {
+  SELFIE              // Personal selfie
+  BEHIND_SCENES       // Behind the scenes content
+  PROMO               // Promotional content
+  PRODUCT             // Product showcase
+  GRWM                // Get Ready With Me
+  OOTD                // Outfit of the Day
+  QA                  // Q&A session
+  TUTORIAL            // Tutorial/How-to
+  LIFESTYLE           // Daily lifestyle
+  ANNOUNCEMENT        // Announcements
+  USER_CONTENT        // User-generated content
+  OTHER               // Other types
+}
+
+enum InteractiveElement {
+  POLL                // Yes/No or multiple choice poll
+  SLIDER              // Emoji slider
+  QUESTION            // Question sticker
+  QUIZ                // Quiz sticker
+  COUNTDOWN           // Countdown sticker
+  LINK                // Link sticker
+  MENTION             // @mention
+  HASHTAG             // #hashtag
+  LOCATION            // Location tag
+  MUSIC               // Music sticker
+  NONE                // No interactive element
+}
+
+// Reel Planning for Instagram Reels with time slots
+model ReelPlanningSlot {
+  id                String              @id @default(cuid())
+  clerkId           String
+  profileId         String?             // Link to InstagramProfile
+  contentId         String?             @unique // Unique content ID for pipeline tracking (e.g., "REEL-2025-001")
+  pipelineItemId    String?             @unique // Link to ContentPipelineItem
+  date              DateTime            // The day this slot belongs to
+  timeSlot          DateTime?           // Actual time for this reel slot
+  reelType          ReelType            // TRENDING, TUTORIAL, BEHIND_SCENES, etc.
+  hookIdea          String?             @db.Text // Hook/opening idea
+  trendingAudio     String?             // Trending audio/song name
+  // Direct file storage for reel content
+  awsS3Key          String?             // S3 object key for uploaded content
+  awsS3Url          String?             // Direct S3 URL for uploaded content
+  fileName          String?             // Original filename
+  mimeType          String?             // File MIME type
+  notes             String?             @db.Text
+  caption           String?             @db.Text
+  hashtags          String[]            @default([])
+  isPosted          Boolean             @default(false)
+  postedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  pipelineItem      ContentPipelineItem? @relation("ReelPipeline", fields: [pipelineItemId], references: [id], onDelete: SetNull)
+
+  @@unique([clerkId, profileId, timeSlot])
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([date])
+  @@index([clerkId, date])
+  @@index([pipelineItemId])
+  @@index([contentId])
+  @@map("reel_planning_slots")
+}
+
+enum ReelType {
+  TRENDING            // Trending content
+  TUTORIAL            // Tutorial/How-to
+  BEHIND_SCENES       // Behind the scenes
+  PROMO               // Promotional content
+  PRODUCT             // Product showcase
+  LIFESTYLE           // Lifestyle content
+  TRANSITION          // Transition reel
+  DAY_IN_LIFE         // Day in the life
+  CHALLENGE           // Challenge video
+  COMEDY              // Comedy/funny content
+  EDUCATIONAL         // Educational content
+  OTHER               // Other types
+}
+
+// Feed Post Planning for Instagram Feed Posts
+model FeedPostPlanningSlot {
+  id                String              @id @default(cuid())
+  clerkId           String
+  profileId         String?             // Link to InstagramProfile
+  contentId         String?             @unique // Unique content ID for pipeline tracking
+  pipelineItemId    String?             @unique // Link to ContentPipelineItem
+  date              DateTime            // The day this slot belongs to
+  timeSlot          DateTime?           // Scheduled time for this feed post
+  postType          FeedPostType        // SINGLE_IMAGE, CAROUSEL, etc.
+  caption           String?             @db.Text
+  hashtags          String[]            @default([])
+  location          String?             // Location tag
+  collaborators     String[]            @default([]) // Tagged accounts
+  notes             String?             @db.Text
+  // File storage for feed post content (supports multiple files for carousels/albums)
+  files             Json?               // Array of {awsS3Key, awsS3Url, fileName, mimeType}
+  isPosted          Boolean             @default(false)
+  postedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  pipelineItem      ContentPipelineItem? @relation("FeedPostPipeline", fields: [pipelineItemId], references: [id], onDelete: SetNull)
+
+  @@unique([clerkId, profileId, timeSlot])
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([date])
+  @@index([clerkId, date])
+  @@index([pipelineItemId])
+  @@index([contentId])
+  @@map("feed_post_planning_slots")
+}
+
+enum FeedPostType {
+  SINGLE_IMAGE        // Single image post
+  CAROUSEL            // Multiple images/videos carousel
+  VIDEO               // Single video post
+  ALBUM               // Photo album
+}
+
+// Performance Metrics Model
+model PerformanceMetric {
+  id                String    @id @default(cuid())
+  clerkId           String
+  profileId         String    @default("") // Default to empty string for single profile tracking
+  date              DateTime  @db.Date
+  
+  // Content metrics
+  reelsPosted       Int       @default(0)
+  storiesPosted     Int       @default(0)
+  feedPostsPosted   Int       @default(0)
+  
+  // Engagement metrics
+  totalViews        Int       @default(0)
+  totalLikes        Int       @default(0)
+  totalComments     Int       @default(0)
+  totalShares       Int       @default(0)
+  totalSaves        Int       @default(0)
+  
+  // Story metrics
+  storyViews        Int       @default(0)
+  storyReplies      Int       @default(0)
+  
+  // Follower metrics
+  followersStart    Int       @default(0)
+  followersEnd      Int       @default(0)
+  followersGained   Int       @default(0)
+  followersLost     Int       @default(0)
+  
+  // Calculated metrics (can be computed)
+  engagementRate    Float?    // (likes + comments + shares) / reach * 100
+  averageViews      Float?    // total views / content posted
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([clerkId, date, profileId])
+  @@index([clerkId, date])
+  @@map("performance_metrics")
+}
+
+// Workflow Checklist - User customizable workflow phases
+model WorkflowPhase {
+  id          String              @id @default(cuid())
+  clerkId     String
+  profileId   String              @default("") // Default to empty string for single profile tracking
+  name        String
+  description String?             @db.Text
+  icon        String              @default("Circle") // Icon name as string
+  color       String              @default("blue")
+  order       Int                 // Order of phases
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  items       WorkflowCheckItem[]
+
+  @@index([clerkId])
+  @@index([clerkId, profileId])
+  @@index([clerkId, order])
+  @@map("workflow_phases")
+}
+
+// Workflow Checklist Items
+model WorkflowCheckItem {
+  id          String        @id @default(cuid())
+  phaseId     String
+  text        String        @db.Text
+  order       Int           // Order within the phase
+  checked     Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  phase       WorkflowPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@index([phaseId])
+  @@index([phaseId, order])
+  @@map("workflow_check_items")
+}
+
+// Hashtag Bank - User customizable hashtag sets
+model HashtagSet {
+  id          String   @id @default(cuid())
+  clerkId     String
+  name        String
+  category    String
+  description String?  @db.Text
+  icon        String   @default("Hash") // Icon name as string
+  color       String   @default("blue")
+  hashtags    String[] // Array of hashtag strings
+  order       Int      // Order of hashtag sets
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clerkId])
+  @@index([clerkId, order])
+  @@map("hashtag_sets")
 }
