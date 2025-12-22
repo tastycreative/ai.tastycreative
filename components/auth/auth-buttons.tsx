@@ -27,11 +27,11 @@ export function AuthButtons() {
           Sign In
         </button>
       </SignInButton>
-      <SignUpButton>
+      <SignInButton>
         <button className="bg-white text-black px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors font-medium">
           Get Started
         </button>
-      </SignUpButton>
+      </SignInButton>
     </div>
   );
 }

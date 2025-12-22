@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,40 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/
+
+/lib/generated/prisma
+
+# Python compiled files (keep .py source files)
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# Sensitive or generated files (keep Dockerfiles and shell scripts for development)
+# Generated uploads and test outputs
+public/uploads/
+*.backup
+
+# AWS configuration files with credentials
+configure-aws-s3-bucket.py
+configure-s3-cors.py
+
+# Model configuration that might contain sensitive paths
+extra_model_paths.yaml
+
+# Only ignore specific sensitive files if they contain secrets
+# Add specific files here if they contain API keys or sensitive data
+# Example:
+# config/secrets.py
+# deploy-production.sh

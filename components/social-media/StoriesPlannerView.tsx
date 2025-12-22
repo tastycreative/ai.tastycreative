@@ -1,0 +1,939 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
+import { useSearchParams, useRouter } from "next/navigation";
+import {
+  Clock,
+  Plus,
+  Edit,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Save,
+  Image as ImageIcon,
+  Upload,
+  Video,
+  XCircle,
+  CheckCircle,
+  Circle,
+  User,
+  ChevronDown,
+} from "lucide-react";
+import { format, addDays, startOfWeek } from "date-fns";
+
+interface StoriesPlannerViewProps {
+  profileId?: string | null;
+}
+
+interface StorySlot {
+  id: string;
+  date: Date;
+  timeSlot: Date | null;
+  storyType: string;
+  interactiveElement?: string;
+  notes?: string;
+  caption?: string;
+  hashtags?: string[];
+  awsS3Url?: string;
+  fileName?: string;
+  mimeType?: string;
+  isPosted?: boolean;
+  postedAt?: Date;
+  linkedPost?: {
+    id: string;
+    fileName?: string;
+    awsS3Url?: string;
+    caption?: string;
+  };
+}
+
+const TIME_SLOTS = [
+  { value: "SLOT_9AM", label: "9:00 AM", time: "09:00" },
+  { value: "SLOT_11AM", label: "11:00 AM", time: "11:00" },
+  { value: "SLOT_1PM", label: "1:00 PM", time: "13:00" },
+  { value: "SLOT_3PM", label: "3:00 PM", time: "15:00" },
+  { value: "SLOT_5PM", label: "5:00 PM", time: "17:00" },
+  { value: "SLOT_7PM", label: "7:00 PM", time: "19:00" },
+  { value: "SLOT_9PM", label: "9:00 PM", time: "21:00" },
+];
+
+const STORY_TYPES = [
+  { value: "SELFIE", label: "Selfie", emoji: "🤳" },
+  { value: "BEHIND_SCENES", label: "Behind the Scenes", emoji: "🎬" },
+  { value: "PROMO", label: "Promo", emoji: "📢" },
+  { value: "PRODUCT", label: "Product", emoji: "🛍️" },
+  { value: "GRWM", label: "Get Ready With Me", emoji: "💄" },
+  { value: "OOTD", label: "Outfit of the Day", emoji: "👗" },
+  { value: "QA", label: "Q&A", emoji: "❓" },
+  { value: "TUTORIAL", label: "Tutorial", emoji: "📚" },
+  { value: "LIFESTYLE", label: "Lifestyle", emoji: "🌟" },
+  { value: "ANNOUNCEMENT", label: "Announcement", emoji: "📣" },
+  { value: "USER_CONTENT", label: "User Content", emoji: "👥" },
+  { value: "OTHER", label: "Other", emoji: "✨" },
+];
+
+const INTERACTIVE_ELEMENTS = [
+  { value: "NONE", label: "None", emoji: "" },
+  { value: "POLL", label: "Poll", emoji: "📊" },
+  { value: "SLIDER", label: "Slider", emoji: "🎚️" },
+  { value: "QUESTION", label: "Question Box", emoji: "❓" },
+  { value: "QUIZ", label: "Quiz", emoji: "🧩" },
+  { value: "COUNTDOWN", label: "Countdown", emoji: "⏱️" },
+  { value: "LINK", label: "Link", emoji: "🔗" },
+  { value: "MENTION", label: "Mention", emoji: "@" },
+  { value: "HASHTAG", label: "Hashtag", emoji: "#" },
+  { value: "LOCATION", label: "Location", emoji: "📍" },
+  { value: "MUSIC", label: "Music", emoji: "🎵" },
+];
+
+export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
+  // Initialize date from URL params or default to today
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const dateParam = searchParams.get('date');
+    if (dateParam) {
+      const parsedDate = new Date(dateParam + 'T00:00:00');
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
+    }
+    return new Date();
+  });
+  const [storySlots, setStorySlots] = useState<StorySlot[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<StorySlot | null>(null);
+  const [formData, setFormData] = useState({
+    timeSlot: "",
+    storyType: "SELFIE",
+    interactiveElement: "NONE",
+    notes: "",
+    caption: "",
+  });
+  const [timeInput, setTimeInput] = useState({
+    hour: "9",
+    minute: "00",
+    period: "AM",
+  });
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    fetchStorySlots();
+  }, [selectedDate, profileId]);
+
+  const fetchStorySlots = async () => {
+    try {
+      setLoading(true);
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const params = new URLSearchParams({
+        startDate: dateStr,
+        endDate: dateStr,
+      });
+      
+      if (profileId && profileId !== "all") {
+        params.append("profileId", profileId);
+      }
+      
+      const response = await fetch(
+        `/api/instagram/story-slots?${params}`
+      );
+      const data = await response.json();
+      if (data.slots) {
+        setStorySlots(
+          data.slots.map((slot: any) => ({
+            ...slot,
+            date: new Date(slot.date),
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching story slots:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrevDay = () => {
+    setSelectedDate((prev) => addDays(prev, -1));
+  };
+
+  const handleNextDay = () => {
+    setSelectedDate((prev) => addDays(prev, 1));
+  };
+
+  const handleToday = () => {
+    setSelectedDate(new Date());
+  };
+
+  const openCreateModal = () => {
+    setEditingSlot(null);
+    setFormData({
+      timeSlot: "",
+      storyType: "SELFIE",
+      interactiveElement: "NONE",
+      notes: "",
+      caption: "",
+    });
+    setTimeInput({
+      hour: "9",
+      minute: "00",
+      period: "AM",
+    });
+    setUploadedFile(null);
+    setUploadPreviewUrl(null);
+    setShowModal(true);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please select a valid image or video file (JPEG, PNG, GIF, WebP, MP4, MOV, WebM)');
+      return;
+    }
+
+    // Validate file size (50MB limit)
+    const maxSize = 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('File size must be less than 50MB');
+      return;
+    }
+
+    setUploadedFile(file);
+    
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setUploadPreviewUrl(previewUrl);
+  };
+
+  const handleRemoveFile = () => {
+    if (uploadPreviewUrl) {
+      URL.revokeObjectURL(uploadPreviewUrl);
+    }
+    setUploadedFile(null);
+    setUploadPreviewUrl(null);
+  };
+
+  const openEditModal = (slot: StorySlot) => {
+    setEditingSlot(slot);
+    // Parse timeSlot DateTime to hour, minute, period
+    if (slot.timeSlot) {
+      const timeDate = new Date(slot.timeSlot);
+      let hours = timeDate.getHours();
+      const minutes = timeDate.getMinutes();
+      const period = hours >= 12 ? "PM" : "AM";
+      hours = hours % 12 || 12; // Convert to 12-hour format
+      
+      setTimeInput({
+        hour: String(hours),
+        minute: String(minutes).padStart(2, "0"),
+        period: period,
+      });
+    } else {
+      setTimeInput({
+        hour: "9",
+        minute: "00",
+        period: "AM",
+      });
+    }
+    
+    setFormData({
+      timeSlot: slot.timeSlot ? format(new Date(slot.timeSlot), "HH:mm") : "",
+      storyType: slot.storyType,
+      interactiveElement: slot.interactiveElement || "NONE",
+      notes: slot.notes || "",
+      caption: slot.caption || "",
+    });
+    // Set preview from direct file fields or linked post
+    if (slot.awsS3Url) {
+      setUploadPreviewUrl(slot.awsS3Url);
+    } else if (slot.linkedPost?.awsS3Url) {
+      setUploadPreviewUrl(slot.linkedPost.awsS3Url);
+    } else {
+      setUploadPreviewUrl(null);
+    }
+    setUploadedFile(null);
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    try {
+      if (!timeInput.hour || !timeInput.minute || !timeInput.period) {
+        alert("Please select a time for this story slot!");
+        return;
+      }
+
+      // Convert 12-hour format to 24-hour format
+      let hours = parseInt(timeInput.hour);
+      if (timeInput.period === "PM" && hours !== 12) {
+        hours += 12;
+      } else if (timeInput.period === "AM" && hours === 12) {
+        hours = 0;
+      }
+
+      // Combine selected date with time input to create full DateTime
+      const timeSlotDateTime = new Date(selectedDate);
+      timeSlotDateTime.setHours(hours, parseInt(timeInput.minute), 0, 0);
+
+      setLoading(true);
+      setUploading(true);
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+
+      let fileData: any = {};
+
+      // If there's a new file to upload, upload it to S3
+      if (uploadedFile) {
+        const formDataUpload = new FormData();
+        formDataUpload.append('file', uploadedFile);
+        formDataUpload.append('folder', 'instagram/stories');
+
+        const uploadResponse = await fetch('/api/s3/upload', {
+          method: 'POST',
+          body: formDataUpload,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to upload file');
+        }
+
+        const uploadData = await uploadResponse.json();
+        console.log('✅ File uploaded to S3:', uploadData.file);
+
+        // Store file info directly on the slot (no InstagramPost needed)
+        fileData = {
+          awsS3Key: uploadData.file.key,
+          awsS3Url: uploadData.file.url,
+          fileName: uploadData.file.name,
+          mimeType: uploadData.file.mimeType,
+        };
+      }
+
+      const requestData = {
+        timeSlot: timeSlotDateTime.toISOString(),
+        storyType: formData.storyType,
+        interactiveElement: formData.interactiveElement,
+        notes: formData.notes,
+        caption: formData.caption,
+        profileId: profileId,
+        ...fileData,
+      };
+
+      if (editingSlot) {
+        // Update existing slot
+        const response = await fetch(
+          `/api/instagram/story-slots/${editingSlot.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestData),
+          }
+        );
+
+        if (!response.ok) throw new Error("Failed to update slot");
+      } else {
+        // Create new slot
+        const response = await fetch("/api/instagram/story-slots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...requestData,
+            date: dateStr,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          if (response.status === 409) {
+            alert("A story is already planned for this time slot!");
+            return;
+          }
+          throw new Error(error.error || "Failed to create slot");
+        }
+      }
+
+      setShowModal(false);
+      handleRemoveFile(); // Clean up preview URLs
+      fetchStorySlots();
+    } catch (error) {
+      console.error("Error saving slot:", error);
+      alert("Failed to save story slot. Please try again.");
+    } finally {
+      setLoading(false);
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (slotId: string) => {
+    if (!confirm("Are you sure you want to delete this story slot?")) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/instagram/story-slots/${slotId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) throw new Error("Failed to delete slot");
+
+      fetchStorySlots();
+    } catch (error) {
+      console.error("Error deleting slot:", error);
+      alert("Failed to delete story slot. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTogglePosted = async (slotId: string, currentStatus: boolean) => {
+    try {
+      const response = await fetch(`/api/instagram/story-slots/${slotId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isPosted: !currentStatus,
+          postedAt: !currentStatus ? new Date().toISOString() : null,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to update post status");
+
+      // Optimistically update the local state instead of refetching
+      setStorySlots((prevSlots) =>
+        prevSlots.map((slot) =>
+          slot.id === slotId
+            ? {
+                ...slot,
+                isPosted: !currentStatus,
+                postedAt: !currentStatus ? new Date() : undefined,
+              }
+            : slot
+        )
+      );
+    } catch (error) {
+      console.error("Error updating post status:", error);
+      alert("Failed to update post status. Please try again.");
+    }
+  };
+
+  const getSlotForTime = (timeSlotValue: string) => {
+    return storySlots.find((slot) => {
+      if (!slot.timeSlot) return false;
+      const slotTime = format(new Date(slot.timeSlot), "HH:mm");
+      return slotTime === timeSlotValue;
+    });
+  };
+
+  const sortedStorySlots = [...storySlots].sort((a, b) => {
+    const timeA = a.timeSlot ? new Date(a.timeSlot).getTime() : 0;
+    const timeB = b.timeSlot ? new Date(b.timeSlot).getTime() : 0;
+    return timeA - timeB;
+  });
+
+  const getStoryTypeLabel = (value: string) => {
+    const type = STORY_TYPES.find((t) => t.value === value);
+    return type ? `${type.emoji} ${type.label}` : value;
+  };
+
+  const getInteractiveLabel = (value: string) => {
+    const elem = INTERACTIVE_ELEMENTS.find((e) => e.value === value);
+    return elem ? `${elem.emoji} ${elem.label}` : value;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30">
+              <Clock className="w-7 h-7 text-blue-400" />
+            </div>
+            Stories Planner
+          </h2>
+          <p className="text-gray-400 mt-2">
+            Plan your Instagram stories throughout the day with interactive elements
+          </p>
+        </div>
+        
+        {/* Add Story Button */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={openCreateModal}
+          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30 font-semibold flex items-center gap-2"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="hidden sm:inline">Add Story</span>
+        </motion.button>
+      </div>
+
+      {/* Date Navigator */}
+      <div className="bg-gradient-to-br from-[#1a1a1a] to-[#1a1a1a] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center justify-between">
+          <motion.button
+            whileHover={{ scale: 1.1, x: -2 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={handlePrevDay}
+            className="p-3 hover:bg-blue-600/20 rounded-xl transition-colors border border-transparent hover:border-blue-500/30"
+          >
+            <ChevronLeft className="w-6 h-6 text-blue-400" />
+          </motion.button>
+
+          <div className="flex items-center gap-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                {format(selectedDate, "EEEE")}
+              </div>
+              <div className="text-sm text-gray-400 mt-1">
+                {format(selectedDate, "MMMM d, yyyy")}
+              </div>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={handleToday}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30 font-semibold"
+            >
+              Today
+            </motion.button>
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.1, x: 2 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={handleNextDay}
+            className="p-3 hover:bg-blue-600/20 rounded-xl transition-colors border border-transparent hover:border-blue-500/30"
+          >
+            <ChevronRight className="w-6 h-6 text-blue-400" />
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Time Slots Grid */}
+      {loading ? (
+        <div className="text-center py-16">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="inline-block"
+          >
+            <Clock className="w-12 h-12 text-blue-400" />
+          </motion.div>
+          <p className="text-gray-400 mt-4">Loading story slots...</p>
+        </div>
+      ) : sortedStorySlots.length === 0 ? (
+        <div className="text-center py-16">
+          <motion.div
+            animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.8, 0.5] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="inline-block p-6 rounded-2xl bg-gradient-to-br from-blue-600/10 to-purple-600/10 mb-4"
+          >
+            <Clock className="w-16 h-16 text-blue-400" />
+          </motion.div>
+          <p className="text-gray-400 text-lg mb-6">No stories planned for this day</p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={openCreateModal}
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30 font-semibold flex items-center gap-2 mx-auto"
+          >
+            <Plus className="w-5 h-5" />
+            Add Your First Story
+          </motion.button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sortedStorySlots.map((slot) => (
+            <motion.div
+              key={slot.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -4 }}
+              className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-5 hover:border-blue-500/30 transition-all shadow-xl hover:shadow-2xl hover:shadow-blue-600/10"
+            >
+              {/* Time Header */}
+              <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-[#2a2a2a]">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-blue-600/20">
+                    <Clock className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <span className="font-bold text-white text-lg">
+                    {slot.timeSlot ? format(new Date(slot.timeSlot), "h:mm a") : "No time set"}
+                  </span>
+                </div>
+                
+                {/* Posted Status Circle */}
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleTogglePosted(slot.id, slot.isPosted || false);
+                  }}
+                  type="button"
+                  className={`p-2 rounded-full transition-all ${
+                    slot.isPosted
+                      ? "bg-green-600/30 border-2 border-green-500"
+                      : "bg-gray-600/20 border-2 border-gray-500/30 hover:border-green-500/50"
+                  }`}
+                  title={slot.isPosted ? "Mark as unposted" : "Mark as posted"}
+                >
+                  {slot.isPosted ? (
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                  ) : (
+                    <Circle className="w-5 h-5 text-gray-400" />
+                  )}
+                </motion.button>
+              </div>
+
+              {/* Slot Content */}
+              <div className="space-y-4">
+                <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
+                  <div className="text-xs font-bold text-blue-400 mb-1.5 uppercase tracking-wide">Story Type</div>
+                  <div className="text-white font-semibold text-base">
+                    {getStoryTypeLabel(slot.storyType)}
+                  </div>
+                </div>
+
+                {slot.interactiveElement && slot.interactiveElement !== "NONE" && (
+                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-purple-500/10">
+                    <div className="text-xs font-bold text-purple-400 mb-1.5 uppercase tracking-wide">
+                      Interactive
+                    </div>
+                    <div className="text-white font-medium">
+                      {getInteractiveLabel(slot.interactiveElement)}
+                    </div>
+                  </div>
+                )}
+
+                {slot.notes && (
+                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-gray-500/10">
+                    <div className="text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide">Notes</div>
+                    <div className="text-white text-sm line-clamp-2">
+                      {slot.notes}
+                    </div>
+                  </div>
+                )}
+
+                {(slot.awsS3Url || slot.linkedPost?.awsS3Url) && (
+                  <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
+                    <div className="text-xs font-bold text-blue-400 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                      {(slot.fileName || slot.linkedPost?.fileName)?.match(/\.(mp4|mov|webm)$/i) ? (
+                        <Video className="w-3.5 h-3.5" />
+                      ) : (
+                        <ImageIcon className="w-3.5 h-3.5" />
+                      )}
+                      Content
+                    </div>
+                    <div className="flex items-center justify-center bg-[#1a1a1a] rounded-lg p-2" style={{ maxHeight: '240px' }}>
+                      {(slot.fileName || slot.linkedPost?.fileName)?.match(/\.(mp4|mov|webm)$/i) ? (
+                        <video
+                          src={slot.awsS3Url || slot.linkedPost?.awsS3Url}
+                          className="max-w-full max-h-[224px] w-auto h-auto rounded"
+                          controls
+                          style={{ objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <img
+                          src={slot.awsS3Url || slot.linkedPost?.awsS3Url}
+                          alt={(slot.fileName || slot.linkedPost?.fileName) || 'Story content'}
+                          className="max-w-full max-h-[224px] w-auto h-auto rounded"
+                          style={{ objectFit: 'contain' }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => openEditModal(slot)}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-[#2a2a2a] to-[#252525] hover:from-blue-600/20 hover:to-purple-600/20 text-white rounded-xl transition-all text-sm flex items-center justify-center gap-2 font-semibold border border-transparent hover:border-blue-500/30"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => handleDelete(slot.id)}
+                    className="px-4 py-2.5 bg-gradient-to-r from-red-600/20 to-red-600/30 hover:from-red-600/30 hover:to-red-600/40 text-red-400 rounded-xl transition-all border border-red-500/20"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      {mounted && showModal && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl shadow-blue-600/20"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/30">
+                  <Clock className="w-6 h-6 text-blue-400" />
+                </div>
+                {editingSlot ? "Edit Story Slot" : "Add Story Slot"}
+              </h3>
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowModal(false)}
+                className="p-2 hover:bg-[#2a2a2a] rounded-xl transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-400" />
+              </motion.button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Time Input */}
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">
+                  ⏰ Time *
+                </label>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  {/* Hour Dropdown */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Hour</label>
+                    <select
+                      value={timeInput.hour}
+                      onChange={(e) => setTimeInput({ ...timeInput, hour: e.target.value })}
+                      className="w-full px-3 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    >
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((hour) => (
+                        <option key={hour} value={hour}>
+                          {hour}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Minute Dropdown */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Minute</label>
+                    <select
+                      value={timeInput.minute}
+                      onChange={(e) => setTimeInput({ ...timeInput, minute: e.target.value })}
+                      className="w-full px-3 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    >
+                      {Array.from({ length: 60 }, (_, i) => i).map((minute) => (
+                        <option key={minute} value={String(minute).padStart(2, "0")}>
+                          {String(minute).padStart(2, "0")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* AM/PM Dropdown */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Period</label>
+                    <select
+                      value={timeInput.period}
+                      onChange={(e) => setTimeInput({ ...timeInput, period: e.target.value })}
+                      className="w-full px-3 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    >
+                      <option value="AM">AM</option>
+                      <option value="PM">PM</option>
+                    </select>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                  <span>ℹ️</span>
+                  Select hour (1-12), minute (0-59), and AM/PM
+                </p>
+              </div>
+
+              {/* File Upload */}
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">
+                  📸 Upload Content (Photo or Video)
+                </label>
+                {uploadPreviewUrl ? (
+                  <div className="relative flex items-center justify-center bg-[#1a1a1a] rounded-xl border-2 border-[#3a3a3a] p-4" style={{ maxHeight: '400px' }}>
+                    {uploadedFile?.type.startsWith('video/') || uploadPreviewUrl.match(/\.(mp4|mov|webm)$/i) ? (
+                      <video
+                        src={uploadPreviewUrl}
+                        className="max-w-full max-h-[368px] w-auto h-auto rounded-lg"
+                        controls
+                        style={{ objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <img
+                        src={uploadPreviewUrl}
+                        alt="Preview"
+                        className="max-w-full max-h-[368px] w-auto h-auto rounded-lg"
+                        style={{ objectFit: 'contain' }}
+                      />
+                    )}
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={handleRemoveFile}
+                      className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-500 rounded-lg transition-colors z-10"
+                      type="button"
+                    >
+                      <XCircle className="w-5 h-5 text-white" />
+                    </motion.button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-[#3a3a3a] rounded-xl hover:border-blue-500/50 transition-all cursor-pointer bg-[#2a2a2a] hover:bg-[#252525]">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <motion.div
+                        whileHover={{ scale: 1.1 }}
+                        className="p-4 rounded-2xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 mb-4"
+                      >
+                        <Upload className="w-10 h-10 text-blue-400" />
+                      </motion.div>
+                      <p className="mb-2 text-sm text-gray-300 font-semibold">
+                        <span className="font-bold">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Image (JPEG, PNG, GIF, WebP) or Video (MP4, MOV, WebM)
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Max file size: 50MB
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm"
+                      onChange={handleFileSelect}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Story Type */}
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">
+                  📱 Story Type *
+                </label>
+                <select
+                  value={formData.storyType}
+                  onChange={(e) =>
+                    setFormData({ ...formData, storyType: e.target.value })
+                  }
+                  className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                >
+                  {STORY_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.emoji} {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Interactive Element */}
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">
+                  ✨ Interactive Element
+                </label>
+                <select
+                  value={formData.interactiveElement}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      interactiveElement: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                >
+                  {INTERACTIVE_ELEMENTS.map((elem) => (
+                    <option key={elem.value} value={elem.value}>
+                      {elem.emoji} {elem.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Caption */}
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">
+                  💬 Caption
+                </label>
+                <textarea
+                  value={formData.caption}
+                  onChange={(e) =>
+                    setFormData({ ...formData, caption: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 resize-none transition-all"
+                  placeholder="Story caption..."
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-bold text-gray-300 mb-2">
+                  📝 Notes
+                </label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) =>
+                    setFormData({ ...formData, notes: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-500/20 resize-none transition-all"
+                  placeholder="Planning notes, ideas, reminders..."
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-4 mt-8 pt-6 border-t-2 border-[#2a2a2a]">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowModal(false)}
+                className="flex-1 px-6 py-3 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all font-semibold"
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleSave}
+                disabled={loading || uploading}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-600/30 font-semibold"
+              >
+                <Save className="w-5 h-5" />
+                {uploading ? "Uploading..." : loading ? "Saving..." : "Save Story"}
+              </motion.button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}

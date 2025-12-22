@@ -1,0 +1,209 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
+import { prisma } from '@/lib/database';
+
+// GET - Fetch comments for a post
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ postId: string }> }
+) {
+  try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { postId } = await params;
+
+    // Get current user
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Fetch comments (only top-level comments, not replies)
+    const comments = await prisma.feedPostComment.findMany({
+      where: { 
+        postId,
+        parentCommentId: null, // Only get top-level comments
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+            imageUrl: true,
+          },
+        },
+        likes: {
+          where: { userId: currentUser.id },
+          select: { id: true },
+        },
+        _count: {
+          select: {
+            likes: true,
+            replies: true,
+          },
+        },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                clerkId: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+                imageUrl: true,
+              },
+            },
+            likes: {
+              where: { userId: currentUser.id },
+              select: { id: true },
+            },
+            _count: {
+              select: {
+                likes: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    // Transform comments
+    const transformedComments = comments.map(comment => ({
+      id: comment.id,
+      postId: comment.postId,
+      userId: comment.userId,
+      content: comment.content,
+      createdAt: comment.createdAt.toISOString(),
+      user: comment.user,
+      liked: comment.likes.length > 0,
+      likeCount: comment._count.likes,
+      replyCount: comment._count.replies,
+      replies: comment.replies.map(reply => ({
+        id: reply.id,
+        postId: reply.postId,
+        userId: reply.userId,
+        content: reply.content,
+        createdAt: reply.createdAt.toISOString(),
+        user: reply.user,
+        liked: reply.likes.length > 0,
+        likeCount: reply._count.likes,
+        parentCommentId: reply.parentCommentId,
+      })),
+    }));
+
+    return NextResponse.json(transformedComments);
+  } catch (error) {
+    console.error('Error fetching comments:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch comments' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Add a comment
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ postId: string }> }
+) {
+  try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { postId } = await params;
+    const { content, parentCommentId } = await request.json();
+
+    if (!content || !content.trim()) {
+      return NextResponse.json(
+        { error: 'Comment content is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get current user
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId },
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Create comment
+    const comment = await prisma.feedPostComment.create({
+      data: {
+        postId,
+        userId: currentUser.id,
+        content: content.trim(),
+        parentCommentId: parentCommentId || null,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            username: true,
+            imageUrl: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            replies: true,
+          },
+        },
+      },
+    });
+
+    // Get updated comment count (only top-level comments)
+    const commentCount = await prisma.feedPostComment.count({
+      where: { 
+        postId,
+        parentCommentId: null,
+      },
+    });
+
+    // Transform comment
+    const transformedComment = {
+      id: comment.id,
+      postId: comment.postId,
+      userId: comment.userId,
+      content: comment.content,
+      createdAt: comment.createdAt.toISOString(),
+      user: comment.user,
+      liked: false,
+      likeCount: comment._count.likes,
+      replyCount: comment._count.replies,
+      parentCommentId: comment.parentCommentId,
+      replies: [],
+    };
+
+    return NextResponse.json({ comment: transformedComment, commentCount });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    return NextResponse.json(
+      { error: 'Failed to add comment' },
+      { status: 500 }
+    );
+  }
+}

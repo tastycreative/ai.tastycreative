@@ -1,0 +1,106 @@
+# RunPod Face Swap Handler Container with Enhanced Webhook Support
+FROM runpod/pytorch:2.2.1-py3.10-cuda12.1.1-devel-ubuntu22.04
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python requirements
+COPY requirements-handler.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Install ComfyUI
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /app/comfyui && \
+    cd /app/comfyui && \
+    pip install -r requirements.txt
+
+# Install Face Swap Custom Nodes + InsightFace + Professional Nodes
+WORKDIR /app/comfyui/custom_nodes
+RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git || true
+RUN git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus.git || true
+RUN git clone https://github.com/Gourieff/comfyui-reactor-node.git || true
+RUN git clone https://github.com/WASasquatch/was-node-suite-comfyui.git || true
+RUN git clone https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git || true
+RUN git clone https://github.com/kijai/ComfyUI-KJNodes.git || true
+RUN git clone https://github.com/Acly/comfyui-inpaint-nodes.git || true
+RUN git clone https://github.com/city96/ComfyUI-GGUF.git || true
+RUN git clone https://github.com/ssitu/ComfyUI_UltimateSDUpscale.git || true
+RUN git clone https://github.com/ltdrdata/ComfyUI-Impact-Pack.git || true
+RUN git clone https://github.com/cubiq/ComfyUI_essentials.git || true
+RUN git clone https://github.com/rgthree/rgthree-comfy.git || true
+RUN git clone https://github.com/lquesada/ComfyUI-Inpaint-CropAndStitch.git || true
+RUN git clone https://github.com/welltop-cn/ComfyUI-TeaCache.git TeaCache || true
+
+# Install dependencies for face swap nodes with better error handling
+RUN cd /app/comfyui/custom_nodes/comfyui-reactor-node && \
+    pip install -r requirements.txt && \
+    pip install onnxruntime-gpu insightface opencv-python-headless || true
+RUN cd /app/comfyui/custom_nodes/ComfyUI_IPAdapter_plus && \
+    pip install -r requirements.txt || true
+RUN cd /app/comfyui/custom_nodes/was-node-suite-comfyui && \
+    pip install -r requirements.txt || true
+RUN cd /app/comfyui/custom_nodes/ComfyUI-KJNodes && \
+    pip install -r requirements.txt || true
+RUN cd /app/comfyui/custom_nodes/comfyui-inpaint-nodes && \
+    pip install -r requirements.txt || true
+RUN cd /app/comfyui/custom_nodes/ComfyUI-Impact-Pack && \
+    pip install -r requirements.txt || true
+RUN cd /app/comfyui/custom_nodes/ComfyUI_essentials && \
+    pip install -r requirements.txt || true
+RUN cd /app/comfyui/custom_nodes/rgthree-comfy && \
+    pip install -r requirements.txt || true
+RUN cd /app/comfyui/custom_nodes/ComfyUI-Inpaint-CropAndStitch && \
+    pip install -r requirements.txt || true
+RUN cd /app/comfyui/custom_nodes/TeaCache && \
+    pip install -r requirements.txt || true
+
+# Install additional face swap models and dependencies
+RUN pip install --no-cache-dir onnx onnxruntime-gpu opencv-python-headless pillow numpy
+RUN pip install --no-cache-dir insightface facexlib realesrgan
+
+# Download face analysis models for ReActor
+RUN mkdir -p /app/comfyui/models/insightface && \
+    cd /app/comfyui/models/insightface && \
+    wget -q "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip" && \
+    unzip buffalo_l.zip && rm buffalo_l.zip || true
+
+# Install InsightFace and face analysis dependencies
+RUN pip install --no-cache-dir insightface onnxruntime-gpu opencv-python-headless || true
+# Install additional packages for face swapping
+RUN pip install --no-cache-dir mediapipe face-recognition dlib || true
+
+# Download InsightFace models during build
+RUN python -c "import insightface; app = insightface.app.FaceAnalysis(providers=['CPUExecutionProvider']); app.prepare(ctx_id=0, det_size=(640, 640))" || echo "InsightFace models will be downloaded at runtime"
+
+# Fix: Temporarily disable problematic HunyuanDiT model that requires PyTorch 2.4+
+RUN mv /app/comfyui/comfy/ldm/hunyuan3dv2_1 /app/comfyui/comfy/ldm/hunyuan3dv2_1.disabled || true
+# Fix: Comment out the import statement that's causing the error
+RUN sed -i 's/import comfy.ldm.hunyuan3dv2_1/# import comfy.ldm.hunyuan3dv2_1/' /app/comfyui/comfy/model_base.py || true
+
+# Go back to app directory
+WORKDIR /app
+
+# Copy handler and config files
+COPY face_swap_serverless_handler.py /app/handler.py
+COPY extra_model_paths.yaml /app/extra_model_paths.yaml
+
+# Create necessary directories
+RUN mkdir -p /workspace/models /workspace/output /workspace/logs /runpod-volume
+
+# Add version label for tracking
+LABEL version="1.0-face-swap-serverless"
+LABEL description="Face swap serverless handler with ComfyUI, InsightFace, and webhook support"
+LABEL build_date="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+# Fix NumPy compatibility issues by ensuring we use NumPy < 2.0
+RUN pip install --force-reinstall "numpy>=1.24.0,<2.0.0"
+
+# Set the handler as the entry point
+CMD ["python", "-u", "handler.py"]

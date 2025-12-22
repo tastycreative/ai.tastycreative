@@ -1,0 +1,19 @@
+# AI-Toolkit RunPod Handler Requirements
+runpod==1.6.2
+pyyaml>=6.0
+requests>=2.31.0
+pillow>=10.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.30.0
+accelerate>=0.20.0
+diffusers>=0.18.0
+datasets>=2.12.0
+wandb>=0.15.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+imageio>=2.31.0
+einops>=0.6.0
+safetensors>=0.3.0
+xformers>=0.0.20
+bitsandbytes>=0.41.0

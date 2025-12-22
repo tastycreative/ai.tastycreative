@@ -1,0 +1,65 @@
+{
+  "crons": [
+    {
+      "path": "/api/instagram/cron",
+      "schedule": "* * * * *"
+    }
+  ],
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 60
+    },
+    "app/api/s3/upload/**/*.ts": {
+      "maxDuration": 120,
+      "memory": 1024
+    },
+    "app/api/s3/copy/**/*.ts": {
+      "maxDuration": 60,
+      "memory": 512
+    },
+    "app/api/user/influencers/**/*.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "app/api/user/influencers/upload-blob-first/**/*.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "app/api/user/influencers/transfer-to-comfyui/**/*.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "app/api/user/influencers/upload-chunked/**/*.ts": {
+      "maxDuration": 120,
+      "memory": 512
+    },
+    "app/api/user/influencers/complete-upload/**/*.ts": {
+      "maxDuration": 180,
+      "memory": 1024
+    },
+    "app/api/user/influencers/upload-to-runpod/**/*.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "app/api/user/influencers/multipart-s3-upload/**/*.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "app/api/upload/**/*.ts": {
+      "maxDuration": 120,
+      "memory": 1024
+    },
+    "app/api/webhooks/**/*.ts": {
+      "maxDuration": 300
+    },
+    "app/api/training/**/*.ts": {
+      "maxDuration": 300
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ]
+}
