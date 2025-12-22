@@ -6,10 +6,7 @@ import { PrismaClient } from "@/lib/generated/prisma";
 const prisma = new PrismaClient();
 
 // PATCH: Update a story slot
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
@@ -33,9 +30,14 @@ export async function PATCH(
       postedAt,
     } = body;
 
+    // Derive id from request URL
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
+
     // Verify ownership
     const existingSlot = await prisma.storyPlanningSlot.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingSlot) {
@@ -116,7 +118,7 @@ export async function PATCH(
     }
 
     const updatedSlot = await prisma.storyPlanningSlot.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...updateData,
         updatedAt: new Date(),
@@ -148,19 +150,21 @@ export async function PATCH(
 }
 
 // DELETE: Remove a story slot
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Derive id from request URL
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
+
     // Verify ownership
     const existingSlot = await prisma.storyPlanningSlot.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingSlot) {
@@ -182,7 +186,7 @@ export async function DELETE(
     }
 
     await prisma.storyPlanningSlot.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ message: "Story slot deleted successfully" });

@@ -580,10 +580,10 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
     let currentDate = new Date(startDate);
 
     // If end date is set, prioritize it over count; otherwise use count
-    let iterationLimit = maxDate ? 365 : maxCount; // Use high limit if end date is set
+    const iterationLimit = maxDate ? 365 : maxCount; // Use high limit if end date is set
 
     for (let i = 1; i < iterationLimit; i++) {
-      let nextDate = new Date(currentDate);
+      const nextDate = new Date(currentDate);
 
       switch (recurrence) {
         case "daily":

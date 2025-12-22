@@ -47,8 +47,8 @@ def upload_to_network_volume(model_file: Path, job_id: str, website_config: Dict
         s3_client = boto3.client(
             's3',
             endpoint_url='https://s3api-us-ks-2.runpod.io',  # RunPod S3 endpoint
-            aws_access_key_id=s3_access_key,
-            aws_secret_access_key=s3_secret_key,
+            aws_access_key_id=s3_access_key or os.getenv('S3_ACCESS_KEY_ID'),
+            aws_secret_access_key=s3_secret_key or os.getenv('S3_SECRET_ACCESS_KEY'),
             region_name='us-ks-2'
         )
         

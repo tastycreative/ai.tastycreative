@@ -6,19 +6,21 @@ import { PrismaClient } from "@/lib/generated/prisma";
 const prisma = new PrismaClient();
 
 // DELETE: Remove a performance metric
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Derive id from the request URL
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
+
     // Verify ownership
     const existingMetric = await prisma.performanceMetric.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingMetric) {
@@ -33,7 +35,7 @@ export async function DELETE(
     }
 
     await prisma.performanceMetric.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ message: "Performance metric deleted successfully" });

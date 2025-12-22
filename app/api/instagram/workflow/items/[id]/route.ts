@@ -6,10 +6,7 @@ import { PrismaClient } from "@/lib/generated/prisma";
 const prisma = new PrismaClient();
 
 // PATCH: Update a checklist item
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
@@ -19,9 +16,14 @@ export async function PATCH(
     const body = await request.json();
     const { text, order, checked } = body;
 
+    // Derive id from request URL
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
+
     // Verify ownership through phase
     const existingItem = await prisma.workflowCheckItem.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { phase: true },
     });
 
@@ -37,7 +39,7 @@ export async function PATCH(
     }
 
     const updatedItem = await prisma.workflowCheckItem.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         text: text !== undefined ? text : undefined,
         order: order !== undefined ? order : undefined,
@@ -57,19 +59,21 @@ export async function PATCH(
 }
 
 // DELETE: Remove a checklist item
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Derive id from request URL
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
+
     // Verify ownership through phase
     const existingItem = await prisma.workflowCheckItem.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { phase: true },
     });
 
@@ -85,7 +89,7 @@ export async function DELETE(
     }
 
     await prisma.workflowCheckItem.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ message: "Checklist item deleted successfully" });

@@ -1,14 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
 // PATCH update hashtag set
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(request: NextRequest) {
   try {
     const { userId } = await auth();
 
@@ -19,9 +16,15 @@ export async function PATCH(
     const body = await request.json();
     const { name, category, description, icon, color, hashtags, order } = body;
 
+    // Normalize params.id to a string
+  // Derive id from the request URL instead of using the second param
+  const url = new URL(request.url);
+  const parts = url.pathname.split('/').filter(Boolean);
+  const id = parts[parts.length - 1];
+
     // Verify ownership
     const existingSet = await prisma.hashtagSet.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingSet || existingSet.clerkId !== userId) {
@@ -29,7 +32,7 @@ export async function PATCH(
     }
 
     const set = await prisma.hashtagSet.update({
-      where: { id: params.id },
+  where: { id },
       data: {
         ...(name && { name }),
         ...(category && { category }),
@@ -41,7 +44,7 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ set });
+  return NextResponse.json({ set });
   } catch (error) {
     console.error("Error updating hashtag set:", error);
     return NextResponse.json(
@@ -52,10 +55,7 @@ export async function PATCH(
 }
 
 // DELETE hashtag set
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest) {
   try {
     const { userId } = await auth();
 
@@ -63,9 +63,15 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Normalize params.id to a string
+  // Derive id from the request URL instead of using the second param
+  const url = new URL(request.url);
+  const parts = url.pathname.split('/').filter(Boolean);
+  const id = parts[parts.length - 1];
+
     // Verify ownership
     const existingSet = await prisma.hashtagSet.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingSet || existingSet.clerkId !== userId) {
@@ -73,7 +79,7 @@ export async function DELETE(
     }
 
     await prisma.hashtagSet.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ success: true });

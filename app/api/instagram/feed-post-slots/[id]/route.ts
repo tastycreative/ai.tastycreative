@@ -6,17 +6,17 @@ import { PrismaClient } from "@/lib/generated/prisma";
 const prisma = new PrismaClient();
 
 // GET: Fetch a specific feed post slot
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+  // Derive id from the request URL
+  const url = new URL(request.url);
+  const parts = url.pathname.split('/').filter(Boolean);
+  const id = parts[parts.length - 1];
 
     const slot = await prisma.feedPostPlanningSlot.findUnique({
       where: {
@@ -43,17 +43,16 @@ export async function GET(
 }
 
 // PATCH: Update a feed post slot
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+  const url = new URL(request.url);
+  const parts = url.pathname.split('/').filter(Boolean);
+  const id = parts[parts.length - 1];
     const body = await request.json();
     const {
       timeSlot,
@@ -135,17 +134,16 @@ export async function PATCH(
 }
 
 // DELETE: Delete a feed post slot
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+  const url = new URL(request.url);
+  const parts = url.pathname.split('/').filter(Boolean);
+  const id = parts[parts.length - 1];
 
     // Check if slot exists and belongs to user
     const existingSlot = await prisma.feedPostPlanningSlot.findFirst({

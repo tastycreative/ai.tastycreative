@@ -36,10 +36,10 @@ def upload_image_to_aws_s3(image_data: str, filename: str, user_id: str, subfold
     """
     try:
         # Get AWS S3 credentials from environment
-        aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
-        aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
-        aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        s3_bucket = os.environ.get('AWS_S3_BUCKET', 'tastycreative')
+    aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID') or os.environ.get('S3_ACCESS_KEY_ID')
+    aws_secret_key = os.environ.get('AWS_SECRET_ACCESS_KEY') or os.environ.get('S3_SECRET_ACCESS_KEY')
+    aws_region = os.environ.get('AWS_REGION') or os.environ.get('S3_REGION') or 'us-east-1'
+    s3_bucket = os.environ.get('AWS_S3_BUCKET') or os.environ.get('S3_BUCKET') or 'tastycreative'
         
         if not all([aws_access_key, aws_secret_key, s3_bucket]):
             logger.warning("⚠️ AWS S3 credentials not configured, skipping S3 upload")

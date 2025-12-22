@@ -4,7 +4,7 @@ import { S3Client, CopyObjectCommand, DeleteObjectCommand, HeadObjectCommand } f
 import { prisma } from '@/lib/database';
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || process.env.S3_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     console.log('✅ Old file deleted');
 
     // Update database record
-    const newS3Url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${newS3Key}`;
+    const newS3Url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || process.env.S3_REGION || 'us-east-1'}.amazonaws.com/${newS3Key}`;
 
     if (itemType === 'image') {
       await prisma.generatedImage.update({

@@ -24,13 +24,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # AWS S3 Configuration for direct storage (bandwidth optimization)
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-AWS_S3_BUCKET = os.environ.get('AWS_S3_BUCKET', 'tastycreative')
+AWS_REGION = os.environ.get('AWS_REGION') or os.environ.get('S3_REGION') or 'us-east-1'
+AWS_S3_BUCKET = os.environ.get('AWS_S3_BUCKET') or os.environ.get('S3_BUCKET') or 'tastycreative'
 
 def get_aws_s3_client():
     """Initialize AWS S3 client for direct storage"""
-    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID') or os.getenv('S3_ACCESS_KEY_ID')
+    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY') or os.getenv('S3_SECRET_ACCESS_KEY')
     
     if not aws_access_key or not aws_secret_key:
         logger.error("❌ AWS S3 credentials not found in environment variables")

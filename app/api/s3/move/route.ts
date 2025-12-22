@@ -3,14 +3,14 @@ import { auth } from "@clerk/nextjs/server";
 import { CopyObjectCommand, DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || "us-east-1",
+  region: process.env.AWS_REGION || process.env.S3_REGION || "us-east-1",
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
 });
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET || "tastycreative";
+const BUCKET_NAME = process.env.AWS_S3_BUCKET || process.env.S3_BUCKET || "tastycreative";
 
 /**
  * Move a file from one S3 folder to another
