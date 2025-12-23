@@ -1,9 +1,7 @@
 // app/api/instagram/pipeline/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
-import { PrismaClient } from "@/lib/generated/prisma";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/database";
 
 // GET: Fetch all pipeline items with filters
 export async function GET(request: NextRequest) {

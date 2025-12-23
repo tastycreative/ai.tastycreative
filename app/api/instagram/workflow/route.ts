@@ -1,9 +1,7 @@
 // app/api/instagram/workflow/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
-import { PrismaClient } from "@/lib/generated/prisma";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/database";
 
 // GET: Fetch user's workflow phases and items
 export async function GET(request: NextRequest) {

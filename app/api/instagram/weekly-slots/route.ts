@@ -1,9 +1,7 @@
 // app/api/instagram/weekly-slots/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
-import { PrismaClient } from "@/lib/generated/prisma";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/database";
 
 // GET: Fetch weekly planning slots for a date range
 export async function GET(request: NextRequest) {

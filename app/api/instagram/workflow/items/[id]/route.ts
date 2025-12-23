@@ -1,9 +1,7 @@
 // app/api/instagram/workflow/items/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
-import { PrismaClient } from "@/lib/generated/prisma";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/database";
 
 // PATCH: Update a checklist item
 export async function PATCH(request: NextRequest) {
