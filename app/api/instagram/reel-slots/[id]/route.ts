@@ -1,7 +1,9 @@
 // app/api/instagram/reel-slots/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/database";
+import { PrismaClient } from "@/lib/generated/prisma";
+
+const prisma = new PrismaClient();
 
 // GET: Fetch a specific reel slot
 export async function GET(request: NextRequest) {

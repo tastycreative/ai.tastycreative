@@ -1,7 +1,9 @@
 // app/api/instagram/story-slots/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/database";
+import { PrismaClient } from "@/lib/generated/prisma";
+
+const prisma = new PrismaClient();
 
 // PATCH: Update a story slot
 export async function PATCH(request: NextRequest) {

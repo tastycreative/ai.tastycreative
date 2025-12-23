@@ -7,18 +7,14 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function createPrismaClient() {
-  return new PrismaClient({
-    log: ['warn', 'error'],
-    // Optimize for serverless environments
-    transactionOptions: {
-      maxWait: 5000, // default: 2000
-      timeout: 10000, // default: 5000
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  log: ['warn', 'error'],
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL,
     },
-  });
-}
-
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+  },
+});
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 

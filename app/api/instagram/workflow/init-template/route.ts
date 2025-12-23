@@ -1,7 +1,9 @@
 // app/api/instagram/workflow/init-template/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/database";
+import { PrismaClient } from "@/lib/generated/prisma";
+
+const prisma = new PrismaClient();
 
 const DEFAULT_TEMPLATE = [
   {

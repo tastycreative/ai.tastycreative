@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { S3Client, CreateMultipartUploadCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, UploadPartCommand } from '@aws-sdk/client-s3';
-import { prisma } from '@/lib/database';
+import { PrismaClient } from '@/lib/generated/prisma';
 
 // Upload session interface
 interface UploadSession {
@@ -11,6 +11,9 @@ interface UploadSession {
   uniqueFileName: string;
   totalParts: number;
 }
+
+// Initialize Prisma client
+const prisma = new PrismaClient();
 
 // Helper functions for session persistence using database
 async function saveSession(sessionId: string, clerkId: string, session: UploadSession): Promise<void> {
