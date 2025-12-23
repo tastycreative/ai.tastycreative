@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   // Enable compression for better performance
   compress: true,
 
-  // AWS Amplify SSR Fix: Embed environment variables during build
+  // AWSAmplify SSR Fix: Embed environment variables during build
   // This is required because Amplify doesn't pass env vars to Lambda runtime properly
   env: {
     // Database
