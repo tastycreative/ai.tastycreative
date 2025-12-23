@@ -1,11 +1,11 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/database';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -13,7 +13,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const profileId = params.id;
+    const { id } = await params;
+    const profileId = id;
 
     // Verify the profile belongs to the user
     const profile = await prisma.instagramProfile.findFirst({

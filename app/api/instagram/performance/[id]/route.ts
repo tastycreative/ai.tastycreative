@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // DELETE: Remove a performance metric
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await currentUser();
@@ -16,9 +16,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     // Verify ownership
     const existingMetric = await prisma.performanceMetric.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingMetric) {
@@ -33,7 +35,7 @@ export async function DELETE(
     }
 
     await prisma.performanceMetric.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ message: "Performance metric deleted successfully" });

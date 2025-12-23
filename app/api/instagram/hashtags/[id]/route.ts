@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 // PATCH update hashtag set
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -16,12 +16,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const { name, category, description, icon, color, hashtags, order } = body;
 
     // Verify ownership
     const existingSet = await prisma.hashtagSet.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingSet || existingSet.clerkId !== userId) {
@@ -29,7 +30,7 @@ export async function PATCH(
     }
 
     const set = await prisma.hashtagSet.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(name && { name }),
         ...(category && { category }),
@@ -54,7 +55,7 @@ export async function PATCH(
 // DELETE hashtag set
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -63,9 +64,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     // Verify ownership
     const existingSet = await prisma.hashtagSet.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingSet || existingSet.clerkId !== userId) {
@@ -73,7 +76,7 @@ export async function DELETE(
     }
 
     await prisma.hashtagSet.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ success: true });

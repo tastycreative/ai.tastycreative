@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // PATCH: Update a story slot
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await currentUser();
@@ -16,6 +16,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const {
       timeSlot,
@@ -35,7 +36,7 @@ export async function PATCH(
 
     // Verify ownership
     const existingSlot = await prisma.storyPlanningSlot.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingSlot) {
@@ -116,7 +117,7 @@ export async function PATCH(
     }
 
     const updatedSlot = await prisma.storyPlanningSlot.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...updateData,
         updatedAt: new Date(),
@@ -150,7 +151,7 @@ export async function PATCH(
 // DELETE: Remove a story slot
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await currentUser();
@@ -158,9 +159,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     // Verify ownership
     const existingSlot = await prisma.storyPlanningSlot.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!existingSlot) {
@@ -182,7 +185,7 @@ export async function DELETE(
     }
 
     await prisma.storyPlanningSlot.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ message: "Story slot deleted successfully" });

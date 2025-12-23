@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // PATCH: Update a checklist item
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await currentUser();
@@ -16,12 +16,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const { text, order, checked } = body;
 
     // Verify ownership through phase
     const existingItem = await prisma.workflowCheckItem.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { phase: true },
     });
 
@@ -37,7 +38,7 @@ export async function PATCH(
     }
 
     const updatedItem = await prisma.workflowCheckItem.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         text: text !== undefined ? text : undefined,
         order: order !== undefined ? order : undefined,
@@ -59,7 +60,7 @@ export async function PATCH(
 // DELETE: Remove a checklist item
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await currentUser();
@@ -67,9 +68,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     // Verify ownership through phase
     const existingItem = await prisma.workflowCheckItem.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { phase: true },
     });
 
@@ -85,7 +88,7 @@ export async function DELETE(
     }
 
     await prisma.workflowCheckItem.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({ message: "Checklist item deleted successfully" });

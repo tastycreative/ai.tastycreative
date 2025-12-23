@@ -74,7 +74,7 @@ export async function PATCH(
     // Check if slot exists and belongs to user
     const existingSlot = await prisma.reelPlanningSlot.findFirst({
       where: {
-        id: params.id,
+        id,
         clerkId: user.id,
       },
     });
