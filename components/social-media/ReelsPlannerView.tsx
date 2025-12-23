@@ -24,6 +24,9 @@ import {
   TrendingUp,
   User,
   ChevronDown,
+  Loader2,
+  Video as VideoIcon,
+  XCircle,
 } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { createPortal } from "react-dom";
@@ -99,6 +102,17 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
   const [uploading, setUploading] = useState(false);
   const [hashtagInput, setHashtagInput] = useState("");
   const [hashtags, setHashtags] = useState<string[]>([]);
+  const [uploadMode, setUploadMode] = useState<"upload" | "vault">("upload");
+  const [vaultItems, setVaultItems] = useState<any[]>([]);
+  const [selectedVaultItem, setSelectedVaultItem] = useState<any | null>(null);
+  const [loadingVault, setLoadingVault] = useState(false);
+  const [captionMode, setCaptionMode] = useState<"custom" | "bank">("custom");
+  const [availableCaptions, setAvailableCaptions] = useState<any[]>([]);
+  const [loadingCaptions, setLoadingCaptions] = useState(false);
+  const [captionSearchQuery, setCaptionSearchQuery] = useState("");
+  const [captionCategoryFilter, setCaptionCategoryFilter] = useState("All");
+  const [captionTypeFilter, setCaptionTypeFilter] = useState("All");
+  const [captionBankFilter, setCaptionBankFilter] = useState("All");
 
   useEffect(() => {
     setMounted(true);
@@ -170,7 +184,18 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
     setHashtagInput("");
     setUploadedFile(null);
     setUploadPreviewUrl(null);
+    setUploadMode("upload");
+    setSelectedVaultItem(null);
+    setCaptionMode("custom");
+    setCaptionSearchQuery("");
+    setCaptionCategoryFilter("All");
+    setCaptionTypeFilter("All");
+    setCaptionBankFilter("All");
     setShowModal(true);
+    if (profileId && profileId !== "all") {
+      fetchVaultItems();
+      fetchCaptionsBank();
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -199,11 +224,67 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
   };
 
   const handleRemoveFile = () => {
-    if (uploadPreviewUrl) {
+    if (uploadPreviewUrl && uploadedFile) {
       URL.revokeObjectURL(uploadPreviewUrl);
     }
     setUploadedFile(null);
     setUploadPreviewUrl(null);
+    setSelectedVaultItem(null);
+  };
+
+  const fetchVaultItems = async () => {
+    if (!profileId || profileId === "all") return;
+
+    try {
+      setLoadingVault(true);
+      const response = await fetch(`/api/vault/items?profileId=${profileId}`);
+      
+      if (!response.ok) {
+        console.warn("Vault items not available");
+        setVaultItems([]);
+        return;
+      }
+
+      const data = await response.json();
+      setVaultItems(data.map((item: any) => ({
+        ...item,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      })));
+    } catch (error) {
+      console.error("Error loading vault items:", error);
+      setVaultItems([]);
+    } finally {
+      setLoadingVault(false);
+    }
+  };
+
+  const fetchCaptionsBank = async () => {
+    if (!profileId || profileId === "all") return;
+
+    try {
+      setLoadingCaptions(true);
+      const response = await fetch(`/api/captions?profileId=${profileId}`);
+      
+      if (!response.ok) {
+        console.warn("Captions not available");
+        setAvailableCaptions([]);
+        return;
+      }
+
+      const data = await response.json();
+      setAvailableCaptions(data);
+    } catch (error) {
+      console.error("Error loading captions:", error);
+      setAvailableCaptions([]);
+    } finally {
+      setLoadingCaptions(false);
+    }
+  };
+
+  const handleSelectVaultItem = (item: any) => {
+    setSelectedVaultItem(item);
+    setUploadPreviewUrl(item.awsS3Url);
   };
 
   const openEditModal = (slot: ReelSlot) => {
@@ -238,7 +319,18 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
       setUploadPreviewUrl(null);
     }
     setUploadedFile(null);
+    setUploadMode("upload");
+    setSelectedVaultItem(null);
+    setCaptionMode("custom");
+    setCaptionSearchQuery("");
+    setCaptionCategoryFilter("All");
+    setCaptionTypeFilter("All");
+    setCaptionBankFilter("All");
     setShowModal(true);
+    if (profileId && profileId !== "all") {
+      fetchVaultItems();
+      fetchCaptionsBank();
+    }
   };
 
   const addHashtag = () => {
@@ -276,7 +368,17 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
       let fileData: any = {};
 
-      if (uploadedFile) {
+      // If there's a vault item selected, use it
+      if (selectedVaultItem) {
+        fileData = {
+          awsS3Key: selectedVaultItem.awsS3Key,
+          awsS3Url: selectedVaultItem.awsS3Url,
+          fileName: selectedVaultItem.fileName,
+          mimeType: selectedVaultItem.fileType,
+        };
+      }
+      // Otherwise, if there's a new file to upload, upload it to S3
+      else if (uploadedFile) {
         const formDataUpload = new FormData();
         formDataUpload.append("file", uploadedFile);
         formDataUpload.append("folder", "instagram/reels");
@@ -740,34 +842,136 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                     <Upload className="w-4 h-4 text-purple-500" />
-                    Upload Reel
+                    Content Source
                   </label>
-                  {uploadPreviewUrl ? (
-                    <div className="relative">
-                      <div className="relative h-64 bg-black rounded-lg overflow-hidden">
-                        <video src={uploadPreviewUrl} controls className="w-full h-full object-contain" />
-                      </div>
-                      <button
-                        onClick={handleRemoveFile}
-                        className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-                      >
-                        <X className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
+                  
+                  {/* Mode Toggle */}
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode("upload")}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                        uploadMode === "upload"
+                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a]"
+                      }`}
+                    >
+                      📤 Upload New
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadMode("vault");
+                        if (profileId && profileId !== "all" && vaultItems.length === 0) {
+                          fetchVaultItems();
+                        }
+                      }}
+                      disabled={!profileId || profileId === "all"}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                        uploadMode === "vault"
+                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
+                      }`}
+                    >
+                      🗄️ From Vault
+                    </button>
+                  </div>
+
+                  {uploadMode === "upload" ? (
+                    <>
+                      {/* Upload mode - show preview or upload interface */}
+                      {selectedVaultItem || uploadPreviewUrl ? (
+                        <div className="relative">
+                          <div className="relative h-64 bg-black rounded-lg overflow-hidden">
+                            <video 
+                              src={selectedVaultItem?.awsS3Url || uploadPreviewUrl || ''} 
+                              controls 
+                              className="w-full h-full object-contain" 
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveFile}
+                            className="absolute top-2 right-2 p-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors z-10"
+                          >
+                            <XCircle className="w-5 h-5 text-white" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="block w-full p-8 border-2 border-dashed border-[#2a2a2a] rounded-lg hover:border-purple-500 transition-colors cursor-pointer">
+                          <input
+                            type="file"
+                            accept="video/*"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                          />
+                          <div className="text-center">
+                            <Upload className="w-12 h-12 text-gray-500 mx-auto mb-2" />
+                            <p className="text-sm text-gray-400">Click to upload video</p>
+                            <p className="text-xs text-gray-500 mt-1">MP4, MOV, WebM (max 50MB)</p>
+                          </div>
+                        </label>
+                      )}
+                    </>
                   ) : (
-                    <label className="block w-full p-8 border-2 border-dashed border-[#2a2a2a] rounded-lg hover:border-purple-500 transition-colors cursor-pointer">
-                      <input
-                        type="file"
-                        accept="video/*"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                      />
-                      <div className="text-center">
-                        <Upload className="w-12 h-12 text-gray-500 mx-auto mb-2" />
-                        <p className="text-sm text-gray-400">Click to upload video</p>
-                        <p className="text-xs text-gray-500 mt-1">MP4, MOV, WebM (max 50MB)</p>
+                    <>
+                      {/* Vault mode - show vault items */}
+                      <div className="bg-[#1a1a1a] rounded-xl border-2 border-[#2a2a2a] p-4 max-h-[400px] overflow-y-auto">
+                        {loadingVault ? (
+                          <div className="flex items-center justify-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                          </div>
+                        ) : vaultItems.filter(item => item.fileType.startsWith('video/')).length === 0 ? (
+                          <div className="text-center py-12 text-gray-500">
+                            <p>No video items found for this profile</p>
+                            <p className="text-sm mt-2">Upload videos to your vault first</p>
+                          </div>
+                        ) : selectedVaultItem ? (
+                          <div className="relative flex items-center justify-center">
+                            <video
+                              src={selectedVaultItem.awsS3Url}
+                              className="max-w-full max-h-[350px] w-auto h-auto rounded-lg"
+                              controls
+                              style={{ objectFit: 'contain' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedVaultItem(null);
+                                setUploadPreviewUrl(null);
+                              }}
+                              className="absolute top-2 right-2 p-2 bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
+                            >
+                              <X className="w-5 h-5 text-white" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-3">
+                            {vaultItems.filter(item => item.fileType.startsWith('video/')).map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => handleSelectVaultItem(item)}
+                                className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-purple-500 transition-all group"
+                              >
+                                <video
+                                  src={item.awsS3Url}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                  <VideoIcon className="w-8 h-8 text-white" />
+                                </div>
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <p className="absolute bottom-1 left-1 right-1 text-xs text-white truncate">
+                                    {item.fileName}
+                                  </p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </label>
+                    </>
                   )}
                 </div>
 
@@ -804,13 +1008,198 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
                 {/* Caption */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Caption</label>
-                  <textarea
-                    value={formData.caption}
-                    onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
-                    placeholder="Write your caption..."
-                    rows={3}
-                    className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-gray-500 resize-none"
-                  />
+                  
+                  {/* Caption Mode Toggle */}
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setCaptionMode("custom")}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                        captionMode === "custom"
+                          ? "bg-blue-600 text-white"
+                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#333]"
+                      }`}
+                    >
+                      ✍️ Write Your Own
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCaptionMode("bank")}
+                      className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
+                        captionMode === "bank"
+                          ? "bg-purple-600 text-white"
+                          : "bg-[#2a2a2a] text-gray-400 hover:bg-[#333]"
+                      }`}
+                    >
+                      🏦 Select from Bank
+                    </button>
+                  </div>
+
+                  {captionMode === "custom" ? (
+                    <textarea
+                      value={formData.caption}
+                      onChange={(e) => setFormData({ ...formData, caption: e.target.value })}
+                      placeholder="Write your caption..."
+                      rows={3}
+                      className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-gray-500 resize-none"
+                    />
+                  ) : (
+                    <div className="space-y-3">
+                      {/* Search and Filters */}
+                      <div className="bg-[#2a2a2a] rounded-xl border-2 border-[#3a3a3a] p-4 space-y-3">
+                        <input
+                          type="text"
+                          placeholder="🔍 Search captions..."
+                          value={captionSearchQuery}
+                          onChange={(e) => setCaptionSearchQuery(e.target.value)}
+                          className="w-full px-4 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white focus:outline-none focus:border-purple-500"
+                        />
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <select
+                            value={captionCategoryFilter}
+                            onChange={(e) => setCaptionCategoryFilter(e.target.value)}
+                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                          >
+                            <option value="All">All Categories</option>
+                            <option value="Dick rating">Dick rating</option>
+                            <option value="Solo DILDO">Solo DILDO</option>
+                            <option value="Solo FINGERS">Solo FINGERS</option>
+                            <option value="Solo VIBRATOR">Solo VIBRATOR</option>
+                            <option value="JOI">JOI</option>
+                            <option value="Squirting">Squirting</option>
+                            <option value="Cream Pie">Cream Pie</option>
+                            <option value="BG">BG</option>
+                            <option value="BJ">BJ</option>
+                            <option value="GG">GG</option>
+                            <option value="GGG">GGG</option>
+                            <option value="BGG">BGG</option>
+                            <option value="BBG">BBG</option>
+                            <option value="ORGY">ORGY</option>
+                            <option value="ANAL butt plug">ANAL butt plug</option>
+                            <option value="Anal SOLO">Anal SOLO</option>
+                            <option value="Anal BG">Anal BG</option>
+                            <option value="Lives">Lives</option>
+                          </select>
+
+                          <select
+                            value={captionTypeFilter}
+                            onChange={(e) => setCaptionTypeFilter(e.target.value)}
+                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                          >
+                            <option value="All">All Types</option>
+                            <option value="Bundle Unlocks">Bundle Unlocks</option>
+                            <option value="Tip Me">Tip Me</option>
+                            <option value="BIO">BIO</option>
+                            <option value="VIP GIFT">VIP GIFT</option>
+                            <option value="Short Unlocks">Short Unlocks</option>
+                            <option value="Solo Unlocks">Solo Unlocks</option>
+                            <option value="Follow up Normal">Follow up Normal</option>
+                            <option value="Mass Message Bumps">Mass Message Bumps</option>
+                            <option value="Wall Bumps">Wall Bumps</option>
+                            <option value="DM Funnels">DM Funnels</option>
+                            <option value="GIF Bumps">GIF Bumps</option>
+                            <option value="Renew On">Renew On</option>
+                            <option value="VIP Post">VIP Post</option>
+                            <option value="Link Drop">Link Drop</option>
+                            <option value="Live Streams">Live Streams</option>
+                            <option value="Live Mass Message">Live Mass Message</option>
+                            <option value="Holiday Unlocks">Holiday Unlocks</option>
+                            <option value="Live Preview">Live Preview</option>
+                            <option value="Games">Games</option>
+                            <option value="New Sub Promo">New Sub Promo</option>
+                            <option value="Winner Unlocks">Winner Unlocks</option>
+                            <option value="Descriptive">Descriptive</option>
+                            <option value="OTP Style">OTP Style</option>
+                            <option value="List Unlocks">List Unlocks</option>
+                            <option value="Model Specific">Model Specific</option>
+                            <option value="SOP">SOP</option>
+                            <option value="Holiday Non-PPV">Holiday Non-PPV</option>
+                            <option value="Timebound">Timebound</option>
+                            <option value="Follow Up Incentives">Follow Up Incentives</option>
+                            <option value="Collab">Collab</option>
+                            <option value="Tip Me Post">Tip Me Post</option>
+                            <option value="Tip Me CTA">Tip Me CTA</option>
+                            <option value="MM Renew">MM Renew</option>
+                            <option value="Renew Post">Renew Post</option>
+                            <option value="Porn Post">Porn Post</option>
+                            <option value="1 Person Tip Campaign">1 Person Tip Campaign</option>
+                            <option value="VIP Membership">VIP Membership</option>
+                            <option value="DM Funnel (GF)">DM Funnel (GF)</option>
+                            <option value="Expired Sub Promo">Expired Sub Promo</option>
+                          </select>
+
+                          <select
+                            value={captionBankFilter}
+                            onChange={(e) => setCaptionBankFilter(e.target.value)}
+                            className="px-3 py-2 bg-[#1a1a1a] border-2 border-[#3a3a3a] rounded-lg text-white text-sm focus:outline-none focus:border-purple-500"
+                          >
+                            <option value="All">All Banks</option>
+                            <option value="Main Porn Caption Bank">Main Porn Caption Bank</option>
+                            <option value="Post Generation Caption Bank">Post Generation Caption Bank</option>
+                            <option value="High Sales Caption">High Sales Caption</option>
+                            <option value="Better Bump Bank">Better Bump Bank</option>
+                            <option value="Custom">Custom</option>
+                            <option value="Borrowed Captions">Borrowed Captions</option>
+                            <option value="CST - Post Generation Harvest Caption Bank">CST - Post Generation Harvest Caption Bank</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Captions List */}
+                      <div className="bg-[#2a2a2a] rounded-xl border-2 border-[#3a3a3a] max-h-[300px] overflow-y-auto">
+                        {loadingCaptions ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                          </div>
+                        ) : (() => {
+                          const filteredCaptions = availableCaptions.filter((caption) => {
+                            const matchesSearch = caption.caption.toLowerCase().includes(captionSearchQuery.toLowerCase());
+                            const matchesCategory = captionCategoryFilter === "All" || caption.captionCategory === captionCategoryFilter;
+                            const matchesType = captionTypeFilter === "All" || caption.captionTypes === captionTypeFilter;
+                            const matchesBank = captionBankFilter === "All" || caption.captionBanks === captionBankFilter;
+                            return matchesSearch && matchesCategory && matchesType && matchesBank;
+                          });
+
+                          return filteredCaptions.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                              <p>No captions found</p>
+                              <p className="text-sm mt-1">Try adjusting your filters</p>
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-[#3a3a3a]">
+                              {filteredCaptions.map((caption: any) => (
+                                <button
+                                  key={caption.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData({ ...formData, caption: caption.caption });
+                                    setCaptionMode("custom");
+                                  }}
+                                  className="w-full text-left px-4 py-3 hover:bg-[#333] transition-colors"
+                                >
+                                  <div className="text-white text-sm line-clamp-2 mb-2">
+                                    {caption.caption}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <span className="text-xs px-2 py-1 bg-blue-600/20 text-blue-400 rounded">
+                                      {caption.captionCategory}
+                                    </span>
+                                    <span className="text-xs px-2 py-1 bg-purple-600/20 text-purple-400 rounded">
+                                      {caption.captionTypes}
+                                    </span>
+                                    <span className="text-xs px-2 py-1 bg-pink-600/20 text-pink-400 rounded">
+                                      {caption.captionBanks}
+                                    </span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Hashtags */}

@@ -14,51 +14,63 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { clerkId, email } = body;
+    const { profileId, senderProfileId } = body;
 
-    // Get the current user's database ID
-    const currentUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'Profile ID is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!senderProfileId) {
+      return NextResponse.json(
+        { error: 'Sender profile ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify sender profile belongs to current user
+    const senderProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: senderProfileId,
+        clerkId: userId,
+      },
     });
 
-    if (!currentUser) {
+    if (!senderProfile) {
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'Sender profile not found or unauthorized' },
         { status: 404 }
       );
     }
 
-    // Find the target user by clerkId or email
-    let targetUser;
-    if (clerkId) {
-      targetUser = await prisma.user.findUnique({
-        where: { clerkId },
-        select: { id: true, clerkId: true, email: true, firstName: true, lastName: true },
-      });
-    } else if (email) {
-      targetUser = await prisma.user.findFirst({
-        where: {
-          email: {
-            equals: email,
-            mode: 'insensitive',
+    // Find the target profile
+    const targetProfile = await prisma.instagramProfile.findUnique({
+      where: { id: profileId },
+      include: {
+        user: {
+          select: {
+            clerkId: true,
+            email: true,
+            firstName: true,
+            lastName: true,
           },
         },
-        select: { id: true, clerkId: true, email: true, firstName: true, lastName: true },
-      });
-    }
+      },
+    });
 
-    if (!targetUser) {
+    if (!targetProfile) {
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'Profile not found' },
         { status: 404 }
       );
     }
 
-    // Check if trying to add themselves
-    if (targetUser.id === currentUser.id) {
+    // Check if trying to add the same profile
+    if (targetProfile.id === senderProfile.id) {
       return NextResponse.json(
-        { error: 'You cannot send a friend request to yourself' },
+        { error: 'You cannot send a friend request to the same profile' },
         { status: 400 }
       );
     }
@@ -68,12 +80,12 @@ export async function POST(request: NextRequest) {
       where: {
         OR: [
           {
-            sender: { id: currentUser.id },
-            receiver: { id: targetUser.id },
+            senderProfileId: senderProfile.id,
+            receiverProfileId: targetProfile.id,
           },
           {
-            sender: { id: targetUser.id },
-            receiver: { id: currentUser.id },
+            senderProfileId: targetProfile.id,
+            receiverProfileId: senderProfile.id,
           },
         ],
       },
@@ -82,7 +94,7 @@ export async function POST(request: NextRequest) {
     if (existingFriendship) {
       if (existingFriendship.status === 'ACCEPTED') {
         return NextResponse.json(
-          { error: 'You are already friends with this user' },
+          { error: 'These profiles are already friends' },
           { status: 400 }
         );
       } else if (existingFriendship.status === 'PENDING') {
@@ -95,8 +107,8 @@ export async function POST(request: NextRequest) {
         await prisma.friendship.update({
           where: { id: existingFriendship.id },
           data: {
-            sender: { connect: { id: currentUser.id } },
-            receiver: { connect: { id: targetUser.id } },
+            senderProfile: { connect: { id: senderProfile.id } },
+            receiverProfile: { connect: { id: targetProfile.id } },
             status: 'PENDING',
             updatedAt: new Date(),
           },
@@ -111,18 +123,21 @@ export async function POST(request: NextRequest) {
     // Create new friend request
     const friendship = await prisma.friendship.create({
       data: {
-        sender: { connect: { id: currentUser.id } },
-        receiver: { connect: { id: targetUser.id } },
+        senderProfile: { connect: { id: senderProfile.id } },
+        receiverProfile: { connect: { id: targetProfile.id } },
         status: 'PENDING',
       },
       include: {
-        receiver: {
-          select: {
-            clerkId: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            imageUrl: true,
+        receiverProfile: {
+          include: {
+            user: {
+              select: {
+                clerkId: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },

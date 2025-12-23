@@ -19,22 +19,16 @@ export async function DELETE(
 
     const { requestId } = await params;
 
-    // Get the current user's database ID
-    const currentUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
-    });
-
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
     // Find the friend request
     const friendRequest = await prisma.friendship.findUnique({
       where: { id: requestId },
+      include: {
+        senderProfile: {
+          select: {
+            clerkId: true,
+          },
+        },
+      },
     });
 
     if (!friendRequest) {
@@ -44,8 +38,8 @@ export async function DELETE(
       );
     }
 
-    // Check if the current user is the sender
-    if (friendRequest.senderId !== currentUser.id) {
+    // Check if the current user owns the sender profile
+    if (friendRequest.senderProfile.clerkId !== userId) {
       return NextResponse.json(
         { error: 'You can only cancel requests you sent' },
         { status: 403 }

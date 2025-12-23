@@ -1,14 +1,18 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/database";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Get profileId from query params
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('profileId');
 
     // Find the user in the database
     const user = await prisma.user.findUnique({
@@ -19,9 +23,28 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Get all bookmarked posts
+    // Verify profile belongs to user if profileId is provided
+    if (profileId) {
+      const profile = await prisma.instagramProfile.findFirst({
+        where: {
+          id: profileId,
+          clerkId: userId,
+        },
+      });
+
+      if (!profile) {
+        return NextResponse.json(
+          { error: "Profile not found or unauthorized" },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Get all bookmarked posts for the profile
     const bookmarks = await prisma.feedPostBookmark.findMany({
-      where: {
+      where: profileId ? {
+        profileId,
+      } : {
         userId: user.id,
       },
       include: {
@@ -38,13 +61,25 @@ export async function GET() {
                 imageUrl: true,
               },
             },
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                instagramUsername: true,
+                profileImageUrl: true,
+              },
+            },
             likes: {
-              where: {
+              where: profileId ? {
+                profileId,
+              } : {
                 userId: user.id,
               },
             },
             bookmarks: {
-              where: {
+              where: profileId ? {
+                profileId,
+              } : {
                 userId: user.id,
               },
             },
@@ -63,13 +98,37 @@ export async function GET() {
     });
 
     // Transform to match the feed post format
-    const posts = bookmarks.map((bookmark) => ({
-      ...bookmark.post,
-      isLiked: bookmark.post.likes.length > 0,
-      isBookmarked: bookmark.post.bookmarks.length > 0,
-      likeCount: bookmark.post._count.likes,
-      commentCount: bookmark.post._count.comments,
-    }));
+    // Use profile info if available, otherwise use user info
+    const posts = bookmarks.map((bookmark) => {
+      const post = bookmark.post;
+      const displayUser = post.profile ? {
+        id: post.profile.id,
+        firstName: post.profile.name,
+        lastName: '',
+        username: post.profile.instagramUsername || '',
+        imageUrl: post.profile.profileImageUrl || '/default-profile.png',
+        email: '',
+        clerkId: '',
+      } : post.user;
+
+      return {
+        id: post.id,
+        userId: post.userId,
+        user: displayUser,
+        imageUrls: post.imageUrls,
+        mediaType: post.mediaType,
+        caption: post.caption,
+        likes: post._count.likes,
+        comments: post._count.comments,
+        createdAt: post.createdAt.toISOString(),
+        liked: post.likes.length > 0,
+        bookmarked: post.bookmarks.length > 0,
+        isLiked: post.likes.length > 0,
+        isBookmarked: post.bookmarks.length > 0,
+        likeCount: post._count.likes,
+        commentCount: post._count.comments,
+      };
+    });
 
     return NextResponse.json(posts);
   } catch (error) {

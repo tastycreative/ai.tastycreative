@@ -128,6 +128,24 @@ export async function POST(request: NextRequest) {
     
     const contentId = `STORY-${year}${month}${day}-${String(existingStoriesCount + 1).padStart(3, '0')}`;
 
+    // Check if a slot already exists for this time
+    const existingSlot = await prisma.storyPlanningSlot.findUnique({
+      where: {
+        clerkId_profileId_timeSlot: {
+          clerkId: user.id,
+          profileId: profileId || null,
+          timeSlot: timeSlotDate,
+        },
+      },
+    });
+
+    if (existingSlot) {
+      return NextResponse.json(
+        { error: "A story slot already exists for this time. Please choose a different time or edit the existing slot." },
+        { status: 409 }
+      );
+    }
+
     // Create story slot (pipeline item will be created when marked as posted)
     const slot = await prisma.storyPlanningSlot.create({
       data: {

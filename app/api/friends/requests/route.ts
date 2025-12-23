@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-// GET - Fetch pending friend requests
+// GET - Fetch pending friend requests for a profile
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -16,36 +16,48 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || 'received'; // 'received' or 'sent'
+    const profileId = searchParams.get('profileId');
 
-    // Get the current user's database ID
-    const currentUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'Profile ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify the profile belongs to the current user
+    const profile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        clerkId: userId,
+      },
     });
 
-    if (!currentUser) {
+    if (!profile) {
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'Profile not found or unauthorized' },
         { status: 404 }
       );
     }
 
     if (type === 'sent') {
-      // Get all pending friend requests sent by the user
+      // Get all pending friend requests sent by this profile
       const sentRequests = await prisma.friendship.findMany({
         where: {
-          senderId: currentUser.id,
+          senderProfileId: profileId,
           status: 'PENDING',
         },
         include: {
-          receiver: {
-            select: {
-              id: true,
-              clerkId: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-              imageUrl: true,
+          receiverProfile: {
+            include: {
+              user: {
+                select: {
+                  clerkId: true,
+                  email: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
             },
           },
         },
@@ -56,37 +68,44 @@ export async function GET(request: NextRequest) {
 
       const formattedRequests = sentRequests.map((request) => ({
         id: request.id,
-        fromUserId: request.senderId,
-        toUserId: request.receiverId,
+        fromProfileId: request.senderProfileId,
+        toProfileId: request.receiverProfileId,
         status: request.status,
         createdAt: request.createdAt,
-        toUser: {
-          clerkId: request.receiver.clerkId,
-          email: request.receiver.email,
-          firstName: request.receiver.firstName,
-          lastName: request.receiver.lastName,
-          imageUrl: request.receiver.imageUrl,
+        toProfile: {
+          id: request.receiverProfile.id,
+          name: request.receiverProfile.name,
+          instagramUsername: request.receiverProfile.instagramUsername,
+          profileImageUrl: request.receiverProfile.profileImageUrl,
+          user: {
+            clerkId: request.receiverProfile.user.clerkId,
+            email: request.receiverProfile.user.email,
+            firstName: request.receiverProfile.user.firstName,
+            lastName: request.receiverProfile.user.lastName,
+          },
         },
       }));
 
       return NextResponse.json(formattedRequests);
     }
 
-    // Get all pending friend requests received by the user
+    // Get all pending friend requests received by this profile
     const friendRequests = await prisma.friendship.findMany({
       where: {
-        receiverId: currentUser.id,
+        receiverProfileId: profileId,
         status: 'PENDING',
       },
       include: {
-        sender: {
-          select: {
-            id: true,
-            clerkId: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            imageUrl: true,
+        senderProfile: {
+          include: {
+            user: {
+              select: {
+                clerkId: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },
@@ -98,16 +117,21 @@ export async function GET(request: NextRequest) {
     // Format the response
     const formattedRequests = friendRequests.map((request) => ({
       id: request.id,
-      fromUserId: request.senderId,
-      toUserId: request.receiverId,
+      fromProfileId: request.senderProfileId,
+      toProfileId: request.receiverProfileId,
       status: request.status,
       createdAt: request.createdAt,
-      fromUser: {
-        clerkId: request.sender.clerkId,
-        email: request.sender.email,
-        firstName: request.sender.firstName,
-        lastName: request.sender.lastName,
-        imageUrl: request.sender.imageUrl,
+      fromProfile: {
+        id: request.senderProfile.id,
+        name: request.senderProfile.name,
+        instagramUsername: request.senderProfile.instagramUsername,
+        profileImageUrl: request.senderProfile.profileImageUrl,
+        user: {
+          clerkId: request.senderProfile.user.clerkId,
+          email: request.senderProfile.user.email,
+          firstName: request.senderProfile.user.firstName,
+          lastName: request.senderProfile.user.lastName,
+        },
       },
     }));
 

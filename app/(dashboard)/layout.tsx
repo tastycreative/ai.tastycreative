@@ -60,6 +60,7 @@ export default function DashboardLayout({
   const [generateContentOpen, setGenerateContentOpen] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [trainModelsOpen, setTrainModelsOpen] = useState(false);
+  const [captionBanksOpen, setCaptionBanksOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -102,6 +103,11 @@ export default function DashboardLayout({
           icon: Share2,
         },
         {
+          name: "My Profile",
+          href: "/workspace/my-profile",
+          icon: UserCheck,
+        },
+        {
           name: "Friends",
           href: "/workspace/friends",
           icon: UserCheck,
@@ -112,9 +118,19 @@ export default function DashboardLayout({
           icon: Bookmark,
         },
         {
+          name: "Vault",
+          href: "/workspace/vault",
+          icon: Shield,
+        },
+        {
           name: "Instagram Staging",
           href: "/workspace/instagram-staging",
           icon: Share2,
+        },
+        {
+          name: "My Creators",
+          href: "/workspace/creators",
+          icon: Users,
         },
       ],
     },
@@ -240,6 +256,22 @@ export default function DashboardLayout({
       name: "AI Marketplace",
       href: "/workspace/ai-marketplace",
       icon: ShoppingBag,
+    },
+    {
+      name: "Caption Banks",
+      collapsible: true,
+      items: [
+        {
+          name: "Captions",
+          href: "/workspace/caption-banks/captions",
+          icon: FileText,
+        },
+        {
+          name: "Caption Performance Tracker",
+          href: "/workspace/caption-banks/caption-performance-tracker",
+          icon: BarChart3,
+        },
+      ],
     },
     // Conditionally add content creator link
     ...(isContentCreator
@@ -471,6 +503,7 @@ export default function DashboardLayout({
     const isGenerateContentSection = section.name === "Generate Content";
     const isAiToolsSection = section.name === "AI Tools";
     const isTrainModelsSection = section.name === "Train Models";
+    const isCaptionBanksSection = section.name === "Caption Banks";
 
     // Determine if section is expanded
     let isExpanded = true;
@@ -484,6 +517,8 @@ export default function DashboardLayout({
       isExpanded = aiToolsOpen;
     } else if (isTrainModelsSection) {
       isExpanded = trainModelsOpen;
+    } else if (isCaptionBanksSection) {
+      isExpanded = captionBanksOpen;
     }
 
     // Get the appropriate icon for the section
@@ -493,6 +528,7 @@ export default function DashboardLayout({
       if (isGenerateContentSection) return PlusCircle;
       if (isAiToolsSection) return Bot;
       if (isTrainModelsSection) return Settings;
+      if (isCaptionBanksSection) return FileText;
       return Users; // fallback
     };
 
@@ -510,6 +546,8 @@ export default function DashboardLayout({
         setAiToolsOpen(!aiToolsOpen);
       } else if (isTrainModelsSection) {
         setTrainModelsOpen(!trainModelsOpen);
+      } else if (isCaptionBanksSection) {
+        setCaptionBanksOpen(!captionBanksOpen);
       }
     };
 

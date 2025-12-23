@@ -15,6 +15,10 @@ export async function GET(
 
     const { postId } = await params;
 
+    // Get profileId from query params
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('profileId');
+
     // Get current user
     const currentUser = await prisma.user.findUnique({
       where: { clerkId },
@@ -41,8 +45,16 @@ export async function GET(
             imageUrl: true,
           },
         },
+        profile: {
+          select: {
+            id: true,
+            name: true,
+            instagramUsername: true,
+            profileImageUrl: true,
+          },
+        },
         likes: {
-          where: { userId: currentUser.id },
+          where: profileId ? { profileId } : { userId: currentUser.id },
           select: { id: true },
         },
         _count: {
@@ -63,8 +75,16 @@ export async function GET(
                 imageUrl: true,
               },
             },
+            profile: {
+              select: {
+                id: true,
+                name: true,
+                instagramUsername: true,
+                profileImageUrl: true,
+              },
+            },
             likes: {
-              where: { userId: currentUser.id },
+              where: profileId ? { profileId } : { userId: currentUser.id },
               select: { id: true },
             },
             _count: {
@@ -91,6 +111,7 @@ export async function GET(
       content: comment.content,
       createdAt: comment.createdAt.toISOString(),
       user: comment.user,
+      profile: comment.profile,
       liked: comment.likes.length > 0,
       likeCount: comment._count.likes,
       replyCount: comment._count.replies,
@@ -101,6 +122,7 @@ export async function GET(
         content: reply.content,
         createdAt: reply.createdAt.toISOString(),
         user: reply.user,
+        profile: reply.profile,
         liked: reply.likes.length > 0,
         likeCount: reply._count.likes,
         parentCommentId: reply.parentCommentId,
@@ -129,11 +151,18 @@ export async function POST(
     }
 
     const { postId } = await params;
-    const { content, parentCommentId } = await request.json();
+    const { content, parentCommentId, profileId } = await request.json();
 
     if (!content || !content.trim()) {
       return NextResponse.json(
         { error: 'Comment content is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'Profile ID is required' },
         { status: 400 }
       );
     }
@@ -147,11 +176,27 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Verify the profile belongs to the user
+    const profile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        clerkId,
+      },
+    });
+
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Profile not found or unauthorized' },
+        { status: 404 }
+      );
+    }
+
     // Create comment
     const comment = await prisma.feedPostComment.create({
       data: {
         postId,
         userId: currentUser.id,
+        profileId: profileId,
         content: content.trim(),
         parentCommentId: parentCommentId || null,
       },
@@ -164,6 +209,14 @@ export async function POST(
             lastName: true,
             username: true,
             imageUrl: true,
+          },
+        },
+        profile: {
+          select: {
+            id: true,
+            name: true,
+            instagramUsername: true,
+            profileImageUrl: true,
           },
         },
         _count: {
@@ -191,6 +244,7 @@ export async function POST(
       content: comment.content,
       createdAt: comment.createdAt.toISOString(),
       user: comment.user,
+      profile: comment.profile,
       liked: false,
       likeCount: comment._count.likes,
       replyCount: comment._count.replies,

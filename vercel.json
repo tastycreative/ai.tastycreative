@@ -3,6 +3,10 @@
     {
       "path": "/api/instagram/cron",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/post-scheduled-feeds",
+      "schedule": "* * * * *"
     }
   ],
   "functions": {

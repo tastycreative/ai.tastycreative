@@ -26,47 +26,62 @@ import { toast } from "sonner";
 // Types
 interface Friend {
   id: string;
-  userId: string;
-  friendId: string;
+  profileId: string;
+  friendProfileId: string;
   status: "pending" | "accepted" | "rejected";
   createdAt: string;
   updatedAt: string;
-  friend: {
-    clerkId: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    imageUrl?: string;
+  friendProfile: {
+    id: string;
+    name: string;
+    instagramUsername: string | null;
+    profileImageUrl: string | null;
+    user: {
+      clerkId: string;
+      email: string | null;
+      firstName: string | null;
+      lastName: string | null;
+    };
   };
 }
 
 interface FriendRequest {
   id: string;
-  fromUserId: string;
-  toUserId: string;
+  fromProfileId: string;
+  toProfileId: string;
   status: "pending" | "accepted" | "rejected";
   createdAt: string;
-  fromUser: {
-    clerkId: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    imageUrl?: string;
+  fromProfile: {
+    id: string;
+    name: string;
+    instagramUsername: string | null;
+    profileImageUrl: string | null;
+    user: {
+      clerkId: string;
+      email: string | null;
+      firstName: string | null;
+      lastName: string | null;
+    };
   };
 }
 
 interface SentRequest {
   id: string;
-  fromUserId: string;
-  toUserId: string;
+  fromProfileId: string;
+  toProfileId: string;
   status: "pending" | "accepted" | "rejected";
   createdAt: string;
-  toUser: {
-    clerkId: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    imageUrl?: string;
+  toProfile: {
+    id: string;
+    name: string;
+    instagramUsername: string | null;
+    profileImageUrl: string | null;
+    user: {
+      clerkId: string;
+      email: string | null;
+      firstName: string | null;
+      lastName: string | null;
+    };
   };
 }
 
@@ -80,11 +95,32 @@ interface UserSearchResult {
   imageUrl?: string | null;
 }
 
+interface ProfileSearchResult {
+  id: string;
+  name: string;
+  instagramUsername: string | null;
+  profileImageUrl: string | null;
+  clerkId: string;
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+  };
+}
+
 const tabs = [
   { id: "friends", label: "My Friends", icon: Users, countKey: "friends" },
   { id: "requests", label: "Friend Requests", icon: Mail, countKey: "requests" },
   { id: "add", label: "Add Friend", icon: UserPlus },
 ];
+
+interface InstagramProfile {
+  id: string;
+  name: string;
+  instagramUsername: string | null;
+  profileImageUrl: string | null;
+  isDefault: boolean;
+}
 
 function FriendsPageContent() {
   const searchParams = useSearchParams();
@@ -97,10 +133,54 @@ function FriendsPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [emailInput, setEmailInput] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [profileSearchResults, setProfileSearchResults] = useState<ProfileSearchResult[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [sendingRequest, setSendingRequest] = useState(false);
   const apiClient = useApiClient();
   const { userId } = useAuth();
+  
+  // Profile selection state
+  const [creatorProfiles, setCreatorProfiles] = useState<InstagramProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [loadingProfiles, setLoadingProfiles] = useState(true);
+
+  // Load creator profiles
+  useEffect(() => {
+    const fetchProfiles = async () => {
+      try {
+        setLoadingProfiles(true);
+        const response = await fetch("/api/instagram/profiles");
+        if (response.ok) {
+          const data = await response.json();
+          const profiles = Array.isArray(data) ? data : data.profiles || [];
+          setCreatorProfiles(profiles);
+          
+          // Set selected profile from localStorage or first profile
+          const savedProfileId = localStorage.getItem('selectedFriendsProfileId');
+          if (savedProfileId && profiles.some((p: InstagramProfile) => p.id === savedProfileId)) {
+            setSelectedProfileId(savedProfileId);
+          } else if (profiles.length > 0) {
+            setSelectedProfileId(profiles[0].id);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching profiles:", error);
+      } finally {
+        setLoadingProfiles(false);
+      }
+    };
+
+    if (userId) {
+      fetchProfiles();
+    }
+  }, [userId]);
+
+  // Save selected profile to localStorage
+  useEffect(() => {
+    if (selectedProfileId) {
+      localStorage.setItem('selectedFriendsProfileId', selectedProfileId);
+    }
+  }, [selectedProfileId]);
 
   // Update active tab when URL parameter changes
   useEffect(() => {
@@ -109,23 +189,29 @@ function FriendsPageContent() {
     }
   }, [tabParam]);
 
-  // Load friends and requests
+  // Load friends and requests when profile is selected
   useEffect(() => {
-    if (userId) {
+    if (userId && selectedProfileId) {
       loadFriends();
       loadFriendRequests();
       loadSentRequests();
     }
-  }, [userId]);
+  }, [userId, selectedProfileId]);
 
   const loadFriends = async () => {
+    if (!selectedProfileId) return;
+    
     try {
       setLoading(true);
-      const response = await fetch("/api/friends");
+      console.log("Loading friends for profile:", selectedProfileId);
+      const response = await fetch(`/api/friends?profileId=${selectedProfileId}`);
       if (response.ok) {
         const data = await response.json();
+        console.log("Friends loaded:", data);
         setFriends(data);
       } else {
+        const error = await response.json();
+        console.error("Failed to load friends:", error);
         toast.error("Failed to load friends");
       }
     } catch (error) {
@@ -137,8 +223,10 @@ function FriendsPageContent() {
   };
 
   const loadFriendRequests = async () => {
+    if (!selectedProfileId) return;
+    
     try {
-      const response = await fetch("/api/friends/requests");
+      const response = await fetch(`/api/friends/requests?profileId=${selectedProfileId}`);
       if (response.ok) {
         const data = await response.json();
         setFriendRequests(data);
@@ -149,8 +237,10 @@ function FriendsPageContent() {
   };
 
   const loadSentRequests = async () => {
+    if (!selectedProfileId) return;
+    
     try {
-      const response = await fetch("/api/friends/requests?type=sent");
+      const response = await fetch(`/api/friends/requests?type=sent&profileId=${selectedProfileId}`);
       if (response.ok) {
         const data = await response.json();
         setSentRequests(data);
@@ -213,27 +303,67 @@ function FriendsPageContent() {
     }
   };
 
+  const handleSendFriendRequestToProfile = async (profile: ProfileSearchResult) => {
+    try {
+      if (!selectedProfileId) {
+        toast.error("Please select a profile first");
+        return;
+      }
+
+      setSendingRequest(true);
+      const response = await fetch("/api/friends/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          profileId: profile.id,
+          senderProfileId: selectedProfileId 
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(
+          `Friend request sent to @${profile.instagramUsername || profile.name}!`
+        );
+        // Remove profile from search results after sending request
+        setProfileSearchResults(
+          profileSearchResults.filter((p) => p.id !== profile.id)
+        );
+      } else {
+        toast.error(data.error || "Failed to send friend request");
+      }
+    } catch (error: any) {
+      console.error("Error sending friend request:", error);
+      toast.error("Failed to send friend request");
+    } finally {
+      setSendingRequest(false);
+    }
+  };
+
   const handleSearchUsers = async (query: string) => {
     if (!query.trim() || query.trim().length < 2) {
-      setSearchResults([]);
+      setProfileSearchResults([]);
       return;
     }
 
     try {
       setSearchingUsers(true);
-      const response = await fetch(
-        `/api/users/search?q=${encodeURIComponent(query.trim())}`
-      );
+      const url = selectedProfileId 
+        ? `/api/instagram/profiles/search?q=${encodeURIComponent(query.trim())}&excludeProfileId=${selectedProfileId}`
+        : `/api/instagram/profiles/search?q=${encodeURIComponent(query.trim())}`;
+      
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setSearchResults(data);
+        setProfileSearchResults(data);
       } else {
-        setSearchResults([]);
+        setProfileSearchResults([]);
       }
     } catch (error: any) {
-      console.error("Error searching users:", error);
-      toast.error("Failed to search users");
-      setSearchResults([]);
+      console.error("Error searching profiles:", error);
+      toast.error("Failed to search profiles");
+      setProfileSearchResults([]);
     } finally {
       setSearchingUsers(false);
     }
@@ -324,9 +454,11 @@ function FriendsPageContent() {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
-      friend.friend.email.toLowerCase().includes(query) ||
-      friend.friend.firstName?.toLowerCase().includes(query) ||
-      friend.friend.lastName?.toLowerCase().includes(query)
+      friend.friendProfile.name.toLowerCase().includes(query) ||
+      friend.friendProfile.instagramUsername?.toLowerCase().includes(query) ||
+      friend.friendProfile.user.email?.toLowerCase().includes(query) ||
+      friend.friendProfile.user.firstName?.toLowerCase().includes(query) ||
+      friend.friendProfile.user.lastName?.toLowerCase().includes(query)
     );
   });
 
@@ -382,28 +514,30 @@ function FriendsPageContent() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
-                        {friend.friend.imageUrl ? (
+                        {friend.friendProfile.profileImageUrl ? (
                           <img
-                            src={friend.friend.imageUrl}
-                            alt={friend.friend.firstName || friend.friend.email}
+                            src={friend.friendProfile.profileImageUrl}
+                            alt={friend.friendProfile.name}
                             className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover"
                           />
                         ) : (
                           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                             <span className="text-white text-sm sm:text-base font-semibold">
-                              {friend.friend.firstName?.[0] ||
-                                friend.friend.email[0].toUpperCase()}
+                              {friend.friendProfile.name?.[0]?.toUpperCase() || "?"}
                             </span>
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
                           <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
-                            {friend.friend.firstName && friend.friend.lastName
-                              ? `${friend.friend.firstName} ${friend.friend.lastName}`
-                              : friend.friend.email}
+                            {friend.friendProfile.name}
                           </h4>
                           <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
-                            {friend.friend.email}
+                            @{friend.friendProfile.instagramUsername || "No username"}
+                          </p>
+                          <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 truncate">
+                            {friend.friendProfile.user.firstName && friend.friendProfile.user.lastName
+                              ? `${friend.friendProfile.user.firstName} ${friend.friendProfile.user.lastName}`
+                              : friend.friendProfile.user.email}
                           </p>
                         </div>
                       </div>
@@ -464,32 +598,30 @@ function FriendsPageContent() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          {request.fromUser.imageUrl ? (
+                          {request.fromProfile.profileImageUrl ? (
                             <img
-                              src={request.fromUser.imageUrl}
-                              alt={
-                                request.fromUser.firstName ||
-                                request.fromUser.email
-                              }
+                              src={request.fromProfile.profileImageUrl}
+                              alt={request.fromProfile.name}
                               className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0"
                             />
                           ) : (
                             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                               <span className="text-white text-sm sm:text-base font-semibold">
-                                {request.fromUser.firstName?.[0] ||
-                                  request.fromUser.email[0].toUpperCase()}
+                                {request.fromProfile.name?.[0]?.toUpperCase() || "?"}
                               </span>
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
                             <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
-                              {request.fromUser.firstName &&
-                              request.fromUser.lastName
-                                ? `${request.fromUser.firstName} ${request.fromUser.lastName}`
-                                : request.fromUser.email}
+                              {request.fromProfile.name}
                             </h4>
                             <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
-                              {request.fromUser.email}
+                              @{request.fromProfile.instagramUsername || "No username"}
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 truncate">
+                              {request.fromProfile.user.firstName && request.fromProfile.user.lastName
+                                ? `${request.fromProfile.user.firstName} ${request.fromProfile.user.lastName}`
+                                : request.fromProfile.user.email}
                             </p>
                             <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1 mt-1">
                               <Clock className="w-3 h-3" />
@@ -552,31 +684,30 @@ function FriendsPageContent() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          {request.toUser.imageUrl ? (
+                          {request.toProfile.profileImageUrl ? (
                             <img
-                              src={request.toUser.imageUrl}
-                              alt={
-                                request.toUser.firstName || request.toUser.email
-                              }
+                              src={request.toProfile.profileImageUrl}
+                              alt={request.toProfile.name}
                               className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover flex-shrink-0"
                             />
                           ) : (
                             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center flex-shrink-0">
                               <span className="text-white text-sm sm:text-base font-semibold">
-                                {request.toUser.firstName?.[0] ||
-                                  request.toUser.email[0].toUpperCase()}
+                                {request.toProfile.name?.[0]?.toUpperCase() || "?"}
                               </span>
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
                             <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
-                              {request.toUser.firstName &&
-                              request.toUser.lastName
-                                ? `${request.toUser.firstName} ${request.toUser.lastName}`
-                                : request.toUser.email}
+                              {request.toProfile.name}
                             </h4>
                             <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
-                              {request.toUser.email}
+                              @{request.toProfile.instagramUsername || "No username"}
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 truncate">
+                              {request.toProfile.user.firstName && request.toProfile.user.lastName
+                                ? `${request.toProfile.user.firstName} ${request.toProfile.user.lastName}`
+                                : request.toProfile.user.email}
                             </p>
                             <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1 mt-1">
                               <Clock className="w-3 h-3" />
@@ -616,7 +747,7 @@ function FriendsPageContent() {
                     Add Friend
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                    Search by username
+                    Search by Instagram profile
                   </p>
                 </div>
               </div>
@@ -627,7 +758,7 @@ function FriendsPageContent() {
                     htmlFor="search"
                     className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                   >
-                    Search for Users
+                    Search Instagram Profiles
                   </label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5 z-10" />
@@ -639,7 +770,7 @@ function FriendsPageContent() {
                         setEmailInput(e.target.value);
                         handleSearchUsers(e.target.value);
                       }}
-                      placeholder="Search by username..."
+                      placeholder="Search by Instagram username or profile name..."
                       className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     />
                     {searchingUsers && (
@@ -648,66 +779,57 @@ function FriendsPageContent() {
 
                     {/* Search Results Dropdown */}
                     {emailInput.trim().length >= 2 && (
-                      <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-[300px] overflow-y-scroll">
+                      <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-[400px] overflow-y-scroll">
                         {searchingUsers ? (
                           <div className="flex items-center justify-center py-8">
                             <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
                           </div>
-                        ) : searchResults.length === 0 ? (
+                        ) : profileSearchResults.length === 0 ? (
                           <div className="text-center py-8">
                             <Users className="w-10 h-10 text-gray-400 mx-auto mb-2" />
                             <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                              No users found
+                              No Instagram profiles found
                             </p>
                           </div>
                         ) : (
                           <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {searchResults.map((user) => (
+                            {profileSearchResults.map((profile) => (
                               <div
-                                key={user.clerkId}
+                                key={profile.id}
                                 className="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    {user.imageUrl ? (
+                                    {profile.profileImageUrl ? (
                                       <img
-                                        src={user.imageUrl}
-                                        alt={
-                                          user.firstName || user.email || "User"
-                                        }
+                                        src={profile.profileImageUrl}
+                                        alt={profile.name}
                                         className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                                       />
                                     ) : (
                                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-white text-sm font-semibold">
-                                          {user.username?.[0]?.toUpperCase() ||
-                                            user.firstName?.[0] ||
-                                            user.email?.[0]?.toUpperCase() ||
-                                            "U"}
-                                        </span>
+                                        <Users className="w-5 h-5 text-white" />
                                       </div>
                                     )}
                                     <div className="flex-1 min-w-0">
                                       <h4 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white truncate">
-                                        {user.username ||
-                                          `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
-                                          user.email ||
-                                          "Unknown User"}
+                                        {profile.name}
                                       </h4>
-                                      {user.username &&
-                                        (user.firstName || user.lastName) && (
-                                          <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
-                                            {`${user.firstName || ""} ${user.lastName || ""}`.trim()}
-                                          </p>
-                                        )}
+                                      {profile.instagramUsername && (
+                                        <p className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400 truncate">
+                                          @{profile.instagramUsername}
+                                        </p>
+                                      )}
                                       <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 truncate">
-                                        {user.email || "No email"}
+                                        {profile.user.firstName && profile.user.lastName
+                                          ? `${profile.user.firstName} ${profile.user.lastName}`
+                                          : profile.user.email}
                                       </p>
                                     </div>
                                   </div>
                                   <button
                                     onClick={() =>
-                                      handleSendFriendRequestToUser(user)
+                                      handleSendFriendRequestToProfile(profile)
                                     }
                                     disabled={sendingRequest}
                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-[10px] sm:text-xs font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 flex-shrink-0"
@@ -757,6 +879,78 @@ function FriendsPageContent() {
   };
 
   return (
+    <div className="flex gap-6 h-full">
+      {/* Profile Selection Sidebar */}
+      <div className="w-80 flex-shrink-0 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-lg">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Profiles</h2>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Select a profile to manage friends</p>
+        </div>
+
+        {loadingProfiles ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+          </div>
+        ) : creatorProfiles.length === 0 ? (
+          <div className="text-center py-8">
+            <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">No profiles found</p>
+            <a
+              href="/workspace/creators"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all"
+            >
+              Create Profile
+            </a>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {creatorProfiles.map((profile) => (
+              <button
+                key={profile.id}
+                onClick={() => setSelectedProfileId(profile.id)}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
+                  selectedProfileId === profile.id
+                    ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md"
+                    : "bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-900/70"
+                }`}
+              >
+                {profile.profileImageUrl ? (
+                  <img
+                    src={profile.profileImageUrl}
+                    alt={profile.name}
+                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    selectedProfileId === profile.id
+                      ? "bg-white/20"
+                      : "bg-gradient-to-br from-blue-500 to-purple-600"
+                  }`}>
+                    <Users className={`w-5 h-5 ${
+                      selectedProfileId === profile.id ? "text-white" : "text-white"
+                    }`} />
+                  </div>
+                )}
+                <div className="flex-1 text-left min-w-0">
+                  <p className="font-medium text-sm truncate">{profile.name}</p>
+                  {profile.instagramUsername && (
+                    <p className={`text-xs truncate ${
+                      selectedProfileId === profile.id
+                        ? "text-white/80"
+                        : "text-gray-600 dark:text-gray-400"
+                    }`}>
+                      @{profile.instagramUsername}
+                    </p>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 min-w-0 space-y-3 sm:space-y-4">
     <div className="space-y-3 sm:space-y-4">
       {/* Header */}
       <div className="space-y-2 sm:space-y-3">
@@ -818,6 +1012,8 @@ function FriendsPageContent() {
         </div>
 
         <div className="p-4 sm:p-6">{renderTabContent()}</div>
+      </div>
+    </div>
       </div>
     </div>
   );
