@@ -14,6 +14,14 @@ export async function POST(
     }
 
     const { commentId } = await params;
+    const { profileId } = await request.json();
+
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'Profile ID is required' },
+        { status: 400 }
+      );
+    }
 
     // Get current user
     const currentUser = await prisma.user.findUnique({
@@ -24,11 +32,27 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Verify the profile belongs to the user
+    const profile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        clerkId,
+      },
+    });
+
+    if (!profile) {
+      return NextResponse.json(
+        { error: 'Profile not found or unauthorized' },
+        { status: 404 }
+      );
+    }
+
     // Create like
     await prisma.feedPostCommentLike.create({
       data: {
         commentId,
         userId: currentUser.id,
+        profileId,
       },
     });
 
@@ -63,6 +87,14 @@ export async function DELETE(
     }
 
     const { commentId } = await params;
+    const { profileId } = await request.json();
+
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'Profile ID is required' },
+        { status: 400 }
+      );
+    }
 
     // Get current user
     const currentUser = await prisma.user.findUnique({
@@ -77,7 +109,7 @@ export async function DELETE(
     await prisma.feedPostCommentLike.deleteMany({
       where: {
         commentId,
-        userId: currentUser.id,
+        profileId,
       },
     });
 

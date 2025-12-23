@@ -34,8 +34,6 @@ model User {
   notifications          Notification[]
   fluxKontextConversations FluxKontextConversation[]
   instagramProfiles      InstagramProfile[]
-  sentFriendRequests     Friendship[] @relation("SentFriendRequests")
-  receivedFriendRequests Friendship[] @relation("ReceivedFriendRequests")
   feedPosts              FeedPost[]
   feedPostLikes          FeedPostLike[]
   feedPostComments       FeedPostComment[]
@@ -552,11 +550,20 @@ model InstagramProfile {
   instagramAccountId   String?           // Instagram account ID for API
   instagramAccessToken String?           // Access token for this specific profile
   instagramTokenExpiry DateTime?         // Token expiry
+  profileImageUrl      String?           // Profile image URL
   isDefault            Boolean           @default(false) // Mark one profile as default
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   user                 User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   posts                InstagramPost[]
+  feedPosts            FeedPost[]        // Feed posts for this profile
+  sentFriendRequests     Friendship[] @relation("SentFriendRequests")
+  receivedFriendRequests Friendship[] @relation("ReceivedFriendRequests")
+  comments             FeedPostComment[] @relation("ProfileComments") // Comments made by this profile
+  postLikes            FeedPostLike[]    @relation("ProfilePostLikes") // Post likes made by this profile
+  commentLikes         FeedPostCommentLike[] @relation("ProfileCommentLikes") // Comment likes made by this profile
+  bookmarks            FeedPostBookmark[] @relation("ProfileBookmarks") // Bookmarks made by this profile
+  captions             Caption[]         // Captions for this profile
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
@@ -564,20 +571,20 @@ model InstagramProfile {
 }
 
 model Friendship {
-  id          String           @id @default(cuid())
-  senderId    String           // User who sent the request
-  receiverId  String           // User who received the request
-  status      FriendshipStatus @default(PENDING)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  sender      User             @relation("SentFriendRequests", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver    User             @relation("ReceivedFriendRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  id                String           @id @default(cuid())
+  senderProfileId   String           // Profile who sent the request
+  receiverProfileId String           // Profile who received the request
+  status            FriendshipStatus @default(PENDING)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  senderProfile     InstagramProfile @relation("SentFriendRequests", fields: [senderProfileId], references: [id], onDelete: Cascade)
+  receiverProfile   InstagramProfile @relation("ReceivedFriendRequests", fields: [receiverProfileId], references: [id], onDelete: Cascade)
 
-  @@unique([senderId, receiverId])
-  @@index([senderId])
-  @@index([receiverId])
-  @@index([senderId, status])
-  @@index([receiverId, status])
+  @@unique([senderProfileId, receiverProfileId])
+  @@index([senderProfileId])
+  @@index([receiverProfileId])
+  @@index([senderProfileId, status])
+  @@index([receiverProfileId, status])
   @@map("friendships")
 }
 
@@ -591,33 +598,40 @@ enum FriendshipStatus {
 model FeedPost {
   id        String              @id @default(cuid())
   userId    String
+  profileId String?             // Instagram profile this post belongs to
   imageUrls String[]            // Array of S3 or storage URLs for post images/videos
   mediaType String              @default("image") // 'image' or 'video'
   caption   String              @db.Text
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
   user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
   likes     FeedPostLike[]
   comments  FeedPostComment[]
   bookmarks FeedPostBookmark[]
 
   @@index([userId])
+  @@index([profileId])
   @@index([createdAt])
   @@index([userId, createdAt])
+  @@index([profileId, createdAt])
   @@map("feed_posts")
 }
 
 model FeedPostLike {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   postId    String
   userId    String
-  createdAt DateTime @default(now())
-  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId String            // Which profile made this like
+  createdAt DateTime          @default(now())
+  post      FeedPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile  @relation("ProfilePostLikes", fields: [profileId], references: [id], onDelete: Cascade)
 
-  @@unique([postId, userId])
+  @@unique([postId, profileId])
   @@index([postId])
   @@index([userId])
+  @@index([profileId])
   @@map("feed_post_likes")
 }
 
@@ -625,48 +639,57 @@ model FeedPostComment {
   id              String                  @id @default(cuid())
   postId          String
   userId          String
+  profileId       String?                 // Which profile made this comment
   content         String                  @db.Text
   parentCommentId String?                 // For nested replies
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
   post            FeedPost                @relation(fields: [postId], references: [id], onDelete: Cascade)
   user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile         InstagramProfile?       @relation("ProfileComments", fields: [profileId], references: [id], onDelete: SetNull)
   likes           FeedPostCommentLike[]
   parentComment   FeedPostComment?        @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
   replies         FeedPostComment[]       @relation("CommentReplies")
 
   @@index([postId])
   @@index([userId])
+  @@index([profileId])
   @@index([postId, createdAt])
   @@index([parentCommentId])
   @@map("feed_post_comments")
 }
 
 model FeedPostCommentLike {
-  id        String          @id @default(cuid())
+  id        String            @id @default(cuid())
   commentId String
   userId    String
-  createdAt DateTime        @default(now())
-  comment   FeedPostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId String            // Which profile made this like
+  createdAt DateTime          @default(now())
+  comment   FeedPostComment   @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile  @relation("ProfileCommentLikes", fields: [profileId], references: [id], onDelete: Cascade)
 
-  @@unique([commentId, userId])
+  @@unique([commentId, profileId])
   @@index([commentId])
   @@index([userId])
+  @@index([profileId])
   @@map("feed_post_comment_likes")
 }
 
 model FeedPostBookmark {
-  id        String   @id @default(cuid())
+  id        String            @id @default(cuid())
   postId    String
   userId    String
-  createdAt DateTime @default(now())
-  post      FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId String            // Which profile bookmarked this post
+  createdAt DateTime          @default(now())
+  post      FeedPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile  @relation("ProfileBookmarks", fields: [profileId], references: [id], onDelete: Cascade)
 
-  @@unique([postId, userId])
+  @@unique([postId, profileId])
   @@index([postId])
   @@index([userId])
+  @@index([profileId])
   @@map("feed_post_bookmarks")
 }
 
@@ -1055,4 +1078,64 @@ model HashtagSet {
   @@index([clerkId])
   @@index([clerkId, order])
   @@map("hashtag_sets")
+}
+
+// Vault Folder - Organize vault media by profile
+model VaultFolder {
+  id        String      @id @default(cuid())
+  clerkId   String
+  profileId String      // Instagram profile this folder belongs to
+  name      String      // Folder name
+  isDefault Boolean     @default(false) // Default "All Media" folder
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  items     VaultItem[] // Items in this folder
+
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([clerkId, profileId])
+  @@map("vault_folders")
+}
+
+// Vault Item - Media files stored in vault
+model VaultItem {
+  id        String      @id @default(cuid())
+  clerkId   String
+  profileId String      // Instagram profile this item belongs to
+  folderId  String      // Folder containing this item
+  fileName  String      // Original file name
+  fileType  String      // MIME type (image/*, video/*, audio/*)
+  fileSize  Int         // File size in bytes
+  awsS3Key  String      // S3 object key: vault/{clerkId}/{profileId}/{folderId}/{fileName}
+  awsS3Url  String      // Direct S3 URL
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  folder    VaultFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([folderId])
+  @@index([clerkId, profileId, folderId])
+  @@index([awsS3Key])
+  @@map("vault_items")
+}
+
+// Caption Bank - Store captions organized by Instagram profile
+model Caption {
+  id              String           @id @default(cuid())
+  clerkId         String
+  profileId       String           // Link to InstagramProfile
+  caption         String           @db.Text
+  captionCategory String           // e.g., "Inspirational", "Artistic", "Process"
+  captionTypes    String           // e.g., "Motivational", "Storytelling"
+  captionBanks    String           // e.g., "General Collection", "Art & Design"
+  usageCount      Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  profile         InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([clerkId, profileId])
+  @@map("captions")
 }

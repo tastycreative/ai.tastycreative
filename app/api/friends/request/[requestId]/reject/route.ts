@@ -19,22 +19,16 @@ export async function POST(
 
     const { requestId } = await params;
 
-    // Get the current user's database ID
-    const currentUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
-    });
-
-    if (!currentUser) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
     // Find the friendship request
     const friendship = await prisma.friendship.findUnique({
       where: { id: requestId },
+      include: {
+        receiverProfile: {
+          select: {
+            clerkId: true,
+          },
+        },
+      },
     });
 
     if (!friendship) {
@@ -44,8 +38,8 @@ export async function POST(
       );
     }
 
-    // Verify that the current user is the receiver
-    if (friendship.receiverId !== currentUser.id) {
+    // Verify that the current user owns the receiver profile
+    if (friendship.receiverProfile.clerkId !== userId) {
       return NextResponse.json(
         { error: 'You are not authorized to reject this request' },
         { status: 403 }

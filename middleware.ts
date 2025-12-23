@@ -44,6 +44,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/google-drive(.*)', // ✅ Add Google Drive API routes as public
   '/api/auth/google(.*)', // ✅ Add Google OAuth routes as public (needed for authentication flow)
   '/api/feed(.*)', // ✅ Add feed API routes (posts, upload-image)
+  '/api/cron(.*)', // ✅ Add cron routes as public (protected by CRON_SECRET)
 ]);
 
 // ✅ Special handling for API routes that need custom auth

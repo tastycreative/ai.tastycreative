@@ -16,7 +16,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, description, instagramUsername, isDefault } = body;
+    const { name, description, instagramUsername, profileImageUrl, isDefault } = body;
 
     // Verify profile belongs to user
     const existingProfile = await prisma.instagramProfile.findFirst({
@@ -52,6 +52,7 @@ export async function PATCH(
         ...(name !== undefined && { name: name.trim() }),
         ...(description !== undefined && { description: description?.trim() || null }),
         ...(instagramUsername !== undefined && { instagramUsername: instagramUsername?.trim() || null }),
+        ...(profileImageUrl !== undefined && { profileImageUrl: profileImageUrl || null }),
         ...(isDefault !== undefined && { isDefault }),
       },
     });

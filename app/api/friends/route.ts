@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
-// GET - Fetch user's friends
+// GET - Fetch profile's friends
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -14,46 +14,62 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get the current user's database ID
-    const currentUser = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true },
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('profileId');
+
+    if (!profileId) {
+      return NextResponse.json(
+        { error: 'Profile ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Verify the profile belongs to the current user
+    const profile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        clerkId: userId,
+      },
     });
 
-    if (!currentUser) {
+    if (!profile) {
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'Profile not found or unauthorized' },
         { status: 404 }
       );
     }
 
-    // Get all accepted friendships
+    // Get all accepted friendships for this profile
     const friendships = await prisma.friendship.findMany({
       where: {
         OR: [
-          { senderId: currentUser.id, status: 'ACCEPTED' },
-          { receiverId: currentUser.id, status: 'ACCEPTED' },
+          { senderProfileId: profileId, status: 'ACCEPTED' },
+          { receiverProfileId: profileId, status: 'ACCEPTED' },
         ],
       },
       include: {
-        sender: {
-          select: {
-            id: true,
-            clerkId: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            imageUrl: true,
+        senderProfile: {
+          include: {
+            user: {
+              select: {
+                clerkId: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
-        receiver: {
-          select: {
-            id: true,
-            clerkId: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            imageUrl: true,
+        receiverProfile: {
+          include: {
+            user: {
+              select: {
+                clerkId: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
           },
         },
       },
@@ -62,25 +78,30 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Format the response to show the friend (not the current user)
+    // Format the response to show the friend profile (not the current profile)
     const friends = friendships.map((friendship) => {
-      const friend = friendship.senderId === currentUser.id 
-        ? friendship.receiver 
-        : friendship.sender;
+      const friendProfile = friendship.senderProfileId === profileId 
+        ? friendship.receiverProfile 
+        : friendship.senderProfile;
       
       return {
         id: friendship.id,
-        userId: currentUser.id,
-        friendId: friend.id,
+        profileId: profileId,
+        friendProfileId: friendProfile.id,
         status: friendship.status,
         createdAt: friendship.createdAt,
         updatedAt: friendship.updatedAt,
-        friend: {
-          clerkId: friend.clerkId,
-          email: friend.email,
-          firstName: friend.firstName,
-          lastName: friend.lastName,
-          imageUrl: friend.imageUrl,
+        friendProfile: {
+          id: friendProfile.id,
+          name: friendProfile.name,
+          instagramUsername: friendProfile.instagramUsername,
+          profileImageUrl: friendProfile.profileImageUrl,
+          user: {
+            clerkId: friendProfile.user.clerkId,
+            email: friendProfile.user.email,
+            firstName: friendProfile.user.firstName,
+            lastName: friendProfile.user.lastName,
+          },
         },
       };
     });

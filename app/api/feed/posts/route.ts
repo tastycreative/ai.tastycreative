@@ -10,6 +10,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Get profileId and ownOnly from query params
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('profileId');
+    const ownOnly = searchParams.get('ownOnly') === 'true';
+
     // Get current user
     const currentUser = await prisma.user.findUnique({
       where: { clerkId },
@@ -19,29 +24,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get accepted friendships
-    const friendships = await prisma.friendship.findMany({
-      where: {
+    let friendProfileIds: string[] = [];
+
+    // If profileId is specified and not ownOnly, get friendships for that profile
+    if (profileId && !ownOnly) {
+      // Get accepted friendships for this profile
+      const friendships = await prisma.friendship.findMany({
+        where: {
+          OR: [
+            { senderProfileId: profileId, status: 'ACCEPTED' },
+            { receiverProfileId: profileId, status: 'ACCEPTED' },
+          ],
+        },
+      });
+
+      // Extract friend profile IDs
+      friendProfileIds = friendships.map(f => 
+        f.senderProfileId === profileId ? f.receiverProfileId : f.senderProfileId
+      );
+    }
+
+    // Fetch posts based on parameters
+    let whereClause: any;
+    if (profileId && ownOnly) {
+      // Only show this profile's own posts
+      whereClause = { profileId: profileId };
+    } else if (profileId) {
+      // Show this profile's posts and friends' posts
+      whereClause = {
         OR: [
-          { senderId: currentUser.id, status: 'ACCEPTED' },
-          { receiverId: currentUser.id, status: 'ACCEPTED' },
+          { profileId: profileId }, // Own profile's posts
+          { profileId: { in: friendProfileIds } }, // Friends' posts
         ],
-      },
-    });
-
-    // Extract friend IDs
-    const friendIds = friendships.map(f => 
-      f.senderId === currentUser.id ? f.receiverId : f.senderId
-    );
-
-    // Include own posts and friends' posts
-    const userIds = [currentUser.id, ...friendIds];
+      };
+    } else {
+      // Show all posts from user's own profiles
+      whereClause = { userId: currentUser.id };
+    }
 
     // Fetch posts from user and friends
     const friendsPosts = await prisma.feedPost.findMany({
-      where: {
-        userId: { in: userIds },
-      },
+      where: whereClause,
       include: {
         user: {
           select: {
@@ -54,12 +77,20 @@ export async function GET(request: NextRequest) {
             imageUrl: true,
           },
         },
+        profile: {
+          select: {
+            id: true,
+            name: true,
+            instagramUsername: true,
+            profileImageUrl: true,
+          },
+        },
         likes: {
-          where: { userId: currentUser.id },
+          where: profileId ? { profileId } : { userId: currentUser.id },
           select: { id: true },
         },
         bookmarks: {
-          where: { userId: currentUser.id },
+          where: profileId ? { profileId } : { userId: currentUser.id },
           select: { id: true },
         },
         _count: {
@@ -75,79 +106,36 @@ export async function GET(request: NextRequest) {
       take: 30, // Limit friends posts
     });
 
-    // Fetch posts from other users (not friends)
-    const otherUsersPosts = await prisma.feedPost.findMany({
-      where: {
-        userId: { notIn: userIds },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            clerkId: true,
-            firstName: true,
-            lastName: true,
-            username: true,
-            email: true,
-            imageUrl: true,
-          },
-        },
-        likes: {
-          where: { userId: currentUser.id },
-          select: { id: true },
-        },
-        bookmarks: {
-          where: { userId: currentUser.id },
-          select: { id: true },
-        },
-        _count: {
-          select: {
-            likes: true,
-            comments: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 20, // Limit other users posts
+    // Transform posts to match frontend interface
+    // Use profile info if available, otherwise use user info
+    const transformedPosts = friendsPosts.map(post => {
+      const displayUser = post.profile ? {
+        id: post.profile.id,
+        firstName: post.profile.name,
+        lastName: '',
+        username: post.profile.instagramUsername || '',
+        imageUrl: post.profile.profileImageUrl || '/default-profile.png',
+        email: '',
+        clerkId: '',
+      } : post.user;
+
+      return {
+        id: post.id,
+        userId: post.userId,
+        user: displayUser,
+        imageUrls: post.imageUrls,
+        mediaType: post.mediaType as 'image' | 'video',
+        caption: post.caption,
+        likes: post._count.likes,
+        comments: post._count.comments,
+        createdAt: post.createdAt.toISOString(),
+        liked: post.likes.length > 0,
+        bookmarked: post.bookmarks.length > 0,
+        isFriend: true,
+      };
     });
 
-    // Transform posts to match frontend interface
-    const transformedFriendsPosts = friendsPosts.map(post => ({
-      id: post.id,
-      userId: post.userId,
-      user: post.user,
-      imageUrls: post.imageUrls,
-      mediaType: post.mediaType as 'image' | 'video',
-      caption: post.caption,
-      likes: post._count.likes,
-      comments: post._count.comments,
-      createdAt: post.createdAt.toISOString(),
-      liked: post.likes.length > 0,
-      bookmarked: post.bookmarks.length > 0,
-      isFriend: true,
-    }));
-
-    const transformedOtherPosts = otherUsersPosts.map(post => ({
-      id: post.id,
-      userId: post.userId,
-      user: post.user,
-      imageUrls: post.imageUrls,
-      mediaType: post.mediaType as 'image' | 'video',
-      caption: post.caption,
-      likes: post._count.likes,
-      comments: post._count.comments,
-      createdAt: post.createdAt.toISOString(),
-      liked: post.likes.length > 0,
-      bookmarked: post.bookmarks.length > 0,
-      isFriend: false,
-    }));
-
-    // Combine friends posts first, then other users posts
-    const allPosts = [...transformedFriendsPosts, ...transformedOtherPosts];
-
-    return NextResponse.json(allPosts);
+    return NextResponse.json(transformedPosts);
   } catch (error) {
     console.error('Error fetching feed posts:', error);
     return NextResponse.json(
@@ -168,9 +156,9 @@ export async function POST(request: NextRequest) {
     console.log('[Create Post] Starting for user:', clerkId);
 
     const body = await request.json();
-    const { imageUrls, caption, mediaType = 'image' } = body;
+    const { imageUrls, caption, mediaType = 'image', profileId } = body;
 
-    console.log('[Create Post] Received data:', { imageUrls, caption: caption?.substring(0, 50), mediaType });
+    console.log('[Create Post] Received data:', { imageUrls, caption: caption?.substring(0, 50), mediaType, profileId });
 
     if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0 || !caption) {
       console.error('[Create Post] Missing required fields');
@@ -199,6 +187,7 @@ export async function POST(request: NextRequest) {
         imageUrls,
         mediaType,
         caption,
+        ...(profileId && { profileId }),
       },
       include: {
         user: {
@@ -210,6 +199,14 @@ export async function POST(request: NextRequest) {
             username: true,
             email: true,
             imageUrl: true,
+          },
+        },
+        profile: {
+          select: {
+            id: true,
+            name: true,
+            instagramUsername: true,
+            profileImageUrl: true,
           },
         },
         _count: {
@@ -224,10 +221,21 @@ export async function POST(request: NextRequest) {
     console.log('[Create Post] Post created:', post.id);
 
     // Transform to match frontend interface
+    // Use profile info if available, otherwise use user info
+    const displayUser = post.profile ? {
+      id: post.profile.id,
+      firstName: post.profile.name,
+      lastName: '',
+      username: post.profile.instagramUsername || '',
+      imageUrl: post.profile.profileImageUrl || '/default-profile.png',
+      email: '',
+      clerkId: '',
+    } : post.user;
+
     const transformedPost = {
       id: post.id,
       userId: post.userId,
-      user: post.user,
+      user: displayUser,
       imageUrls: post.imageUrls,
       mediaType: post.mediaType as 'image' | 'video',
       caption: post.caption,

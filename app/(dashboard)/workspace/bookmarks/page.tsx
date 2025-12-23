@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import Image from "next/image";
 import { createPortal } from "react-dom";
+import ProfilesSidebar from '@/components/social-media/ProfilesSidebar';
 
 interface Post {
   id: string;
@@ -59,6 +60,12 @@ interface Comment {
     email: string;
     imageUrl: string | null;
   };
+  profile?: {
+    id: string;
+    name: string;
+    instagramUsername: string | null;
+    profileImageUrl: string | null;
+  } | null;
 }
 
 // ImageCarousel component for displaying images and videos
@@ -214,7 +221,7 @@ const ImageCarousel = React.memo(({
   }
 
   return (
-    <div ref={containerRef} className="relative aspect-square bg-gradient-to-br from-gray-900 via-black to-gray-900 group flex items-center justify-center overflow-hidden">
+    <div ref={containerRef} className="relative aspect-square bg-gradient-to-br from-gray-900 via-black to-gray-900 group flex items-center justify-center overflow-hidden rounded-2xl">
       {/* Main Media */}
       {mediaType === 'video' ? (
         <>
@@ -263,7 +270,7 @@ const ImageCarousel = React.memo(({
                   src={imageUrl}
                   alt={`Post image ${index + 1}`}
                   loading="eager"
-                  className="max-w-full max-h-full object-contain"
+                  className="max-w-full max-h-full object-contain transition-transform duration-700 group-hover:scale-110"
                 />
               </div>
             ))}
@@ -345,13 +352,34 @@ export default function BookmarksPage() {
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [currentImageIndexes, setCurrentImageIndexes] = useState<Record<string, number>>({});
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // Listen for profile changes
+  useEffect(() => {
+    const handleProfileChanged = (event: any) => {
+      setSelectedProfileId(event.detail.profileId);
+    };
+
+    window.addEventListener('profileChanged', handleProfileChanged);
+    return () => window.removeEventListener('profileChanged', handleProfileChanged);
+  }, []);
+
+  // Reload bookmarks when profile changes
+  useEffect(() => {
+    if (selectedProfileId) {
+      loadBookmarkedPosts();
+    }
+  }, [selectedProfileId]);
 
   const loadBookmarkedPosts = async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
 
     try {
-      const response = await fetch("/api/feed/bookmarks");
+      const url = selectedProfileId 
+        ? `/api/feed/bookmarks?profileId=${selectedProfileId}`
+        : '/api/feed/bookmarks';
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch bookmarked posts");
       const data = await response.json();
       setPosts(data);
@@ -386,6 +414,11 @@ export default function BookmarksPage() {
   const handleLike = async (postId: string) => {
     if (processingLikes.has(postId)) return;
 
+    if (!selectedProfileId) {
+      toast.error('Please select a profile first');
+      return;
+    }
+
     setProcessingLikes((prev) => new Set(prev).add(postId));
 
     const post = posts.find((p) => p.id === postId);
@@ -409,6 +442,8 @@ export default function BookmarksPage() {
     try {
       const response = await fetch(endpoint, {
         method: wasLiked ? "DELETE" : "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: selectedProfileId }),
       });
 
       if (!response.ok) throw new Error("Failed to update like");
@@ -449,6 +484,11 @@ export default function BookmarksPage() {
   const handleBookmark = async (postId: string) => {
     if (processingBookmarks.has(postId)) return;
 
+    if (!selectedProfileId) {
+      toast.error('Please select a profile first');
+      return;
+    }
+
     setProcessingBookmarks((prev) => new Set(prev).add(postId));
 
     const post = posts.find((p) => p.id === postId);
@@ -466,6 +506,8 @@ export default function BookmarksPage() {
     try {
       const response = await fetch(endpoint, {
         method: wasBookmarked ? "DELETE" : "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId: selectedProfileId }),
       });
 
       if (!response.ok) throw new Error("Failed to update bookmark");
@@ -679,72 +721,90 @@ export default function BookmarksPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50/20 dark:from-gray-950 dark:via-gray-900 dark:to-purple-950/10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Enhanced Header */}
-        <div className="mb-12">
-          <div className="flex items-start justify-between mb-6">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl shadow-lg">
-                  <Bookmark className="w-7 h-7 text-white" />
-                </div>
-                <h1 className="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
-                  Bookmarks
-                </h1>
-              </div>
-              <p className="text-lg text-gray-600 dark:text-gray-400 ml-[4.5rem]">
-                {posts.length} saved {posts.length === 1 ? 'item' : 'items'}
-              </p>
-            </div>
-
-            <button
-              onClick={() => loadBookmarkedPosts(true)}
-              disabled={refreshing}
-              className="group p-4 bg-white dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 hover:shadow-xl hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100"
-            >
-              <RefreshCw
-                className={`w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:rotate-180 transition-transform duration-500 ${
-                  refreshing ? "animate-spin" : ""
-                }`}
-              />
-            </button>
-          </div>
-          
-          {/* Decorative line */}
-          <div className="h-1 w-full bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 rounded-full"></div>
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8 lg:py-12">
+        {/* Mobile Profile Selector - Only visible on mobile */}
+        <div className="md:hidden mb-4 sticky top-0 z-20 bg-gradient-to-r from-gray-50/95 via-white/95 to-purple-50/95 dark:from-gray-950/95 dark:via-gray-900/95 dark:to-purple-950/95 backdrop-blur-xl pb-3 -mx-3 px-3">
+          <ProfilesSidebar />
         </div>
 
-        {/* Empty State */}
-        {posts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32">
-            <div className="relative mb-8">
-              {/* Animated rings */}
-              <div className="absolute inset-0 animate-ping opacity-20">
-                <div className="w-32 h-32 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full"></div>
+        {/* 2-Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
+          {/* Left Sidebar - Profiles (Desktop only) */}
+          <aside className="hidden md:block lg:col-span-3">
+            <ProfilesSidebar />
+          </aside>
+
+          {/* Main Content */}
+          <main className="w-full md:col-span-12 lg:col-span-9">
+            {/* Enhanced Header */}
+            <div className="mb-6 sm:mb-8 md:mb-12">
+              <div className="flex items-start justify-between mb-4 sm:mb-6 gap-3">
+                <div className="space-y-2 sm:space-y-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="p-2 sm:p-2.5 md:p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl sm:rounded-2xl shadow-lg">
+                      <Bookmark className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 text-white" />
+                    </div>
+                    <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
+                      Bookmarks
+                    </h1>
+                  </div>
+                  <p className="text-sm sm:text-base md:text-lg text-gray-600 dark:text-gray-400 ml-0 sm:ml-[3.5rem] md:ml-[4.5rem]">
+                    {posts.length} saved {posts.length === 1 ? 'item' : 'items'}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => loadBookmarkedPosts(true)}
+                  disabled={refreshing}
+                  className="group flex-shrink-0 p-2.5 sm:p-3 md:p-4 bg-white dark:bg-gray-800/80 backdrop-blur-xl rounded-xl sm:rounded-2xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100">
+                  <RefreshCw
+                    className={`w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400 group-hover:rotate-180 transition-transform duration-500 ${
+                      refreshing ? "animate-spin" : ""
+                    }`}
+                  />
+                </button>
               </div>
-              <div className="relative w-32 h-32 bg-gradient-to-br from-purple-500 via-pink-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
-                <BookmarkX className="w-16 h-16 text-white drop-shadow-lg" />
+              
+              {/* Decorative line */}
+              <div className="h-0.5 sm:h-1 w-full bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 rounded-full"></div>
+            </div>
+
+            {/* Empty State */}
+            {posts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 sm:py-24 md:py-32 px-4">
+                <div className="relative mb-6 sm:mb-8">
+                  {/* Animated rings */}
+                  <div className="absolute inset-0 animate-ping opacity-20">
+                    <div className="w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full"></div>
+                  </div>
+              <div className="relative w-20 h-20 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-gradient-to-br from-purple-500 via-pink-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
+                <BookmarkX className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 text-white drop-shadow-lg" />
               </div>
             </div>
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-3">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200 mb-2 sm:mb-3 text-center">
               No bookmarks yet
             </h2>
-            <p className="text-gray-600 dark:text-gray-400 text-center max-w-md text-lg leading-relaxed">
+            <p className="text-gray-600 dark:text-gray-400 text-center max-w-md text-base sm:text-lg leading-relaxed px-4">
               Your saved posts will appear here. Start exploring the feed and bookmark your favorite content!
             </p>
           </div>
         ) : (
           /* Enhanced Posts Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 md:gap-5 lg:gap-6 xl:gap-8">
             {posts.map((post) => (
               <div
                 key={post.id}
-                className="group bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl shadow-lg border border-gray-200/50 dark:border-gray-700/50 overflow-hidden hover:shadow-2xl hover:border-purple-500/30 dark:hover:border-purple-500/30 transition-all duration-500 hover:-translate-y-2"
+                className="group relative bg-white/90 dark:bg-gray-800/90 backdrop-blur-2xl rounded-3xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden hover:shadow-2xl hover:shadow-purple-500/20 dark:hover:shadow-purple-500/10 hover:border-purple-400/50 dark:hover:border-purple-400/50 transition-all duration-500 hover:-translate-y-3 hover:scale-[1.02]"
               >
+                {/* Gradient overlay on hover */}
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 via-pink-500/0 to-blue-500/0 group-hover:from-purple-500/5 group-hover:via-pink-500/5 group-hover:to-blue-500/5 transition-all duration-500 pointer-events-none rounded-3xl" />
                 {/* Enhanced Post Header */}
-                <div className="flex items-center justify-between p-5 border-b border-gray-200/70 dark:border-gray-700/70 bg-gradient-to-r from-purple-50/50 via-pink-50/50 to-blue-50/50 dark:from-purple-900/10 dark:via-pink-900/10 dark:to-blue-900/10">
+                <div className="relative flex items-center justify-between p-3 sm:p-4 md:p-5 border-b border-gray-200/50 dark:border-gray-700/50 bg-gradient-to-r from-purple-50/50 via-pink-50/50 to-blue-50/50 dark:from-purple-900/10 dark:via-pink-900/10 dark:to-blue-900/10 backdrop-blur-sm">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center ring-2 ring-white dark:ring-gray-800 shadow-lg">
+                    {/* Story ring wrapper */}
+                    <div className="relative p-[3px] rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-blue-500 shadow-lg animate-pulse">
+                      <div className="bg-white dark:bg-gray-800 rounded-full p-[2px]">
+                        <div className="relative w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md">
                       {post.user.imageUrl ? (
                         <img 
                           src={post.user.imageUrl} 
@@ -756,6 +816,8 @@ export default function BookmarksPage() {
                           {(post.user.firstName?.[0] || post.user.username?.[0] || post.user.email?.[0] || 'U').toUpperCase()}
                         </span>
                       )}
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900 dark:text-white text-base">
@@ -842,7 +904,7 @@ export default function BookmarksPage() {
                 </div>
 
                 {/* Post Media */}
-                <div className="relative overflow-hidden">
+                <div className="relative overflow-hidden shadow-inner">
                   <ImageCarousel
                     images={post.imageUrls || []}
                     postId={post.id}
@@ -853,24 +915,28 @@ export default function BookmarksPage() {
                 </div>
 
                 {/* Enhanced Post Actions */}
-                <div className="p-5 space-y-4 bg-gradient-to-b from-white to-gray-50/50 dark:from-gray-800 dark:to-gray-900/50">
-                  <div className="flex items-center gap-5">
+                <div className="relative p-3 sm:p-4 md:p-5 space-y-3 sm:space-y-4 bg-gradient-to-b from-white/80 to-gray-50/80 dark:from-gray-800/80 dark:to-gray-900/80 backdrop-blur-sm">
+                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     <button
                       onClick={() => handleLike(post.id)}
                       disabled={processingLikes.has(post.id)}
-                      className="flex items-center gap-2.5 group transition-all duration-300 active:scale-95 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-2 rounded-xl"
+                      className={`flex items-center gap-1.5 sm:gap-2 md:gap-2.5 group transition-all duration-300 active:scale-95 px-3 sm:px-3.5 md:px-4 py-2 sm:py-2 md:py-2.5 rounded-full backdrop-blur-md border ${
+                        post.isLiked
+                          ? 'bg-red-100/80 dark:bg-red-900/30 border-red-200 dark:border-red-800 shadow-lg shadow-red-500/20'
+                          : 'bg-white/80 dark:bg-gray-700/50 border-gray-200/50 dark:border-gray-600/50 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700 hover:shadow-lg hover:shadow-red-500/10'
+                      }`}
                     >
                       <Heart
-                        className={`w-6 h-6 transition-all duration-300 ${
+                        className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300 ${
                           post.isLiked
-                            ? "fill-red-500 text-red-500 scale-110"
+                            ? "fill-red-500 text-red-500 scale-110 animate-pulse"
                             : "text-gray-600 dark:text-gray-400 group-hover:text-red-500 group-hover:scale-110"
                         }`}
                       />
-                      <span className={`text-sm font-semibold ${
+                      <span className={`text-xs sm:text-sm font-bold ${
                         post.isLiked 
-                          ? "text-red-500" 
-                          : "text-gray-700 dark:text-gray-300 group-hover:text-red-500"
+                          ? "text-red-600 dark:text-red-400" 
+                          : "text-gray-700 dark:text-gray-300 group-hover:text-red-600"
                       }`}>
                         {post.likeCount}
                       </span>
@@ -878,10 +944,10 @@ export default function BookmarksPage() {
 
                     <button
                       onClick={() => openCommentsModal(post)}
-                      className="flex items-center gap-2.5 group transition-all duration-300 active:scale-95 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-2 rounded-xl"
+                      className="flex items-center gap-1.5 sm:gap-2 md:gap-2.5 group transition-all duration-300 active:scale-95 px-3 sm:px-3.5 md:px-4 py-2 sm:py-2 md:py-2.5 rounded-full bg-white/80 dark:bg-gray-700/50 backdrop-blur-md border border-gray-200/50 dark:border-gray-600/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-lg hover:shadow-blue-500/10"
                     >
-                      <MessageCircle className="w-6 h-6 text-gray-600 dark:text-gray-400 group-hover:text-blue-500 group-hover:scale-110 transition-all duration-300" />
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-blue-500">
+                      <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-500 group-hover:scale-110 transition-all duration-300" />
+                      <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-blue-600">
                         {post.commentCount}
                       </span>
                     </button>
@@ -889,12 +955,16 @@ export default function BookmarksPage() {
                     <button
                       onClick={() => handleBookmark(post.id)}
                       disabled={processingBookmarks.has(post.id)}
-                      className="ml-auto group transition-all duration-300 active:scale-95 hover:bg-purple-50 dark:hover:bg-purple-900/20 p-3 rounded-xl"
+                      className={`ml-auto group transition-all duration-300 active:scale-95 p-2 sm:p-2.5 md:p-3 rounded-full backdrop-blur-md border ${
+                        post.isBookmarked
+                          ? 'bg-purple-100/80 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800 shadow-lg shadow-purple-500/20'
+                          : 'bg-white/80 dark:bg-gray-700/50 border-gray-200/50 dark:border-gray-600/50 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-lg hover:shadow-purple-500/10'
+                      }`}
                     >
                       <Bookmark
-                        className={`w-6 h-6 transition-all duration-300 ${
+                        className={`w-4 h-4 sm:w-5 sm:h-5 transition-all duration-300 ${
                           post.isBookmarked
-                            ? "fill-purple-500 text-purple-500 scale-110"
+                            ? "fill-purple-500 text-purple-500 scale-110 animate-pulse"
                             : "text-gray-600 dark:text-gray-400 group-hover:text-purple-500 group-hover:scale-110"
                         }`}
                       />
@@ -903,12 +973,12 @@ export default function BookmarksPage() {
 
                   {/* Enhanced Caption */}
                   {post.caption && (
-                    <div className="pt-3 border-t border-gray-200/50 dark:border-gray-700/50">
-                      <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed">
-                        <span className="font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                    <div className="pt-3 sm:pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
+                      <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed">
+                        <span className="font-extrabold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
                           {post.user.username || post.user.email.split("@")[0]}
                         </span>{" "}
-                        <span className="text-gray-600 dark:text-gray-400">
+                        <span className="text-gray-700 dark:text-gray-300">
                           {post.caption}
                         </span>
                       </p>
@@ -919,20 +989,24 @@ export default function BookmarksPage() {
             ))}
           </div>
         )}
+          </main>
+        </div>
       </div>
 
       {/* Enhanced Comments Modal */}
       {selectedPostForComments &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300"
+            className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-500"
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setSelectedPostForComments(null);
               }
             }}
           >
-            <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 flex border border-gray-200/50 dark:border-gray-700/50">
+            <div className="relative bg-white/95 dark:bg-gray-900/95 backdrop-blur-3xl rounded-2xl sm:rounded-3xl shadow-2xl shadow-purple-500/20 max-w-6xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-500 flex flex-col md:flex-row border border-gray-200/50 dark:border-gray-700/50">
+              {/* Animated gradient border */}
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-xl -z-10" />
               {/* Left Side - Media */}
               <div className="hidden md:block md:w-1/2 bg-black relative">
                 {selectedPostForComments.imageUrls && selectedPostForComments.imageUrls.length > 0 ? (
@@ -960,9 +1034,9 @@ export default function BookmarksPage() {
               </div>
 
               {/* Right Side - Comments */}
-              <div className="w-full md:w-1/2 flex flex-col max-h-[90vh]">
+              <div className="w-full md:w-1/2 flex flex-col max-h-[95vh] sm:max-h-[90vh]">
                 {/* Enhanced Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200/70 dark:border-gray-700/70 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 backdrop-blur-xl">
+                <div className="flex items-center justify-between p-4 sm:p-5 md:p-6 border-b border-gray-200/70 dark:border-gray-700/70 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 backdrop-blur-xl">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg">
                       <MessageCircle className="w-5 h-5 text-white" />
@@ -980,7 +1054,7 @@ export default function BookmarksPage() {
                 </div>
 
                 {/* Enhanced Comments List */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-gradient-to-b from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-900">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 custom-scrollbar bg-gradient-to-b from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-900">
                   {comments.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
                       <div className="w-20 h-20 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center mb-4">
@@ -994,13 +1068,17 @@ export default function BookmarksPage() {
                     comments.map((comment) => (
                       <div
                         key={comment.id}
-                        className="flex gap-3 group hover:bg-gradient-to-r hover:from-purple-50/50 hover:to-pink-50/50 dark:hover:from-purple-900/10 dark:hover:to-pink-900/10 p-4 rounded-2xl transition-all duration-300 border border-transparent hover:border-purple-200/50 dark:hover:border-purple-700/50"
+                        className="flex gap-3 group hover:bg-gradient-to-r hover:from-purple-50/80 hover:to-pink-50/80 dark:hover:from-purple-900/20 dark:hover:to-pink-900/20 p-4 rounded-2xl transition-all duration-300 border border-transparent hover:border-purple-300/50 dark:hover:border-purple-600/50 hover:shadow-lg hover:shadow-purple-500/10 backdrop-blur-sm"
                       >
-                        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 shadow-md ring-2 ring-white dark:ring-gray-900">
-                          {comment.user.imageUrl ? (
+                        {/* Story ring around avatar */}
+                        <div className="flex-shrink-0">
+                          <div className="p-[2px] rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-blue-500">
+                            <div className="bg-white dark:bg-gray-900 rounded-full p-[2px]">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md">
+                          {comment.profile?.profileImageUrl || comment.user.imageUrl ? (
                             <img
-                              src={comment.user.imageUrl}
-                              alt={comment.user.username || comment.user.email}
+                              src={comment.profile?.profileImageUrl || comment.user.imageUrl || ''}
+                              alt={comment.profile?.instagramUsername || comment.user.username || comment.user.email}
                               className="w-full h-full rounded-full object-cover"
                             />
                           ) : (
@@ -1008,26 +1086,29 @@ export default function BookmarksPage() {
                               {(comment.user.firstName?.[0] || comment.user.username?.[0] || comment.user.email?.[0] || 'U').toUpperCase()}
                             </span>
                           )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="font-bold text-sm text-gray-900 dark:text-white">
-                              {comment.user.username ||
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="font-extrabold text-sm bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                              {comment.profile?.instagramUsername || comment.profile?.name || comment.user.username ||
                                 comment.user.email.split("@")[0]}
                             </p>
-                            <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <span className="w-1.5 h-1.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"></span>
+                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                               {formatTimeAgo(comment.createdAt)}
                             </p>
                           </div>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                          <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
                             {comment.content}
                           </p>
                         </div>
                         {comment.user.clerkId === user?.id && (
                           <button
                             onClick={() => handleDeleteComment(comment.id)}
-                            className="opacity-0 group-hover:opacity-100 p-2.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-xl transition-all duration-200 self-start"
+                            className="opacity-0 group-hover:opacity-100 p-2.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-xl transition-all duration-200 self-start hover:scale-110 active:scale-95 border border-transparent hover:border-red-200 dark:hover:border-red-800"
                           >
                             <Trash2 className="w-4 h-4 text-red-500" />
                           </button>
@@ -1038,8 +1119,8 @@ export default function BookmarksPage() {
                 </div>
 
                 {/* Enhanced Add Comment */}
-                <div className="p-6 border-t border-gray-200/70 dark:border-gray-700/70 bg-gradient-to-r from-purple-500/5 via-pink-500/5 to-blue-500/5 backdrop-blur-xl">
-                  <div className="flex gap-3">
+                <div className="p-3 sm:p-4 md:p-6 border-t border-gray-200/50 dark:border-gray-700/50 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 backdrop-blur-2xl">
+                  <div className="flex gap-2 sm:gap-3">
                     <input
                       type="text"
                       value={newComment}
@@ -1051,16 +1132,16 @@ export default function BookmarksPage() {
                         }
                       }}
                       placeholder="Add a comment..."
-                      className="flex-1 px-5 py-3.5 bg-white dark:bg-gray-800 border border-gray-300/50 dark:border-gray-700/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all duration-200 placeholder:text-gray-400"
+                      className="flex-1 px-3 sm:px-4 md:px-5 py-2.5 sm:py-3 md:py-3.5 text-sm sm:text-base bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-2 border-gray-300/50 dark:border-gray-700/50 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 placeholder:text-gray-400 hover:border-purple-300 dark:hover:border-purple-600"
                       disabled={submittingComment}
                     />
                     <button
                       onClick={handleAddComment}
                       disabled={!newComment.trim() || submittingComment}
-                      className="px-7 py-3.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-2xl font-semibold hover:shadow-lg hover:shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+                      className="px-4 sm:px-5 md:px-7 py-2.5 sm:py-3 md:py-3.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none disabled:from-gray-400 disabled:to-gray-500"
                     >
                       {submittingComment ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                       ) : (
                         "Post"
                       )}
@@ -1077,14 +1158,16 @@ export default function BookmarksPage() {
       {editingPost &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300"
+            className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4 animate-in fade-in duration-500"
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setEditingPost(null);
               }
             }}
           >
-            <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-2xl rounded-3xl shadow-2xl max-w-2xl w-full p-8 animate-in zoom-in-95 duration-300 border border-gray-200/50 dark:border-gray-700/50">
+            <div className="relative bg-white/95 dark:bg-gray-900/95 backdrop-blur-3xl rounded-3xl shadow-2xl shadow-purple-500/20 max-w-2xl w-full p-8 animate-in zoom-in-95 duration-500 border border-gray-200/50 dark:border-gray-700/50">
+              {/* Animated gradient border */}
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-xl -z-10" />
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg">
                   <Edit3 className="w-6 h-6 text-white" />
@@ -1106,13 +1189,13 @@ export default function BookmarksPage() {
               <div className="flex gap-4 mt-6">
                 <button
                   onClick={() => setEditingPost(null)}
-                  className="flex-1 px-6 py-3.5 bg-gray-200/80 dark:bg-gray-800/80 text-gray-700 dark:text-gray-300 rounded-2xl font-semibold hover:bg-gray-300/80 dark:hover:bg-gray-700/80 transition-all duration-300 active:scale-95"
+                  className="flex-1 px-6 py-3.5 bg-gray-200/90 dark:bg-gray-800/90 backdrop-blur-sm text-gray-700 dark:text-gray-300 rounded-2xl font-bold hover:bg-gray-300 dark:hover:bg-gray-700 transition-all duration-300 active:scale-95 border-2 border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpdatePost}
-                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-2xl font-semibold hover:shadow-lg hover:shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all duration-300"
+                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-2xl font-bold hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all duration-300"
                 >
                   Update
                 </button>
