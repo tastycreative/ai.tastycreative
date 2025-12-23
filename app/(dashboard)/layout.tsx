@@ -604,7 +604,7 @@ export default function DashboardLayout({
         {/* Sidebar header */}
         <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800 relative">
           {sidebarOpen && (
-            <h1 className="text-white text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient">
+            <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient">
               Creative Ink
             </h1>
           )}
@@ -666,7 +666,7 @@ export default function DashboardLayout({
         >
           {/* Sidebar header */}
           <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
-            <h1 className="text-white text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               Creative Ink
             </h1>
             <button
@@ -772,14 +772,14 @@ export default function DashboardLayout({
                       </div>
                       <Link
                         href="/settings"
-                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 block hover:translate-x-1 flex items-center space-x-2"
+                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
                       >
                         <Settings className="w-3.5 h-3.5" />
                         <span>Profile Settings</span>
                       </Link>
                       <Link
                         href="/billing"
-                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 block hover:translate-x-1 flex items-center space-x-2"
+                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
                       >
                         <CreditCard className="w-3.5 h-3.5" />
                         <span>Billing</span>
@@ -787,7 +787,7 @@ export default function DashboardLayout({
                       {isAdmin && (
                         <Link
                           href="/admin"
-                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 block hover:translate-x-1 flex items-center space-x-2"
+                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
                         >
                           <Shield className="w-3.5 h-3.5" />
                           <span>Admin</span>

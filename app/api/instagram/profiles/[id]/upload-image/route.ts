@@ -15,7 +15,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const profileId = params.id;
+    const { id } = await params;
+    const profileId = id;
 
     // Verify the profile belongs to the user
     const profile = await prisma.instagramProfile.findFirst({

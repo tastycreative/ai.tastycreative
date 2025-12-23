@@ -784,7 +784,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
               <div className="p-5 overflow-y-auto max-h-[calc(90vh-180px)] space-y-4">
                 {/* Time Picker */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-purple-500" />
                     Posting Time
                   </label>
@@ -840,7 +840,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* File Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                     <Upload className="w-4 h-4 text-purple-500" />
                     Content Source
                   </label>
@@ -977,7 +977,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Hook Idea */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-pink-500" />
                     Hook Idea
                   </label>
@@ -992,7 +992,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Trending Audio */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                     <Music className="w-4 h-4 text-pink-500" />
                     Trending Audio
                   </label>
@@ -1204,7 +1204,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Hashtags */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                     <Hash className="w-4 h-4 text-blue-500" />
                     Hashtags
                   </label>
@@ -1249,7 +1249,7 @@ export default function ReelsPlannerView({ profileId }: ReelsPlannerViewProps) {
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                     <Lightbulb className="w-4 h-4 text-yellow-500" />
                     Notes & Ideas
                   </label>

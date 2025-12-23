@@ -259,7 +259,7 @@ export default function PerformanceTrackerView({ profileId }: PerformanceTracker
           </motion.div>
         )}
       </div>
-      <div className="text-4xl font-bold text-white mb-2 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+      <div className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
         {typeof value === "number" ? value.toLocaleString() : value}
       </div>
       <div className="text-sm text-gray-400 font-medium">{label}</div>
