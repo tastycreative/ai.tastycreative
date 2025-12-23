@@ -4,10 +4,10 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || process.env.S3_REGION || 'us-east-1',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID! || process.env.S3_ACCESS_KEY_ID!,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY! || process.env.S3_SECRET_ACCESS_KEY!,
   },
 });
 
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     console.log('[Upload Video] Upload successful');
 
     // Construct the S3 URL
-    const videoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
+  const videoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION || process.env.S3_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
 
     console.log('[Upload Video] Video URL:', videoUrl);
 

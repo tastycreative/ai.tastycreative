@@ -4,8 +4,8 @@
  */
 
 // AWS S3 Configuration for direct public access
-const AWS_S3_BUCKET = process.env.NEXT_PUBLIC_AWS_S3_BUCKET || 'tastycreative';
-const AWS_REGION = process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1';
+const AWS_S3_BUCKET = process.env.NEXT_PUBLIC_AWS_S3_BUCKET || process.env.NEXT_PUBLIC_S3_BUCKET || 'tastycreative';
+const AWS_REGION = process.env.NEXT_PUBLIC_AWS_REGION || process.env.NEXT_PUBLIC_S3_REGION || 'us-east-1';
 
 /**
  * Generate direct AWS S3 URL (fastest option - no bandwidth usage)

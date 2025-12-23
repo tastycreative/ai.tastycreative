@@ -6,19 +6,20 @@ import { PrismaClient } from "@/lib/generated/prisma";
 const prisma = new PrismaClient();
 
 // PATCH: Update a workflow phase
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
     const body = await request.json();
     const { name, description, icon, color, order } = body;
+
+    // Derive id from the request URL
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
 
     // Verify ownership
     const existingPhase = await prisma.workflowPhase.findUnique({
@@ -64,17 +65,17 @@ export async function PATCH(
 }
 
 // DELETE: Remove a workflow phase
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest) {
   try {
     const user = await currentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    // Derive id from the request URL
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
 
     // Verify ownership
     const existingPhase = await prisma.workflowPhase.findUnique({

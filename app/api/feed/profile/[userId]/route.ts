@@ -51,26 +51,24 @@ export async function GET(
     });
 
     // Count friends (accepted friendships)
-    // TODO: Fix this - Friendship model uses senderProfileId/receiverProfileId not senderId/receiverId
-    const friendsCount = 0; // await prisma.friendship.count({
-    //   where: {
-    //     OR: [
-    //       { senderId: profileUserId, status: 'ACCEPTED' },
-    //       { receiverId: profileUserId, status: 'ACCEPTED' },
-    //     ],
-    //   },
-    // });
+    const friendsCount = await prisma.friendship.count({
+      where: {
+        OR: [
+          { senderProfileId: profileUserId, status: 'ACCEPTED' },
+          { receiverProfileId: profileUserId, status: 'ACCEPTED' },
+        ],
+      },
+    });
 
     // Check if current user is friends with profile user
-    // TODO: Fix this - Friendship model uses senderProfileId/receiverProfileId not senderId/receiverId
-    const friendship = null; // await prisma.friendship.findFirst({
-    //   where: {
-    //     OR: [
-    //       { senderId: currentUser.id, receiverId: profileUserId, status: 'ACCEPTED' },
-    //       { senderId: profileUserId, receiverId: currentUser.id, status: 'ACCEPTED' },
-    //     ],
-    //   },
-    // });
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { senderProfileId: currentUser.id, receiverProfileId: profileUserId, status: 'ACCEPTED' },
+          { senderProfileId: profileUserId, receiverProfileId: currentUser.id, status: 'ACCEPTED' },
+        ],
+      },
+    });
 
     const isOwnProfile = currentUser.id === profileUserId;
     const isFriend = !!friendship;

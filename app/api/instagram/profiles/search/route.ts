@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const searchTerm = query?.trim().toLowerCase() || "";
 
     // Get existing friendships and pending requests for this profile
-    let excludeProfileIds: string[] = [];
+    const excludeProfileIds: string[] = [];
     if (excludeProfileId) {
       const friendships = await prisma.friendship.findMany({
         where: {

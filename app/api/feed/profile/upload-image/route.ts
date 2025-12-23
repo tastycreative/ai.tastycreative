@@ -6,10 +6,10 @@ import { prisma } from '@/lib/database';
 import { v4 as uuidv4 } from 'uuid';
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || process.env.S3_REGION || 'us-east-1',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID! || process.env.S3_ACCESS_KEY_ID!,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY! || process.env.S3_SECRET_ACCESS_KEY!,
   },
 });
 
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check S3 configuration
-    const bucketName = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_S3_BUCKET;
+  const bucketName = process.env.AWS_S3_BUCKET_NAME || process.env.AWS_S3_BUCKET || process.env.S3_BUCKET;
     if (!bucketName) {
       console.error('[Profile Upload] AWS_S3_BUCKET_NAME not configured');
       return NextResponse.json(
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     await s3Client.send(uploadCommand);
     console.log('[Profile Upload] Upload successful');
 
-    const imageUrl = `https://${bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
+  const imageUrl = `https://${bucketName}.s3.${process.env.AWS_REGION || process.env.S3_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
 
     console.log('[Profile Upload] Image URL:', imageUrl);
 

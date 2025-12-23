@@ -6,15 +6,15 @@ const { S3Client, CopyObjectCommand, DeleteObjectCommand, HeadObjectCommand } = 
 const prisma = new PrismaClient();
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || process.env.S3_REGION || 'us-east-1',
   endpoint: process.env.AWS_ENDPOINT_URL_S3,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY,
   },
 });
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET;
+const BUCKET_NAME = process.env.AWS_S3_BUCKET || process.env.S3_BUCKET;
 
 // Map status to folder name
 function getS3FolderFromStatus(status) {

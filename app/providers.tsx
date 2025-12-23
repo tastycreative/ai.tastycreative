@@ -35,7 +35,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      afterSignInUrl="/dashboard"
+      afterSignUpUrl="/dashboard"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+    >
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>

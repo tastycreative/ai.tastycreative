@@ -66,30 +66,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Fix this - Friendship model uses senderProfileId/receiverProfileId not senderId/receiverId
-    const friendships: any[] = []; // await prisma.friendship.findMany({
-    //   where: {
-    //     OR: [
-    //       { senderId: currentUser.id },
-    //       { receiverId: currentUser.id },
-    //     ],
-    //     status: {
-    //       in: ['PENDING', 'ACCEPTED'],
-    //     },
-    //   },
-    //   select: {
-    //     senderId: true,
-    //     receiverId: true,
-    //   },
-    // });
+    const friendships = await prisma.friendship.findMany({
+      where: {
+        OR: [
+          { senderProfileId: currentUser.id },
+          { receiverProfileId: currentUser.id },
+        ],
+        status: {
+          in: ['PENDING', 'ACCEPTED'],
+        },
+      },
+      select: {
+        senderProfileId: true,
+        receiverProfileId: true,
+      },
+    });
 
     // Create a set of friend IDs to exclude
     const friendIds = new Set<string>();
     friendships.forEach((friendship) => {
-      if (friendship.senderId === currentUser.id) {
-        friendIds.add(friendship.receiverId);
+      if (friendship.senderProfileId === currentUser.id) {
+        friendIds.add(friendship.receiverProfileId);
       } else {
-        friendIds.add(friendship.senderId);
+        friendIds.add(friendship.senderProfileId);
       }
     });
 

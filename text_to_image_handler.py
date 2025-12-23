@@ -31,13 +31,13 @@ from botocore.exceptions import ClientError
 
 # AWS S3 Configuration for primary storage
 AWS_S3_ENDPOINT = None  # Use default AWS endpoint
-AWS_S3_REGION = os.getenv('AWS_REGION', 'us-east-1')
-AWS_S3_BUCKET = os.getenv('AWS_S3_BUCKET', '')
+AWS_S3_REGION = os.getenv('AWS_REGION') or os.getenv('S3_REGION') or 'us-east-1'
+AWS_S3_BUCKET = os.getenv('AWS_S3_BUCKET') or os.getenv('S3_BUCKET') or ''
 
 def get_aws_s3_client():
     """Initialize AWS S3 client for primary storage"""
-    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID') or os.getenv('S3_ACCESS_KEY_ID')
+    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY') or os.getenv('S3_SECRET_ACCESS_KEY')
     
     if not aws_access_key or not aws_secret_key:
         logger.error("❌ AWS S3 credentials not found in environment variables")
