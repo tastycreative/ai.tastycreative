@@ -69,26 +69,26 @@ export async function GET(request: NextRequest) {
     const friendships = await prisma.friendship.findMany({
       where: {
         OR: [
-          { senderId: currentUser.id },
-          { receiverId: currentUser.id },
+          { senderProfileId: currentUser.id },
+          { receiverProfileId: currentUser.id },
         ],
         status: {
           in: ['PENDING', 'ACCEPTED'],
         },
       },
       select: {
-        senderId: true,
-        receiverId: true,
+        senderProfileId: true,
+        receiverProfileId: true,
       },
     });
 
     // Create a set of friend IDs to exclude
     const friendIds = new Set<string>();
     friendships.forEach((friendship) => {
-      if (friendship.senderId === currentUser.id) {
-        friendIds.add(friendship.receiverId);
+      if (friendship.senderProfileId === currentUser.id) {
+        friendIds.add(friendship.receiverProfileId);
       } else {
-        friendIds.add(friendship.senderId);
+        friendIds.add(friendship.senderProfileId);
       }
     });
 

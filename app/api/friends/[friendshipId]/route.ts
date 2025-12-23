@@ -45,7 +45,7 @@ export async function DELETE(
     }
 
     // Verify that the current user is part of this friendship
-    if (friendship.senderId !== currentUser.id && friendship.receiverId !== currentUser.id) {
+    if (friendship.senderProfileId !== currentUser.id && friendship.receiverProfileId !== currentUser.id) {
       return NextResponse.json(
         { error: 'You are not authorized to remove this friendship' },
         { status: 403 }

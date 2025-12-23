@@ -54,8 +54,8 @@ export async function GET(
     const friendsCount = await prisma.friendship.count({
       where: {
         OR: [
-          { senderId: profileUserId, status: 'ACCEPTED' },
-          { receiverId: profileUserId, status: 'ACCEPTED' },
+          { senderProfileId: profileUserId, status: 'ACCEPTED' },
+          { receiverProfileId: profileUserId, status: 'ACCEPTED' },
         ],
       },
     });
@@ -64,8 +64,8 @@ export async function GET(
     const friendship = await prisma.friendship.findFirst({
       where: {
         OR: [
-          { senderId: currentUser.id, receiverId: profileUserId, status: 'ACCEPTED' },
-          { senderId: profileUserId, receiverId: currentUser.id, status: 'ACCEPTED' },
+          { senderProfileId: currentUser.id, receiverProfileId: profileUserId, status: 'ACCEPTED' },
+          { senderProfileId: profileUserId, receiverProfileId: currentUser.id, status: 'ACCEPTED' },
         ],
       },
     });

@@ -10,32 +10,35 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Find the user in the database
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
+    // Find the user's default Instagram profile
+    const profile = await prisma.instagramProfile.findFirst({
+      where: {
+        clerkId: userId,
+        isDefault: true
+      },
     });
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
     // Get user's existing friends (accepted)
     const existingFriendships = await prisma.friendship.findMany({
       where: {
         OR: [
-          { senderId: user.id },
-          { receiverId: user.id },
+          { senderProfileId: profile.id },
+          { receiverProfileId: profile.id },
         ],
       },
     });
 
-    // Extract all user IDs that are already friends or have pending requests
-    const connectedUserIds = new Set<string>();
+    // Extract all profile IDs that are already friends or have pending requests
+    const connectedProfileIds = new Set<string>();
     existingFriendships.forEach((friendship) => {
-      if (friendship.senderId === user.id) {
-        connectedUserIds.add(friendship.receiverId);
+      if (friendship.senderProfileId === profile.id) {
+        connectedProfileIds.add(friendship.receiverProfileId);
       } else {
-        connectedUserIds.add(friendship.senderId);
+        connectedProfileIds.add(friendship.senderProfileId);
       }
     });
 
@@ -45,7 +48,7 @@ export async function GET() {
     );
 
     const friendIds = acceptedFriendships.map((f) =>
-      f.senderId === user.id ? f.receiverId : f.senderId
+      f.senderProfileId === profile.id ? f.receiverProfileId : f.senderProfileId
     );
 
     if (friendIds.length === 0) {
@@ -57,31 +60,27 @@ export async function GET() {
     const friendsOfFriends = await prisma.friendship.findMany({
       where: {
         OR: [
-          { senderId: { in: friendIds }, status: "ACCEPTED" },
-          { receiverId: { in: friendIds }, status: "ACCEPTED" },
+          { senderProfileId: { in: friendIds }, status: "ACCEPTED" },
+          { receiverProfileId: { in: friendIds }, status: "ACCEPTED" },
         ],
       },
       include: {
-        sender: {
+        senderProfile: {
           select: {
             id: true,
             clerkId: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            username: true,
-            imageUrl: true,
+            name: true,
+            instagramUsername: true,
+            profileImageUrl: true,
           },
         },
-        receiver: {
+        receiverProfile: {
           select: {
             id: true,
             clerkId: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            username: true,
-            imageUrl: true,
+            name: true,
+            instagramUsername: true,
+            profileImageUrl: true,
           },
         },
       },
@@ -101,41 +100,38 @@ export async function GET() {
       let suggestedUser;
       let mutualFriendId;
 
-      if (friendIds.includes(friendship.senderId)) {
+      if (friendIds.includes(friendship.senderProfileId)) {
         // The receiver is the suggestion
-        suggestedUser = friendship.receiver;
-        mutualFriendId = friendship.senderId;
+        suggestedUser = friendship.receiverProfile;
+        mutualFriendId = friendship.senderProfileId;
       } else {
         // The sender is the suggestion
-        suggestedUser = friendship.sender;
-        mutualFriendId = friendship.receiverId;
+        suggestedUser = friendship.senderProfile;
+        mutualFriendId = friendship.receiverProfileId;
       }
 
-      // Skip if this is the current user or already connected
+      // Skip if this is the current profile or already connected
       if (
-        suggestedUser.id === user.id ||
-        connectedUserIds.has(suggestedUser.id)
+        suggestedUser.id === profile.id ||
+        connectedProfileIds.has(suggestedUser.id)
       ) {
         return;
       }
 
       // Get mutual friend details
       const mutualFriend = friendsOfFriends.find(
-        (f) => f.senderId === mutualFriendId || f.receiverId === mutualFriendId
+        (f) => f.senderProfileId === mutualFriendId || f.receiverProfileId === mutualFriendId
       );
 
       let mutualFriendInfo;
       if (mutualFriend) {
         const mf =
-          mutualFriend.senderId === mutualFriendId
-            ? mutualFriend.sender
-            : mutualFriend.receiver;
+          mutualFriend.senderProfileId === mutualFriendId
+            ? mutualFriend.senderProfile
+            : mutualFriend.receiverProfile;
         mutualFriendInfo = {
           id: mf.id,
-          name:
-            mf.username ||
-            `${mf.firstName || ""} ${mf.lastName || ""}`.trim() ||
-            (mf.email ? mf.email.split("@")[0] : "User"),
+          name: mf.instagramUsername || mf.name || "User",
         };
       }
 
@@ -158,11 +154,9 @@ export async function GET() {
       .map((suggestion) => ({
         id: suggestion.user.id,
         clerkId: suggestion.user.clerkId,
-        email: suggestion.user.email,
-        firstName: suggestion.user.firstName,
-        lastName: suggestion.user.lastName,
-        username: suggestion.user.username,
-        imageUrl: suggestion.user.imageUrl,
+        name: suggestion.user.name,
+        instagramUsername: suggestion.user.instagramUsername,
+        profileImageUrl: suggestion.user.profileImageUrl,
         mutualFriendsCount: suggestion.mutualFriends.length,
         mutualFriends: suggestion.mutualFriends.slice(0, 3), // Show up to 3 mutual friends
       }))

@@ -23,15 +23,15 @@ export async function GET() {
     const friendships = await prisma.friendship.findMany({
       where: {
         OR: [
-          { senderId: user.id, status: "ACCEPTED" },
-          { receiverId: user.id, status: "ACCEPTED" },
+          { senderProfileId: user.id, status: "ACCEPTED" },
+          { receiverProfileId: user.id, status: "ACCEPTED" },
         ],
       },
     });
 
     // Extract friend IDs
     const friendIds = friendships.map((f) =>
-      f.senderId === user.id ? f.receiverId : f.senderId
+      f.senderProfileId === user.id ? f.receiverProfileId : f.senderProfileId
     );
 
     // Include own posts and friends' posts
