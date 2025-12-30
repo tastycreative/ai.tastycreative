@@ -270,15 +270,8 @@ export function VaultContent() {
 
     setLoadingItems(true);
     try {
-      // Check if current folder is the default "All Media" folder
-      const currentFolder = folders.find(f => f.id === selectedFolderId);
-      const isDefaultFolder = currentFolder?.isDefault === true;
-
-      // If it's the default folder, load all items from all folders for this profile
-      // Otherwise, load items only from the selected folder
-      const url = isDefaultFolder
-        ? `/api/vault/items?profileId=${selectedProfileId}`
-        : `/api/vault/items?folderId=${selectedFolderId}&profileId=${selectedProfileId}`;
+      // Always load all items for the profile to ensure accurate folder counts
+      const url = `/api/vault/items?profileId=${selectedProfileId}`;
 
       const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to load items");
@@ -1171,9 +1164,10 @@ export function VaultContent() {
               )}
               {visibleFolders.map((folder) => {
                 const isActive = folder.id === selectedFolderId;
-                const itemCount = vaultItems.filter(
-                  (item) => item.folderId === folder.id && item.profileId === selectedProfileId
-                ).length;
+                // For default "All Media" folder, count all items; otherwise count items in specific folder
+                const itemCount = folder.isDefault
+                  ? vaultItems.filter((item) => item.profileId === selectedProfileId).length
+                  : vaultItems.filter((item) => item.folderId === folder.id && item.profileId === selectedProfileId).length;
 
                 return (
                   <div
