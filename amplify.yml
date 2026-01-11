@@ -8,10 +8,13 @@ frontend:
       commands:
         - export NODE_OPTIONS="--max-old-space-size=4096"
         - npm run build
-        # Copy standalone output to the right location
-        - cp -r .next/standalone ./amplify-out
-        - cp -r .next/static ./amplify-out/.next/static
-        - cp -r public ./amplify-out/public
+        # Copy all required files for standalone deployment
+        - mkdir -p amplify-out
+        - cp -r .next/standalone/. amplify-out/
+        - mkdir -p amplify-out/.next
+        - cp -r .next/static amplify-out/.next/static
+        - cp -r public amplify-out/public
+        - cp .next/required-server-files.json amplify-out/.next/required-server-files.json || true
   artifacts:
     baseDirectory: amplify-out
     files:
