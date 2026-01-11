@@ -8,9 +8,9 @@ frontend:
       commands:
         - export NODE_OPTIONS="--max-old-space-size=4096"
         - npm run build
-        # Create required-server-files.json for Amplify
+        # Create required-server-files.json in both locations for Amplify
         - |
-          cat > .next/required-server-files.json << 'EOF'
+          cat > required-server-files.json << 'EOF'
           {
             "version": 1,
             "config": {},
@@ -19,7 +19,8 @@ frontend:
             "ignore": []
           }
           EOF
-        # Clean up large files to reduce build output
+        - cp required-server-files.json .next/required-server-files.json
+        # Clean up large files to reduce build output (saved 100MB!)
         - rm -rf .next/cache
         - find .next -name "*.map" -type f -delete
         - du -sh .next || true
