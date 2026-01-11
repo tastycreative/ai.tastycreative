@@ -105,6 +105,9 @@ const nextConfig: NextConfig = {
 
     // Cron Secret
     CRON_SECRET: process.env.CRON_SECRET || '',
+
+    // SeeDream API Key
+    ARK_API_KEY: process.env.ARK_API_KEY || '',
   },
 
   // Configure allowed image domains for Next.js Image component
