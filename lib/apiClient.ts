@@ -72,7 +72,8 @@ class AuthenticatedApiClient {
       // Add a timeout to the fetch request - longer timeout for upload operations
       const controller = new AbortController();
       const isUploadOperation = url.includes('/upload') || url.includes('/blob') || url.includes('/sync');
-      const timeoutDuration = isUploadOperation ? 300000 : 30000; // 5 minutes for uploads, 30 seconds for others
+      const isImageGeneration = url.includes('/generate/');
+      const timeoutDuration = isUploadOperation ? 300000 : isImageGeneration ? 120000 : 30000; // 5 min for uploads, 2 min for generation, 30s for others
       const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
       
       const response = await fetch(url, {
@@ -88,7 +89,7 @@ class AuthenticatedApiClient {
       console.log('📊 Response status:', response.status, response.statusText);
       console.log('🌐 Response URL:', response.url);
       console.log('📋 Response headers:', Object.fromEntries(response.headers.entries()));
-      console.log(`⏰ Used ${isUploadOperation ? '5-minute' : '30-second'} timeout for this operation`);
+      console.log(`⏰ Used ${isUploadOperation ? '5-minute' : isImageGeneration ? '2-minute' : '30-second'} timeout for this operation`);
 
       // Log response body for debugging (only for non-successful responses)
       if (!response.ok) {
@@ -118,7 +119,7 @@ class AuthenticatedApiClient {
       
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          console.error('⏰ Request timed out after 30 seconds');
+          console.error('⏰ Request timed out');
           throw new Error('Request timeout - the server took too long to respond');
         }
         

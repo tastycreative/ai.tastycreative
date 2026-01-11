@@ -208,6 +208,36 @@ export default function DashboardLayout({
           href: "/workspace/generate-content/fps-boost",
           icon: PlayCircle,
         },
+        {
+          name: "DIVIDER_3",
+          href: "#",
+          icon: Sparkles,
+        },
+        {
+          name: "SEEDREAM_45_GROUP_LABEL",
+          href: "#",
+          icon: Sparkles,
+        },
+        {
+          name: "SeeDream Text to Image",
+          href: "/workspace/generate-content/seedream-text-to-image",
+          icon: ImageIcon,
+        },
+        {
+          name: "SeeDream Image to Image",
+          href: "/workspace/generate-content/seedream-image-to-image",
+          icon: Palette,
+        },
+        {
+          name: "SeeDream Text to Video",
+          href: "/workspace/generate-content/seedream-text-to-video",
+          icon: Video,
+        },
+        {
+          name: "SeeDream Image to Video",
+          href: "/workspace/generate-content/seedream-image-to-video",
+          icon: PlayCircle,
+        },
       ],
     },
     {
@@ -424,6 +454,39 @@ export default function DashboardLayout({
                   </span>
                 </div>
                 <div className="h-1 w-1 rounded-full bg-purple-400 dark:bg-purple-300 animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null;
+    }
+
+    // Handle SeeDream 4.5 group label
+    if (item.name === "SEEDREAM_45_GROUP_LABEL") {
+      return sidebarOpen ? (
+        <div
+          key="seedream-45-group-label"
+          className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
+        >
+          <div className="relative">
+            {/* Background glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 rounded-lg blur-sm"></div>
+
+            {/* Main label container */}
+            <div className="relative bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-indigo-500/20 dark:from-cyan-500/10 dark:via-blue-500/10 dark:to-indigo-500/10 border border-cyan-400/30 dark:border-cyan-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 xs:space-x-2">
+                  <div className="relative">
+                    <Sparkles className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-cyan-400 dark:text-cyan-300 animate-pulse" />
+                    <div className="absolute inset-0 h-3.5 w-3.5 xs:h-4 xs:w-4 text-cyan-400 dark:text-cyan-300 opacity-50 blur-sm">
+                      <Sparkles className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
+                    </div>
+                  </div>
+                  <span className="text-[10px] xs:text-xs font-bold bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400 dark:from-cyan-300 dark:via-blue-300 dark:to-indigo-300 bg-clip-text text-transparent uppercase tracking-wider">
+                    SeeDream 4.5
+                  </span>
+                </div>
+                <div className="h-1 w-1 rounded-full bg-cyan-400 dark:bg-cyan-300 animate-pulse"></div>
               </div>
             </div>
           </div>

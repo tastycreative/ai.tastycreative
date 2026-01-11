@@ -7,7 +7,7 @@ interface GenerationProgress {
   progress: number;
   stage: string;
   message: string;
-  generationType: 'text-to-image' | 'style-transfer' | 'image-to-video' | 'face-swap' | 'skin-enhancer' | null;
+  generationType: 'text-to-image' | 'image-to-image' | 'style-transfer' | 'image-to-video' | 'face-swap' | 'skin-enhancer' | null;
   jobId: string | null;
   elapsedTime?: number;
   estimatedTimeRemaining?: number;
