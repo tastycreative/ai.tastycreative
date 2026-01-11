@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone', // 🔥 REQUIRED FOR AWS AMPLIFY SSR
   serverExternalPackages: ['prisma'],
 
   // Enable compression for better performance
