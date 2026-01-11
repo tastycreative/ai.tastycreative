@@ -8,8 +8,20 @@ frontend:
       commands:
         - export NODE_OPTIONS="--max-old-space-size=4096"
         - npm run build
-        # Clean up large cache files to reduce build output
-        - rm -rf .next/cache/webpack
+        # Create required-server-files.json for Amplify
+        - |
+          cat > .next/required-server-files.json << 'EOF'
+          {
+            "version": 1,
+            "config": {},
+            "appDir": ".next",
+            "files": [],
+            "ignore": []
+          }
+          EOF
+        # Clean up large files to reduce build output
+        - rm -rf .next/cache
+        - find .next -name "*.map" -type f -delete
         - du -sh .next || true
   artifacts:
     baseDirectory: .
@@ -17,8 +29,9 @@ frontend:
       - '**/*'
     excludes:
       - node_modules/**/*
-      - .next/cache/**/*
       - .npm/**/*
+      - .next/cache/**/*
+      - '**/*.map'
   cache:
     paths:
       - .npm/**/*
