@@ -8,17 +8,17 @@ frontend:
       commands:
         - export NODE_OPTIONS="--max-old-space-size=4096"
         - npm run build
-        # Copy all required files for standalone deployment
-        - mkdir -p amplify-out
-        - cp -r .next/standalone/. amplify-out/
-        - mkdir -p amplify-out/.next
-        - cp -r .next/static amplify-out/.next/static
-        - cp -r public amplify-out/public
-        - cp .next/required-server-files.json amplify-out/.next/required-server-files.json || true
+        # Clean up large cache files to reduce build output
+        - rm -rf .next/cache/webpack
+        - du -sh .next || true
   artifacts:
-    baseDirectory: amplify-out
+    baseDirectory: .
     files:
       - '**/*'
+    excludes:
+      - node_modules/**/*
+      - .next/cache/**/*
+      - .npm/**/*
   cache:
     paths:
       - .npm/**/*

@@ -3,9 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   serverExternalPackages: ['prisma'],
 
-  // Enable standalone output to reduce build size for Amplify deployment
-  output: 'standalone',
-
   // Enable compression for better performance
   compress: true,
 
