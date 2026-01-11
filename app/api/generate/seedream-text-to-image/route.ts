@@ -196,73 +196,32 @@ export async function POST(request: NextRequest) {
     console.log('📝 Created generation job:', generationJob.id);
 
     // Process and save each generated image
+    // FAST MODE: Save BytePlus URLs directly to avoid Lambda timeout (30s limit)
     const savedImages = [];
     
     for (let index = 0; index < data.data.length; index++) {
       const item = data.data[index];
       
       try {
-        // Get image data (either from URL or base64)
-        let imageBuffer: Buffer;
-        
-        if (item.url) {
-          // Download from URL
-          console.log(`📥 Downloading image ${index + 1} from URL...`);
-          const imageResponse = await fetch(item.url);
-          if (!imageResponse.ok) {
-            throw new Error(`Failed to download image: ${imageResponse.statusText}`);
-          }
-          const arrayBuffer = await imageResponse.arrayBuffer();
-          imageBuffer = Buffer.from(arrayBuffer);
-        } else if (item.b64_json) {
-          // Decode base64
-          console.log(`📥 Decoding base64 image ${index + 1}...`);
-          imageBuffer = Buffer.from(item.b64_json, 'base64');
-        } else {
-          console.error('❌ No image data found for index:', index);
-          continue;
-        }
-
-        // Generate filename
+        // Generate filename for reference
         const timestamp = Date.now();
         const filename = `seedream-${timestamp}-${index}.png`;
         
-        // Determine S3 key based on folder selection
-        let s3Key: string;
+        // Determine subfolder based on folder selection
         let subfolder = '';
-        
         if (body.targetFolder) {
-          // Use selected folder (already includes outputs/{userId}/ prefix)
-          s3Key = `${body.targetFolder.replace(/\/$/, '')}/${filename}`;
-          // Extract subfolder name from prefix for database
           const parts = body.targetFolder.split('/');
           if (parts.length > 2) {
             subfolder = parts.slice(2).join('/').replace(/\/$/, '');
           }
-        } else {
-          // Use default: outputs/{userId}/{filename}
-          s3Key = `outputs/${userId}/${filename}`;
         }
 
-        console.log(`📤 Uploading to S3: ${s3Key}`);
+        // Use BytePlus URL directly (they're temporary but valid for hours)
+        const publicUrl = item.url;
 
-        // Upload to AWS S3
-        const uploadCommand = new PutObjectCommand({
-          Bucket: AWS_S3_BUCKET,
-          Key: s3Key,
-          Body: imageBuffer,
-          ContentType: 'image/png',
-          CacheControl: 'public, max-age=31536000',
-        });
+        console.log(`✅ Using BytePlus URL directly: ${publicUrl}`);
 
-        await s3Client.send(uploadCommand);
-
-        // Generate public URL
-        const publicUrl = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${s3Key}`;
-
-        console.log(`✅ Image uploaded: ${publicUrl}`);
-
-        // Save to database
+        // Save to database with BytePlus URL (no S3 upload to avoid timeout)
         const [width, height] = (item.size || body.size || '2048x2048').split('x').map(Number);
         
         const savedImage = await prisma.generatedImage.create({
@@ -272,12 +231,12 @@ export async function POST(request: NextRequest) {
             filename,
             subfolder: subfolder,
             type: 'output',
-            fileSize: imageBuffer.length,
+            fileSize: 0, // Unknown size, will be updated if copied to S3 later
             width,
             height,
             format: 'png',
-            awsS3Key: s3Key,
-            awsS3Url: publicUrl,
+            awsS3Key: '', // Empty for now, will be populated if moved to S3
+            awsS3Url: publicUrl, // Store BytePlus URL directly
             metadata: {
               source: 'seedream',
               model: data.model,
@@ -285,7 +244,9 @@ export async function POST(request: NextRequest) {
               negative_prompt: body.negative_prompt,
               size: body.size,
               watermark: body.watermark,
+              byteplusUrl: publicUrl, // Keep original BytePlus URL
               generatedAt: new Date(data.created * 1000).toISOString(),
+              pendingS3Upload: true, // Flag for background processing
             },
           },
         });
