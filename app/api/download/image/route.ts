@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+});
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,18 +41,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid image source" }, { status: 403 });
     }
 
-    // Fetch the image
-    const response = await fetch(imageUrl);
+    // Extract S3 key from URL
+    const urlObj = new URL(imageUrl);
+    // Decode the pathname to handle URL-encoded characters
+    let key = decodeURIComponent(urlObj.pathname);
+    // Remove leading slash if present
+    key = key.startsWith('/') ? key.slice(1) : key;
+    const bucket = process.env.AWS_S3_BUCKET || 'tastycreative';
+
+    console.log('Downloading from S3:', { bucket, key, imageUrl });
+
+    // Fetch from S3 using AWS SDK
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    const response = await s3Client.send(command);
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    if (!response.Body) {
+      throw new Error('No image data received from S3');
     }
 
-    // Get the image data
-    const imageBuffer = await response.arrayBuffer();
+    // Convert stream to buffer
+    const imageBuffer = await response.Body.transformToByteArray();
 
-    // Determine content type from response or default to image/jpeg
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    // Determine content type from S3 response or default to image/jpeg
+    const contentType = response.ContentType || 'image/jpeg';
 
     // Return the image with appropriate headers
     return new NextResponse(imageBuffer, {

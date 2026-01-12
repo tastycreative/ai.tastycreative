@@ -16,6 +16,8 @@ import {
   Folder,
   ChevronDown,
   RefreshCw,
+  Info,
+  Settings,
 } from "lucide-react";
 
 interface AvailableFolderOption {
@@ -64,6 +66,9 @@ export default function SeeDreamImageToImage() {
   // Modal state for viewing images
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [showImageModal, setShowImageModal] = useState(false);
+  
+  // Help modal state
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Folder Selection State
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -288,23 +293,48 @@ export default function SeeDreamImageToImage() {
 
   const handleDownload = async (imageUrl: string, filename: string) => {
     try {
-      let downloadUrl = imageUrl;
+      console.log('Download attempt:', { imageUrl, filename });
       
-      // If it's a base64 data URL, use it directly
-      if (imageUrl.startsWith('data:')) {
-        downloadUrl = imageUrl;
-      } else {
-        // For regular URLs, use the download proxy API to avoid CORS issues
-        const proxyUrl = `/api/download/image?url=${encodeURIComponent(imageUrl)}`;
-        downloadUrl = proxyUrl;
+      if (!imageUrl) {
+        throw new Error('Image URL is empty. The image may not have been saved to S3.');
       }
       
-      const a = document.createElement("a");
-      a.href = downloadUrl;
+      let blobUrl: string;
+      
+      if (imageUrl.startsWith('data:')) {
+        // Data URLs can be used directly
+        blobUrl = imageUrl;
+      } else {
+        // Use proxy endpoint to avoid CORS issues
+        const proxyUrl = `/api/download/image?url=${encodeURIComponent(imageUrl)}`;
+        console.log('Fetching via proxy:', proxyUrl);
+        const response = await fetch(proxyUrl);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('Download failed:', response.status, errorData);
+          throw new Error(`Failed to download image: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        blobUrl = window.URL.createObjectURL(blob);
+      }
+      
+      // Trigger download
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = blobUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(a);
+        if (!imageUrl.startsWith('data:')) {
+          window.URL.revokeObjectURL(blobUrl);
+        }
+      }, 100);
     } catch (error) {
       console.error("Download failed:", error);
       setError("Failed to download image. Please try again.");
@@ -334,7 +364,7 @@ export default function SeeDreamImageToImage() {
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 dark:from-cyan-400 dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
                 SeeDream 4.5 - Image to Image
               </h1>
@@ -343,6 +373,14 @@ export default function SeeDreamImageToImage() {
                 Transform images with AI-powered editing by BytePlus
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowHelpModal(true)}
+              className="p-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all duration-200 group"
+              title="View Help & Tips"
+            >
+              <Info className="w-5 h-5 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </div>
 
@@ -725,8 +763,183 @@ export default function SeeDreamImageToImage() {
         </div>
       </div>
 
+      {/* Help Modal */}
+      {showHelpModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => setShowHelpModal(false)}
+        >
+          <div 
+            className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-auto my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowHelpModal(false)}
+              className="sticky top-4 float-right mr-4 z-10 p-2 bg-gray-900/80 hover:bg-gray-900 text-white rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl">
+                  <Info className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400 bg-clip-text text-transparent">
+                  SeeDream 4.5 Image-to-Image Guide
+                </h2>
+              </div>
+
+              <div className="space-y-8">
+                {/* Prompting Tips */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-cyan-500" />
+                    How to Write Effective Transformation Prompts
+                  </h3>
+                  <div className="space-y-4 text-gray-700 dark:text-gray-300">
+                    <div className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg p-4">
+                      <p className="font-semibold mb-2">✨ Recommended Structure:</p>
+                      <p className="text-sm"><strong>What to Keep + What to Change + Desired Outcome</strong></p>
+                      <p className="text-sm mt-2 text-gray-600 dark:text-gray-400">
+                        Example: "Keep the model's pose and the flowing shape of the liquid dress unchanged. Change the clothing material from silver metal to completely transparent clear water. Through the liquid water, the model's skin details are visible. Lighting changes from reflection to refraction."
+                      </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                        <p className="font-semibold text-green-700 dark:text-green-400 mb-2">✓ Good Practices:</p>
+                        <ul className="text-sm space-y-1 list-disc list-inside">
+                          <li>Be specific about what stays</li>
+                          <li>Clearly describe changes</li>
+                          <li>Include style/texture details</li>
+                          <li>Mention lighting/color adjustments</li>
+                          <li>Keep under 600 words</li>
+                        </ul>
+                      </div>
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <p className="font-semibold text-red-700 dark:text-red-400 mb-2">✗ Avoid:</p>
+                        <ul className="text-sm space-y-1 list-disc list-inside">
+                          <li>Vague instructions like "make it better"</li>
+                          <li>Contradictory requirements</li>
+                          <li>Asking for complete redesign</li>
+                          <li>Too many simultaneous changes</li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <p className="font-semibold mb-2">💡 Multi-Image Blending:</p>
+                      <p className="text-sm">
+                        When uploading multiple reference images (2-14), the first image is primary. Others provide style/composition reference. Example: "Replace the clothing in image 1 with the outfit from image 2."
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Parameters Explanation */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-cyan-500" />
+                    Parameter Guide
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">🖼️ Reference Images</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Upload 1-14 images to guide the transformation:
+                      </p>
+                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
+                        <li><strong>Single Image:</strong> Edit/transform one image based on your prompt</li>
+                        <li><strong>Multiple Images (2-14):</strong> Blend styles, combine elements, or create variations</li>
+                        <li><strong>Requirements:</strong> JPEG/PNG/WEBP/BMP/TIFF/GIF, up to 10MB each, 14px min dimension</li>
+                        <li><strong>Note:</strong> First image is primary; others provide reference</li>
+                      </ul>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">📐 Resolution & Aspect Ratio</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Control output image dimensions:
+                      </p>
+                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
+                        <li><strong>2K:</strong> ~2048px - Faster generation, good quality</li>
+                        <li><strong>4K:</strong> ~4096px - High detail, slower generation</li>
+                        <li><strong>Aspect Ratios:</strong> Match your use case (1:1 for social, 16:9 for display, etc.)</li>
+                      </ul>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">🎨 Batch Size (1-15 images)</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Generate multiple variations or related images:
+                      </p>
+                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
+                        <li><strong>Single (1):</strong> One targeted transformation</li>
+                        <li><strong>Batch (2-15):</strong> Multiple angles, variations, or progressive changes</li>
+                        <li><strong>Limit:</strong> Input images + output images ≤ 15</li>
+                        <li><strong>Tip:</strong> Specify the desired number in your prompt</li>
+                      </ul>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Example Use Cases */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-cyan-500" />
+                    Example Use Cases
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                      <p className="font-semibold text-purple-900 dark:text-purple-300 mb-2">👔 Fashion/Product Design</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Single image + Batch 3-5 | "Create 4 color variations of this outfit, maintaining the same style and fit..."
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                      <p className="font-semibold text-amber-900 dark:text-amber-300 mb-2">🎨 Style Transfer</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        2 images | "Apply the artistic style from image 2 to the subject in image 1, maintaining composition..."
+                      </p>
+                    </div>
+                    <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
+                      <p className="font-semibold text-teal-900 dark:text-teal-300 mb-2">🏠 Scene Editing</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Single image | "Change the background from indoor to outdoor garden setting, keep lighting natural..."
+                      </p>
+                    </div>
+                    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
+                      <p className="font-semibold text-indigo-900 dark:text-indigo-300 mb-2">🎭 Character Variations</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Single image + Batch 4 | "Generate 4 variations with character wearing sunglasses, hat, holding items..."
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Important Notes */}
+                <section className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700 rounded-lg p-4">
+                  <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-300 mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5" />
+                    Important Notes
+                  </h3>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1 list-disc list-inside">
+                    <li>First uploaded image is treated as primary reference; additional images provide style/composition guidance</li>
+                    <li>For batch generation: Total input images + output images must be ≤ 15</li>
+                    <li>Larger reference images may take longer to process</li>
+                    <li>Results are saved automatically to your S3 storage</li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Image Modal */}
-      {showImageModal && selectedImage && typeof window !== 'undefined' && createPortal(
+      {showImageModal && selectedImage && typeof window !== 'undefined' && document?.body && createPortal(
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           onClick={() => {
@@ -781,30 +994,46 @@ export default function SeeDreamImageToImage() {
 
                 {/* Download button */}
                 <button
+                  type="button"
                   onClick={async () => {
                     try {
-                      let downloadUrl = selectedImage.imageUrl;
+                      const imageUrl = selectedImage.imageUrl;
+                      let blobUrl: string;
                       
-                      if (selectedImage.imageUrl.startsWith('data:')) {
-                        downloadUrl = selectedImage.imageUrl;
+                      if (imageUrl.startsWith('data:')) {
+                        // Data URLs can be used directly
+                        blobUrl = imageUrl;
                       } else {
-                        const response = await fetch(selectedImage.imageUrl);
+                        // Use proxy endpoint to avoid CORS issues
+                        const proxyUrl = `/api/download/image?url=${encodeURIComponent(imageUrl)}`;
+                        const response = await fetch(proxyUrl);
+                        
+                        if (!response.ok) {
+                          throw new Error(`Failed to download image: ${response.status}`);
+                        }
+                        
                         const blob = await response.blob();
-                        downloadUrl = window.URL.createObjectURL(blob);
+                        blobUrl = window.URL.createObjectURL(blob);
                       }
                       
+                      // Trigger download
                       const a = document.createElement('a');
-                      a.href = downloadUrl;
+                      a.style.display = 'none';
+                      a.href = blobUrl;
                       a.download = `seedream-i2i-${selectedImage.id}.jpg`;
                       document.body.appendChild(a);
                       a.click();
                       
-                      if (!selectedImage.imageUrl.startsWith('data:')) {
-                        window.URL.revokeObjectURL(downloadUrl);
-                      }
-                      document.body.removeChild(a);
+                      // Cleanup
+                      setTimeout(() => {
+                        document.body.removeChild(a);
+                        if (!imageUrl.startsWith('data:')) {
+                          window.URL.revokeObjectURL(blobUrl);
+                        }
+                      }, 100);
                     } catch (error) {
                       console.error("Download failed:", error);
+                      alert('Download failed. Please try again or contact support if the issue persists.');
                     }
                   }}
                   className="w-full mt-4 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"

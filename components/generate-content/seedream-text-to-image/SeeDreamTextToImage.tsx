@@ -87,6 +87,9 @@ export default function SeeDreamTextToImage() {
   // Modal state for viewing images
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
   const [showImageModal, setShowImageModal] = useState(false);
+  
+  // Help modal state
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Resolution and Ratio configurations
   const resolutionRatios = {
@@ -282,31 +285,42 @@ export default function SeeDreamTextToImage() {
 
   const handleDownload = async (imageUrl: string, filename: string) => {
     try {
-      let downloadUrl = imageUrl;
+      let blobUrl: string;
       
-      // If it's a base64 data URL, use it directly
       if (imageUrl.startsWith('data:')) {
-        downloadUrl = imageUrl;
+        // Data URLs can be used directly
+        blobUrl = imageUrl;
       } else {
-        // For regular URLs, fetch and convert to blob URL
-        const response = await fetch(imageUrl);
+        // Use proxy endpoint to avoid CORS issues
+        const proxyUrl = `/api/download/image?url=${encodeURIComponent(imageUrl)}`;
+        const response = await fetch(proxyUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to download image: ${response.status}`);
+        }
+        
         const blob = await response.blob();
-        downloadUrl = window.URL.createObjectURL(blob);
+        blobUrl = window.URL.createObjectURL(blob);
       }
       
+      // Trigger download
       const a = document.createElement('a');
-      a.href = downloadUrl;
+      a.style.display = 'none';
+      a.href = blobUrl;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       
-      // Clean up blob URL if we created one
-      if (!imageUrl.startsWith('data:')) {
-        window.URL.revokeObjectURL(downloadUrl);
-      }
-      document.body.removeChild(a);
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(a);
+        if (!imageUrl.startsWith('data:')) {
+          window.URL.revokeObjectURL(blobUrl);
+        }
+      }, 100);
     } catch (error) {
       console.error("Download failed:", error);
+      setError("Failed to download image. Please try again.");
     }
   };
 
@@ -335,7 +349,7 @@ export default function SeeDreamTextToImage() {
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 dark:from-cyan-400 dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
                 SeeDream 4.5
               </h1>
@@ -344,6 +358,14 @@ export default function SeeDreamTextToImage() {
                 Advanced AI Image Generation by BytePlus
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowHelpModal(true)}
+              className="p-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all duration-200 group"
+              title="View Help & Tips"
+            >
+              <Info className="w-5 h-5 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </div>
 
@@ -663,8 +685,169 @@ export default function SeeDreamTextToImage() {
         </div>
       </div>
 
+      {/* Help Modal */}
+      {showHelpModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => setShowHelpModal(false)}
+        >
+          <div 
+            className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-auto my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowHelpModal(false)}
+              className="sticky top-4 float-right mr-4 z-10 p-2 bg-gray-900/80 hover:bg-gray-900 text-white rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl">
+                  <Info className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400 bg-clip-text text-transparent">
+                  SeeDream 4.5 - User Guide
+                </h2>
+              </div>
+
+              <div className="space-y-8">
+                {/* Prompting Tips */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-cyan-500" />
+                    How to Write Better Prompts
+                  </h3>
+                  <div className="space-y-4 text-gray-700 dark:text-gray-300">
+                    <div className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg p-4">
+                      <p className="font-semibold mb-2">✨ Recommended Structure:</p>
+                      <p className="text-sm"><strong>Subject + Action + Environment + Style/Details</strong></p>
+                      <p className="text-sm mt-2 text-gray-600 dark:text-gray-400">
+                        Example: "Vibrant close-up editorial portrait, model with piercing gaze, wearing a sculptural hat, rich color blocking, sharp focus on eyes, shallow depth of field, Vogue magazine cover aesthetic, shot on medium format, dramatic studio lighting."
+                      </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                        <p className="font-semibold text-green-700 dark:text-green-400 mb-2">✓ Good Practices:</p>
+                        <ul className="text-sm space-y-1 list-disc list-inside">
+                          <li>Use coherent natural language</li>
+                          <li>Keep under 600 words</li>
+                          <li>Include style, color, lighting</li>
+                          <li>Describe composition details</li>
+                          <li>Be specific about what you want</li>
+                        </ul>
+                      </div>
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <p className="font-semibold text-red-700 dark:text-red-400 mb-2">✗ Avoid:</p>
+                        <ul className="text-sm space-y-1 list-disc list-inside">
+                          <li>Overly long prompts (600+ words)</li>
+                          <li>Scattered, unfocused descriptions</li>
+                          <li>Too many conflicting elements</li>
+                          <li>Vague or ambiguous language</li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <p className="font-semibold mb-2">💡 Pro Tip for Batch Generation:</p>
+                      <p className="text-sm">
+                        When requesting multiple images, be explicit in your prompt. For example: "Generate a series of 4 coherent illustrations focusing on the same corner of a courtyard across the four seasons, presented in a unified style..."
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Parameters Explanation */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-cyan-500" />
+                    Parameter Guide
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">📐 Resolution & Aspect Ratio</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Choose the image size and shape that best fits your needs:
+                      </p>
+                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
+                        <li><strong>2K:</strong> Standard quality (~2048px) - Faster generation</li>
+                        <li><strong>4K:</strong> High quality (~4096px) - Better detail, slower generation</li>
+                        <li><strong>Aspect Ratios:</strong> 1:1 (Square), 16:9 (Landscape), 9:16 (Portrait), etc.</li>
+                      </ul>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">🎨 Batch Size (1-15 images)</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        Generate multiple thematically related images in one request:
+                      </p>
+                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
+                        <li><strong>Single (1):</strong> One perfect image</li>
+                        <li><strong>Batch (2-15):</strong> Coherent series (e.g., storyboards, variations, product angles)</li>
+                        <li><strong>Tip:</strong> Match batch size to your prompt (e.g., "4 images" in prompt = set batch to 4)</li>
+                      </ul>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2"> Save to Folder</h4>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Organize your generations by saving to custom S3 folders (default: root outputs folder)
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Example Use Cases */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-cyan-500" />
+                    Example Use Cases
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                      <p className="font-semibold text-purple-900 dark:text-purple-300 mb-2">🎬 Comic/Storyboard</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Batch: 4-8 images | Prompt: "Generate a 6-panel comic strip showing [story sequence], consistent art style, clear progression..."
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                      <p className="font-semibold text-amber-900 dark:text-amber-300 mb-2">🎨 Product Visualization</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Batch: 4-6 images | Prompt: "Create a visual design system for [brand], including packaging, cards, merchandise, unified style..."
+                      </p>
+                    </div>
+                    <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
+                      <p className="font-semibold text-teal-900 dark:text-teal-300 mb-2">📸 Portrait/Editorial</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Batch: 1-3 images | Prompt: "Professional fashion portrait, [subject details], studio lighting, magazine quality, sharp focus..."
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Important Notes */}
+                <section className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700 rounded-lg p-4">
+                  <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-300 mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5" />
+                    Important Notes
+                  </h3>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1 list-disc list-inside">
+                    <li>Generated images are saved automatically to your S3 storage</li>
+                    <li>Higher resolutions (4K) take longer but produce better quality</li>
+                    <li>Batch generation works best when your prompt describes the relationship between images</li>
+                  </ul>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Image Modal */}
-      {showImageModal && selectedImage && typeof window !== 'undefined' && createPortal(
+      {showImageModal && selectedImage && typeof window !== 'undefined' && document?.body && createPortal(
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           onClick={() => {
@@ -719,30 +902,46 @@ export default function SeeDreamTextToImage() {
 
                 {/* Download button */}
                 <button
+                  type="button"
                   onClick={async () => {
                     try {
-                      let downloadUrl = selectedImage.imageUrl;
+                      const imageUrl = selectedImage.imageUrl;
+                      let blobUrl: string;
                       
-                      if (selectedImage.imageUrl.startsWith('data:')) {
-                        downloadUrl = selectedImage.imageUrl;
+                      if (imageUrl.startsWith('data:')) {
+                        // Data URLs can be used directly
+                        blobUrl = imageUrl;
                       } else {
-                        const response = await fetch(selectedImage.imageUrl);
+                        // Use proxy endpoint to avoid CORS issues
+                        const proxyUrl = `/api/download/image?url=${encodeURIComponent(imageUrl)}`;
+                        const response = await fetch(proxyUrl);
+                        
+                        if (!response.ok) {
+                          throw new Error(`Failed to download image: ${response.status}`);
+                        }
+                        
                         const blob = await response.blob();
-                        downloadUrl = window.URL.createObjectURL(blob);
+                        blobUrl = window.URL.createObjectURL(blob);
                       }
                       
+                      // Trigger download
                       const a = document.createElement('a');
-                      a.href = downloadUrl;
+                      a.style.display = 'none';
+                      a.href = blobUrl;
                       a.download = `seedream-${selectedImage.id}.jpg`;
                       document.body.appendChild(a);
                       a.click();
                       
-                      if (!selectedImage.imageUrl.startsWith('data:')) {
-                        window.URL.revokeObjectURL(downloadUrl);
-                      }
-                      document.body.removeChild(a);
+                      // Cleanup
+                      setTimeout(() => {
+                        document.body.removeChild(a);
+                        if (!imageUrl.startsWith('data:')) {
+                          window.URL.revokeObjectURL(blobUrl);
+                        }
+                      }, 100);
                     } catch (error) {
                       console.error("Download failed:", error);
+                      alert('Download failed. Please try again or contact support if the issue persists.');
                     }
                   }}
                   className="w-full mt-4 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"

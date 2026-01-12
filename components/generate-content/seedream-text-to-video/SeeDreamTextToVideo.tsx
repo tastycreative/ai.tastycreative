@@ -22,6 +22,8 @@ import {
   Folder,
   ChevronDown,
   RefreshCw,
+  Info,
+  Settings,
 } from "lucide-react";
 
 interface AvailableFolderOption {
@@ -77,6 +79,9 @@ export default function SeeDreamTextToVideo() {
   // Modal state for viewing videos
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
+  
+  // Help modal state
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Generation State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -402,7 +407,7 @@ export default function SeeDreamTextToVideo() {
                 <Film className="w-8 h-8 text-white" />
               </div>
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 dark:from-cyan-400 dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
                 SeeDream 4.5 - Text to Video
               </h1>
@@ -411,6 +416,14 @@ export default function SeeDreamTextToVideo() {
                 Create stunning videos from text descriptions
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowHelpModal(true)}
+              className="p-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all duration-200 group"
+              title="View Help & Tips"
+            >
+              <Info className="w-5 h-5 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </div>
 
@@ -898,6 +911,173 @@ export default function SeeDreamTextToVideo() {
                   <Download className="w-4 h-4" />
                   Download Video
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Help Modal */}
+      {showHelpModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => setShowHelpModal(false)}
+        >
+          <div 
+            className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-auto my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowHelpModal(false)}
+              className="sticky top-4 float-right mr-4 z-10 p-2 bg-gray-900/80 hover:bg-gray-900 text-white rounded-full transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl">
+                  <Info className="w-6 h-6 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400 bg-clip-text text-transparent">
+                  SeeDream 4.5 Text-to-Video Guide
+                </h2>
+              </div>
+
+              <div className="space-y-8">
+                {/* Prompting Tips */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-cyan-500" />
+                    How to Write Effective Video Prompts
+                  </h3>
+                  <div className="space-y-4 text-gray-700 dark:text-gray-300">
+                    <div className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg p-4">
+                      <p className="font-semibold mb-2">✨ Recommended Structure:</p>
+                      <p className="text-sm"><strong>Subject + Movement + Background + Movement + Camera + Movement</strong></p>
+                      <p className="text-sm mt-2 text-gray-600 dark:text-gray-400">
+                        Example: "Multiple shots. A detective enters a dimly lit room. He examines the clues on the table and picks up an item from the surface. The camera cuts to a shot of him deep in thought."
+                      </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                        <p className="font-semibold text-green-700 dark:text-green-400 mb-2">✓ Good Practices:</p>
+                        <ul className="text-sm space-y-1 list-disc list-inside">
+                          <li>Use concise, precise language</li>
+                          <li>Describe subject, movement, background</li>
+                          <li>Include camera angles/movements</li>
+                          <li>Specify visual style if needed</li>
+                          <li>For dialogue, use quotes: \"Hello!\"</li>
+                        </ul>
+                      </div>
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <p className="font-semibold text-red-700 dark:text-red-400 mb-2">✗ Avoid:</p>
+                        <ul className="text-sm space-y-1 list-disc list-inside">
+                          <li>Vague descriptions</li>
+                          <li>Overly complex prompts</li>
+                          <li>Too many simultaneous actions</li>
+                          <li>Contradictory instructions</li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <p className="font-semibold mb-2">💡 Pro Tips:</p>
+                      <ul className="text-sm space-y-1 list-disc list-inside">
+                        <li>Results are highly variable - great for creative exploration</li>
+                        <li>For specific results, generate an image first then use Image-to-Video</li>
+                        <li>Model intelligently selects duration when set to Auto</li>
+                      </ul>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Parameters Explanation */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-cyan-500" />
+                    Parameter Guide
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">🎬 Resolution & Aspect Ratio</h4>
+                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
+                        <li><strong>720p:</strong> 1280×720 - Faster, good quality</li>
+                        <li><strong>1080p:</strong> 1920×1080 - High detail, slower</li>
+                        <li><strong>Aspect Ratios:</strong> 16:9, 4:3, 1:1, 3:4, 9:16, 21:9, adaptive</li>
+                        <li><strong>Adaptive:</strong> Model selects optimal dimensions based on your prompt</li>
+                      </ul>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">⏱️ Duration (4-12 seconds)</h4>
+                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
+                        <li><strong>Auto:</strong> Model chooses optimal length (4-12s)</li>
+                        <li><strong>Fixed (4-12s):</strong> Set exact duration</li>
+                        <li><strong>Note:</strong> Duration affects billing</li>
+                      </ul>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">🎵 Generate Audio</h4>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Model generates matching voice, sound effects, or background music. Enclose dialogue in quotes for voice generation.
+                      </p>
+                    </div>
+
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">📷 Camera Fixed</h4>
+                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
+                        <li><strong>Enabled:</strong> Static camera position</li>
+                        <li><strong>Disabled:</strong> Dynamic camera movement</li>
+                      </ul>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Example Use Cases */}
+                <section>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-cyan-500" />
+                    Example Use Cases
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                      <p className="font-semibold text-purple-900 dark:text-purple-300 mb-2">🎭 Cinematic Scenes</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        "Under a clear blue sky, vast white daisy fields stretch out. Camera gradually zooms in, fixating on a single daisy with dewdrops."
+                      </p>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                      <p className="font-semibold text-amber-900 dark:text-amber-300 mb-2">🎬 Multi-Shot Sequences</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        "Multiple shots. Detective enters dimly lit room. Examines clues, picks up item. Camera cuts to shot of him in thought."
+                      </p>
+                    </div>
+                    <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
+                      <p className="font-semibold text-teal-900 dark:text-teal-300 mb-2">🗣️ Dialogue Scenes</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Enable audio + "A man stops a woman and says, \\"Remember, never point your finger at the moon.\\""
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Important Notes */}
+                <section className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700 rounded-lg p-4">
+                  <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-300 mb-2 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5" />
+                    Important Notes
+                  </h3>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1 list-disc list-inside">
+                    <li>Text-to-video produces highly variable, creative results</li>
+                    <li>For precise results, create image first → use Image-to-Video</li>
+                    <li>Generated videos saved automatically to your S3 storage</li>
+                    <li>Frame rate: 24 fps | Format: MP4</li>
+                  </ul>
+                </section>
               </div>
             </div>
           </div>
