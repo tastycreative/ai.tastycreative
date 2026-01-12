@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Convert stream to buffer
-    const imageBuffer = await response.Body.transformToByteArray();
+    const imageBytes = await response.Body.transformToByteArray();
+    const imageBuffer = Buffer.from(imageBytes);
 
     // Determine content type from S3 response or default to image/jpeg
     const contentType = response.ContentType || 'image/jpeg';
