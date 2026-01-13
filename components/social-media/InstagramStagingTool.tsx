@@ -20,10 +20,10 @@ import {
   X,
   CheckCircle,
   AlertCircle,
-  Users,
   ArrowLeft,
   Search,
   Filter,
+  Users,
 } from "lucide-react";
 import {
   fetchInstagramPosts,
@@ -113,9 +113,10 @@ const toLocalDateTimeString = (date: Date | string): string => {
 
 interface InstagramStagingToolProps {
   highlightPostId?: string | null;
+  profileId?: string | null;
 }
 
-const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {}) => {
+const InstagramStagingTool = ({ highlightPostId, profileId }: InstagramStagingToolProps = {}) => {
   const { user, isLoaded } = useUser();
   const currentUserId = user?.id || "";
 
@@ -151,25 +152,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   >([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
-
-  // Profile selection state
-  const [profiles, setProfiles] = useState<Array<{
-    id: string;
-    name: string;
-    description: string | null;
-    instagramUsername: string | null;
-    isDefault: boolean;
-    _count: { posts: number };
-  }>>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [loadingProfiles, setLoadingProfiles] = useState(false);
-  const [showProfileDialog, setShowProfileDialog] = useState(false);
-  const [profileForm, setProfileForm] = useState({
-    name: '',
-    description: '',
-    instagramUsername: '',
-    isDefault: false,
-  });
 
   // Rejection dialog state
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -225,39 +207,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
     fetchUserRole();
   }, [isLoaded, user]);
 
-  // Load profiles on mount
-  useEffect(() => {
-    loadProfiles();
-  }, [isLoaded, user]);
-
-  // Load profiles from database
-  const loadProfiles = async () => {
-    if (!isLoaded || !user) return;
-
-    setLoadingProfiles(true);
-    try {
-      const response = await fetch('/api/instagram/profiles');
-      const data = await response.json();
-
-      if (data.success) {
-        setProfiles(data.profiles);
-        
-        // Auto-select default profile or first profile
-        const defaultProfile = data.profiles.find((p: any) => p.isDefault);
-        if (defaultProfile) {
-          setSelectedProfileId(defaultProfile.id);
-        } else if (data.profiles.length > 0) {
-          setSelectedProfileId(data.profiles[0].id);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading profiles:', error);
-      toast.error('Failed to load profiles');
-    } finally {
-      setLoadingProfiles(false);
-    }
-  };
-
   // Auto-select and scroll to highlighted post from URL
   useEffect(() => {
     if (highlightPostId && posts.length > 0) {
@@ -281,7 +230,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
   }, [highlightPostId, posts]);
 
   // Load posts from database on mount
-  const loadPosts = async () => {
+  const loadPosts = useCallback(async () => {
     setPostsLoading(true);
     try {
       // Admin/Manager can view specific user's posts, otherwise view own posts
@@ -290,7 +239,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           ? selectedUserId
           : undefined;
 
-      const dbPosts = await fetchInstagramPosts(userIdToFetch, selectedProfileId || undefined);
+      const dbPosts = await fetchInstagramPosts(userIdToFetch, profileId || undefined);
       // Convert database posts to component format
       const convertedPosts: Post[] = dbPosts.map((dbPost) => ({
         id: dbPost.id,
@@ -316,17 +265,21 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         publishedAt: dbPost.publishedAt || undefined,
       }));
       setPosts(convertedPosts);
-      console.log(`✅ Loaded ${convertedPosts.length} posts from database for profile ${selectedProfileId || 'none'}`);
+      console.log(`✅ Loaded ${convertedPosts.length} posts from database for profile ${profileId || 'none'}`);
     } catch (error) {
       console.error("❌ Error loading posts from database:", error);
     } finally {
       setPostsLoading(false);
     }
-  };
+  }, [userRole, selectedUserId, profileId]);
 
+  // Clear posts and reload when profile changes
   useEffect(() => {
+    // Clear existing posts immediately to prevent showing wrong profile's content
+    setPosts([]);
+    setSelectedPost(null);
     loadPosts();
-  }, [selectedUserId, userRole, selectedProfileId]); // Reload when selected user or profile changes
+  }, [selectedUserId, userRole, profileId, loadPosts]); // Reload when selected user or profile changes
 
   // Load available users for Admin/Manager
   useEffect(() => {
@@ -383,6 +336,10 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
               try {
                 const params = new URLSearchParams();
                 if (selectedUserId) {
+                  params.append("userId", selectedUserId);
+                }
+                if (profileId) {
+                  params.append("profileId", profileId);
                 }
 
                 const response = await fetch(`/api/instagram-posts?${params}`);
@@ -393,6 +350,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                     const blobUrls = new Map(prev.map((p) => [p.id, p.image]));
                     return result.posts.map((post: any) => ({
                       id: post.id,
+                      profileId: post.profileId,
                       image:
                         blobUrls.get(post.id) || post.awsS3Url || post.driveFileUrl,
                       caption: post.caption,
@@ -455,6 +413,9 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           if (selectedUserId) {
             params.append("userId", selectedUserId);
           }
+          if (profileId) {
+            params.append("profileId", profileId);
+          }
 
           const response = await fetch(
             `/api/instagram-posts/changes?${params}`
@@ -466,6 +427,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
               const blobUrls = new Map(prev.map((p) => [p.id, p.image]));
               return data.posts.map((post: any) => ({
                 id: post.id,
+                profileId: post.profileId,
                 image:
                   blobUrls.get(post.id) || post.awsS3Url || post.driveFileUrl,
                 caption: post.caption,
@@ -504,7 +466,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
         clearInterval(interval);
       };
     }
-  }, [isLoaded, user, selectedUserId]);
+  }, [isLoaded, user, selectedUserId, profileId]);
 
   const loadFolderContents = useCallback(
     async (prefix: string, folderName: string) => {
@@ -1224,12 +1186,12 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
           <div className="flex flex-wrap gap-2 sm:gap-3">
             {/* Selection Controls */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {/* Show message if no profiles exist */}
-              {profiles.length === 0 && !loadingProfiles && (
+              {/* Show message if no profile selected */}
+              {!profileId && (
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
                   <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
                   <span className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300">
-                    Create a profile to get started
+                    Select a profile to get started
                   </span>
                 </div>
               )}
@@ -1265,73 +1227,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                   {selectedPostIds.length} selected
                 </span>
               )}
-              
-              {/* Profile Selector */}
-              <div className="flex items-center gap-2">
-                {profiles.length > 0 && (
-                  <select
-                    value={selectedProfileId || ''}
-                    onChange={(e) => setSelectedProfileId(e.target.value)}
-                    className="px-3 py-1.5 text-xs sm:text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">📋 Original Feed Preview</option>
-                    {profiles.map((profile) => (
-                      <option key={profile.id} value={profile.id}>
-                        {profile.name} ({profile._count.posts})
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {selectedProfileId && profiles.length > 0 && (
-                  <button
-                    onClick={async () => {
-                      const profile = profiles.find(p => p.id === selectedProfileId);
-                      if (!profile) return;
-
-                      const postsCount = profile._count.posts;
-                      const confirmMessage = postsCount > 0
-                        ? `Delete "${profile.name}"? This will also delete ${postsCount} post${postsCount > 1 ? 's' : ''}.`
-                        : `Delete "${profile.name}"?`;
-
-                      if (!confirm(confirmMessage)) return;
-
-                      try {
-                        const response = await fetch(`/api/instagram/profiles/${selectedProfileId}`, {
-                          method: 'DELETE',
-                        });
-
-                        const data = await response.json();
-
-                        if (data.success) {
-                          toast.success('Profile deleted successfully');
-                          await loadProfiles();
-                          // Select first remaining profile or null
-                          setSelectedProfileId(null);
-                        } else {
-                          toast.error(data.error || 'Failed to delete profile');
-                        }
-                      } catch (error) {
-                        console.error('Error deleting profile:', error);
-                        toast.error('Failed to delete profile');
-                      }
-                    }}
-                    className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                    title="Delete profile"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    setProfileForm({ name: '', description: '', instagramUsername: '', isDefault: false });
-                    setShowProfileDialog(true);
-                  }}
-                  className="px-2 py-1.5 text-xs sm:text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                  title="Create new profile"
-                >
-                  + Profile
-                </button>
-              </div>
               
               <button 
                 onClick={() => setShowUploadDialog(true)}
@@ -2634,14 +2529,14 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                         <button
                                           onClick={async () => {
                                             // Ensure a profile is selected
-                                            if (!selectedProfileId) {
+                                            if (!profileId) {
                                               toast.error('Please select a profile first');
                                               return;
                                             }
 
                                             try {
                                               const dbPost = await createInstagramPost({
-                                                profileId: selectedProfileId,
+                                                profileId: profileId,
                                                 driveFileId: null,
                                                 driveFileUrl: null,
                                                 awsS3Key: file.key,
@@ -2898,7 +2793,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                       <button
                                         onClick={async () => {
                                           // Ensure a profile is selected
-                                          if (!selectedProfileId) {
+                                          if (!profileId) {
                                             toast.error('Please select a profile first');
                                             return;
                                           }
@@ -2907,7 +2802,7 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                                             // Keep file in original location - no longer moving to status folders
                                             // Create Instagram post with existing S3 location
                                             const dbPost = await createInstagramPost({
-                                              profileId: selectedProfileId,
+                                              profileId: profileId,
                                               driveFileId: null,
                                               driveFileUrl: null,
                                               awsS3Key: file.key,
@@ -3320,132 +3215,6 @@ const InstagramStagingTool = ({ highlightPostId }: InstagramStagingToolProps = {
                         Upload {uploadFiles.length > 0 && `(${uploadFiles.length})`}
                       </>
                     )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Profile Creation/Management Dialog */}
-      {showProfileDialog && typeof window !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-700">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Create New Profile
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Separate content for different accounts
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Profile Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={profileForm.name}
-                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    placeholder="e.g., Personal Brand, Business Account"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    autoFocus
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Instagram Username <span className="text-gray-400 text-xs">(Optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={profileForm.instagramUsername}
-                    onChange={(e) => setProfileForm({ ...profileForm, instagramUsername: e.target.value })}
-                    placeholder="@username"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Description <span className="text-gray-400 text-xs">(Optional)</span>
-                  </label>
-                  <textarea
-                    value={profileForm.description}
-                    onChange={(e) => setProfileForm({ ...profileForm, description: e.target.value })}
-                    placeholder="Brief description of this profile..."
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isDefault"
-                    checked={profileForm.isDefault}
-                    onChange={(e) => setProfileForm({ ...profileForm, isDefault: e.target.checked })}
-                    className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 dark:focus:ring-purple-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                  />
-                  <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-gray-300">
-                    Set as default profile
-                  </label>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    onClick={() => {
-                      setShowProfileDialog(false);
-                      setProfileForm({ name: '', description: '', instagramUsername: '', isDefault: false });
-                    }}
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (!profileForm.name.trim()) {
-                        toast.error('Profile name is required');
-                        return;
-                      }
-
-                      try {
-                        const response = await fetch('/api/instagram/profiles', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(profileForm),
-                        });
-
-                        const data = await response.json();
-
-                        if (data.success) {
-                          toast.success('Profile created successfully!');
-                          setProfiles([...profiles, { ...data.profile, _count: { posts: 0 } }]);
-                          setSelectedProfileId(data.profile.id);
-                          setShowProfileDialog(false);
-                          setProfileForm({ name: '', description: '', instagramUsername: '', isDefault: false });
-                        } else {
-                          toast.error(data.error || 'Failed to create profile');
-                        }
-                      } catch (error) {
-                        console.error('Error creating profile:', error);
-                        toast.error('Failed to create profile');
-                      }
-                    }}
-                    disabled={!profileForm.name.trim()}
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Create Profile
                   </button>
                 </div>
               </div>

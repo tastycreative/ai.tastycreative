@@ -385,20 +385,69 @@ export function VaultContent() {
     if (!selectedProfileId || !selectedFolderId) return;
     if (newFiles.length === 0) return;
 
+    setUploadProgress(0);
+    const totalFiles = newFiles.length;
+    let completedFiles = 0;
+
     try {
       const uploadPromises = newFiles.map(async (file) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("profileId", selectedProfileId);
-        formData.append("folderId", selectedFolderId);
-
-        const response = await fetch("/api/vault/upload", {
+        // Step 1: Get presigned URL from server
+        const presignedResponse = await fetch("/api/vault/presigned-url", {
           method: "POST",
-          body: formData,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            profileId: selectedProfileId,
+            folderId: selectedFolderId,
+          }),
         });
 
-        if (!response.ok) throw new Error(`Failed to upload ${file.name}`);
-        return response.json();
+        if (!presignedResponse.ok) {
+          const errorData = await presignedResponse.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `Failed to get upload URL for ${file.name}`);
+        }
+
+        const { presignedUrl, s3Key, awsS3Url, fileName, fileType, fileSize, profileId, folderId } = await presignedResponse.json();
+
+        // Step 2: Upload directly to S3 using presigned URL
+        const uploadResponse = await fetch(presignedUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type,
+          },
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload ${file.name} to storage`);
+        }
+
+        // Step 3: Confirm upload and create database record
+        const confirmResponse = await fetch("/api/vault/confirm-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            s3Key,
+            awsS3Url,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            profileId,
+            folderId,
+          }),
+        });
+
+        if (!confirmResponse.ok) {
+          const errorData = await confirmResponse.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(errorData.error || `Failed to confirm upload for ${file.name}`);
+        }
+
+        completedFiles++;
+        setUploadProgress(Math.round((completedFiles / totalFiles) * 100));
+
+        return confirmResponse.json();
       });
 
       const uploadedItems = await Promise.all(uploadPromises);
@@ -413,10 +462,12 @@ export function VaultContent() {
       ]);
       setNewFiles([]);
       setIsAddingNew(false);
+      setUploadProgress(0);
       showToast(`Successfully uploaded ${uploadedItems.length} file(s)!`, "success");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error uploading files:", error);
-      showToast("Failed to upload some files", "error");
+      showToast(error.message || "Failed to upload some files", "error");
+      setUploadProgress(0);
     }
   };
 
@@ -617,8 +668,24 @@ export function VaultContent() {
 
               <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
                 <Sparkles className="w-3 h-3" />
-                <span>Supports images, videos, GIFs, and audio files</span>
+                <span>Supports images, videos, GIFs, and audio files (no size limit)</span>
               </div>
+
+              {/* Upload Progress Bar */}
+              {uploadProgress > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">Uploading...</span>
+                    <span className="text-purple-600 dark:text-purple-400 font-semibold">{uploadProgress}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -628,17 +695,26 @@ export function VaultContent() {
                   setIsAddingNew(false);
                   setNewFiles([]);
                   setIsDragging(false);
+                  setUploadProgress(0);
                 }}
-                className="px-5 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-colors"
+                disabled={uploadProgress > 0}
+                className="px-5 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddItem}
-                disabled={newFiles.length === 0}
-                className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl transition-all"
+                disabled={newFiles.length === 0 || uploadProgress > 0}
+                className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
               >
-                Upload {newFiles.length > 0 && `(${newFiles.length})`}
+                {uploadProgress > 0 ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>Upload {newFiles.length > 0 && `(${newFiles.length})`}</>
+                )}
               </button>
             </div>
           </div>

@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { prisma } from "@/lib/database";
-
-// For Next.js App Router runtime configuration
-export const runtime = 'nodejs';
-export const maxDuration = 60; // 60 seconds timeout for large uploads
-export const dynamic = 'force-dynamic';
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -16,7 +12,7 @@ const s3Client = new S3Client({
   },
 });
 
-// POST /api/vault/upload - Upload file to S3 and create vault item
+// POST /api/vault/presigned-url - Get presigned URL for direct S3 upload
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -24,14 +20,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get("file") as File;
-    const profileId = formData.get("profileId") as string;
-    const folderId = formData.get("folderId") as string;
+    const { fileName, fileType, fileSize, profileId, folderId } = await request.json();
 
-    if (!file || !profileId || !folderId) {
+    if (!fileName || !fileType || !profileId || !folderId) {
       return NextResponse.json(
-        { error: "file, profileId, and folderId are required" },
+        { error: "fileName, fileType, profileId, and folderId are required" },
         { status: 400 }
       );
     }
@@ -54,47 +47,38 @@ export async function POST(request: NextRequest) {
 
     // Generate unique filename
     const timestamp = Date.now();
-    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
     const uniqueFileName = `${timestamp}-${sanitizedFileName}`;
 
     // S3 key structure: vault/{clerkId}/{profileId}/{folderId}/{fileName}
     const s3Key = `vault/${userId}/${profileId}/${folderId}/${uniqueFileName}`;
 
-    // Convert file to buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    // Upload to S3
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET!,
-        Key: s3Key,
-        Body: buffer,
-        ContentType: file.type,
-      })
-    );
-
-    // Generate S3 URL
-    const awsS3Url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
-
-    // Create vault item in database
-    const vaultItem = await prisma.vaultItem.create({
-      data: {
-        clerkId: userId,
-        profileId,
-        folderId,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        awsS3Key: s3Key,
-        awsS3Url,
-      },
+    // Generate presigned URL for direct upload (valid for 10 minutes)
+    const command = new PutObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET!,
+      Key: s3Key,
+      ContentType: fileType,
     });
 
-    return NextResponse.json(vaultItem);
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
+
+    // Generate the final S3 URL
+    const awsS3Url = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+
+    return NextResponse.json({
+      presignedUrl,
+      s3Key,
+      awsS3Url,
+      fileName,
+      fileType,
+      fileSize,
+      profileId,
+      folderId,
+    });
   } catch (error) {
-    console.error("Error uploading to vault:", error);
+    console.error("Error generating presigned URL:", error);
     return NextResponse.json(
-      { error: "Failed to upload file" },
+      { error: "Failed to generate upload URL" },
       { status: 500 }
     );
   }

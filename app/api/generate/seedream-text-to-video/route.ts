@@ -40,6 +40,10 @@ export async function POST(request: NextRequest) {
       watermark,
       generateAudio,
       targetFolder,
+      // Vault folder params
+      saveToVault,
+      vaultProfileId,
+      vaultFolderId,
     } = body;
 
     // Validate required fields
@@ -91,6 +95,10 @@ export async function POST(request: NextRequest) {
           generateAudio,
           source: "seedream-t2v",
           targetFolder: targetFolder || null,
+          // Vault params
+          saveToVault: saveToVault || false,
+          vaultProfileId: vaultProfileId || null,
+          vaultFolderId: vaultFolderId || null,
         },
         user: {
           connect: {
@@ -291,6 +299,27 @@ export async function GET(request: NextRequest) {
 
         const params = generationJob.params as any;
         const targetFolder = params?.targetFolder;
+        const saveToVault = params?.saveToVault;
+        const vaultProfileId = params?.vaultProfileId;
+        const vaultFolderId = params?.vaultFolderId;
+
+        // Verify vault folder if saving to vault
+        let vaultFolder = null;
+        if (saveToVault && vaultProfileId && vaultFolderId) {
+          vaultFolder = await prisma.vaultFolder.findFirst({
+            where: {
+              id: vaultFolderId,
+              profileId: vaultProfileId,
+              clerkId: userId,
+            },
+          });
+          if (!vaultFolder) {
+            return NextResponse.json(
+              { error: "Vault folder not found or access denied" },
+              { status: 404 }
+            );
+          }
+        }
 
         // Download video from BytePlus
         const videoResponse = await fetch(data.content.video_url);
@@ -307,7 +336,10 @@ export async function GET(request: NextRequest) {
         let s3Key: string;
         let subfolder = '';
         
-        if (targetFolder) {
+        if (saveToVault && vaultProfileId && vaultFolderId) {
+          // Save to vault folder
+          s3Key = `vault/${userId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
+        } else if (targetFolder) {
           s3Key = `${targetFolder.replace(/\/$/, '')}/${filename}`;
           const parts = targetFolder.split('/');
           if (parts.length > 2) {
@@ -328,34 +360,76 @@ export async function GET(request: NextRequest) {
         await s3Client.send(uploadCommand);
         console.log("Video uploaded to S3:", s3Key);
 
-        const awsS3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`;
+        const awsS3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, '/');
 
-        // Save to database
-        const savedVideo = await prisma.generatedVideo.create({
-          data: {
-            clerkId: userId,
-            jobId: generationJob.id,
-            filename: filename,
-            subfolder: subfolder || "",
-            type: "output",
-            s3Key: s3Key,
-            awsS3Key: s3Key,
-            awsS3Url: awsS3Url,
-            duration: data.duration,
-            fps: data.framespersecond,
-            format: "mp4",
-            metadata: {
-              source: "seedream-t2v",
-              prompt: params?.prompt || "",
-              resolution: data.resolution,
-              ratio: data.ratio,
-              seed: data.seed,
-              cameraFixed: params?.cameraFixed,
-              watermark: params?.watermark,
-              originalUrl: data.content.video_url,
+        // Save to database - either VaultItem or GeneratedVideo
+        let savedVideo: any;
+        
+        if (saveToVault && vaultProfileId && vaultFolderId) {
+          // Create VaultItem for vault storage
+          const vaultItem = await prisma.vaultItem.create({
+            data: {
+              clerkId: userId,
+              profileId: vaultProfileId,
+              folderId: vaultFolderId,
+              fileName: filename,
+              fileType: "video/mp4",
+              awsS3Key: s3Key,
+              awsS3Url: awsS3Url,
+              fileSize: videoBuffer.length,
             },
-          },
-        });
+          });
+          
+          savedVideo = {
+            id: vaultItem.id,
+            videoUrl: awsS3Url,
+            prompt: params?.prompt || "",
+            modelVersion: "SeeDream 4.5",
+            duration: data.duration || 5,
+            cameraFixed: params?.cameraFixed || false,
+            createdAt: vaultItem.createdAt.toISOString(),
+            status: "completed" as const,
+            savedToVault: true,
+          };
+        } else {
+          // Create GeneratedVideo for regular storage
+          const generatedVideo = await prisma.generatedVideo.create({
+            data: {
+              clerkId: userId,
+              jobId: generationJob.id,
+              filename: filename,
+              subfolder: subfolder || "",
+              type: "output",
+              s3Key: s3Key,
+              awsS3Key: s3Key,
+              awsS3Url: awsS3Url,
+              duration: data.duration,
+              fps: data.framespersecond,
+              format: "mp4",
+              metadata: {
+                source: "seedream-t2v",
+                prompt: params?.prompt || "",
+                resolution: data.resolution,
+                ratio: data.ratio,
+                seed: data.seed,
+                cameraFixed: params?.cameraFixed,
+                watermark: params?.watermark,
+                originalUrl: data.content.video_url,
+              },
+            },
+          });
+          
+          savedVideo = {
+            id: generatedVideo.id,
+            videoUrl: awsS3Url,
+            prompt: params?.prompt || "",
+            modelVersion: "SeeDream 4.5",
+            duration: data.duration || 5,
+            cameraFixed: params?.cameraFixed || false,
+            createdAt: generatedVideo.createdAt.toISOString(),
+            status: "completed" as const,
+          };
+        }
 
         // Update GenerationJob status
         await prisma.generationJob.update({
@@ -373,16 +447,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({
           status: "completed",
-          videos: [{
-            id: savedVideo.id,
-            videoUrl: awsS3Url,
-            prompt: params?.prompt || "",
-            modelVersion: "SeeDream 4.5",
-            duration: data.duration || 5,
-            cameraFixed: params?.cameraFixed || false,
-            createdAt: savedVideo.createdAt.toISOString(),
-            status: "completed" as const,
-          }],
+          videos: [savedVideo],
           taskId: data.id,
           metadata: {
             resolution: data.resolution,

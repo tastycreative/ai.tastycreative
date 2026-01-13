@@ -218,7 +218,7 @@ function SocialMediaContent() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'instagram-staging':
-        return <InstagramStagingTool highlightPostId={postIdFromUrl} />;
+        return <InstagramStagingTool highlightPostId={postIdFromUrl} profileId={profileId} />;
       case 'calendar':
         return <CalendarView profileId={profileId} />;
       case 'pipeline':

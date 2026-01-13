@@ -38,6 +38,10 @@ export async function POST(request: NextRequest) {
       sequential_image_generation_options,
       size = "2048x2048",
       targetFolder,
+      // Vault folder support
+      saveToVault,
+      vaultProfileId,
+      vaultFolderId,
     } = body;
 
     // Validate required fields
@@ -132,11 +136,35 @@ export async function POST(request: NextRequest) {
           watermark: body.watermark,
           targetFolder: body.targetFolder,
           numReferenceImages: Array.isArray(image) ? image.length : 1,
+          saveToVault: body.saveToVault,
+          vaultProfileId: body.vaultProfileId,
+          vaultFolderId: body.vaultFolderId,
         },
       },
     });
 
     console.log('📝 Created generation job:', generationJob.id);
+
+    // Check if saving to vault - verify folder exists and user has access
+    let vaultFolder = null;
+    if (saveToVault && vaultProfileId && vaultFolderId) {
+      vaultFolder = await prisma.vaultFolder.findFirst({
+        where: {
+          id: vaultFolderId,
+          clerkId: userId,
+          profileId: vaultProfileId,
+        },
+      });
+
+      if (!vaultFolder) {
+        console.error('❌ Vault folder not found or access denied');
+        return NextResponse.json(
+          { error: 'Vault folder not found or access denied' },
+          { status: 404 }
+        );
+      }
+      console.log('📂 Saving to vault folder:', vaultFolder.name);
+    }
 
     // Process and save each generated image
     const savedImages = [];
@@ -170,11 +198,16 @@ export async function POST(request: NextRequest) {
         const timestamp = Date.now();
         const filename = `seedream-i2i-${timestamp}-${index}.png`;
         
-        // Determine S3 key based on folder selection
+        // Determine S3 key based on storage type (vault vs regular S3)
         let s3Key: string;
         let subfolder = '';
+        let publicUrl: string;
         
-        if (body.targetFolder) {
+        if (saveToVault && vaultProfileId && vaultFolderId) {
+          // Save to vault storage: vault/{clerkId}/{profileId}/{folderId}/{fileName}
+          s3Key = `vault/${userId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
+          console.log(`📤 Uploading to Vault S3: ${s3Key}`);
+        } else if (body.targetFolder) {
           // Use selected folder (already includes outputs/{userId}/ prefix)
           s3Key = `${body.targetFolder.replace(/\/$/, '')}/${filename}`;
           // Extract subfolder name from prefix for database
@@ -201,48 +234,77 @@ export async function POST(request: NextRequest) {
         await s3Client.send(uploadCommand);
 
         // Generate public URL
-        const publicUrl = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${s3Key}`;
+        publicUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;
 
         console.log(`✅ Image uploaded: ${publicUrl}`);
 
-        // Save to database
+        // Save to database - different handling for vault vs regular
         const [width, height] = (item.size || body.size || '2048x2048').split('x').map(Number);
         
-        const savedImage = await prisma.generatedImage.create({
-          data: {
-            clerkId: userId,
-            jobId: generationJob.id,
-            filename,
-            subfolder: subfolder,
-            type: 'output',
-            fileSize: imageBuffer.length,
-            width,
-            height,
-            format: 'png',
-            awsS3Key: s3Key,
-            awsS3Url: publicUrl,
-            metadata: {
-              source: 'seedream-i2i',
-              model: data.model,
-              prompt: body.prompt,
-              size: body.size,
-              watermark: body.watermark,
-              numReferenceImages: Array.isArray(image) ? image.length : 1,
-              generatedAt: new Date().toISOString(),
+        if (saveToVault && vaultProfileId && vaultFolderId) {
+          // Save to vault database
+          const vaultItem = await prisma.vaultItem.create({
+            data: {
+              clerkId: userId,
+              profileId: vaultProfileId,
+              folderId: vaultFolderId,
+              fileName: filename,
+              fileType: 'image/png',
+              fileSize: imageBuffer.length,
+              awsS3Key: s3Key,
+              awsS3Url: publicUrl,
             },
-          },
-        });
+          });
 
-        console.log(`✅ Saved to database: ${savedImage.id}`);
+          console.log(`✅ Saved to vault database: ${vaultItem.id}`);
 
-        savedImages.push({
-          id: savedImage.id,
-          url: publicUrl,
-          size: item.size || body.size,
-          prompt: body.prompt,
-          model: data.model,
-          createdAt: savedImage.createdAt.toISOString(),
-        });
+          savedImages.push({
+            id: vaultItem.id,
+            url: publicUrl,
+            size: item.size || body.size,
+            prompt: body.prompt,
+            model: data.model,
+            createdAt: vaultItem.createdAt.toISOString(),
+            savedToVault: true,
+          });
+        } else {
+          // Save to regular generated images database
+          const savedImage = await prisma.generatedImage.create({
+            data: {
+              clerkId: userId,
+              jobId: generationJob.id,
+              filename,
+              subfolder: subfolder,
+              type: 'output',
+              fileSize: imageBuffer.length,
+              width,
+              height,
+              format: 'png',
+              awsS3Key: s3Key,
+              awsS3Url: publicUrl,
+              metadata: {
+                source: 'seedream-i2i',
+                model: data.model,
+                prompt: body.prompt,
+                size: body.size,
+                watermark: body.watermark,
+                numReferenceImages: Array.isArray(image) ? image.length : 1,
+                generatedAt: new Date().toISOString(),
+              },
+            },
+          });
+
+          console.log(`✅ Saved to database: ${savedImage.id}`);
+
+          savedImages.push({
+            id: savedImage.id,
+            url: publicUrl,
+            size: item.size || body.size,
+            prompt: body.prompt,
+            model: data.model,
+            createdAt: savedImage.createdAt.toISOString(),
+          });
+        }
 
       } catch (error: any) {
         console.error(`❌ Error processing image ${index}:`, error);

@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
   // Enable compression for better performance
   compress: true,
 
+  // Configure server actions with larger body size limit for file uploads
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '100mb', // Allow up to 100MB uploads for videos
+    },
+  },
+
   // AWSAmplify SSR Fix: Embed environment variables during build
   // This is required because Amplify doesn't pass env vars to Lambda runtime properly
   env: {
@@ -133,13 +140,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-
-  // Configure server actions with larger body size limit for file uploads
-  // experimental: {
-  //   serverActions: {
-  //     bodySizeLimit: '50mb', // Allow up to 50MB uploads for videos
-  //   },
-  // },
   
   // Turbopack configuration to handle @vercel/blob properly
   turbopack: {

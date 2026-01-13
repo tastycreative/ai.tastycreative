@@ -18,6 +18,8 @@ import {
   RefreshCw,
   Info,
   Settings,
+  User,
+  Archive,
 } from "lucide-react";
 
 interface AvailableFolderOption {
@@ -30,6 +32,23 @@ interface AvailableFolderOption {
   permission?: 'VIEW' | 'EDIT';
   parentPrefix?: string | null;
 }
+
+interface InstagramProfile {
+  id: string;
+  name: string;
+  instagramUsername?: string | null;
+  isDefault?: boolean;
+}
+
+interface VaultFolder {
+  id: string;
+  name: string;
+  profileId: string;
+  isDefault?: boolean;
+}
+
+// Combined folder type for the unified dropdown
+type FolderType = 's3' | 'vault';
 
 interface GeneratedImage {
   id: string;
@@ -72,8 +91,14 @@ export default function SeeDreamImageToImage() {
 
   // Folder Selection State
   const [targetFolder, setTargetFolder] = useState<string>("");
+  const [folderType, setFolderType] = useState<FolderType>('s3');
   const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(false);
+
+  // Vault Integration State
+  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
+  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   // Resolution and Ratio configurations
   const resolutionRatios = {
@@ -166,6 +191,89 @@ export default function SeeDreamImageToImage() {
     loadFolders();
   }, [loadFolders]);
 
+  // Load vault profiles and their folders
+  const loadVaultData = useCallback(async () => {
+    if (!apiClient) return;
+
+    setIsLoadingVaultData(true);
+    try {
+      // First, load all Instagram profiles
+      const profilesResponse = await fetch('/api/instagram/profiles');
+      if (!profilesResponse.ok) {
+        throw new Error('Failed to load profiles');
+      }
+
+      const profilesData = await profilesResponse.json();
+      const profileList: InstagramProfile[] = Array.isArray(profilesData)
+        ? profilesData
+        : profilesData.profiles || [];
+
+      // Sort profiles alphabetically
+      const sortedProfiles = [...profileList].sort((a, b) =>
+        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+      );
+
+      setVaultProfiles(sortedProfiles);
+
+      // Now load vault folders for each profile
+      const foldersByProfile: Record<string, VaultFolder[]> = {};
+
+      await Promise.all(
+        sortedProfiles.map(async (profile) => {
+          try {
+            const foldersResponse = await fetch(`/api/vault/folders?profileId=${profile.id}`);
+            if (foldersResponse.ok) {
+              const folders = await foldersResponse.json();
+              foldersByProfile[profile.id] = folders;
+            }
+          } catch (error) {
+            console.error(`Failed to load folders for profile ${profile.id}:`, error);
+            foldersByProfile[profile.id] = [];
+          }
+        })
+      );
+
+      setVaultFoldersByProfile(foldersByProfile);
+    } catch (error) {
+      console.error('Failed to load vault data:', error);
+    } finally {
+      setIsLoadingVaultData(false);
+    }
+  }, [apiClient]);
+
+  // Load vault data on mount
+  useEffect(() => {
+    loadVaultData();
+  }, [loadVaultData]);
+
+  // Helper to parse the combined folder value
+  const parseTargetFolder = (value: string): { type: FolderType; folderId: string; profileId?: string; profileName?: string } => {
+    if (value.startsWith('vault:')) {
+      const parts = value.replace('vault:', '').split(':');
+      const profileId = parts[0];
+      const folderId = parts[1];
+      const profile = vaultProfiles.find(p => p.id === profileId);
+      return { type: 'vault', folderId, profileId, profileName: profile?.name };
+    }
+    return { type: 's3', folderId: value };
+  };
+
+  // Get display text for the selected folder
+  const getSelectedFolderDisplay = (): string => {
+    if (!targetFolder) return 'Saving to your root outputs folder';
+    
+    const parsed = parseTargetFolder(targetFolder);
+    
+    if (parsed.type === 'vault') {
+      const folders = vaultFoldersByProfile[parsed.profileId || ''] || [];
+      const folder = folders.find(f => f.id === parsed.folderId);
+      return `Saving to Vault: ${parsed.profileName || 'Profile'} / ${folder?.name || 'Folder'}`;
+    }
+    
+    const s3Folder = availableFolders.find(f => f.prefix === parsed.folderId);
+    return `Saving to ${s3Folder?.displayPath || 'selected folder'}`;
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -230,8 +338,21 @@ export default function SeeDreamImageToImage() {
         watermark: false,
         sequential_image_generation: maxImages > 1 ? "auto" : "disabled",
         size: currentSize,
-        targetFolder: targetFolder || undefined,
       };
+
+      // Handle folder selection - parse the target folder
+      if (targetFolder) {
+        const parsed = parseTargetFolder(targetFolder);
+        if (parsed.type === 'vault') {
+          // For vault folders, pass vault-specific info
+          payload.saveToVault = true;
+          payload.vaultProfileId = parsed.profileId;
+          payload.vaultFolderId = parsed.folderId;
+        } else {
+          // For S3 folders, pass the prefix as before
+          payload.targetFolder = parsed.folderId;
+        }
+      }
 
       // Add batch generation config
       if (maxImages > 1) {
@@ -346,97 +467,145 @@ export default function SeeDreamImageToImage() {
     setSelectedResolution("2K");
     setSelectedRatio("1:1");
     setMaxImages(1);
+    setTargetFolder("");
+    setFolderType('s3');
     setError(null);
     setGeneratedImages([]);
     setUploadedImages([]);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="relative min-h-screen bg-slate-950 text-slate-50">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-amber-400/10 blur-3xl" />
+        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         {/* Header */}
-        <div className="mb-8 relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 dark:from-cyan-500/5 dark:via-blue-500/5 dark:to-indigo-500/5 rounded-3xl blur-3xl" />
-          <div className="relative flex items-center space-x-4 mb-4 p-6 bg-white/50 dark:bg-gray-800/50 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl blur-lg opacity-60 animate-pulse" />
-              <div className="relative p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg">
-                <Sparkles className="w-8 h-8 text-white" />
+        <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-center">
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-cyan-900/50">
+                <Sparkles className="w-6 h-6 text-white" />
+                <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Live Studio</p>
+                <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5 — Image to Image</h1>
               </div>
             </div>
-            <div className="flex-1">
-              <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 dark:from-cyan-400 dark:via-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">
-                SeeDream 4.5 - Image to Image
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base flex items-center mt-1">
-                <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />
-                Transform images with AI-powered editing by BytePlus
-              </p>
+            <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
+              Transform references into finished visuals. Upload a primary image, add optional style refs, and steer with a concise prompt.
+            </p>
+
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200"><Upload className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-slate-300">Inputs</p>
+                  <p className="text-sm font-semibold text-white">1-14 refs</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-200"><Settings className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-slate-300">Framing</p>
+                  <p className="text-sm font-semibold text-white">Smart ratios</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-200"><Download className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-slate-300">Output</p>
+                  <p className="text-sm font-semibold text-white">2K/4K ready</p>
+                </div>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowHelpModal(true)}
-              className="p-3 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-xl transition-all duration-200 group"
-              title="View Help & Tips"
-            >
-              <Info className="w-5 h-5 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
-            </button>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowHelpModal(true)}
+                className="group inline-flex items-center gap-2 rounded-full bg-white text-slate-900 px-4 py-2 text-sm font-semibold shadow-lg shadow-cyan-900/20 transition hover:-translate-y-0.5 hover:shadow-xl"
+                title="View Help & Tips"
+              >
+                <Info className="w-4 h-4" />
+                Quick Guide
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <p className="text-xs text-slate-300">Current size</p>
+                <p className="text-lg font-semibold text-white">{currentSize}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <p className="text-xs text-slate-300">Aspect</p>
+                <p className="text-lg font-semibold text-white">{selectedRatio}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <p className="text-xs text-slate-300">Resolution</p>
+                <p className="text-lg font-semibold text-white">{selectedResolution}</p>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel - Generation Controls */}
           <div className="lg:col-span-1">
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-2xl p-6 space-y-6 border border-gray-200/50 dark:border-gray-700/50 hover:shadow-cyan-500/10 transition-all duration-300">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur space-y-6">
               {/* Image Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Reference Images * {uploadedImages.length > 0 && `(${uploadedImages.length})`}
-                </label>
-                
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-white">Reference Images</label>
+                  <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">{uploadedImages.length || 0} added</span>
+                </div>
+
                 {/* Uploaded Images Grid */}
                 {uploadedImages.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="grid grid-cols-2 gap-3">
                     {uploadedImages.map((img, index) => (
                       <div key={img.id} className="relative group">
-                        <div className="relative overflow-hidden rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+                        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-lg shadow-cyan-900/30 transition hover:-translate-y-1 hover:shadow-2xl">
                           <img
                             src={img.base64}
                             alt={`Reference ${index + 1}`}
                             className="w-full h-32 object-contain p-2"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-0 transition group-hover:opacity-100" />
                           <button
                             onClick={() => handleRemoveImage(img.id)}
                             disabled={isGenerating}
-                            className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100 shadow-lg hover:scale-110"
+                            className="absolute top-2 right-2 rounded-full bg-white/10 p-1.5 text-white opacity-0 transition hover:bg-red-500/80 group-hover:opacity-100"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
-                          <div className="absolute bottom-2 left-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-semibold px-2.5 py-1 rounded-full shadow-lg">
-                            Image {index + 1}
+                          <div className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-900 shadow">
+                            {index === 0 ? 'Primary' : `Ref ${index + 1}`}
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-                
+
                 {/* Upload New Image Button */}
-                <label className="group flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-cyan-300 dark:border-cyan-600 rounded-xl cursor-pointer bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-950/30 dark:to-blue-950/30 hover:from-cyan-100 hover:to-blue-100 dark:hover:from-cyan-900/30 dark:hover:to-blue-900/30 transition-all duration-300 hover:border-cyan-400 dark:hover:border-cyan-500 hover:shadow-lg hover:scale-[1.01]">
+                <label className="group flex flex-col items-center justify-center w-full h-32 rounded-xl border border-dashed border-white/20 bg-slate-950/60 cursor-pointer transition hover:border-cyan-200/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-900/30">
                   <div className="flex flex-col items-center justify-center py-4">
                     <div className="relative mb-2">
                       <div className="absolute inset-0 bg-cyan-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                      <Upload className="relative w-8 h-8 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 transition-transform" />
+                      <Upload className="relative w-8 h-8 text-cyan-200 group-hover:scale-110 transition-transform" />
                     </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      <span className="font-semibold bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400 bg-clip-text text-transparent">
-                        {uploadedImages.length === 0 ? 'Upload Primary Image' : 'Add Reference Image'}
+                    <p className="text-sm text-white">
+                      <span className="font-semibold text-cyan-100">
+                        {uploadedImages.length === 0 ? 'Upload primary image' : 'Add reference image'}
                       </span>
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      PNG, JPG, WEBP (MAX. 10MB)
-                    </p>
+                    <p className="text-[11px] text-slate-300 mt-1">PNG, JPG, WEBP (max 10MB)</p>
                   </div>
                   <input
                     type="file"
@@ -446,210 +615,238 @@ export default function SeeDreamImageToImage() {
                     disabled={isGenerating}
                   />
                 </label>
-                
+
                 {uploadedImages.length > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    First image is primary, others are reference images for style/composition
+                  <p className="text-xs text-slate-300">
+                    First image is primary; additional images provide style/composition cues.
                   </p>
                 )}
               </div>
 
               {/* Prompt Input */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Prompt *
-                </label>
-                <textarea
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Describe how you want to transform the image..."
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-cyan-500 dark:focus:ring-cyan-400 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 resize-none"
-                  rows={4}
-                  disabled={isGenerating}
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Recommended: Keep under 600 words for best results
-                </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-white">Prompt</label>
+                  <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                </div>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Describe the changes: keep pose, swap outfit to ..."
+                    className="relative w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 text-sm text-white placeholder-slate-400 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+                    rows={4}
+                    disabled={isGenerating}
+                  />
+                </div>
+                <p className="text-xs text-slate-300">Be explicit about what stays vs. changes. Under 600 words.</p>
               </div>
 
               {/* Resolution & Aspect Ratio Configuration */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Resolution
-                </label>
-                
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <button
-                    onClick={() => setSelectedResolution("2K")}
-                    className={`p-3 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
-                      selectedResolution === "2K"
-                        ? "border-cyan-500 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/30 dark:to-blue-900/30 shadow-lg shadow-cyan-500/20"
-                        : "border-gray-200 dark:border-gray-600 hover:border-cyan-300 dark:hover:border-cyan-600 bg-white dark:bg-gray-800"
-                    }`}
-                    disabled={isGenerating}
-                  >
-                    <div className="font-bold text-gray-900 dark:text-gray-100">2K</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">~2048px</div>
-                  </button>
-                  <button
-                    onClick={() => setSelectedResolution("4K")}
-                    className={`p-3 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
-                      selectedResolution === "4K"
-                        ? "border-cyan-500 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/30 dark:to-blue-900/30 shadow-lg shadow-cyan-500/20"
-                        : "border-gray-200 dark:border-gray-600 hover:border-cyan-300 dark:hover:border-cyan-600 bg-white dark:bg-gray-800"
-                    }`}
-                    disabled={isGenerating}
-                  >
-                    <div className="font-bold text-gray-900 dark:text-gray-100">4K</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">~4096px</div>
-                  </button>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-cyan-300" />
+                  <p className="text-sm font-semibold text-white">Framing</p>
                 </div>
 
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Aspect Ratio
-                </label>
-                
-                <div className="grid grid-cols-4 gap-2 mb-4">
-                  {aspectRatios.map((ratio) => (
+                <div className="grid grid-cols-2 gap-3">
+                  {["2K", "4K"].map((res) => (
                     <button
-                      key={ratio}
-                      onClick={() => setSelectedRatio(ratio)}
-                      className={`p-2.5 rounded-lg border-2 transition-all duration-300 hover:scale-105 ${
-                        selectedRatio === ratio
-                          ? "border-cyan-500 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/30 dark:to-blue-900/30 shadow-md shadow-cyan-500/20"
-                          : "border-gray-200 dark:border-gray-600 hover:border-cyan-300 dark:hover:border-cyan-600 bg-white dark:bg-gray-800"
+                      key={res}
+                      onClick={() => setSelectedResolution(res as "2K" | "4K")}
+                      className={`group flex items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+                        selectedResolution === res
+                          ? "border-cyan-400/60 bg-cyan-500/10 shadow-lg shadow-cyan-900/40"
+                          : "border-white/10 bg-white/5 hover:border-cyan-200/40"
                       }`}
                       disabled={isGenerating}
                     >
-                      <div className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                        {ratio}
+                      <div>
+                        <p className="text-xs text-slate-300">Resolution</p>
+                        <p className="text-lg font-semibold text-white">{res}</p>
+                      </div>
+                      <div className="rounded-xl bg-white/5 px-3 py-1 text-[11px] text-slate-200">
+                        {res === "2K" ? "Faster" : "Detail"}
                       </div>
                     </button>
                   ))}
                 </div>
 
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Image Size
-                </label>
-                
+                <p className="text-xs text-slate-300">Aspect Ratio</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {aspectRatios.map((ratio) => (
+                    <button
+                      key={ratio}
+                      onClick={() => setSelectedRatio(ratio)}
+                      className={`rounded-xl border px-2 py-2 text-sm font-semibold transition ${
+                        selectedRatio === ratio
+                          ? "border-amber-300/70 bg-amber-400/10 text-amber-100 shadow-sm shadow-amber-900/40"
+                          : "border-white/10 bg-white/5 text-white hover:border-amber-200/40"
+                      }`}
+                      disabled={isGenerating}
+                    >
+                      {ratio}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      Width
-                    </label>
-                    <input
-                      type="text"
-                      value={currentSize.split('x')[0]}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-center font-medium"
-                    />
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                    <p className="text-[11px] text-slate-300">Width</p>
+                    <p className="text-lg font-semibold text-white">{currentSize.split('x')[0]}</p>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      Height
-                    </label>
-                    <input
-                      type="text"
-                      value={currentSize.split('x')[1]}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-center font-medium"
-                    />
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                    <p className="text-[11px] text-slate-300">Height</p>
+                    <p className="text-lg font-semibold text-white">{currentSize.split('x')[1]}</p>
                   </div>
                 </div>
               </div>
 
               {/* Folder Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  <div className="flex items-center space-x-2">
-                    <Folder className="w-4 h-4" />
-                    <span>Save to Folder</span>
-                  </div>
-                </label>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Folder className="w-4 h-4 text-cyan-300" />
+                  <p className="text-sm font-semibold text-white">Save Destination</p>
+                  {(isLoadingFolders || isLoadingVaultData) && (
+                    <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+                  )}
+                </div>
                 <div className="relative">
                   <select
                     value={targetFolder}
-                    onChange={(e) => setTargetFolder(e.target.value)}
-                    disabled={isGenerating || isLoadingFolders}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-cyan-500 dark:focus:ring-cyan-400 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed appearance-none cursor-pointer"
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setTargetFolder(value);
+                      const parsed = parseTargetFolder(value);
+                      setFolderType(parsed.type);
+                    }}
+                    disabled={isGenerating || isLoadingFolders || isLoadingVaultData}
+                    className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-50"
                   >
-                    <option value="">Default Folder</option>
-                    {availableFolders.map((folder) => (
-                      <option key={folder.prefix} value={folder.prefix}>
-                        {folder.displayPath}
-                        {folder.isShared && ' (Shared)'}
-                      </option>
-                    ))}
+                    <option value="">📁 Default Output Folder</option>
+                    
+                    {/* S3 Folders Group */}
+                    {availableFolders.length > 0 && (
+                      <optgroup label="📂 Your Output Folders">
+                        {availableFolders.map((folder) => (
+                          <option key={folder.prefix} value={folder.prefix}>
+                            {'  '.repeat(folder.depth)}{folder.name}
+                            {folder.isShared && ' (Shared)'}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    
+                    {/* Vault Folders by Profile */}
+                    {vaultProfiles.map((profile) => {
+                      const folders = vaultFoldersByProfile[profile.id] || [];
+                      if (folders.length === 0) return null;
+                      
+                      return (
+                        <optgroup 
+                          key={profile.id} 
+                          label={`📸 Vault - ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
+                        >
+                          {folders.map((folder) => (
+                            <option 
+                              key={folder.id} 
+                              value={`vault:${profile.id}:${folder.id}`}
+                            >
+                              {folder.name}{folder.isDefault ? ' (Default)' : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {targetFolder
-                    ? `Images will be saved to: ${availableFolders.find(f => f.prefix === targetFolder)?.displayPath || 'Selected folder'}`
-                    : 'Images will be saved to your root outputs folder'}
-                </p>
+                
+                {/* Folder type indicator */}
+                <div className="flex items-center gap-2">
+                  {targetFolder && targetFolder.startsWith('vault:') ? (
+                    <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-200">
+                      <Archive className="w-3 h-3" />
+                      <span>Vault Storage</span>
+                    </div>
+                  ) : targetFolder ? (
+                    <div className="flex items-center gap-1.5 rounded-full bg-cyan-500/20 px-2.5 py-1 text-[11px] text-cyan-200">
+                      <Folder className="w-3 h-3" />
+                      <span>S3 Storage</span>
+                    </div>
+                  ) : null}
+                  <p className="text-xs text-slate-300 flex-1">
+                    {getSelectedFolderDisplay()}
+                  </p>
+                </div>
               </div>
 
               {/* Batch Size */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Batch Size: {maxImages}
-                </label>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">Batch Size</p>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-slate-200">{maxImages} total</span>
+                </div>
                 <input
                   type="range"
                   min="1"
                   max="15"
                   value={maxImages}
                   onChange={(e) => setMaxImages(Number(e.target.value))}
-                  className="w-full"
+                  className="w-full accent-cyan-400"
                   disabled={isGenerating}
                 />
-                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  <span>1</span>
-                  <span>15</span>
+                <div className="flex items-center justify-between text-[11px] text-slate-300">
+                  <span>Solo</span>
+                  <span>Series</span>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">
-                  Generate {maxImages} {maxImages === 1 ? 'image' : 'images'} per request
+                <p className="text-xs text-slate-300 text-center">
+                  Match batch size to how many outputs you request in the prompt.
                 </p>
-                <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-700 dark:text-blue-300">
-                  💡 Tip: If your prompt specifies a number (e.g., "Generate 3 images..."), set batch size to match that number for best results.
+                <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 p-3 text-xs text-amber-50">
+                  💡 Keep phrasing consistent across a batch for cohesive results.
                 </div>
               </div>
 
               {/* Error Display */}
               {error && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-start space-x-3">
-                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
-                  <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <div className="flex items-start gap-3 rounded-2xl border border-red-500/40 bg-red-500/10 p-4">
+                  <AlertCircle className="h-5 w-5 text-red-200" />
+                  <p className="text-sm text-red-50">{error}</p>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex space-x-3">
+              <div className="grid grid-cols-[1.6fr_0.4fr] gap-3">
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt.trim() || uploadedImages.length === 0}
-                  className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+                  className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-6 py-3 font-semibold text-white shadow-xl shadow-cyan-900/40 transition hover:-translate-y-0.5 disabled:from-slate-500 disabled:to-slate-500 disabled:shadow-none"
                 >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Generating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-5 h-5" />
-                      <span>Generate</span>
-                    </>
-                  )}
+                  <div className="absolute inset-0 bg-white/10 opacity-0 transition group-hover:opacity-10" />
+                  <div className="relative flex items-center justify-center gap-2">
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Generating</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-5 h-5" />
+                        <span>Generate</span>
+                      </>
+                    )}
+                  </div>
                 </button>
                 <button
                   onClick={handleReset}
                   disabled={isGenerating}
-                  className="p-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-200/40 disabled:opacity-60"
                   title="Reset form"
                 >
-                  <RotateCcw className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+                  <RotateCcw className="w-4 h-4 inline mr-2" />
+                  Reset
                 </button>
               </div>
             </div>
@@ -657,17 +854,15 @@ export default function SeeDreamImageToImage() {
 
           {/* Right Panel - Results */}
           <div className="lg:col-span-2">
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-2xl p-6 border border-gray-200/50 dark:border-gray-700/50 hover:shadow-cyan-500/10 transition-all duration-300">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400 bg-clip-text text-transparent flex items-center">
-                  <div className="p-2 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg mr-3 shadow-lg">
-                    <ImageIcon className="w-5 h-5 text-white" />
-                  </div>
+            <div className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+              <div className="flex flex-wrap items-center gap-3 mb-6">
+                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white">
+                  <ImageIcon className="w-4 h-4" />
                   Generated Images
-                </h2>
+                </div>
                 {generatedImages.length > 0 && (
-                  <div className="text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-                    {generatedImages.length} {generatedImages.length === 1 ? 'image' : 'images'}
+                  <div className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
+                    {generatedImages.length} {generatedImages.length === 1 ? 'image' : 'images'} ready
                   </div>
                 )}
               </div>
@@ -678,64 +873,61 @@ export default function SeeDreamImageToImage() {
                   {generatedImages.map((image) => (
                     <div
                       key={image.id}
-                      className="group relative bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-400 dark:hover:border-cyan-600 hover:shadow-2xl hover:shadow-cyan-500/20 transition-all duration-300 hover:scale-[1.02]"
+                      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-lg shadow-cyan-900/30 transition hover:-translate-y-1 hover:shadow-2xl"
                     >
-                      <div className="relative overflow-hidden">
+                      <div className="relative">
                         <img
                           src={image.imageUrl}
                           alt={image.prompt}
-                          className="w-full h-auto transform group-hover:scale-105 transition-transform duration-500"
+                          className="w-full h-full object-cover transition duration-700 group-hover:scale-[1.02]"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <div className="absolute bottom-0 left-0 right-0 p-4 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                            <button
-                              onClick={() =>
-                                handleDownload(
-                                  image.imageUrl,
-                                  `seedream-i2i-${image.id}.jpg`
-                                )
-                              }
-                              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white py-2.5 px-4 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-lg hover:shadow-xl font-semibold"
-                            >
-                              <Download className="w-4 h-4" />
-                              <span>Download</span>
-                            </button>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
+                        <div className="absolute bottom-0 left-0 right-0 p-4 opacity-0 transition duration-300 group-hover:opacity-100">
+                          <div className="mb-3 text-xs text-slate-200 line-clamp-2">{image.prompt}</div>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-200/80">
+                            <span className="rounded-full bg-white/10 px-3 py-1">{image.size}</span>
+                            <span className="rounded-full bg-white/10 px-3 py-1">{image.modelVersion}</span>
                           </div>
+                          <button
+                            onClick={() => handleDownload(image.imageUrl, `seedream-i2i-${image.id}.jpg`)}
+                            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-md transition hover:bg-white"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download
+                          </button>
                         </div>
+                        {image.size && (
+                          <div className="absolute top-3 right-3 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-900">
+                            {image.size}
+                          </div>
+                        )}
                       </div>
-                      {image.size && (
-                        <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg">
-                          {image.size}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-16">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-cyan-100 dark:bg-cyan-900/20 rounded-full mb-4">
-                    <ImageIcon className="w-8 h-8 text-cyan-500" />
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/5 py-16">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
+                    <ImageIcon className="w-7 h-7 text-cyan-200" />
                   </div>
-                  <p className="text-gray-500 dark:text-gray-400">
-                    {isGenerating
-                      ? "Generating your images..."
-                      : "Your generated images will appear here"}
+                  <p className="text-sm text-slate-200/80">
+                    {isGenerating ? 'Generating your images...' : 'Your outputs will land here.'}
                   </p>
                 </div>
               )}
 
               {/* Generation History */}
-              <div className="mt-8">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                  <RefreshCw className="w-5 h-5 mr-2 text-gray-500" />
-                  Recent Generations
-                </h3>
+              <div className="mt-8 space-y-3">
+                <div className="flex items-center gap-2 text-white">
+                  <RefreshCw className="w-4 h-4" />
+                  <h3 className="text-sm font-semibold">Recent Generations</h3>
+                </div>
                 {generationHistory.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {generationHistory.slice(0, 8).map((image) => (
-                      <div
+                      <button
                         key={image.id}
-                        className="group relative aspect-square bg-gray-50 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all cursor-pointer"
+                        className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md shadow-cyan-900/20 transition hover:-translate-y-1 hover:border-cyan-200/40"
                         onClick={() => {
                           setSelectedImage(image);
                           setShowImageModal(true);
@@ -744,17 +936,19 @@ export default function SeeDreamImageToImage() {
                         <img
                           src={image.imageUrl}
                           alt={image.prompt}
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
                         />
-
-                      </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 transition group-hover:opacity-100" />
+                        <div className="absolute bottom-2 left-2 right-2 text-left text-[11px] text-slate-100 line-clamp-2 opacity-0 transition group-hover:opacity-100">
+                          {image.prompt}
+                        </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
-                      {isLoadingHistory ? "Loading history..." : "No previous generations yet"}
-                    </p>
+                  <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                    <span>{isLoadingHistory ? 'Loading history...' : 'No previous generations yet'}</span>
+                    <RefreshCw className="w-4 h-4 animate-spin text-cyan-200" />
                   </div>
                 )}
               </div>
@@ -766,169 +960,129 @@ export default function SeeDreamImageToImage() {
       {/* Help Modal */}
       {showHelpModal && typeof window !== 'undefined' && document?.body && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4 overflow-y-auto"
           onClick={() => setShowHelpModal(false)}
         >
           <div 
-            className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-auto my-8"
+            className="relative w-full max-w-4xl max-h-[90vh] overflow-auto my-8 rounded-3xl border border-white/10 bg-slate-950/90 shadow-2xl shadow-cyan-900/40 backdrop-blur"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setShowHelpModal(false)}
-              className="sticky top-4 float-right mr-4 z-10 p-2 bg-gray-900/80 hover:bg-gray-900 text-white rounded-full transition-colors"
+              className="sticky top-4 float-right mr-4 z-10 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="p-8">
+            <div className="p-8 text-slate-100">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600">
                   <Info className="w-6 h-6 text-white" />
                 </div>
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400 bg-clip-text text-transparent">
-                  SeeDream 4.5 Image-to-Image Guide
-                </h2>
+                <h2 className="text-3xl font-bold text-white">SeeDream 4.5 — Image-to-Image Guide</h2>
               </div>
 
               <div className="space-y-8">
                 {/* Prompting Tips */}
-                <section>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-cyan-500" />
-                    How to Write Effective Transformation Prompts
-                  </h3>
-                  <div className="space-y-4 text-gray-700 dark:text-gray-300">
-                    <div className="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg p-4">
-                      <p className="font-semibold mb-2">✨ Recommended Structure:</p>
-                      <p className="text-sm"><strong>What to Keep + What to Change + Desired Outcome</strong></p>
-                      <p className="text-sm mt-2 text-gray-600 dark:text-gray-400">
-                        Example: "Keep the model's pose and the flowing shape of the liquid dress unchanged. Change the clothing material from silver metal to completely transparent clear water. Through the liquid water, the model's skin details are visible. Lighting changes from reflection to refraction."
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 text-cyan-200">
+                    <Sparkles className="w-5 h-5" />
+                    <h3 className="text-lg font-semibold">Effective transformation prompts</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <p className="text-sm font-semibold">✨ Structure</p>
+                      <p className="text-sm text-slate-200/80">What to keep + What to change + Desired outcome.</p>
+                      <p className="mt-2 text-sm text-slate-300">
+                        Example: "Keep the pose and liquid silhouette. Swap material to clear water so skin shows through; shift lighting from reflection to refraction."
                       </p>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                        <p className="font-semibold text-green-700 dark:text-green-400 mb-2">✓ Good Practices:</p>
-                        <ul className="text-sm space-y-1 list-disc list-inside">
-                          <li>Be specific about what stays</li>
-                          <li>Clearly describe changes</li>
-                          <li>Include style/texture details</li>
-                          <li>Mention lighting/color adjustments</li>
-                          <li>Keep under 600 words</li>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4">
+                        <p className="text-sm font-semibold text-emerald-50">✓ Good practices</p>
+                        <ul className="mt-2 space-y-1 text-sm text-emerald-50/90 list-disc list-inside">
+                          <li>State what stays fixed</li>
+                          <li>Describe the change clearly</li>
+                          <li>Mention style/texture and lighting</li>
+                          <li>Stay under 600 words</li>
                         </ul>
                       </div>
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                        <p className="font-semibold text-red-700 dark:text-red-400 mb-2">✗ Avoid:</p>
-                        <ul className="text-sm space-y-1 list-disc list-inside">
-                          <li>Vague instructions like "make it better"</li>
-                          <li>Contradictory requirements</li>
-                          <li>Asking for complete redesign</li>
+                      <div className="rounded-2xl border border-red-300/40 bg-red-400/10 p-4">
+                        <p className="text-sm font-semibold text-red-50">✗ Avoid</p>
+                        <ul className="mt-2 space-y-1 text-sm text-red-50/90 list-disc list-inside">
+                          <li>Vague requests like "make it better"</li>
+                          <li>Contradictory directions</li>
+                          <li>Full redesign asks</li>
                           <li>Too many simultaneous changes</li>
                         </ul>
                       </div>
                     </div>
 
-                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                      <p className="font-semibold mb-2">💡 Multi-Image Blending:</p>
-                      <p className="text-sm">
-                        When uploading multiple reference images (2-14), the first image is primary. Others provide style/composition reference. Example: "Replace the clothing in image 1 with the outfit from image 2."
+                    <div className="rounded-2xl border border-amber-300/40 bg-amber-400/10 p-4">
+                      <p className="text-sm font-semibold text-amber-50">💡 Multi-image blending</p>
+                      <p className="text-sm text-amber-50/90">
+                        First upload is primary; others guide style/composition. Example: "Apply the jacket style from image 2 onto the person in image 1."
                       </p>
                     </div>
                   </div>
                 </section>
 
                 {/* Parameters Explanation */}
-                <section>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-cyan-500" />
-                    Parameter Guide
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">🖼️ Reference Images</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        Upload 1-14 images to guide the transformation:
-                      </p>
-                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
-                        <li><strong>Single Image:</strong> Edit/transform one image based on your prompt</li>
-                        <li><strong>Multiple Images (2-14):</strong> Blend styles, combine elements, or create variations</li>
-                        <li><strong>Requirements:</strong> JPEG/PNG/WEBP/BMP/TIFF/GIF, up to 10MB each, 14px min dimension</li>
-                        <li><strong>Note:</strong> First image is primary; others provide reference</li>
-                      </ul>
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 text-cyan-200">
+                    <Settings className="w-5 h-5" />
+                    <h3 className="text-lg font-semibold">Parameter guide</h3>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <h4 className="text-sm font-semibold text-white mb-1">🖼️ Reference images</h4>
+                      <p className="text-sm text-slate-200/80">Upload 1-14. First is primary; others are style/pose refs. JPEG/PNG/WEBP, up to 10MB each.</p>
                     </div>
-
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">📐 Resolution & Aspect Ratio</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        Control output image dimensions:
-                      </p>
-                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
-                        <li><strong>2K:</strong> ~2048px - Faster generation, good quality</li>
-                        <li><strong>4K:</strong> ~4096px - High detail, slower generation</li>
-                        <li><strong>Aspect Ratios:</strong> Match your use case (1:1 for social, 16:9 for display, etc.)</li>
-                      </ul>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <h4 className="text-sm font-semibold text-white mb-1">📐 Resolution & ratio</h4>
+                      <p className="text-sm text-slate-200/80">2K for speed, 4K for detail. Ratios: 1:1, 16:9, 9:16, 21:9, more.</p>
                     </div>
-
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-2">🎨 Batch Size (1-15 images)</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        Generate multiple variations or related images:
-                      </p>
-                      <ul className="text-sm space-y-1 text-gray-700 dark:text-gray-300 ml-4">
-                        <li><strong>Single (1):</strong> One targeted transformation</li>
-                        <li><strong>Batch (2-15):</strong> Multiple angles, variations, or progressive changes</li>
-                        <li><strong>Limit:</strong> Input images + output images ≤ 15</li>
-                        <li><strong>Tip:</strong> Specify the desired number in your prompt</li>
-                      </ul>
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <h4 className="text-sm font-semibold text-white mb-1">🎨 Batch size</h4>
+                      <p className="text-sm text-slate-200/80">1 for the hero output; 2-15 for variations or angles. Keep input images + outputs ≤ 15.</p>
                     </div>
                   </div>
                 </section>
 
                 {/* Example Use Cases */}
-                <section>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-cyan-500" />
-                    Example Use Cases
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
-                      <p className="font-semibold text-purple-900 dark:text-purple-300 mb-2">👔 Fashion/Product Design</p>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        Single image + Batch 3-5 | "Create 4 color variations of this outfit, maintaining the same style and fit..."
-                      </p>
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 text-cyan-200">
+                    <Zap className="w-5 h-5" />
+                    <h3 className="text-lg font-semibold">Example use cases</h3>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-purple-300/40 bg-purple-500/10 p-4">
+                      <p className="text-sm font-semibold text-purple-50">👔 Fashion/Product</p>
+                      <p className="text-sm text-purple-50/80">Batch 3-5 colorways; keep fit and pose.</p>
                     </div>
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                      <p className="font-semibold text-amber-900 dark:text-amber-300 mb-2">🎨 Style Transfer</p>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        2 images | "Apply the artistic style from image 2 to the subject in image 1, maintaining composition..."
-                      </p>
+                    <div className="rounded-2xl border border-amber-300/40 bg-amber-500/10 p-4">
+                      <p className="text-sm font-semibold text-amber-50">🎨 Style transfer</p>
+                      <p className="text-sm text-amber-50/80">Use image 2 style on image 1 subject.</p>
                     </div>
-                    <div className="bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
-                      <p className="font-semibold text-teal-900 dark:text-teal-300 mb-2">🏠 Scene Editing</p>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        Single image | "Change the background from indoor to outdoor garden setting, keep lighting natural..."
-                      </p>
-                    </div>
-                    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
-                      <p className="font-semibold text-indigo-900 dark:text-indigo-300 mb-2">🎭 Character Variations</p>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        Single image + Batch 4 | "Generate 4 variations with character wearing sunglasses, hat, holding items..."
-                      </p>
+                    <div className="rounded-2xl border border-teal-300/40 bg-teal-500/10 p-4">
+                      <p className="text-sm font-semibold text-teal-50">🏠 Scene edit</p>
+                      <p className="text-sm text-teal-50/80">Swap backgrounds while keeping lighting coherent.</p>
                     </div>
                   </div>
                 </section>
 
                 {/* Important Notes */}
-                <section className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700 rounded-lg p-4">
-                  <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-300 mb-2 flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5" />
-                    Important Notes
-                  </h3>
-                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1 list-disc list-inside">
-                    <li>First uploaded image is treated as primary reference; additional images provide style/composition guidance</li>
-                    <li>For batch generation: Total input images + output images must be ≤ 15</li>
-                    <li>Larger reference images may take longer to process</li>
-                    <li>Results are saved automatically to your S3 storage</li>
+                <section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
+                  <div className="flex items-center gap-2 text-amber-200 mb-2">
+                    <AlertCircle className="w-4 h-4" />
+                    <p className="font-semibold">Notes</p>
+                  </div>
+                  <ul className="space-y-1 list-disc list-inside">
+                    <li>Primary image drives composition; others guide style.</li>
+                    <li>Inputs + outputs must be ≤ 15 for a batch.</li>
+                    <li>Larger inputs may take longer.</li>
+                    <li>All results save automatically to S3.</li>
                   </ul>
                 </section>
               </div>
@@ -941,14 +1095,14 @@ export default function SeeDreamImageToImage() {
       {/* Image Modal */}
       {showImageModal && selectedImage && typeof window !== 'undefined' && document?.body && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
           onClick={() => {
             setShowImageModal(false);
             setSelectedImage(null);
           }}
         >
           <div 
-            className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-auto"
+            className="relative w-full max-w-3xl max-h-[85vh] overflow-auto rounded-3xl border border-white/10 bg-slate-950/90 shadow-2xl shadow-cyan-900/40 backdrop-blur"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
@@ -957,14 +1111,14 @@ export default function SeeDreamImageToImage() {
                 setShowImageModal(false);
                 setSelectedImage(null);
               }}
-              className="absolute top-4 right-4 z-10 p-2 bg-gray-900/80 hover:bg-gray-900 text-white rounded-full transition-colors"
+              className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
             >
               <X className="w-5 h-5" />
             </button>
 
             {/* Image container */}
-            <div className="p-6">
-              <div className="bg-black rounded-xl overflow-hidden mb-4 max-h-[60vh] flex items-center justify-center">
+            <div className="p-6 space-y-4 text-slate-100">
+              <div className="rounded-2xl border border-white/10 bg-slate-900 overflow-hidden max-h-[60vh] flex items-center justify-center">
                 <img
                   src={selectedImage.imageUrl}
                   alt={selectedImage.prompt}
@@ -973,22 +1127,17 @@ export default function SeeDreamImageToImage() {
               </div>
 
               {/* Image details */}
-              <div className="space-y-3">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Image Details
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-600 dark:text-gray-400">Prompt:</span>
-                    <p className="text-gray-900 dark:text-white mt-1">{selectedImage.prompt}</p>
-                  </div>
-                  <div className="flex items-center gap-4 text-gray-600 dark:text-gray-400">
-                    <span>
-                      Size: {selectedImage.size}
-                    </span>
-                    <span>
-                      Model: {selectedImage.modelVersion}
-                    </span>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-2 text-cyan-200">
+                  <Info className="w-4 h-4" />
+                  <h3 className="text-base font-semibold">Image details</h3>
+                </div>
+                <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Prompt</p>
+                  <p className="text-sm text-slate-100 leading-relaxed">{selectedImage.prompt}</p>
+                  <div className="flex flex-wrap gap-2 text-[11px] text-slate-200/80">
+                    <span className="rounded-full bg-white/10 px-3 py-1">Size: {selectedImage.size}</span>
+                    <span className="rounded-full bg-white/10 px-3 py-1">Model: {selectedImage.modelVersion}</span>
                   </div>
                 </div>
 
@@ -1036,10 +1185,10 @@ export default function SeeDreamImageToImage() {
                       alert('Download failed. Please try again or contact support if the issue persists.');
                     }
                   }}
-                  className="w-full mt-4 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                  className="w-full mt-2 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/40 transition hover:-translate-y-0.5"
                 >
                   <Download className="w-4 h-4" />
-                  Download Image
+                  Download image
                 </button>
               </div>
             </div>

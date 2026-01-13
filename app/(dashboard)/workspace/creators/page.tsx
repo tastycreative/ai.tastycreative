@@ -2,9 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Pencil, Trash2, Instagram, Search, MoreVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, Instagram, Search, MoreVertical, Link2, X, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@clerk/nextjs';
+
+interface LinkedLoRA {
+  id: string;
+  displayName: string;
+  thumbnailUrl: string | null;
+  fileName: string;
+}
 
 interface Creator {
   id: string;
@@ -16,6 +23,7 @@ interface Creator {
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+  linkedLoRAs?: LinkedLoRA[];
   _count?: {
     posts: number;
     feedPosts: number;
@@ -29,6 +37,8 @@ export default function CreatorsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLinkLoRAModal, setShowLinkLoRAModal] = useState(false);
+  const [showAllLoRAsPopup, setShowAllLoRAsPopup] = useState(false);
   const [selectedCreator, setSelectedCreator] = useState<Creator | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const { userId } = useAuth();
@@ -69,6 +79,12 @@ export default function CreatorsPage() {
   const handleDelete = (creator: Creator) => {
     setSelectedCreator(creator);
     setShowDeleteModal(true);
+    setOpenMenuId(null);
+  };
+
+  const handleLinkLoRA = (creator: Creator) => {
+    setSelectedCreator(creator);
+    setShowLinkLoRAModal(true);
     setOpenMenuId(null);
   };
 
@@ -174,6 +190,9 @@ export default function CreatorsPage() {
                       Instagram
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      LoRAs
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       Posts
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -220,13 +239,80 @@ export default function CreatorsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {creator.instagramUsername ? (
-                          <div className="flex items-center gap-2 text-sm text-gray-900 dark:text-white">
+                          <a
+                            href={`https://instagram.com/${creator.instagramUsername}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                          >
                             <Instagram className="w-4 h-4" />
                             @{creator.instagramUsername}
-                          </div>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
                         ) : (
                           <span className="text-sm text-gray-400">Not connected</span>
                         )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {creator.linkedLoRAs && creator.linkedLoRAs.length > 0 ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-col gap-1">
+                                {creator.linkedLoRAs.slice(0, 2).map((lora) => (
+                                  <div
+                                    key={lora.id}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <div
+                                      className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-900 overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0"
+                                    >
+                                      {lora.thumbnailUrl ? (
+                                        <img
+                                          src={lora.thumbnailUrl}
+                                          alt={lora.displayName}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-medium">
+                                          {lora.displayName.charAt(0).toUpperCase()}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <span className="text-sm text-gray-900 dark:text-white truncate max-w-[120px]">
+                                      {lora.displayName}
+                                    </span>
+                                  </div>
+                                ))}
+                                {creator.linkedLoRAs.length > 2 && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedCreator(creator);
+                                      setShowAllLoRAsPopup(true);
+                                    }}
+                                    className="text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 pl-8 hover:underline transition-colors"
+                                  >
+                                    +{creator.linkedLoRAs.length - 2} more
+                                  </button>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleLinkLoRA(creator)}
+                                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                                title="Manage LoRAs"
+                              >
+                                <Link2 className="w-3.5 h-3.5 text-gray-400" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleLinkLoRA(creator)}
+                              className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            >
+                              <Link2 className="w-4 h-4" />
+                              Link LoRA
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {(creator._count?.posts || 0) + (creator._count?.feedPosts || 0)}
@@ -309,6 +395,31 @@ export default function CreatorsPage() {
             setShowDeleteModal(false);
             setSelectedCreator(null);
             loadCreators();
+          }}
+        />
+      )}
+
+      {showLinkLoRAModal && selectedCreator && (
+        <LinkLoRAModal
+          creator={selectedCreator}
+          onClose={() => {
+            setShowLinkLoRAModal(false);
+            setSelectedCreator(null);
+          }}
+          onSuccess={() => {
+            setShowLinkLoRAModal(false);
+            setSelectedCreator(null);
+            loadCreators();
+          }}
+        />
+      )}
+
+      {showAllLoRAsPopup && selectedCreator && (
+        <ViewAllLoRAsPopup
+          creator={selectedCreator}
+          onClose={() => {
+            setShowAllLoRAsPopup(false);
+            setSelectedCreator(null);
           }}
         />
       )}
@@ -834,6 +945,344 @@ function DeleteCreatorModal({
               {deleting ? 'Deleting...' : 'Delete'}
             </button>
           </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// Link LoRA Modal
+interface AvailableLoRA {
+  id: string;
+  displayName: string;
+  thumbnailUrl: string | null;
+  fileName: string;
+  isActive: boolean;
+  profileId: string | null;
+}
+
+function LinkLoRAModal({
+  creator,
+  onClose,
+  onSuccess,
+}: {
+  creator: Creator;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [availableLoRAs, setAvailableLoRAs] = useState<AvailableLoRA[]>([]);
+  const [linkedLoRAIds, setLinkedLoRAIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    loadLoRAs();
+    return () => setMounted(false);
+  }, []);
+
+  const loadLoRAs = async () => {
+    try {
+      setLoading(true);
+      // Fetch all user's LoRAs
+      const response = await fetch('/api/user/influencers');
+      if (response.ok) {
+        const data = await response.json();
+        const loras = Array.isArray(data) ? data : [];
+        setAvailableLoRAs(loras);
+        
+        // Set initially linked LoRAs for this creator
+        const linked = new Set<string>();
+        loras.forEach((lora: AvailableLoRA) => {
+          if (lora.profileId === creator.id) {
+            linked.add(lora.id);
+          }
+        });
+        setLinkedLoRAIds(linked);
+      }
+    } catch (error) {
+      console.error('Error loading LoRAs:', error);
+      toast.error('Failed to load LoRAs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleLoRA = (loraId: string) => {
+    setLinkedLoRAIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(loraId)) {
+        newSet.delete(loraId);
+      } else {
+        newSet.add(loraId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      
+      // Get current linked LoRAs
+      const currentLinked = new Set(
+        availableLoRAs
+          .filter(lora => lora.profileId === creator.id)
+          .map(lora => lora.id)
+      );
+      
+      // Find LoRAs to link (newly selected)
+      const toLink = [...linkedLoRAIds].filter(id => !currentLinked.has(id));
+      
+      // Find LoRAs to unlink (previously selected but now unselected)
+      const toUnlink = [...currentLinked].filter(id => !linkedLoRAIds.has(id));
+      
+      // Link new LoRAs
+      for (const loraId of toLink) {
+        const response = await fetch(`/api/instagram/profiles/${creator.id}/loras`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ loraId }),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to link LoRA');
+        }
+      }
+      
+      // Unlink removed LoRAs
+      for (const loraId of toUnlink) {
+        const response = await fetch(`/api/instagram/profiles/${creator.id}/loras?loraId=${loraId}`, {
+          method: 'DELETE',
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to unlink LoRA');
+        }
+      }
+      
+      toast.success('LoRA links updated successfully');
+      onSuccess();
+    } catch (error) {
+      console.error('Error saving LoRA links:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update LoRA links');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              Link LoRAs to {creator.name}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Select LoRA models to associate with this creator
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : availableLoRAs.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500 dark:text-gray-400">
+                No LoRAs available. Upload LoRAs in the Influencers tab first.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {availableLoRAs.map((lora) => {
+                const isLinked = linkedLoRAIds.has(lora.id);
+                const isLinkedToOther = lora.profileId && lora.profileId !== creator.id;
+                
+                return (
+                  <div
+                    key={lora.id}
+                    onClick={() => !isLinkedToOther && toggleLoRA(lora.id)}
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                      isLinkedToOther
+                        ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-gray-700'
+                        : isLinked
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 cursor-pointer'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 cursor-pointer'
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-lg overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0">
+                      {lora.thumbnailUrl ? (
+                        <img
+                          src={lora.thumbnailUrl}
+                          alt={lora.displayName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white font-medium">
+                          {lora.displayName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white truncate">
+                        {lora.displayName}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {lora.fileName}
+                      </p>
+                      {isLinkedToOther && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          Linked to another creator
+                        </p>
+                      )}
+                    </div>
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      isLinked
+                        ? 'border-blue-500 bg-blue-500'
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}>
+                      {isLinked && (
+                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 border-t border-gray-200 dark:border-gray-800">
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || loading}
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// View All LoRAs Popup
+function ViewAllLoRAsPopup({
+  creator,
+  onClose,
+}: {
+  creator: Creator;
+  onClose: () => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!mounted) return null;
+
+  const loras = creator.linkedLoRAs || [];
+
+  return createPortal(
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-md w-full max-h-[70vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Linked LoRAs
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {creator.name} • {loras.length} LoRA{loras.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {loras.length === 0 ? (
+            <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+              No LoRAs linked to this creator.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {loras.map((lora) => (
+                <div
+                  key={lora.id}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+                >
+                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 flex-shrink-0">
+                    {lora.thumbnailUrl ? (
+                      <img
+                        src={lora.thumbnailUrl}
+                        alt={lora.displayName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white font-medium">
+                        {lora.displayName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                      {lora.displayName}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {lora.fileName}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>,

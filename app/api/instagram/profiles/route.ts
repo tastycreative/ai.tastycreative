@@ -26,6 +26,14 @@ export async function GET(request: NextRequest) {
             feedPosts: true,
           },
         },
+        linkedLoRAs: {
+          select: {
+            id: true,
+            displayName: true,
+            thumbnailUrl: true,
+            fileName: true,
+          },
+        },
       },
     });
 

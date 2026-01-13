@@ -44,33 +44,36 @@ model User {
 }
 
 model InfluencerLoRA {
-  id                 String       @id @default(cuid())
+  id                 String            @id @default(cuid())
   clerkId            String
   name               String
   displayName        String
-  fileName           String       @unique
+  fileName           String            @unique
   originalFileName   String
   fileSize           Int
-  uploadedAt         DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  uploadedAt         DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
   description        String?
   thumbnailUrl       String?
   cloudinaryUrl      String?
   cloudinaryPublicId String?
-  isActive           Boolean      @default(true)
-  usageCount         Int          @default(0)
+  isActive           Boolean           @default(true)
+  usageCount         Int               @default(0)
   comfyUIPath        String?
-  syncStatus         SyncStatus   @default(PENDING)
+  syncStatus         SyncStatus        @default(PENDING)
   lastUsedAt         DateTime?
   trainingJobId      String?
-  user               User         @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  trainingJob        TrainingJob? @relation(fields: [trainingJobId], references: [id])
-  shares             LoRAShare[]  // LoRA shares with other users
+  profileId          String?           // Link to Instagram profile/creator
+  user               User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  trainingJob        TrainingJob?      @relation(fields: [trainingJobId], references: [id])
+  profile            InstagramProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  shares             LoRAShare[]       // LoRA shares with other users
 
   @@index([clerkId])
   @@index([fileName])
   @@index([isActive])
   @@index([trainingJobId])
+  @@index([profileId])
   @@map("influencer_loras")
 }
 
@@ -557,6 +560,7 @@ model InstagramProfile {
   user                 User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   posts                InstagramPost[]
   feedPosts            FeedPost[]        // Feed posts for this profile
+  linkedLoRAs          InfluencerLoRA[]  // LoRA models linked to this profile/creator
   sentFriendRequests     Friendship[] @relation("SentFriendRequests")
   receivedFriendRequests Friendship[] @relation("ReceivedFriendRequests")
   comments             FeedPostComment[] @relation("ProfileComments") // Comments made by this profile

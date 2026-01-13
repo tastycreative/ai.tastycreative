@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const lastCheck = parseInt(searchParams.get('lastCheck') || '0');
     const viewingUserId = searchParams.get('userId');
+    const profileId = searchParams.get('profileId');
 
     // Get user's change record
     const userChanges = getUserChanges(userId);
@@ -48,6 +49,11 @@ export async function GET(request: NextRequest) {
       } else {
         // Admin/Manager with no viewingUserId, show all posts
         whereClause = {};
+      }
+
+      // Add profileId filter if provided
+      if (profileId) {
+        whereClause.profileId = profileId;
       }
 
       const posts = await prisma.instagramPost.findMany({
