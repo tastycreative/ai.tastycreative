@@ -4,6 +4,11 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/database';
 import { v4 as uuidv4 } from 'uuid';
 
+// Vercel function configuration - extend timeout for image generation
+export const runtime = 'nodejs';
+export const maxDuration = 300; // 5 minutes max (Pro plan)
+export const dynamic = 'force-dynamic';
+
 // BytePlus ModelArk API configuration for SeeDream 4.5
 const ARK_API_KEY = process.env.ARK_API_KEY;
 const ARK_API_URL = 'https://ark.ap-southeast.bytepluses.com/api/v3/images/generations';
