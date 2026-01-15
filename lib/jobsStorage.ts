@@ -28,6 +28,7 @@ export const sharedJobs = new Map<string, GenerationJob>();
 export async function addJob(job: GenerationJob): Promise<void> {
   console.log('📝 Adding job to database:', job.id);
   console.log('👤 Clerk user:', job.clerkId);
+  console.log('📦 Job params being stored:', JSON.stringify(job.params, null, 2));
   
   try {
     // Ensure user exists
@@ -36,6 +37,9 @@ export async function addJob(job: GenerationJob): Promise<void> {
       update: {},
       create: { clerkId: job.clerkId }
     });
+    
+    const paramsToStore = job.params || {};
+    console.log('📦 Params to store in DB:', JSON.stringify(paramsToStore, null, 2));
     
     await prisma.generationJob.create({
       data: {
@@ -46,7 +50,7 @@ export async function addJob(job: GenerationJob): Promise<void> {
         resultUrls: job.resultUrls || [],
         error: job.error,
         type: job.type || 'TEXT_TO_IMAGE', // Default to TEXT_TO_IMAGE if not specified
-        params: job.params || {},
+        params: paramsToStore,
         comfyUIPromptId: job.comfyUIPromptId,
         lastChecked: job.lastChecked ? new Date(job.lastChecked) : null,
         // Enhanced progress fields
@@ -79,6 +83,7 @@ export async function getJob(jobId: string): Promise<GenerationJob | undefined> 
     
     console.log('✅ Job found in database:', job.status);
     console.log('👤 Job belongs to Clerk user:', job.clerkId);
+    console.log('📦 Job params from DB:', JSON.stringify(job.params, null, 2));
     
     return {
       id: job.id,

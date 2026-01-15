@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useAuth } from "@clerk/nextjs";
 import {
@@ -1539,7 +1540,7 @@ export default function MyInfluencersPage() {
       )}
 
       {/* Influencer Details Modal */}
-      {showDetailsModal && selectedInfluencer && (
+      {showDetailsModal && selectedInfluencer && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -1688,11 +1689,12 @@ export default function MyInfluencersPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteCandidate && (
+      {deleteCandidate && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md border-t sm:border border-gray-200 dark:border-gray-700">
             <div className="p-6 space-y-4">
@@ -1762,11 +1764,12 @@ export default function MyInfluencersPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Manual Instructions Modal */}
-      {showInstructions && (
+      {showInstructions && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -1846,11 +1849,12 @@ export default function MyInfluencersPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Upload Modal */}
-      {showUploadModal && (
+      {showUploadModal && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
           <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -2064,7 +2068,8 @@ export default function MyInfluencersPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Share LoRA Modal */}
@@ -2101,7 +2106,7 @@ export default function MyInfluencersPage() {
       )}
 
       {/* Thumbnail Options Modal */}
-      {thumbnailOptionsInfluencer && (
+      {thumbnailOptionsInfluencer && typeof document !== 'undefined' && createPortal(
         <div 
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
           onClick={() => {
@@ -2188,7 +2193,8 @@ export default function MyInfluencersPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

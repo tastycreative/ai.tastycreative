@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { workflow, params, videoData } = body;
+    const { workflow, params, videoData, saveToVault, vaultProfileId, vaultFolderId } = body;
 
     if (!workflow || !videoData) {
       return NextResponse.json(
@@ -25,6 +25,11 @@ export async function POST(req: NextRequest) {
     console.log("User ID:", userId);
     console.log("FPS Multiplier:", params?.fpsMultiplier);
     console.log("Target FPS:", params?.targetFPS);
+    console.log("Save to Vault:", saveToVault);
+    if (saveToVault) {
+      console.log("Vault Profile ID:", vaultProfileId);
+      console.log("Vault Folder ID:", vaultFolderId);
+    }
 
     // 🔓 SHARED FOLDER SUPPORT: Extract owner clerkId from workflow if it's a shared folder
     let targetClerkId = userId; // Default to current user
@@ -52,7 +57,13 @@ export async function POST(req: NextRequest) {
         type: "VIDEO_FPS_BOOST",
         status: "PENDING",
         progress: 0,
-        params: params || {},
+        params: {
+          ...(params || {}),
+          // Store vault params for webhook to use
+          saveToVault: saveToVault || false,
+          vaultProfileId: vaultProfileId || null,
+          vaultFolderId: vaultFolderId || null,
+        },
         comfyUIPromptId: null,
       },
     });

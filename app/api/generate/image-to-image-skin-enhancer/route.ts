@@ -16,8 +16,16 @@ const ImageToImageSkinEnhancerSchema = z.object({
     denoise: z.number(),
     seed: z.number(),
     originalImageName: z.string().optional(),
+    // Vault params
+    saveToVault: z.boolean().optional(),
+    vaultProfileId: z.string().optional(),
+    vaultFolderId: z.string().optional(),
   }),
   user_id: z.string(),
+  // Also accept vault params at top level
+  saveToVault: z.boolean().optional(),
+  vaultProfileId: z.string().optional(),
+  vaultFolderId: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -117,6 +125,11 @@ export async function POST(request: NextRequest) {
 
       console.log('✅ Using clerkId for job:', targetClerkId);
 
+      // Merge vault params from both params object and top level
+      const saveToVault = validatedData.saveToVault || validatedData.params.saveToVault || false;
+      const vaultProfileId = validatedData.vaultProfileId || validatedData.params.vaultProfileId;
+      const vaultFolderId = validatedData.vaultFolderId || validatedData.params.vaultFolderId;
+
       await prisma.generationJob.create({
         data: {
           id: jobId,
@@ -124,13 +137,18 @@ export async function POST(request: NextRequest) {
           type: 'IMAGE_TO_IMAGE',
           status: 'PENDING',
           progress: 0,
-          params: validatedData.params as any,
+          params: {
+            ...validatedData.params,
+            saveToVault,
+            vaultProfileId,
+            vaultFolderId,
+          } as any,
           message: 'Initializing image-to-image skin enhancement...',
           comfyUIPromptId: null,
         },
       });
 
-      console.log('✅ Database job created successfully');
+      console.log('✅ Database job created successfully with vault params:', { saveToVault, vaultProfileId, vaultFolderId });
       await prisma.$disconnect();
     } catch (dbError) {
       console.error('❌ Database error:', dbError);

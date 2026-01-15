@@ -18,6 +18,10 @@ const faceSwapServerlessSchema = z.object({
   newFaceImageData: z.string().optional(),
   maskImageData: z.string().optional(),
   user_id: z.string().optional(), // For S3 folder organization
+  // Vault folder parameters
+  saveToVault: z.boolean().optional(),
+  vaultProfileId: z.string().optional(),
+  vaultFolderId: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -75,6 +79,15 @@ export async function POST(req: NextRequest) {
 
     console.log('✅ Using clerkId for job:', targetClerkId);
     
+    // Prepare job params - include vault info if saving to vault
+    const jobParams: any = validatedData.params || {};
+    if (validatedData.saveToVault && validatedData.vaultProfileId && validatedData.vaultFolderId) {
+      jobParams.saveToVault = true;
+      jobParams.vaultProfileId = validatedData.vaultProfileId;
+      jobParams.vaultFolderId = validatedData.vaultFolderId;
+      console.log(`💾 Job will save to vault - Profile: ${validatedData.vaultProfileId}, Folder: ${validatedData.vaultFolderId}`);
+    }
+    
     // Create generation job record in database
     const generationJob = await prisma.generationJob.create({
       data: {
@@ -82,7 +95,7 @@ export async function POST(req: NextRequest) {
         clerkId: targetClerkId,
         status: 'PENDING',
         type: 'FACE_SWAP',
-        params: validatedData.params || {},
+        params: jobParams,
         progress: 0,
       },
     });

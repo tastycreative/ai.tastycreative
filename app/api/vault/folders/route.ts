@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 
-// GET /api/vault/folders - Get all folders for a profile
+// GET /api/vault/folders - Get all folders for a profile (or all folders if no profileId)
 export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -13,18 +13,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get("profileId");
 
-    if (!profileId) {
-      return NextResponse.json(
-        { error: "profileId is required" },
-        { status: 400 }
-      );
+    // Build where clause - if profileId provided, filter by it; otherwise get all user folders
+    const whereClause: { clerkId: string; profileId?: string } = {
+      clerkId: userId,
+    };
+    
+    if (profileId) {
+      whereClause.profileId = profileId;
     }
 
     const folders = await prisma.vaultFolder.findMany({
-      where: {
-        clerkId: userId,
-        profileId,
-      },
+      where: whereClause,
       include: {
         _count: {
           select: { items: true },

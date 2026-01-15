@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
@@ -32,6 +33,13 @@ import {
   Shield,
   Bookmark,
   ShoppingBag,
+  Calendar,
+  GitBranch,
+  Clock,
+  Activity,
+  Hash,
+  ListChecks,
+  Layers,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -57,6 +65,7 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [socialMediaOpen, setSocialMediaOpen] = useState(false);
+  const [contentStudioOpen, setContentStudioOpen] = useState(false);
   const [generateContentOpen, setGenerateContentOpen] = useState(false);
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [trainModelsOpen, setTrainModelsOpen] = useState(false);
@@ -64,6 +73,10 @@ export default function DashboardLayout({
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [hoveredSection, setHoveredSection] = useState<string | null>(null);
+  const [flyoutPosition, setFlyoutPosition] = useState({ x: 0, y: 0 });
+  const [mounted, setMounted] = useState(false);
+  const flyoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pathname = usePathname();
   const { signOut } = useClerk();
   const { user } = useUser();
@@ -78,59 +91,58 @@ export default function DashboardLayout({
       icon: Home,
     },
     {
-      name: "Workspace",
+      name: "Content Studio",
       collapsible: true,
       items: [
         {
-          name: "My Influencers",
-          href: "/workspace/my-influencers",
-          icon: Users,
+          name: "Staging",
+          href: "/workspace/content-studio/staging",
+          icon: Layers,
         },
         {
-          name: "Generated Content",
-          href: "/workspace/generated-content",
-          icon: FileText,
-        },
-      ],
-    },
-    {
-      name: "Social Media",
-      collapsible: true,
-      items: [
-        {
-          name: "User Feed",
-          href: "/workspace/user-feed",
-          icon: Share2,
+          name: "Calendar",
+          href: "/workspace/content-studio/calendar",
+          icon: Calendar,
         },
         {
-          name: "My Profile",
-          href: "/workspace/my-profile",
-          icon: UserCheck,
+          name: "Pipeline",
+          href: "/workspace/content-studio/pipeline",
+          icon: GitBranch,
         },
         {
-          name: "Friends",
-          href: "/workspace/friends",
-          icon: UserCheck,
+          name: "Stories",
+          href: "/workspace/content-studio/stories",
+          icon: Clock,
         },
         {
-          name: "Bookmarks",
-          href: "/workspace/bookmarks",
-          icon: Bookmark,
+          name: "Reels",
+          href: "/workspace/content-studio/reels",
+          icon: Sparkles,
         },
         {
-          name: "Vault",
-          href: "/workspace/vault",
-          icon: Shield,
+          name: "Feed Posts",
+          href: "/workspace/content-studio/feed-posts",
+          icon: ImageIcon,
         },
         {
-          name: "Instagram Staging",
-          href: "/workspace/instagram-staging",
-          icon: Share2,
+          name: "Performance",
+          href: "/workspace/content-studio/performance",
+          icon: Activity,
         },
         {
-          name: "My Creators",
-          href: "/workspace/creators",
-          icon: Users,
+          name: "Formulas",
+          href: "/workspace/content-studio/formulas",
+          icon: Sparkles,
+        },
+        {
+          name: "Hashtags",
+          href: "/workspace/content-studio/hashtags",
+          icon: Hash,
+        },
+        {
+          name: "Workflow",
+          href: "/workspace/content-studio/workflow",
+          icon: ListChecks,
         },
       ],
     },
@@ -237,6 +249,58 @@ export default function DashboardLayout({
           name: "SeeDream Image to Video",
           href: "/workspace/generate-content/seedream-image-to-video",
           icon: PlayCircle,
+        },
+      ],
+    },
+    {
+      name: "Workspace",
+      collapsible: true,
+      items: [
+        {
+          name: "My Influencers",
+          href: "/workspace/my-influencers",
+          icon: Users,
+        },
+        {
+          name: "Generated Content",
+          href: "/workspace/generated-content",
+          icon: FileText,
+        },
+      ],
+    },
+    {
+      name: "Social Media",
+      collapsible: true,
+      items: [
+        {
+          name: "User Feed",
+          href: "/workspace/user-feed",
+          icon: Share2,
+        },
+        {
+          name: "My Profile",
+          href: "/workspace/my-profile",
+          icon: UserCheck,
+        },
+        {
+          name: "Friends",
+          href: "/workspace/friends",
+          icon: UserCheck,
+        },
+        {
+          name: "Bookmarks",
+          href: "/workspace/bookmarks",
+          icon: Bookmark,
+        },
+        {
+          name: "Vault",
+          href: "/workspace/vault",
+          icon: Shield,
+        },
+        {
+          name: "My Creators",
+          href: "/workspace/creators",
+          icon: Users,
         },
       ],
     },
@@ -352,6 +416,11 @@ export default function DashboardLayout({
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Mount state for portal
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   const isNavItemActive = (href: string) => {
@@ -563,6 +632,7 @@ export default function DashboardLayout({
   const renderNavSection = (section: NavSection) => {
     const isWorkspaceSection = section.name === "Workspace";
     const isSocialMediaSection = section.name === "Social Media";
+    const isContentStudioSection = section.name === "Content Studio";
     const isGenerateContentSection = section.name === "Generate Content";
     const isAiToolsSection = section.name === "AI Tools";
     const isTrainModelsSection = section.name === "Train Models";
@@ -574,6 +644,8 @@ export default function DashboardLayout({
       isExpanded = workspaceOpen;
     } else if (isSocialMediaSection) {
       isExpanded = socialMediaOpen;
+    } else if (isContentStudioSection) {
+      isExpanded = contentStudioOpen;
     } else if (isGenerateContentSection) {
       isExpanded = generateContentOpen;
     } else if (isAiToolsSection) {
@@ -588,6 +660,7 @@ export default function DashboardLayout({
     const getSectionIcon = () => {
       if (isWorkspaceSection) return Users;
       if (isSocialMediaSection) return Share2;
+      if (isContentStudioSection) return Layers;
       if (isGenerateContentSection) return PlusCircle;
       if (isAiToolsSection) return Bot;
       if (isTrainModelsSection) return Settings;
@@ -603,6 +676,8 @@ export default function DashboardLayout({
         setWorkspaceOpen(!workspaceOpen);
       } else if (isSocialMediaSection) {
         setSocialMediaOpen(!socialMediaOpen);
+      } else if (isContentStudioSection) {
+        setContentStudioOpen(!contentStudioOpen);
       } else if (isGenerateContentSection) {
         setGenerateContentOpen(!generateContentOpen);
       } else if (isAiToolsSection) {
@@ -614,15 +689,26 @@ export default function DashboardLayout({
       }
     };
 
+    // Check if any item in this section is active
+    const isSectionActive = section.items.some(item => isNavItemActive(item.href));
+
     return (
       <div key={section.name} className="space-y-1">
         {section.collapsible && sidebarOpen ? (
           <button
             onClick={handleSectionToggle}
-            className="w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+            className={classNames(
+              isSectionActive
+                ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-l-2 border-blue-500"
+                : "",
+              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+            )}
           >
             <span className="flex items-center">
-              <SectionIcon className="h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 text-gray-400 dark:text-gray-400 transition-transform duration-300 group-hover:scale-110" />
+              <SectionIcon className={classNames(
+                isSectionActive ? "text-blue-400" : "text-gray-400 dark:text-gray-400",
+                "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 transition-transform duration-300 group-hover:scale-110"
+              )} />
               <span className="truncate">{section.name}</span>
             </span>
             {isExpanded ? (
@@ -631,6 +717,110 @@ export default function DashboardLayout({
               <ChevronDown className="h-3.5 w-3.5 xs:h-4 xs:w-4 transition-transform duration-300" />
             )}
           </button>
+        ) : section.collapsible && !sidebarOpen ? (
+          // Collapsed sidebar - show section icon with flyout menu on hover
+          <div className="relative">
+            <button
+              onMouseEnter={(e) => {
+                // Clear any pending close timeout
+                if (flyoutTimeoutRef.current) {
+                  clearTimeout(flyoutTimeoutRef.current);
+                  flyoutTimeoutRef.current = null;
+                }
+                const rect = e.currentTarget.getBoundingClientRect();
+                setFlyoutPosition({ x: rect.right, y: rect.top });
+                setHoveredSection(section.name);
+              }}
+              onMouseLeave={() => {
+                // Delay closing to allow mouse to reach flyout
+                flyoutTimeoutRef.current = setTimeout(() => {
+                  setHoveredSection(null);
+                }, 150);
+              }}
+              className={classNames(
+                isSectionActive || hoveredSection === section.name
+                  ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white"
+                  : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white",
+                "w-full flex items-center justify-center px-2.5 py-2 xs:py-2.5 rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              )}
+            >
+              <SectionIcon className={classNames(
+                isSectionActive ? "text-blue-400" : "text-gray-400 dark:text-gray-400",
+                "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300 hover:scale-110"
+              )} />
+            </button>
+            
+            {/* Flyout menu - rendered via portal */}
+            {mounted && hoveredSection === section.name && createPortal(
+              <div 
+                data-flyout
+                className="fixed bg-gray-800 dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-700 dark:border-gray-600 z-[100] animate-fadeIn"
+                style={{
+                  left: `${flyoutPosition.x + 8}px`,
+                  top: `${flyoutPosition.y}px`,
+                  maxHeight: 'calc(100vh - 100px)',
+                  minWidth: '220px',
+                }}
+                onMouseEnter={() => {
+                  // Clear any pending close timeout
+                  if (flyoutTimeoutRef.current) {
+                    clearTimeout(flyoutTimeoutRef.current);
+                    flyoutTimeoutRef.current = null;
+                  }
+                }}
+                onMouseLeave={() => {
+                  setHoveredSection(null);
+                }}
+              >
+                {/* Invisible bridge to connect button to flyout */}
+                <div 
+                  className="absolute right-full top-0 w-3 h-full"
+                  style={{ background: 'transparent' }}
+                />
+                {/* Section header */}
+                <div className="px-3 py-2.5 border-b border-gray-700 dark:border-gray-600 bg-gray-900/50 rounded-t-lg">
+                  <span className="text-sm font-semibold text-white flex items-center gap-2">
+                    <SectionIcon className="h-4 w-4 text-blue-400" />
+                    {section.name}
+                  </span>
+                </div>
+                {/* Section items */}
+                <div className="py-1 max-h-80 overflow-y-auto custom-scrollbar">
+                  {section.items.filter(item => !item.name.startsWith("DIVIDER") && !item.name.endsWith("_GROUP_LABEL")).map((item) => {
+                    const isActive = isNavItemActive(item.href);
+                    const ItemIcon = item.icon;
+                    return (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        onClick={() => {
+                          setHoveredSection(null);
+                          if (isMobile) {
+                            setSidebarOpen(false);
+                          }
+                        }}
+                        className={classNames(
+                          isActive
+                            ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white"
+                            : "text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800 hover:text-white",
+                          "flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200"
+                        )}
+                      >
+                        <ItemIcon className={classNames(
+                          isActive ? "text-white" : "text-gray-400",
+                          "h-4 w-4 flex-shrink-0"
+                        )} />
+                        <span className="truncate">{item.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+                {/* Arrow pointer */}
+                <div className="absolute left-0 top-3 transform -translate-x-1 w-2 h-2 bg-gray-800 dark:bg-gray-900 rotate-45 border-l border-b border-gray-700 dark:border-gray-600"></div>
+              </div>,
+              document.body
+            )}
+          </div>
         ) : (
           sidebarOpen && (
             <div className="px-2 py-2 text-[10px] xs:text-xs font-semibold text-gray-400 dark:text-gray-400 uppercase tracking-wider">
@@ -638,7 +828,7 @@ export default function DashboardLayout({
             </div>
           )
         )}
-        {isExpanded && (
+        {isExpanded && sidebarOpen && (
           <div
             className={classNames(
               section.collapsible ? "space-y-1 animate-fadeIn" : "space-y-1"

@@ -554,7 +554,7 @@ def start_comfyui():
         
         # Wait for ComfyUI to start up
         print("⏳ Waiting for ComfyUI to start...")
-        max_wait = 60  # 1 minute
+        max_wait = 120  # 2 minutes (face_parsing node takes ~52s to load)
         for i in range(max_wait):
             if i % 5 == 0:
                 print(f"⏳ Still waiting for ComfyUI... ({i}/{max_wait}s)")

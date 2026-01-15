@@ -13,6 +13,41 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const folderId = searchParams.get("folderId");
     const profileId = searchParams.get("profileId");
+    const sharedFolderId = searchParams.get("sharedFolderId"); // For accessing shared folders
+
+    // Handle shared folder access
+    if (sharedFolderId) {
+      // Check if user has access to this shared folder
+      const share = await prisma.vaultFolderShare.findUnique({
+        where: {
+          vaultFolderId_sharedWithClerkId: {
+            vaultFolderId: sharedFolderId,
+            sharedWithClerkId: userId,
+          },
+        },
+        include: {
+          folder: true,
+        },
+      });
+
+      if (!share) {
+        return NextResponse.json(
+          { error: "You don't have access to this folder" },
+          { status: 403 }
+        );
+      }
+
+      const items = await prisma.vaultItem.findMany({
+        where: {
+          folderId: sharedFolderId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      return NextResponse.json(items);
+    }
 
     if (!profileId) {
       return NextResponse.json(

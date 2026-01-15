@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Loader2, Image as ImageIcon, Check } from "lucide-react";
 import { useApiClient } from "@/lib/apiClient";
 
@@ -99,7 +100,9 @@ export default function SelectThumbnailModal({
 
   if (!isOpen) return null;
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col border border-gray-200 dark:border-gray-700">
         {/* Header */}
@@ -210,6 +213,7 @@ export default function SelectThumbnailModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

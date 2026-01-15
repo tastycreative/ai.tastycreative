@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { workflow, params } = body;
+    const { workflow, params, saveToVault, vaultProfileId, vaultFolderId, targetFolder } = body;
 
     if (!workflow) {
       return NextResponse.json(
@@ -57,6 +57,11 @@ export async function POST(request: NextRequest) {
 
     console.log('🎯 Starting RunPod text-to-image generation for user:', userId);
     console.log('📋 Generation params:', params);
+    if (saveToVault) {
+      console.log('📁 Saving to vault - Profile:', vaultProfileId, 'Folder:', vaultFolderId);
+    } else if (targetFolder) {
+      console.log('📁 Saving to S3 folder:', targetFolder);
+    }
 
     // 🔒 LORA ACCESS CONTROL: Verify user has permission to use the selected LoRA
     if (workflow["14"] && workflow["14"].inputs && workflow["14"].inputs.lora_name) {
@@ -100,6 +105,15 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Using clerkId for job:', targetClerkId);
 
+    // Prepare params with vault info if applicable
+    const jobParams = {
+      ...params,
+      saveToVault: saveToVault || false,
+      vaultProfileId: vaultProfileId || null,
+      vaultFolderId: vaultFolderId || null,
+      targetFolder: targetFolder || null,
+    };
+
     // Create job in database
     const job: StoredGenerationJob = {
       id: jobId,
@@ -107,7 +121,7 @@ export async function POST(request: NextRequest) {
       userId: targetClerkId,
       status: "pending",
       createdAt: new Date(),
-      params,
+      params: jobParams,
       progress: 0,
       type: 'TEXT_TO_IMAGE'
     };
@@ -137,7 +151,7 @@ export async function POST(request: NextRequest) {
       input: {
         job_id: jobId,
         workflow,
-        params,
+        params: jobParams, // Use jobParams which includes vault info
         webhook_url: webhookUrl,
         user_id: userId
       }

@@ -20,13 +20,27 @@ export async function POST(request: NextRequest) {
     console.log('🎨 Creating Flux Kontext job for user:', userId);
 
     const body = await request.json();
-    const { workflow, prompt, params } = body;
+    const { workflow, prompt, params, saveToVault, vaultProfileId, vaultFolderId } = body;
 
     if (!workflow) {
       return NextResponse.json(
         { error: 'Workflow is required' },
         { status: 400 }
       );
+    }
+
+    // Prepare job params - include vault info if saving to vault
+    const jobParams: any = {
+      workflow,
+      prompt,
+      ...params
+    };
+    
+    if (saveToVault && vaultProfileId && vaultFolderId) {
+      jobParams.saveToVault = true;
+      jobParams.vaultProfileId = vaultProfileId;
+      jobParams.vaultFolderId = vaultFolderId;
+      console.log(`💾 Job will save to vault - Profile: ${vaultProfileId}, Folder: ${vaultFolderId}`);
     }
 
     // Create job in database
@@ -36,11 +50,7 @@ export async function POST(request: NextRequest) {
         status: 'PENDING',
         type: 'FLUX_KONTEXT',
         progress: 0,
-        params: {
-          workflow,
-          prompt,
-          ...params
-        }
+        params: jobParams
       }
     });
 

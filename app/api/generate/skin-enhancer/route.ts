@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { workflow, params } = body;
+    const { workflow, params, saveToVault, vaultProfileId, vaultFolderId } = body;
 
     if (!workflow) {
       return NextResponse.json(
@@ -56,6 +56,10 @@ export async function POST(request: NextRequest) {
 
     console.log('🎨 Starting RunPod skin enhancement generation for user:', userId);
     console.log('📋 Enhancement params:', params);
+    console.log('🔒 Vault params received from frontend:', { saveToVault, vaultProfileId, vaultFolderId });
+    console.log('🔒 saveToVault type:', typeof saveToVault, 'value:', saveToVault);
+    console.log('🔒 vaultProfileId type:', typeof vaultProfileId, 'value:', vaultProfileId);
+    console.log('🔒 vaultFolderId type:', typeof vaultFolderId, 'value:', vaultFolderId);
 
     // Generate unique job ID
     const jobId = `skin_enhancer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -79,20 +83,43 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Using clerkId for job:', targetClerkId);
 
-    // Create job in database
+    // Create job in database with vault params
+    // IMPORTANT: Handle saveToVault as boolean, string "true", or truthy value
+    const isSaveToVaultEnabled = saveToVault === true || saveToVault === 'true' || saveToVault === 1;
+    const shouldSaveToVault = isSaveToVaultEnabled && !!vaultProfileId && !!vaultFolderId;
+    
+    console.log('🔍 saveToVault raw value:', saveToVault, 'type:', typeof saveToVault);
+    console.log('🔍 isSaveToVaultEnabled:', isSaveToVaultEnabled);
+    console.log('🔍 vaultProfileId:', vaultProfileId, 'vaultFolderId:', vaultFolderId);
+    console.log('🔍 shouldSaveToVault:', shouldSaveToVault);
+    
+    const jobParamsToStore = {
+      ...params,
+      // Vault storage params - explicitly use boolean true for webhook handler
+      saveToVault: shouldSaveToVault ? true : false,
+      vaultProfileId: shouldSaveToVault ? vaultProfileId : null,
+      vaultFolderId: shouldSaveToVault ? vaultFolderId : null,
+    };
+    
+    console.log('📦 Params being stored in job:', JSON.stringify(jobParamsToStore, null, 2));
+    console.log('🔒 shouldSaveToVault calculated:', shouldSaveToVault);
+    
     const job: StoredGenerationJob = {
       id: jobId,
       clerkId: targetClerkId,
       userId: targetClerkId,
       status: "pending",
       createdAt: new Date(),
-      params,
+      params: jobParamsToStore,
       progress: 0,
       type: 'SKIN_ENHANCEMENT'
     };
 
     await addJob(job);
     console.log('✅ Skin enhancement job created in database:', jobId);
+    if (saveToVault) {
+      console.log('🔒 Vault storage enabled - profileId:', vaultProfileId, 'folderId:', vaultFolderId);
+    }
 
     // Generate webhook URL for progress updates
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 

@@ -30,36 +30,107 @@ export async function PATCH(
       return NextResponse.json({ error: "folderId is required" }, { status: 400 });
     }
 
-    // Verify ownership of the item
-    const item = await prisma.vaultItem.findFirst({
-      where: { id, clerkId: userId },
+    // First, find the item (without ownership check)
+    const item = await prisma.vaultItem.findUnique({
+      where: { id },
     });
 
     if (!item) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    // Verify ownership of the destination folder
-    const folder = await prisma.vaultFolder.findFirst({
-      where: { id: folderId, clerkId: userId },
+    // Check if user is the owner OR has EDIT permission on the folder
+    const isOwner = item.clerkId === userId;
+    
+    if (!isOwner) {
+      // Check if user has EDIT permission on the folder via sharing
+      const sharePermission = await prisma.vaultFolderShare.findUnique({
+        where: {
+          vaultFolderId_sharedWithClerkId: {
+            vaultFolderId: item.folderId,
+            sharedWithClerkId: userId,
+          },
+        },
+      });
+
+      if (!sharePermission || sharePermission.permission !== 'EDIT') {
+        return NextResponse.json(
+          { error: "You don't have permission to move this item" },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Find the destination folder
+    const folder = await prisma.vaultFolder.findUnique({
+      where: { id: folderId },
     });
 
     if (!folder) {
       return NextResponse.json({ error: "Destination folder not found" }, { status: 404 });
     }
 
-    // Ensure the folder belongs to the same profile as the item
-    if (folder.profileId !== item.profileId) {
-      return NextResponse.json(
-        { error: "Cannot move item to a folder in a different profile" },
-        { status: 400 }
-      );
+    // Determine folder ownership relationships
+    const isDestinationOwnFolder = folder.clerkId === userId;
+    const isDestinationOriginalOwnerFolder = folder.clerkId === item.clerkId;
+
+    // Check if user has EDIT permission on destination folder (if not owner)
+    let hasEditOnDestination = isDestinationOwnFolder;
+    if (!isDestinationOwnFolder) {
+      const destSharePermission = await prisma.vaultFolderShare.findUnique({
+        where: {
+          vaultFolderId_sharedWithClerkId: {
+            vaultFolderId: folderId,
+            sharedWithClerkId: userId,
+          },
+        },
+      });
+      hasEditOnDestination = destSharePermission?.permission === 'EDIT';
     }
 
-    // Update the item's folder
+    // Validate the move operation based on permissions
+    if (!isOwner) {
+      // User with EDIT permission on source can:
+      // 1. Move to their own folder (transfer ownership to self)
+      // 2. Move to another folder they have EDIT access to
+      // 3. Move within original owner's folders
+      if (!isDestinationOwnFolder && !isDestinationOriginalOwnerFolder && !hasEditOnDestination) {
+        return NextResponse.json(
+          { error: "You need EDIT permission on the destination folder" },
+          { status: 403 }
+        );
+      }
+    } else {
+      // Owner can:
+      // 1. Move to their own folders (any profile)
+      // 2. Move to shared folders they have EDIT access to
+      const isDestinationOwnedByUser = folder.clerkId === userId;
+      if (!isDestinationOwnedByUser && !hasEditOnDestination) {
+        return NextResponse.json(
+          { error: "You need EDIT permission on the destination folder" },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Prepare update data
+    const updateData: { folderId: string; clerkId?: string; profileId?: string } = { folderId };
+
+    // Always update profileId to match the destination folder's profile
+    // This handles both cross-profile moves within same user and cross-user moves
+    if (folder.profileId !== item.profileId) {
+      updateData.profileId = folder.profileId;
+    }
+
+    // Update ownership when moving to a folder owned by someone else
+    if (folder.clerkId !== item.clerkId) {
+      updateData.clerkId = folder.clerkId;
+    }
+
+    // Update the item
     const updatedItem = await prisma.vaultItem.update({
       where: { id },
-      data: { folderId },
+      data: updateData,
     });
 
     return NextResponse.json(updatedItem);
@@ -71,7 +142,7 @@ export async function PATCH(
       meta: error.meta,
     });
     return NextResponse.json(
-      { 
+      {
         error: "Failed to update item",
         details: error.message || "Unknown error"
       },
@@ -93,13 +164,35 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Verify ownership and get item
-    const item = await prisma.vaultItem.findFirst({
-      where: { id, clerkId: userId },
+    // First, find the item (without ownership check)
+    const item = await prisma.vaultItem.findUnique({
+      where: { id },
     });
 
     if (!item) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
+
+    // Check if user is the owner OR has EDIT permission on the folder
+    const isOwner = item.clerkId === userId;
+    
+    if (!isOwner) {
+      // Check if user has EDIT permission on the folder via sharing
+      const sharePermission = await prisma.vaultFolderShare.findUnique({
+        where: {
+          vaultFolderId_sharedWithClerkId: {
+            vaultFolderId: item.folderId,
+            sharedWithClerkId: userId,
+          },
+        },
+      });
+
+      if (!sharePermission || sharePermission.permission !== 'EDIT') {
+        return NextResponse.json(
+          { error: "You don't have permission to delete this item" },
+          { status: 403 }
+        );
+      }
     }
 
     // Delete from S3

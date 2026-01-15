@@ -177,10 +177,49 @@ export async function POST(
         for (const pathData of body.aws_s3_paths) {
           const { filename, awsS3Key, awsS3Url, fileSize } = pathData;
           
+          // Check if this job should save to vault
+          const jobParams = existingJob.params as any;
+          const shouldSaveToVault = jobParams?.saveToVault === true && jobParams?.vaultProfileId && jobParams?.vaultFolderId;
+          
           // Determine if this is a video or image based on filename
           const isVideo = filename.toLowerCase().match(/\.(mp4|webm|mov|avi|mkv|m4v)$/);
           
-          if (isVideo) {
+          if (shouldSaveToVault) {
+            // Save to vault database instead of regular tables
+            console.log(`💾 Saving to vault - Profile: ${jobParams.vaultProfileId}, Folder: ${jobParams.vaultFolderId}`);
+            
+            try {
+              const { PrismaClient } = await import('@/lib/generated/prisma');
+              const prisma = new PrismaClient();
+              
+              const vaultItem = await prisma.vaultItem.create({
+                data: {
+                  clerkId: targetClerkId,
+                  profileId: jobParams.vaultProfileId,
+                  folderId: jobParams.vaultFolderId,
+                  fileName: filename,
+                  fileType: isVideo ? 'video/mp4' : 'image/png',
+                  fileSize: fileSize || 0,
+                  awsS3Key: awsS3Key,
+                  awsS3Url: awsS3Url,
+                },
+              });
+              
+              await prisma.$disconnect();
+              
+              savedItems.push({
+                id: vaultItem.id,
+                url: awsS3Url,
+                filename: filename,
+                s3Key: awsS3Key,
+                savedToVault: true,
+              });
+              
+              console.log(`✅ AWS S3 ${isVideo ? 'video' : 'image'} saved to vault: ${vaultItem.id}`);
+            } catch (vaultError) {
+              console.error('❌ Error saving to vault:', vaultError);
+            }
+          } else if (isVideo) {
             console.log(`🎬 Saving AWS S3 video: ${filename} with S3 key: ${awsS3Key}`);
             
             // Save video to database with AWS S3 key and URL (no video data stored)
@@ -341,24 +380,70 @@ export async function POST(
             console.log(`💾 Saving S3 network volume image: ${filename} with S3 key: ${s3_key}`);
             console.log(`🔍 DEBUG: About to save image with clerkId: ${targetClerkId}`);
             
-            // Save to database with S3 key (no image data stored)
-            const savedImage = await saveImageToDatabase(
-              targetClerkId,  // Use folder owner's clerkId
-              jobId,
-              { filename, subfolder, type },
-              {
-                saveData: false, // Don't save image bytes to database
-                extractMetadata: false, // Don't extract metadata (we have it from handler)
-                s3Key: s3_key, // NEW: Store S3 key instead of network volume path
-                fileSize: file_size
-              }
-            );
+            // Check if this job should save to vault
+            const jobParams = existingJob.params as any;
+            const shouldSaveToVault = jobParams?.saveToVault === true && jobParams?.vaultProfileId && jobParams?.vaultFolderId;
             
-            if (savedImage) {
-              savedImages.push(savedImage);
-              console.log(`✅ S3 network volume image saved to database: ${savedImage.id} with clerkId: ${targetClerkId}`);
+            if (shouldSaveToVault) {
+              // Save to vault database
+              console.log(`💾 Saving to vault - Profile: ${jobParams.vaultProfileId}, Folder: ${jobParams.vaultFolderId}`);
+              
+              try {
+                const { PrismaClient } = await import('@/lib/generated/prisma');
+                const prisma = new PrismaClient();
+                
+                // Generate public URL from S3 key
+                const AWS_S3_BUCKET = process.env.AWS_S3_BUCKET || 'comfyui-files';
+                const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+                const publicUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3_key}`;
+                
+                const vaultItem = await prisma.vaultItem.create({
+                  data: {
+                    clerkId: targetClerkId,
+                    profileId: jobParams.vaultProfileId,
+                    folderId: jobParams.vaultFolderId,
+                    fileName: filename,
+                    fileType: 'image/png',
+                    fileSize: file_size || 0,
+                    awsS3Key: s3_key,
+                    awsS3Url: publicUrl,
+                  },
+                });
+                
+                await prisma.$disconnect();
+                
+                savedImages.push({
+                  id: vaultItem.id,
+                  url: publicUrl,
+                  filename: filename,
+                  s3Key: s3_key,
+                  savedToVault: true,
+                });
+                
+                console.log(`✅ S3 network volume image saved to vault: ${vaultItem.id}`);
+              } catch (vaultError) {
+                console.error('❌ Error saving to vault:', vaultError);
+              }
             } else {
-              console.error(`❌ Failed to save S3 network volume image: ${filename}`);
+              // Save to database with S3 key (no image data stored) - regular GeneratedImage
+              const savedImage = await saveImageToDatabase(
+                targetClerkId,  // Use folder owner's clerkId
+                jobId,
+                { filename, subfolder, type },
+                {
+                  saveData: false, // Don't save image bytes to database
+                  extractMetadata: false, // Don't extract metadata (we have it from handler)
+                  s3Key: s3_key, // NEW: Store S3 key instead of network volume path
+                  fileSize: file_size
+                }
+              );
+              
+              if (savedImage) {
+                savedImages.push(savedImage);
+                console.log(`✅ S3 network volume image saved to database: ${savedImage.id} with clerkId: ${targetClerkId}`);
+              } else {
+                console.error(`❌ Failed to save S3 network volume image: ${filename}`);
+              }
             }
           }
           
@@ -721,36 +806,76 @@ export async function POST(
         // Store video metadata in database (no blob data)
         const videoUrls: string[] = [];
         
+        // Check if this job should save to vault
+        const jobParams = existingJob.params as any;
+        const shouldSaveToVault = jobParams?.saveToVault === true && jobParams?.vaultProfileId && jobParams?.vaultFolderId;
+
         for (const videoInfo of network_volume_paths) {
           try {
             console.log('🎬 Processing S3 video:', videoInfo.filename, 'S3 key:', videoInfo.s3Key);
             
-            // Save video metadata to database without blob data
-            const videoRecord = await saveVideoToDatabase(
-              targetClerkId,  // Use folder owner's clerkId
-              jobId,
-              {
-                filename: videoInfo.filename,
-                subfolder: videoInfo.subfolder || '',
-                type: videoInfo.type || 'output',
-                s3Key: videoInfo.s3Key,  // Include S3 key for retrieval
-                networkVolumePath: videoInfo.networkVolumePath,
-                fileSize: videoInfo.fileSize || 0
-              },
-              { 
-                saveData: false,  // Don't save blob data
-                extractMetadata: false,  // Metadata provided
-                s3Key: videoInfo.s3Key  // Pass S3 key for URL generation
+            if (shouldSaveToVault) {
+              // Save to vault database instead of regular tables
+              console.log(`💾 Saving video to vault - Profile: ${jobParams.vaultProfileId}, Folder: ${jobParams.vaultFolderId}`);
+              
+              try {
+                const { PrismaClient } = await import('@/lib/generated/prisma');
+                const prisma = new PrismaClient();
+                
+                // Generate public URL from S3 key
+                const AWS_S3_BUCKET = process.env.AWS_S3_BUCKET || 'comfyui-files';
+                const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+                const s3Key = videoInfo.s3Key || videoInfo.s3_key;
+                const publicUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;
+                
+                const vaultItem = await prisma.vaultItem.create({
+                  data: {
+                    clerkId: targetClerkId,
+                    profileId: jobParams.vaultProfileId,
+                    folderId: jobParams.vaultFolderId,
+                    fileName: videoInfo.filename,
+                    fileType: 'video/mp4',
+                    fileSize: videoInfo.fileSize || 0,
+                    awsS3Key: s3Key,
+                    awsS3Url: publicUrl,
+                  },
+                });
+                
+                await prisma.$disconnect();
+                
+                videoUrls.push(publicUrl);
+                console.log(`✅ S3 video saved to vault: ${vaultItem.id}`);
+              } catch (vaultError) {
+                console.error('❌ Error saving video to vault:', vaultError);
               }
-            );
-            
-            if (videoRecord) {
-              // Use S3 URL generation
-              const videoUrl = `/api/videos/${videoRecord.id}/data`;
-              videoUrls.push(videoUrl);
-              console.log('✅ S3 video stored:', videoRecord.filename, 'URL:', videoUrl);
             } else {
-              console.error('❌ Failed to save S3 video metadata:', videoInfo.filename);
+              // Save video metadata to database without blob data
+              const videoRecord = await saveVideoToDatabase(
+                targetClerkId,  // Use folder owner's clerkId
+                jobId,
+                {
+                  filename: videoInfo.filename,
+                  subfolder: videoInfo.subfolder || '',
+                  type: videoInfo.type || 'output',
+                  s3Key: videoInfo.s3Key,  // Include S3 key for retrieval
+                  networkVolumePath: videoInfo.networkVolumePath,
+                  fileSize: videoInfo.fileSize || 0
+                },
+                { 
+                  saveData: false,  // Don't save blob data
+                  extractMetadata: false,  // Metadata provided
+                  s3Key: videoInfo.s3Key  // Pass S3 key for URL generation
+                }
+              );
+              
+              if (videoRecord) {
+                // Use S3 URL generation
+                const videoUrl = `/api/videos/${videoRecord.id}/data`;
+                videoUrls.push(videoUrl);
+                console.log('✅ S3 video stored:', videoRecord.filename, 'URL:', videoUrl);
+              } else {
+                console.error('❌ Failed to save S3 video metadata:', videoInfo.filename);
+              }
             }
           } catch (videoError) {
             console.error('❌ Error processing S3 video:', videoInfo.filename, videoError);
@@ -816,6 +941,10 @@ export async function POST(
       // Store videos in database and get URLs
       const videoUrls: string[] = [];
       
+      // Check if this job should save to vault
+      const jobParams = existingJob.params as any;
+      const shouldSaveToVault = jobParams?.saveToVault === true && jobParams?.vaultProfileId && jobParams?.vaultFolderId;
+      
       for (const videoInfo of videos) {
         try {
           console.log('🎬 Processing video:', videoInfo.filename);
@@ -830,27 +959,84 @@ export async function POST(
             
             console.log(`📊 Processing webhook video: ${videoInfo.filename}, size: ${videoBuffer.length} bytes`);
             
-            // Save directly to database with provided data
-            const videoRecord = await saveVideoToDatabase(
-              targetClerkId,  // Use folder owner's clerkId
-              jobId,
-              {
-                filename: videoInfo.filename,
-                subfolder: videoInfo.subfolder || '',
-                type: videoInfo.type || 'output'
-              },
-              { 
-                saveData: true,
-                extractMetadata: true,
-                providedData: videoBuffer // Pass the buffer directly
+            if (shouldSaveToVault) {
+              // For vault storage with blob data, we need to upload to S3 first
+              console.log(`💾 Saving video to vault - Profile: ${jobParams.vaultProfileId}, Folder: ${jobParams.vaultFolderId}`);
+              
+              try {
+                // Upload video buffer to S3 for vault storage
+                const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+                const { PrismaClient } = await import('@/lib/generated/prisma');
+                
+                const AWS_S3_BUCKET = process.env.AWS_S3_BUCKET || 'comfyui-files';
+                const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+                
+                const s3Client = new S3Client({
+                  region: AWS_REGION,
+                  credentials: {
+                    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+                    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+                  },
+                });
+                
+                // Generate S3 key for vault video
+                const s3Key = `vault/${targetClerkId}/${jobParams.vaultProfileId}/${jobParams.vaultFolderId}/${videoInfo.filename}`;
+                
+                // Upload to S3
+                await s3Client.send(new PutObjectCommand({
+                  Bucket: AWS_S3_BUCKET,
+                  Key: s3Key,
+                  Body: videoBuffer,
+                  ContentType: 'video/mp4',
+                }));
+                
+                const publicUrl = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${s3Key}`;
+                
+                // Save to vault database
+                const prisma = new PrismaClient();
+                const vaultItem = await prisma.vaultItem.create({
+                  data: {
+                    clerkId: targetClerkId,
+                    profileId: jobParams.vaultProfileId,
+                    folderId: jobParams.vaultFolderId,
+                    fileName: videoInfo.filename,
+                    fileType: 'video/mp4',
+                    fileSize: videoBuffer.length,
+                    awsS3Key: s3Key,
+                    awsS3Url: publicUrl,
+                  },
+                });
+                
+                await prisma.$disconnect();
+                
+                videoUrls.push(publicUrl);
+                console.log(`✅ Video uploaded to S3 and saved to vault: ${vaultItem.id}`);
+              } catch (vaultError) {
+                console.error('❌ Error saving video to vault:', vaultError);
               }
-            );
-            
-            if (videoRecord && videoRecord.dataUrl) {
-              videoUrls.push(videoRecord.dataUrl);
-              console.log('✅ Video stored with provided data:', videoRecord.filename, 'URL:', videoRecord.dataUrl);
             } else {
-              console.error('❌ Failed to save video with provided data:', videoInfo.filename);
+              // Save directly to database with provided data
+              const videoRecord = await saveVideoToDatabase(
+                targetClerkId,  // Use folder owner's clerkId
+                jobId,
+                {
+                  filename: videoInfo.filename,
+                  subfolder: videoInfo.subfolder || '',
+                  type: videoInfo.type || 'output'
+                },
+                { 
+                  saveData: true,
+                  extractMetadata: true,
+                  providedData: videoBuffer // Pass the buffer directly
+                }
+              );
+              
+              if (videoRecord && videoRecord.dataUrl) {
+                videoUrls.push(videoRecord.dataUrl);
+                console.log('✅ Video stored with provided data:', videoRecord.filename, 'URL:', videoRecord.dataUrl);
+              } else {
+                console.error('❌ Failed to save video with provided data:', videoInfo.filename);
+              }
             }
           } else {
             console.log('📡 No video data in webhook, this is expected for image-to-video serverless');

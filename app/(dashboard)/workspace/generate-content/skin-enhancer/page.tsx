@@ -27,6 +27,7 @@ import {
   Folder,
   ChevronDown,
   Clock,
+  Users,
 } from "lucide-react";
 
 // Types
@@ -99,6 +100,23 @@ interface AvailableFolderOption {
   permission?: 'VIEW' | 'EDIT';
   parentPrefix?: string | null;
 }
+
+interface InstagramProfile {
+  id: string;
+  name: string;
+  instagramUsername?: string | null;
+  isDefault?: boolean;
+}
+
+interface VaultFolder {
+  id: string;
+  name: string;
+  profileId: string;
+  isDefault?: boolean;
+}
+
+// Combined folder type for the unified dropdown
+type FolderType = 's3' | 'vault';
 
 const sanitizePrefix = (prefix: string): string => {
   if (!prefix) {
@@ -283,8 +301,14 @@ export default function SkinEnhancerPage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
+  const [folderType, setFolderType] = useState<FolderType>('s3');
   const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
   const [isLoadingFolders, setIsLoadingFolders] = useState(true);
+
+  // Vault Integration State
+  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
+  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   // Database image states
   const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
@@ -1020,6 +1044,88 @@ export default function SkinEnhancerPage() {
     loadFolders();
   }, [apiClient, user]);
 
+  // Load vault profiles and their folders
+  useEffect(() => {
+    const loadVaultData = async () => {
+      if (!apiClient) return;
+
+      setIsLoadingVaultData(true);
+      try {
+        // First, load all Instagram profiles
+        const profilesResponse = await fetch('/api/instagram/profiles');
+        if (!profilesResponse.ok) {
+          throw new Error('Failed to load profiles');
+        }
+
+        const profilesData = await profilesResponse.json();
+        const profileList: InstagramProfile[] = Array.isArray(profilesData)
+          ? profilesData
+          : profilesData.profiles || [];
+
+        // Sort profiles alphabetically
+        const sortedProfiles = [...profileList].sort((a, b) =>
+          (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+        );
+
+        setVaultProfiles(sortedProfiles);
+
+        // Now load vault folders for each profile
+        const foldersByProfile: Record<string, VaultFolder[]> = {};
+
+        await Promise.all(
+          sortedProfiles.map(async (profile) => {
+            try {
+              const foldersResponse = await fetch(`/api/vault/folders?profileId=${profile.id}`);
+              if (foldersResponse.ok) {
+                const folders = await foldersResponse.json();
+                foldersByProfile[profile.id] = folders;
+              }
+            } catch (error) {
+              console.error(`Failed to load folders for profile ${profile.id}:`, error);
+              foldersByProfile[profile.id] = [];
+            }
+          })
+        );
+
+        setVaultFoldersByProfile(foldersByProfile);
+      } catch (error) {
+        console.error('Failed to load vault data:', error);
+      } finally {
+        setIsLoadingVaultData(false);
+      }
+    };
+
+    loadVaultData();
+  }, [apiClient]);
+
+  // Helper to parse the combined folder value
+  const parseTargetFolder = (value: string): { type: FolderType; folderId: string; profileId?: string; profileName?: string } => {
+    if (value.startsWith('vault:')) {
+      const parts = value.replace('vault:', '').split(':');
+      const profileId = parts[0];
+      const folderId = parts[1];
+      const profile = vaultProfiles.find(p => p.id === profileId);
+      return { type: 'vault', folderId, profileId, profileName: profile?.name };
+    }
+    return { type: 's3', folderId: value };
+  };
+
+  // Get display text for the selected folder
+  const getSelectedFolderDisplay = (): string => {
+    if (!targetFolder) return 'Select a folder to save your enhanced images';
+    
+    const parsed = parseTargetFolder(targetFolder);
+    
+    if (parsed.type === 'vault') {
+      const folders = vaultFoldersByProfile[parsed.profileId || ''] || [];
+      const folder = folders.find(f => f.id === parsed.folderId);
+      return `Saving to Vault: ${parsed.profileName || 'Profile'} / ${folder?.name || 'Folder'}`;
+    }
+    
+    const s3Folder = availableFolders.find(f => f.prefix === parsed.folderId);
+    return `Saving to: ${s3Folder?.displayPath || 'selected folder'}`;
+  };
+
   const generateRandomSeed = () => {
     const seed = Math.floor(Math.random() * 1000000000);
     setParams((prev) => ({ ...prev, seed }));
@@ -1163,6 +1269,26 @@ export default function SkinEnhancerPage() {
       const workflow = createSkinEnhancerWorkflowJson(params, targetFolder);
       console.log("Created skin enhancer workflow for submission");
 
+      // Parse target folder to determine if saving to vault or S3
+      const parsed = parseTargetFolder(targetFolder);
+      
+      // Build request payload
+      const requestPayload: any = {
+        workflow,
+        params,
+      };
+
+      // Add vault-specific parameters if saving to vault
+      if (parsed.type === 'vault') {
+        requestPayload.saveToVault = true;
+        requestPayload.vaultProfileId = parsed.profileId;
+        requestPayload.vaultFolderId = parsed.folderId;
+        console.log("🗂️ Saving to vault:", { profileId: parsed.profileId, folderId: parsed.folderId });
+      } else if (targetFolder) {
+        requestPayload.targetFolder = parsed.folderId;
+        console.log("🗂️ Saving to S3 folder:", parsed.folderId);
+      }
+
       // Update progress
       updateGlobalProgress({
         isGenerating: true,
@@ -1173,10 +1299,7 @@ export default function SkinEnhancerPage() {
         jobId: null
       });
 
-      const response = await apiClient.post("/api/generate/skin-enhancer", {
-        workflow,
-        params,
-      });
+      const response = await apiClient.post("/api/generate/skin-enhancer", requestPayload);
 
       console.log("Enhancement API response status:", response.status);
 
@@ -2022,41 +2145,80 @@ export default function SkinEnhancerPage() {
             <div className="flex items-center gap-2 mb-3 sm:mb-4">
               <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
               <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Save to Folder</h2>
+              {(isLoadingFolders || isLoadingVaultData) && (
+                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+              )}
             </div>
             <div className="relative">
               <select
                 value={targetFolder}
-                onChange={(e) => setTargetFolder(e.target.value)}
-                disabled={isLoadingFolders || isGenerating}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTargetFolder(value);
+                  const parsed = parseTargetFolder(value);
+                  setFolderType(parsed.type);
+                }}
+                disabled={isLoadingFolders || isLoadingVaultData || isGenerating}
                 className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner"
               >
-                <option value="">Select a folder...</option>
-                {availableFolders.map((folder) => (
-                  <option key={folder.prefix} value={folder.prefix}>
-                    {buildFolderOptionLabel(folder)}
-                  </option>
-                ))}
+                <option value="">📁 Select a folder...</option>
+                
+                {/* S3 Folders Group */}
+                {availableFolders.length > 0 && (
+                  <optgroup label="📂 Your Output Folders">
+                    {availableFolders.map((folder) => (
+                      <option key={folder.prefix} value={folder.prefix}>
+                        {'  '.repeat(folder.depth)}{folder.name}
+                        {folder.isShared && ' (Shared)'}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                
+                {/* Vault Folders by Profile */}
+                {vaultProfiles.map((profile) => {
+                  const folders = vaultFoldersByProfile[profile.id] || [];
+                  if (folders.length === 0) return null;
+                  
+                  return (
+                    <optgroup 
+                      key={profile.id} 
+                      label={`📸 Vault - ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
+                    >
+                      {folders.map((folder) => (
+                        <option 
+                          key={folder.id} 
+                          value={`vault:${profile.id}:${folder.id}`}
+                        >
+                          {folder.name}{folder.isDefault ? ' (Default)' : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
               </select>
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                {isLoadingFolders ? (
-                  <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                )}
+                <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
               </div>
             </div>
-            {isLoadingFolders && (
-              <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
-                Loading folders...
+            
+            {/* Folder type indicator */}
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {targetFolder && targetFolder.startsWith('vault:') ? (
+                <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-xs text-purple-700 dark:text-purple-300">
+                  <Users className="w-3 h-3" />
+                  <span>Vault Storage</span>
+                </div>
+              ) : targetFolder ? (
+                <div className="flex items-center gap-1.5 rounded-full bg-cyan-500/20 px-2.5 py-1 text-xs text-cyan-700 dark:text-cyan-300">
+                  <Folder className="w-3 h-3" />
+                  <span>S3 Storage</span>
+                </div>
+              ) : null}
+              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 flex-1">
+                {getSelectedFolderDisplay()}
               </p>
-            )}
-            {selectedFolderOption && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1 break-all">
-                <span>💡</span>
-                <span>Saving to: {selectedFolderOption.prefix}</span>
-              </p>
-            )}
+            </div>
           </div>
 
           {/* Prompt Input */}

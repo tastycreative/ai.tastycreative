@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { workflow, params, imageData } = body;
+    const { workflow, params, imageData, saveToVault, vaultProfileId, vaultFolderId } = body;
 
     // Debug: Log the entire request body structure (without sensitive data)
     console.log('🔍 REQUEST BODY DEBUG:');
@@ -60,6 +60,9 @@ export async function POST(request: NextRequest) {
     console.log('  - params keys:', params ? Object.keys(params) : 'missing');
     console.log('  - imageData available:', !!imageData);
     console.log('  - uploadedImage:', params?.uploadedImage);
+    console.log('  - saveToVault:', saveToVault);
+    console.log('  - vaultProfileId:', vaultProfileId);
+    console.log('  - vaultFolderId:', vaultFolderId);
 
     if (!workflow) {
       return NextResponse.json(
@@ -110,20 +113,29 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Using clerkId for job:', targetClerkId);
 
-    // Create job in database
+    // Create job in database with vault params
     const job: StoredGenerationJob = {
       id: jobId,
       clerkId: targetClerkId,
       userId: targetClerkId,
       status: "pending",
       createdAt: new Date(),
-      params,
+      params: {
+        ...params,
+        // Vault storage params
+        saveToVault: saveToVault || false,
+        vaultProfileId: vaultProfileId || null,
+        vaultFolderId: vaultFolderId || null,
+      },
       progress: 0,
       type: 'IMAGE_TO_VIDEO'
     };
 
     await addJob(job);
     console.log('✅ Job created in database:', jobId);
+    if (saveToVault) {
+      console.log('🔒 Vault storage enabled - profileId:', vaultProfileId, 'folderId:', vaultFolderId);
+    }
 
     // Generate webhook URL for progress updates
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 

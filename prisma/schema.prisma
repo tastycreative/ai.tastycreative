@@ -1094,11 +1094,32 @@ model VaultFolder {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   items     VaultItem[] // Items in this folder
+  shares    VaultFolderShare[] // Shares of this folder with other users
 
   @@index([clerkId])
   @@index([profileId])
   @@index([clerkId, profileId])
   @@map("vault_folders")
+}
+
+// Vault Folder Share - Share vault folders with other users
+model VaultFolderShare {
+  id                String          @id @default(cuid())
+  vaultFolderId     String          // Vault folder being shared
+  ownerClerkId      String          // Owner of the folder
+  sharedWithClerkId String          // User the folder is shared with
+  permission        SharePermission @default(VIEW) // VIEW or EDIT
+  sharedBy          String?         // Display name of person who shared
+  note              String?         // Optional note from the person sharing
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  folder            VaultFolder     @relation(fields: [vaultFolderId], references: [id], onDelete: Cascade)
+
+  @@unique([vaultFolderId, sharedWithClerkId])
+  @@index([ownerClerkId])
+  @@index([sharedWithClerkId])
+  @@index([vaultFolderId])
+  @@map("vault_folder_shares")
 }
 
 // Vault Item - Media files stored in vault

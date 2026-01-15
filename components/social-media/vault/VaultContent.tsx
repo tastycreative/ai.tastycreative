@@ -24,8 +24,13 @@ import {
   Upload,
   Download,
   Move,
+  Copy,
   ChevronLeft,
   ChevronRight,
+  Share2,
+  Users,
+  Eye,
+  UserPlus,
 } from "lucide-react";
 
 interface InstagramProfile {
@@ -40,6 +45,51 @@ interface VaultFolder {
   name: string;
   profileId: string;
   isDefault?: boolean;
+  hasShares?: boolean; // Folder is shared with others
+}
+
+interface SharedVaultFolder {
+  id: string; // share id
+  folderId: string;
+  folderName: string;
+  profileId: string;
+  profileName: string;
+  profileUsername?: string | null;
+  profileImageUrl?: string | null;
+  isDefault: boolean;
+  itemCount: number;
+  permission: 'VIEW' | 'EDIT';
+  sharedBy: string;
+  ownerClerkId: string;
+  ownerName: string;
+  ownerImageUrl?: string | null;
+  note?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ShareInfo {
+  id: string;
+  sharedWithClerkId: string;
+  permission: 'VIEW' | 'EDIT';
+  createdAt: string;
+  sharedBy?: string;
+  note?: string;
+  sharedWithUser?: {
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    imageUrl: string | null;
+    displayName: string;
+  };
+}
+
+interface AvailableUser {
+  clerkId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
 }
 
 interface VaultItem {
@@ -59,7 +109,8 @@ export function VaultContent() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
 
-  const [folders, setFolders] = useState<VaultFolder[]>([]);
+  const [folders, setFolders] = useState<VaultFolder[]>([]); // Folders for current profile
+  const [allFolders, setAllFolders] = useState<VaultFolder[]>([]); // All folders across all profiles
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [folderNameInput, setFolderNameInput] = useState("");
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
@@ -76,11 +127,27 @@ export function VaultContent() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveToFolderId, setMoveToFolderId] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  const [isCopyMode, setIsCopyMode] = useState(false); // true = copy, false = move
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  // Sharing state
+  const [sharedFolders, setSharedFolders] = useState<SharedVaultFolder[]>([]);
+  const [loadingSharedFolders, setLoadingSharedFolders] = useState(false);
+  const [selectedSharedFolder, setSelectedSharedFolder] = useState<SharedVaultFolder | null>(null);
+  const [sharedFolderItems, setSharedFolderItems] = useState<VaultItem[]>([]); // Separate state to avoid overwriting user's items
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [folderToShare, setFolderToShare] = useState<VaultFolder | null>(null);
+  const [shareModalLoading, setShareModalLoading] = useState(false);
+  const [currentShares, setCurrentShares] = useState<ShareInfo[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([]);
+  const [selectedUserToShare, setSelectedUserToShare] = useState<AvailableUser | null>(null);
+  const [sharePermission, setSharePermission] = useState<'VIEW' | 'EDIT'>('VIEW');
+  const [shareNote, setShareNote] = useState('');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
@@ -116,7 +183,12 @@ export function VaultContent() {
       );
       
       await Promise.all(deletePromises);
-      setVaultItems(vaultItems.filter(item => !selectedItems.has(item.id)));
+      // Update the correct state based on whether viewing shared folder or own folder
+      if (selectedSharedFolder) {
+        setSharedFolderItems(sharedFolderItems.filter(item => !selectedItems.has(item.id)));
+      } else {
+        setVaultItems(vaultItems.filter(item => !selectedItems.has(item.id)));
+      }
       setSelectedItems(new Set());
       showToast(`Successfully deleted ${selectedItems.size} file(s)!`, "success");
     } catch (error) {
@@ -214,6 +286,18 @@ export function VaultContent() {
     }
   }, [selectedProfileId]);
 
+  // Load shared folders on mount
+  useEffect(() => {
+    loadSharedFolders();
+  }, []);
+
+  // Load all folders across all profiles (for move/copy modal)
+  useEffect(() => {
+    if (profiles.length > 0) {
+      loadAllFolders();
+    }
+  }, [profiles]);
+
   useEffect(() => {
     if (selectedFolderId && selectedProfileId) {
       loadItems();
@@ -241,6 +325,19 @@ export function VaultContent() {
     }
   };
 
+  // Load all folders across all profiles (for move/copy modal)
+  const loadAllFolders = async () => {
+    try {
+      const response = await fetch('/api/vault/folders');
+      if (!response.ok) throw new Error("Failed to load all folders");
+
+      const data = await response.json();
+      setAllFolders(data);
+    } catch (error) {
+      console.error("Error loading all folders:", error);
+    }
+  };
+
   const createDefaultFolder = async () => {
     if (!selectedProfileId) return;
 
@@ -259,6 +356,7 @@ export function VaultContent() {
 
       const folder = await response.json();
       setFolders([folder]);
+      setAllFolders(prev => [...prev, folder]); // Also add to allFolders
       setSelectedFolderId(folder.id);
     } catch (error) {
       console.error("Error creating default folder:", error);
@@ -289,8 +387,164 @@ export function VaultContent() {
     }
   };
 
+  // Load items from a shared folder
+  const loadSharedFolderItems = async (sharedFolder: SharedVaultFolder) => {
+    setLoadingItems(true);
+    setSelectedSharedFolder(sharedFolder);
+    setSelectedFolderId(null); // Deselect owned folder
+    
+    try {
+      const response = await fetch(`/api/vault/items?sharedFolderId=${sharedFolder.folderId}`);
+      if (!response.ok) throw new Error("Failed to load shared folder items");
+
+      const data = await response.json();
+      // Use separate state for shared folder items to preserve user's own vault items
+      setSharedFolderItems(data.map((item: any) => ({
+        ...item,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      })));
+    } catch (error) {
+      console.error("Error loading shared folder items:", error);
+      showToast("Failed to load shared folder items", "error");
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
+  // Load folders shared with the current user
+  const loadSharedFolders = async () => {
+    setLoadingSharedFolders(true);
+    try {
+      const response = await fetch('/api/vault/folders/shared');
+      if (!response.ok) throw new Error("Failed to load shared folders");
+
+      const data = await response.json();
+      setSharedFolders(data.shares.map((share: any) => ({
+        ...share,
+        createdAt: new Date(share.createdAt),
+        updatedAt: new Date(share.updatedAt),
+      })));
+    } catch (error) {
+      console.error("Error loading shared folders:", error);
+    } finally {
+      setLoadingSharedFolders(false);
+    }
+  };
+
+  // Load available users for sharing
+  const loadAvailableUsers = async () => {
+    try {
+      const response = await fetch('/api/users/list');
+      if (!response.ok) throw new Error("Failed to load users");
+
+      const data = await response.json();
+      setAvailableUsers(data.users.map((user: any) => ({
+        clerkId: user.clerkId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        displayName: user.firstName && user.lastName 
+          ? `${user.firstName} ${user.lastName}` 
+          : user.firstName || user.lastName || user.email || user.clerkId,
+      })));
+    } catch (error) {
+      console.error("Error loading users:", error);
+    }
+  };
+
+  // Load current shares for a folder
+  const loadCurrentShares = async (folderId: string) => {
+    try {
+      const response = await fetch(`/api/vault/folders/share?vaultFolderId=${folderId}`);
+      if (!response.ok) throw new Error("Failed to load shares");
+
+      const data = await response.json();
+      setCurrentShares(data);
+    } catch (error) {
+      console.error("Error loading shares:", error);
+    }
+  };
+
+  // Open share modal
+  const handleOpenShareModal = async (folder: VaultFolder) => {
+    setFolderToShare(folder);
+    setShowShareModal(true);
+    setShareModalLoading(true);
+    
+    await Promise.all([
+      loadCurrentShares(folder.id),
+      loadAvailableUsers(),
+    ]);
+    
+    setShareModalLoading(false);
+  };
+
+  // Share folder with user
+  const handleShareFolder = async () => {
+    if (!folderToShare || !selectedUserToShare) return;
+
+    setShareModalLoading(true);
+    try {
+      const response = await fetch('/api/vault/folders/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vaultFolderId: folderToShare.id,
+          sharedWithClerkIds: [selectedUserToShare.clerkId],
+          permission: sharePermission,
+          note: shareNote.trim() || undefined,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to share folder");
+
+      showToast(`Folder shared with ${selectedUserToShare.displayName}`, "success");
+      
+      // Reset form and reload shares
+      setSelectedUserToShare(null);
+      setUserSearchQuery('');
+      setShareNote('');
+      setSharePermission('VIEW');
+      await loadCurrentShares(folderToShare.id);
+      loadFolders(); // Refresh to show "shared" badge
+    } catch (error) {
+      console.error("Error sharing folder:", error);
+      showToast("Failed to share folder", "error");
+    } finally {
+      setShareModalLoading(false);
+    }
+  };
+
+  // Remove share
+  const handleRemoveShare = async (sharedWithClerkId: string, displayName: string) => {
+    if (!folderToShare) return;
+
+    try {
+      const response = await fetch('/api/vault/folders/share', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vaultFolderId: folderToShare.id,
+          sharedWithClerkId,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to remove share");
+
+      showToast(`Removed access for ${displayName}`, "success");
+      await loadCurrentShares(folderToShare.id);
+      loadFolders(); // Refresh to update "shared" badge
+    } catch (error) {
+      console.error("Error removing share:", error);
+      showToast("Failed to remove share", "error");
+    }
+  };
+
   const handleSelectProfile = (id: string) => {
     setSelectedProfileId(id);
+    setSelectedSharedFolder(null); // Deselect shared folder when changing profile
+    setSharedFolderItems([]); // Clear shared folder items
     const profileFolders = folders.filter((f) => f.profileId === id);
     const nextFolder = profileFolders[0];
     setSelectedFolderId(nextFolder ? nextFolder.id : null);
@@ -313,6 +567,7 @@ export function VaultContent() {
 
       const newFolder = await response.json();
       setFolders([...folders, newFolder]);
+      setAllFolders([...allFolders, newFolder]); // Also add to allFolders
       setSelectedFolderId(newFolder.id);
       setFolderNameInput("");
       showToast("Folder created successfully!", "success");
@@ -345,6 +600,12 @@ export function VaultContent() {
           folder.id === editingFolderId ? { ...folder, name: editingFolderName.trim() } : folder
         )
       );
+      // Also update in allFolders
+      setAllFolders((prev) =>
+        prev.map((folder) =>
+          folder.id === editingFolderId ? { ...folder, name: editingFolderName.trim() } : folder
+        )
+      );
       setEditingFolderId(null);
       setEditingFolderName("");
       showToast("Folder renamed successfully!", "success");
@@ -368,6 +629,7 @@ export function VaultContent() {
       if (!response.ok) throw new Error("Failed to delete folder");
 
       setFolders(folders.filter((f) => f.id !== folderId));
+      setAllFolders(allFolders.filter((f) => f.id !== folderId)); // Also remove from allFolders
       setVaultItems(vaultItems.filter((item) => item.folderId !== folderId));
 
       if (selectedFolderId === folderId) {
@@ -481,7 +743,12 @@ export function VaultContent() {
 
       if (!response.ok) throw new Error("Failed to delete item");
 
-      setVaultItems(vaultItems.filter((item) => item.id !== id));
+      // Update the correct state based on whether viewing shared folder or own folder
+      if (selectedSharedFolder) {
+        setSharedFolderItems(sharedFolderItems.filter((item) => item.id !== id));
+      } else {
+        setVaultItems(vaultItems.filter((item) => item.id !== id));
+      }
       showToast("File deleted successfully!", "success");
     } catch (error) {
       console.error("Error deleting item:", error);
@@ -490,6 +757,20 @@ export function VaultContent() {
   };
 
   const filteredItems = useMemo(() => {
+    // If viewing a shared folder, use sharedFolderItems (not vaultItems)
+    if (selectedSharedFolder) {
+      return sharedFolderItems
+        .filter((item) => item.fileName.toLowerCase().includes(searchQuery.toLowerCase()))
+        .filter((item) => {
+          if (contentFilter === 'all') return true;
+          if (contentFilter === 'photos') return item.fileType.startsWith('image/') && item.fileType !== 'image/gif';
+          if (contentFilter === 'videos') return item.fileType.startsWith('video/');
+          if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
+          if (contentFilter === 'gifs') return item.fileType === 'image/gif';
+          return true;
+        });
+    }
+
     // Check if current folder is the default "All Media" folder
     const currentFolder = folders.find(f => f.id === selectedFolderId);
     const isDefaultFolder = currentFolder?.isDefault === true;
@@ -515,11 +796,17 @@ export function VaultContent() {
         if (contentFilter === 'gifs') return item.fileType === 'image/gif';
         return true;
       });
-  }, [vaultItems, selectedFolderId, selectedProfileId, searchQuery, folders, contentFilter]);
+  }, [vaultItems, sharedFolderItems, selectedFolderId, selectedProfileId, searchQuery, folders, contentFilter, selectedSharedFolder]);
 
   const visibleFolders = folders.filter((folder) => folder.profileId === selectedProfileId);
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId) || null;
-  const selectedFolder = visibleFolders.find((folder) => folder.id === selectedFolderId) || null;
+  const selectedFolder = selectedSharedFolder 
+    ? { id: selectedSharedFolder.folderId, name: selectedSharedFolder.folderName, profileId: selectedSharedFolder.profileId, isDefault: selectedSharedFolder.isDefault }
+    : visibleFolders.find((folder) => folder.id === selectedFolderId) || null;
+  
+  // Check if viewing shared content (read-only mode)
+  const isViewingShared = selectedSharedFolder !== null;
+  const canEdit = !isViewingShared || selectedSharedFolder?.permission === 'EDIT';
 
   // Calculate stats
   const totalItems = vaultItems.filter(item => item.profileId === selectedProfileId).length;
@@ -535,12 +822,31 @@ export function VaultContent() {
 
   return (
     <>
+      {/* Custom Scrollbar Styles */}
+      <style jsx global>{`
+        .vault-scrollbar::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .vault-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 3px;
+        }
+        .vault-scrollbar::-webkit-scrollbar-thumb {
+          background: linear-gradient(180deg, rgba(34, 211, 238, 0.4), rgba(99, 102, 241, 0.4));
+          border-radius: 3px;
+        }
+        .vault-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, rgba(34, 211, 238, 0.6), rgba(99, 102, 241, 0.6));
+        }
+      `}</style>
+
       {/* Upload Modal - React Portal */}
       {isAddingNew && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
           {/* Backdrop */}
           <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm"
             onClick={() => {
               setIsAddingNew(false);
               setNewFiles([]);
@@ -549,14 +855,14 @@ export function VaultContent() {
           />
           
           {/* Modal */}
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl animate-slideIn">
+          <div className="relative rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/30 backdrop-blur w-full max-w-2xl animate-slideIn">
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg">
+                <div className="p-2.5 bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-cyan-900/50">
                   <Upload className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Upload Media</h3>
+                <h3 className="text-xl font-bold text-white">Upload Media</h3>
               </div>
               <button
                 onClick={() => {
@@ -564,10 +870,10 @@ export function VaultContent() {
                   setNewFiles([]);
                   setIsDragging(false);
                 }}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-xl hover:bg-white/10 transition-colors"
                 title="Close"
               >
-                <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                <X className="h-5 w-5 text-slate-400" />
               </button>
             </div>
 
@@ -589,21 +895,21 @@ export function VaultContent() {
                   const files = Array.from(e.dataTransfer.files);
                   setNewFiles(prev => [...prev, ...files]);
                 }}
-                className={`relative border-2 border-dashed rounded-xl p-8 transition-all duration-300 ${
+                className={`relative border-2 border-dashed rounded-2xl p-8 transition-all duration-300 ${
                   isDragging
-                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-105'
-                    : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 hover:border-purple-400 dark:hover:border-purple-500'
+                    ? 'border-cyan-400 bg-cyan-500/10 scale-[1.02]'
+                    : 'border-white/20 bg-white/5 hover:border-cyan-400/50 hover:bg-white/10'
                 }`}
               >
                 <div className="flex flex-col items-center justify-center space-y-3">
-                  <div className="p-4 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/30 dark:to-pink-900/30 rounded-full">
-                    <Upload className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                  <div className="p-4 bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 rounded-2xl">
+                    <Upload className="w-8 h-8 text-cyan-400" />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                    <p className="text-sm font-semibold text-white mb-1">
                       Drag and drop files here
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">or click to browse</p>
+                    <p className="text-xs text-slate-400">or click to browse</p>
                   </div>
                   <input
                     type="file"
@@ -622,43 +928,43 @@ export function VaultContent() {
               {newFiles.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    <p className="text-sm font-semibold text-slate-200">
                       Selected Files ({newFiles.length})
                     </p>
                     <button
                       onClick={() => setNewFiles([])}
-                      className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                      className="text-xs text-red-400 hover:text-red-300 transition-colors"
                     >
                       Clear all
                     </button>
                   </div>
-                  <div className="max-h-48 overflow-y-auto space-y-2 pr-2">
+                  <div className="max-h-48 overflow-y-auto space-y-2 pr-2 vault-scrollbar">
                     {newFiles.map((file, index) => (
                       <div
                         key={index}
-                        className="flex items-center justify-between p-3 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-800"
+                        className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10"
                       >
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
                           {file.type.startsWith('image/') ? (
-                            <ImageIcon className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                            <ImageIcon className="w-5 h-5 text-cyan-400 flex-shrink-0" />
                           ) : file.type.startsWith('video/') ? (
-                            <VideoIcon className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                            <VideoIcon className="w-5 h-5 text-cyan-400 flex-shrink-0" />
                           ) : file.type.startsWith('audio/') ? (
-                            <Music4 className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                            <Music4 className="w-5 h-5 text-cyan-400 flex-shrink-0" />
                           ) : (
-                            <FileIcon className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                            <FileIcon className="w-5 h-5 text-cyan-400 flex-shrink-0" />
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{file.name}</p>
-                            <p className="text-xs text-gray-600 dark:text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                            <p className="text-sm font-semibold text-white truncate">{file.name}</p>
+                            <p className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                           </div>
                         </div>
                         <button
                           onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== index))}
-                          className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex-shrink-0 ml-2"
+                          className="p-1.5 rounded-lg hover:bg-red-500/20 transition-colors flex-shrink-0 ml-2"
                           title="Remove"
                         >
-                          <X className="w-4 h-4 text-red-600 dark:text-red-400" />
+                          <X className="w-4 h-4 text-red-400" />
                         </button>
                       </div>
                     ))}
@@ -666,8 +972,8 @@ export function VaultContent() {
                 </div>
               )}
 
-              <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
-                <Sparkles className="w-3 h-3" />
+              <div className="flex items-center space-x-2 text-xs text-slate-400">
+                <Sparkles className="w-3 h-3 text-cyan-400" />
                 <span>Supports images, videos, GIFs, and audio files (no size limit)</span>
               </div>
 
@@ -675,12 +981,12 @@ export function VaultContent() {
               {uploadProgress > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">Uploading...</span>
-                    <span className="text-purple-600 dark:text-purple-400 font-semibold">{uploadProgress}%</span>
+                    <span className="text-slate-300 font-medium">Uploading...</span>
+                    <span className="text-cyan-400 font-semibold">{uploadProgress}%</span>
                   </div>
-                  <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-full transition-all duration-300"
+                      className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 rounded-full transition-all duration-300"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
@@ -689,7 +995,7 @@ export function VaultContent() {
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-white/10">
               <button
                 onClick={() => {
                   setIsAddingNew(false);
@@ -698,14 +1004,14 @@ export function VaultContent() {
                   setUploadProgress(0);
                 }}
                 disabled={uploadProgress > 0}
-                className="px-5 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddItem}
                 disabled={newFiles.length === 0 || uploadProgress > 0}
-                className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg shadow-cyan-900/40 hover:shadow-xl transition-all flex items-center gap-2"
               >
                 {uploadProgress > 0 ? (
                   <>
@@ -722,56 +1028,154 @@ export function VaultContent() {
         document.body
       )}
 
-      {/* Move Modal - React Portal */}
+      {/* Move/Copy Modal - React Portal */}
       {showMoveModal && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
           <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowMoveModal(false)}
+            className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm"
+            onClick={() => {
+              setShowMoveModal(false);
+              setIsCopyMode(false);
+            }}
           />
           
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md animate-slideIn">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/30 backdrop-blur w-full max-w-md animate-slideIn">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
-                  <Move className="w-5 h-5 text-white" />
+                <div className={`p-2.5 rounded-xl shadow-lg ${isCopyMode ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-900/50' : 'bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-cyan-900/50'}`}>
+                  {isCopyMode ? <Copy className="w-5 h-5 text-white" /> : <Move className="w-5 h-5 text-white" />}
                 </div>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Move {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''}
+                <h3 className="text-xl font-bold text-white">
+                  {isCopyMode ? 'Copy' : 'Move'} {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''}
                 </h3>
               </div>
               <button
-                onClick={() => setShowMoveModal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                onClick={() => {
+                  setShowMoveModal(false);
+                  setIsCopyMode(false);
+                }}
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
             
             <div className="p-6 space-y-4">
+              {/* Copy/Move Toggle - Always show */}
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-slate-300">
+                  Action Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setIsCopyMode(false)}
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
+                      !isCopyMode
+                        ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
+                        : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
+                    }`}
+                  >
+                    <Move className="w-4 h-4" />
+                      Move
+                    </button>
+                    <button
+                      onClick={() => setIsCopyMode(true)}
+                      className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
+                        isCopyMode
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-900/40'
+                          : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {isCopyMode 
+                      ? '📋 Copy will duplicate files (originals stay in current folder)'
+                      : '📦 Move will transfer files (removes from current folder)'}
+                  </p>
+                </div>
+
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
                   Select destination folder
                 </label>
                 <select
                   value={moveToFolderId || ''}
                   onChange={(e) => setMoveToFolderId(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-gray-900 dark:text-white"
+                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white vault-scrollbar"
                 >
-                  <option value="">Choose folder...</option>
-                  {visibleFolders
-                    .filter(f => f.id !== selectedFolderId)
-                    .map(folder => (
-                      <option key={folder.id} value={folder.id}>{folder.name}</option>
-                    ))
-                  }
+                  <option value="" className="bg-slate-900">Choose folder...</option>
+                  {isViewingShared ? (
+                    <>
+                      {/* When viewing shared folder, show user's own folders grouped by profile */}
+                      {profiles.map(profile => {
+                        const profileFolders = allFolders.filter(f => f.profileId === profile.id && !f.isDefault);
+                        if (profileFolders.length === 0) return null;
+                        return (
+                          <optgroup key={profile.id} label={`Your Profile: ${profile.name}`} className="bg-slate-900">
+                            {profileFolders.map(folder => (
+                              <option key={folder.id} value={folder.id} className="bg-slate-900">{folder.name}</option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                      {/* Also show other shared folders with EDIT permission */}
+                      {sharedFolders.filter(sf => sf.permission === 'EDIT' && sf.folderId !== selectedSharedFolder?.folderId).length > 0 && (
+                        <optgroup label="Other Shared Folders (Edit Access)" className="bg-slate-900">
+                          {sharedFolders
+                            .filter(sf => sf.permission === 'EDIT' && sf.folderId !== selectedSharedFolder?.folderId)
+                            .map(sf => (
+                              <option key={sf.folderId} value={sf.folderId} className="bg-slate-900">
+                                {sf.folderName} (from {sf.ownerName})
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* When viewing own folder, show folders from ALL profiles (exclude default/All Media folders) */}
+                      {profiles.map(profile => {
+                        const profileFolders = allFolders.filter(f => 
+                          f.profileId === profile.id && 
+                          !f.isDefault && // Exclude "All Media" default folders
+                          !(profile.id === selectedProfileId && f.id === selectedFolderId) // Exclude current folder
+                        );
+                        if (profileFolders.length === 0) return null;
+                        return (
+                          <optgroup key={profile.id} label={`${profile.id === selectedProfileId ? '📍 Current: ' : ''}${profile.name}`} className="bg-slate-900">
+                            {profileFolders.map(folder => (
+                              <option key={folder.id} value={folder.id} className="bg-slate-900">{folder.name}</option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                      {/* Also show shared folders with EDIT permission */}
+                      {sharedFolders.filter(sf => sf.permission === 'EDIT').length > 0 && (
+                        <optgroup label="Shared Folders (Edit Access)" className="bg-slate-900">
+                          {sharedFolders
+                            .filter(sf => sf.permission === 'EDIT')
+                            .map(sf => (
+                              <option key={sf.folderId} value={sf.folderId} className="bg-slate-900">
+                                {sf.folderName} (from {sf.ownerName})
+                              </option>
+                            ))}
+                        </optgroup>
+                      )}
+                    </>
+                  )}
                 </select>
               </div>
               
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowMoveModal(false)}
-                  className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+                  onClick={() => {
+                    setShowMoveModal(false);
+                    setIsCopyMode(false);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 text-slate-300 rounded-xl font-semibold hover:bg-white/10 transition-all"
                 >
                   Cancel
                 </button>
@@ -784,61 +1188,106 @@ export function VaultContent() {
                     
                     setIsMoving(true);
                     try {
-                      const itemsToMove = Array.from(selectedItems);
+                      const itemsToProcess = Array.from(selectedItems);
                       
-                      // Make API calls to update backend
-                      const results = await Promise.all(
-                        itemsToMove.map(async (itemId) => {
-                          const response = await fetch(`/api/vault/items/${itemId}`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ folderId: moveToFolderId }),
-                          });
-                          
-                          if (!response.ok) {
-                            const error = await response.text();
-                            console.error(`Failed to move item ${itemId}:`, error);
-                            return { success: false, itemId };
-                          }
-                          
-                          return { success: true, itemId };
-                        })
-                      );
-                      
-                      // Check if all succeeded
-                      const failedMoves = results.filter(r => !r.success);
-                      
-                      if (failedMoves.length > 0) {
-                        showToast(`Failed to move ${failedMoves.length} item(s)`, 'error');
+                      if (isCopyMode) {
+                        // COPY: Use the copy endpoint
+                        const results = await Promise.all(
+                          itemsToProcess.map(async (itemId) => {
+                            const response = await fetch(`/api/vault/items/${itemId}/copy`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ folderId: moveToFolderId }),
+                            });
+                            
+                            if (!response.ok) {
+                              const error = await response.text();
+                              console.error(`Failed to copy item ${itemId}:`, error);
+                              return { success: false, itemId };
+                            }
+                            
+                            return { success: true, itemId };
+                          })
+                        );
+                        
+                        const failedCopies = results.filter(r => !r.success);
+                        
+                        if (failedCopies.length > 0) {
+                          showToast(`Failed to copy ${failedCopies.length} item(s)`, 'error');
+                        } else {
+                          showToast(`Successfully copied ${itemsToProcess.length} item(s)!`, 'success');
+                        }
+                        
+                        // Reload user's own items to show the copied files
+                        await loadItems();
+                        
                       } else {
-                        showToast(`Successfully moved ${itemsToMove.length} item(s)!`, 'success');
+                        // MOVE: Use the existing move endpoint
+                        const results = await Promise.all(
+                          itemsToProcess.map(async (itemId) => {
+                            const response = await fetch(`/api/vault/items/${itemId}`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ folderId: moveToFolderId }),
+                            });
+                            
+                            if (!response.ok) {
+                              const error = await response.text();
+                              console.error(`Failed to move item ${itemId}:`, error);
+                              return { success: false, itemId };
+                            }
+                            
+                            return { success: true, itemId };
+                          })
+                        );
+                        
+                        const failedMoves = results.filter(r => !r.success);
+                        
+                        if (failedMoves.length > 0) {
+                          showToast(`Failed to move ${failedMoves.length} item(s)`, 'error');
+                        } else {
+                          showToast(`Successfully moved ${itemsToProcess.length} item(s)!`, 'success');
+                        }
+                        
+                        // Update the correct state based on whether viewing shared folder
+                        if (selectedSharedFolder) {
+                          // Remove moved items from shared folder view
+                          setSharedFolderItems(sharedFolderItems.filter(item => !selectedItems.has(item.id)));
+                          // Also reload user's own items
+                          await loadItems();
+                        } else {
+                          // Reload items from backend to get fresh data
+                          await loadItems();
+                        }
                       }
-                      
-                      // Reload items from backend to get fresh data
-                      await loadItems();
                       
                       setSelectedItems(new Set());
                       setShowMoveModal(false);
                       setMoveToFolderId(null);
+                      setIsCopyMode(false);
                     } catch (error) {
-                      console.error('Error moving items:', error);
-                      showToast('Failed to move items', 'error');
+                      console.error(`Error ${isCopyMode ? 'copying' : 'moving'} items:`, error);
+                      showToast(`Failed to ${isCopyMode ? 'copy' : 'move'} items`, 'error');
                     } finally {
                       setIsMoving(false);
                     }
                   }}
                   disabled={!moveToFolderId || isMoving}
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className={`flex-1 px-4 py-2.5 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${
+                    isCopyMode 
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-900/40'
+                      : 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 shadow-cyan-900/40'
+                  }`}
                 >
                   {isMoving ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Moving...
+                      {isCopyMode ? 'Copying...' : 'Moving...'}
                     </>
                   ) : (
                     <>
-                      <Move className="w-5 h-5" />
-                      Move Files
+                      {isCopyMode ? <Copy className="w-5 h-5" /> : <Move className="w-5 h-5" />}
+                      {isCopyMode ? 'Copy Files' : 'Move Files'}
                     </>
                   )}
                 </button>
@@ -853,15 +1302,15 @@ export function VaultContent() {
       {previewItem && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
           <div 
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm"
             onClick={() => setPreviewItem(null)}
           />
           
-          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl max-h-[95vh] flex flex-col animate-slideIn">
+          <div className="relative rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/30 backdrop-blur w-full max-w-6xl max-h-[95vh] flex flex-col animate-slideIn">
             {/* Header with metadata */}
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">
               <div className="flex items-center space-x-3 min-w-0 flex-1">
-                <div className="p-2 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex-shrink-0">
+                <div className="p-2.5 bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-cyan-900/50 flex-shrink-0">
                   {previewItem.fileType.startsWith('image/') ? (
                     <ImageIcon className="w-5 h-5 text-white" />
                   ) : previewItem.fileType.startsWith('video/') ? (
@@ -873,8 +1322,8 @@ export function VaultContent() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{previewItem.fileName}</h3>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <h3 className="text-base sm:text-lg font-bold text-white truncate">{previewItem.fileName}</h3>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-400 mt-1">
                     <span>{(previewItem.fileSize / 1024 / 1024).toFixed(2)} MB</span>
                     <span>•</span>
                     <span>{previewItem.fileType}</span>
@@ -885,14 +1334,14 @@ export function VaultContent() {
               </div>
               <button
                 onClick={() => setPreviewItem(null)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0 ml-2"
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors flex-shrink-0 ml-2"
               >
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
             
             {/* Content area with navigation */}
-            <div className="flex-1 overflow-hidden flex items-center relative">
+            <div className="flex-1 overflow-hidden flex items-center relative bg-slate-900/50">
               {/* Previous button */}
               {filteredItems.length > 1 && (
                 <button
@@ -901,9 +1350,9 @@ export function VaultContent() {
                     const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredItems.length - 1;
                     setPreviewItem(filteredItems[prevIndex]);
                   }}
-                  className="absolute left-2 sm:left-4 z-10 p-2 sm:p-3 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 rounded-full shadow-lg transition-all hover:scale-110"
+                  className="absolute left-2 sm:left-4 z-10 p-2 sm:p-3 bg-white/10 hover:bg-white/20 rounded-full shadow-lg transition-all hover:scale-110 border border-white/10"
                 >
-                  <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 dark:text-gray-300" />
+                  <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </button>
               )}
               
@@ -913,7 +1362,7 @@ export function VaultContent() {
                   <img
                     src={previewItem.awsS3Url}
                     alt={previewItem.fileName}
-                    className="max-w-full max-h-[calc(95vh-220px)] object-contain rounded-lg"
+                    className="max-w-full max-h-[calc(95vh-220px)] object-contain rounded-xl"
                     onLoad={(e) => {
                       const img = e.target as HTMLImageElement;
                       console.log(`Image dimensions: ${img.naturalWidth}x${img.naturalHeight}`);
@@ -924,20 +1373,20 @@ export function VaultContent() {
                     src={previewItem.awsS3Url}
                     controls
                     autoPlay
-                    className="max-w-full max-h-[calc(95vh-220px)] rounded-lg"
+                    className="max-w-full max-h-[calc(95vh-220px)] rounded-xl"
                   />
                 ) : previewItem.fileType.startsWith('audio/') ? (
                   <div className="w-full max-w-2xl">
-                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl p-8 mb-6">
-                      <Music4 className="w-20 h-20 text-purple-600 dark:text-purple-400 mx-auto mb-4" />
-                      <p className="text-center text-gray-600 dark:text-gray-400 font-semibold">{previewItem.fileName}</p>
+                    <div className="bg-gradient-to-br from-cyan-500/10 to-indigo-500/10 rounded-2xl p-8 mb-6 border border-white/10">
+                      <Music4 className="w-20 h-20 text-cyan-400 mx-auto mb-4" />
+                      <p className="text-center text-slate-300 font-semibold">{previewItem.fileName}</p>
                     </div>
                     <audio src={previewItem.awsS3Url} controls autoPlay className="w-full" />
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <FileIcon className="w-20 h-20 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 dark:text-gray-400">Preview not available for this file type</p>
+                    <FileIcon className="w-20 h-20 text-slate-500 mx-auto mb-4" />
+                    <p className="text-slate-400">Preview not available for this file type</p>
                   </div>
                 )}
               </div>
@@ -950,19 +1399,19 @@ export function VaultContent() {
                     const nextIndex = currentIndex < filteredItems.length - 1 ? currentIndex + 1 : 0;
                     setPreviewItem(filteredItems[nextIndex]);
                   }}
-                  className="absolute right-2 sm:right-4 z-10 p-2 sm:p-3 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 rounded-full shadow-lg transition-all hover:scale-110"
+                  className="absolute right-2 sm:right-4 z-10 p-2 sm:p-3 bg-white/10 hover:bg-white/20 rounded-full shadow-lg transition-all hover:scale-110 border border-white/10"
                 >
-                  <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 dark:text-gray-300" />
+                  <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </button>
               )}
             </div>
             
             {/* Footer with actions and info */}
-            <div className="border-t border-gray-200 dark:border-gray-700">
+            <div className="border-t border-white/10">
               {/* Item counter */}
               {filteredItems.length > 1 && (
-                <div className="px-4 sm:px-6 py-2 bg-gray-50 dark:bg-gray-900/50 text-center">
-                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 font-medium">
+                <div className="px-4 sm:px-6 py-2 bg-white/5 text-center">
+                  <span className="text-xs sm:text-sm text-slate-400 font-medium">
                     {filteredItems.findIndex(item => item.id === previewItem.id) + 1} of {filteredItems.length}
                   </span>
                 </div>
@@ -973,21 +1422,23 @@ export function VaultContent() {
                 <a
                   href={previewItem.awsS3Url}
                   download={previewItem.fileName}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 transition-all shadow-lg shadow-cyan-900/40 hover:shadow-xl"
                 >
                   <Download className="w-5 h-5" />
                   <span className="hidden sm:inline">Download</span>
                 </a>
-                <button
-                  onClick={() => {
-                    handleDeleteItem(previewItem.id);
-                    setPreviewItem(null);
-                  }}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-all shadow-lg hover:shadow-xl"
-                >
-                  <Trash2 className="w-5 h-5" />
-                  <span className="hidden sm:inline">Delete</span>
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => {
+                      handleDeleteItem(previewItem.id);
+                      setPreviewItem(null);
+                    }}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl font-semibold hover:bg-red-500/30 transition-all"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -995,31 +1446,289 @@ export function VaultContent() {
         document.body
       )}
 
-    <div className="space-y-6 animate-fadeIn">
+      {/* Share Folder Modal - React Portal */}
+      {showShareModal && folderToShare && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div 
+            className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm"
+            onClick={() => {
+              setShowShareModal(false);
+              setFolderToShare(null);
+              setSelectedUserToShare(null);
+              setUserSearchQuery('');
+              setShareNote('');
+            }}
+          />
+          
+          <div className="relative rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/30 backdrop-blur w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slideIn vault-scrollbar">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-slate-950/95 backdrop-blur z-10">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-cyan-900/50">
+                  <Share2 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    Share Folder
+                  </h3>
+                  <p className="text-sm text-slate-400">{folderToShare.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowShareModal(false);
+                  setFolderToShare(null);
+                  setSelectedUserToShare(null);
+                  setUserSearchQuery('');
+                  setShareNote('');
+                }}
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {shareModalLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+                </div>
+              ) : (
+                <>
+                  {/* Share with new user */}
+                  <div className="space-y-4">
+                    <h4 className="font-semibold text-white flex items-center gap-2">
+                      <UserPlus className="w-4 h-4 text-cyan-400" />
+                      Share with User
+                    </h4>
+                    
+                    {/* User search */}
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search users by name or email..."
+                        value={userSearchQuery}
+                        onChange={(e) => setUserSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white placeholder-slate-400"
+                      />
+                    </div>
+                    
+                    {/* User list */}
+                    <div className="max-h-40 overflow-y-auto space-y-2 border border-white/10 rounded-xl p-2 bg-white/5 vault-scrollbar">
+                      {availableUsers
+                        .filter(user => {
+                          const query = userSearchQuery.toLowerCase();
+                          return user.displayName.toLowerCase().includes(query) ||
+                            (user.email?.toLowerCase().includes(query) ?? false);
+                        })
+                        .filter(user => !currentShares.some(s => s.sharedWithClerkId === user.clerkId))
+                        .slice(0, 10)
+                        .map(user => (
+                          <button
+                            key={user.clerkId}
+                            onClick={() => setSelectedUserToShare(user)}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left ${
+                              selectedUserToShare?.clerkId === user.clerkId
+                                ? 'bg-cyan-500/20 border border-cyan-500/50'
+                                : 'hover:bg-white/10 border border-transparent'
+                            }`}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-indigo-500 flex items-center justify-center text-white font-semibold text-sm">
+                              {user.displayName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-white truncate">{user.displayName}</p>
+                              {user.email && (
+                                <p className="text-xs text-slate-400 truncate">{user.email}</p>
+                              )}
+                            </div>
+                            {selectedUserToShare?.clerkId === user.clerkId && (
+                              <Check className="w-5 h-5 text-cyan-400" />
+                            )}
+                          </button>
+                        ))
+                      }
+                      {availableUsers.length === 0 && (
+                        <p className="text-center py-4 text-slate-400 text-sm">
+                          No users available to share with
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Permission selector */}
+                    {selectedUserToShare && (
+                      <div className="flex items-center gap-4">
+                        <label className="text-sm font-medium text-slate-300">Permission:</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setSharePermission('VIEW')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                              sharePermission === 'VIEW'
+                                ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-300'
+                                : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
+                            }`}
+                          >
+                            <Eye className="w-4 h-4" />
+                            View Only
+                          </button>
+                          <button
+                            onClick={() => setSharePermission('EDIT')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
+                              sharePermission === 'EDIT'
+                                ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300'
+                                : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
+                            }`}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Can Edit
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional note */}
+                    {selectedUserToShare && (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">
+                          Note (optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Add a message..."
+                          value={shareNote}
+                          onChange={(e) => setShareNote(e.target.value)}
+                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white placeholder-slate-400"
+                        />
+                      </div>
+                    )}
+
+                    {/* Share button */}
+                    {selectedUserToShare && (
+                      <button
+                        onClick={handleShareFolder}
+                        disabled={shareModalLoading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/40"
+                      >
+                        {shareModalLoading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Sharing...
+                          </>
+                        ) : (
+                          <>
+                            <Share2 className="w-5 h-5" />
+                            Share with {selectedUserToShare.displayName}
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Current shares */}
+                  <div className="space-y-4 pt-4 border-t border-white/10">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-white flex items-center gap-2">
+                        <Users className="w-4 h-4 text-cyan-400" />
+                        Currently Shared With
+                      </h4>
+                      <span className="px-2 py-0.5 text-xs font-bold bg-white/10 text-slate-300 rounded-full">
+                        {currentShares.length}
+                      </span>
+                    </div>
+
+                    {currentShares.length === 0 ? (
+                      <div className="text-center py-8 border border-dashed border-white/20 rounded-2xl bg-white/5">
+                        <Users className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+                        <p className="text-sm font-medium text-slate-400">
+                          Not shared with anyone yet
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {currentShares.map((share) => (
+                          <div
+                            key={share.id}
+                            className="flex items-center justify-between px-4 py-3 bg-white/5 rounded-xl border border-white/10"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-indigo-500 flex items-center justify-center text-white font-semibold">
+                                {share.sharedWithUser?.displayName?.charAt(0).toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                <p className="font-medium text-white">
+                                  {share.sharedWithUser?.displayName || share.sharedWithClerkId}
+                                </p>
+                                {share.sharedWithUser?.email && (
+                                  <p className="text-xs text-slate-400">
+                                    {share.sharedWithUser.email}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
+                                share.permission === 'EDIT'
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : 'bg-cyan-500/20 text-cyan-300'
+                              }`}>
+                                {share.permission === 'EDIT' ? <Edit2 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                {share.permission}
+                              </span>
+                              <button
+                                onClick={() => handleRemoveShare(share.sharedWithClerkId, share.sharedWithUser?.displayName || 'User')}
+                                className="p-2 hover:bg-red-500/20 rounded-xl transition-colors"
+                                title="Remove access"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-400" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+    <div className="relative min-h-screen bg-slate-950 text-slate-50">
+      {/* Background Effects */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-indigo-400/10 blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-blue-500/5 blur-3xl" />
+      </div>
+
+      <div className="relative space-y-6 animate-fadeIn p-6">
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-4 right-4 z-50 animate-slideInRight">
-          <div className={`flex items-center space-x-3 px-4 py-3 rounded-lg shadow-2xl backdrop-blur-md border ${
+          <div className={`flex items-center space-x-3 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border ${
             toast.type === 'success' 
-              ? 'bg-green-50/90 dark:bg-green-900/90 border-green-200 dark:border-green-700' 
+              ? 'bg-emerald-500/20 border-emerald-500/30 shadow-emerald-900/30' 
               : toast.type === 'error'
-              ? 'bg-red-50/90 dark:bg-red-900/90 border-red-200 dark:border-red-700'
-              : 'bg-blue-50/90 dark:bg-blue-900/90 border-blue-200 dark:border-blue-700'
+              ? 'bg-red-500/20 border-red-500/30 shadow-red-900/30'
+              : 'bg-cyan-500/20 border-cyan-500/30 shadow-cyan-900/30'
           }`}>
-            {toast.type === 'success' && <Check className="w-5 h-5 text-green-600 dark:text-green-400" />}
-            {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />}
-            {toast.type === 'info' && <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
+            {toast.type === 'success' && <Check className="w-5 h-5 text-emerald-400" />}
+            {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-400" />}
+            {toast.type === 'info' && <Sparkles className="w-5 h-5 text-cyan-400" />}
             <p className={`text-sm font-medium ${
               toast.type === 'success' 
-                ? 'text-green-800 dark:text-green-200' 
+                ? 'text-emerald-200' 
                 : toast.type === 'error'
-                ? 'text-red-800 dark:text-red-200'
-                : 'text-blue-800 dark:text-blue-200'
+                ? 'text-red-200'
+                : 'text-cyan-200'
             }`}>
               {toast.message}
             </p>
-            <button onClick={() => setToast(null)} className="ml-2">
-              <X className="w-4 h-4" />
+            <button onClick={() => setToast(null)} className="ml-2 hover:opacity-70 transition-opacity">
+              <X className="w-4 h-4 text-white/60" />
             </button>
           </div>
         </div>
@@ -1029,96 +1738,90 @@ export function VaultContent() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-2">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl shadow-lg">
+            <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-cyan-900/50">
               <Shield className="w-6 h-6 text-white" />
+              <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
             </div>
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
-              Secure Vault
-            </h1>
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Secure Storage</p>
+              <h1 className="text-3xl sm:text-4xl font-black text-white">
+                Vault
+              </h1>
+            </div>
           </div>
-          <p className="text-sm text-gray-600 dark:text-gray-400 ml-14">
+          <p className="text-sm text-slate-300 ml-14">
             {selectedProfile ? `Managing vault for ${selectedProfile.name}` : 'Select a profile to start'}
           </p>
         </div>
-        <button
-          onClick={() => setIsAddingNew(true)}
-          disabled={!selectedProfileId || !selectedFolderId}
-          className="group relative flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-          <Upload className="w-5 h-5 relative z-10" />
-          <span className="font-semibold relative z-10">Upload Media</span>
-          <Sparkles className="w-4 h-4 relative z-10 opacity-0 group-hover:opacity-100 transition-opacity" />
-        </button>
+        {!isViewingShared && (
+          <button
+            onClick={() => setIsAddingNew(true)}
+            disabled={!selectedProfileId || !selectedFolderId}
+            className="group relative overflow-hidden flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 text-white rounded-2xl transition-all duration-300 shadow-lg shadow-cyan-900/40 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <Upload className="w-5 h-5 relative z-10" />
+            <span className="font-semibold relative z-10">Upload Media</span>
+            <Sparkles className="w-4 h-4 relative z-10 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </button>
+        )}
       </div>
 
       {/* Stats Cards */}
       {selectedProfileId && (
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="group relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-cyan-600 opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-            <div className="relative bg-gradient-to-br from-blue-50 via-cyan-50 to-blue-100 dark:from-blue-900/30 dark:via-cyan-900/30 dark:to-blue-800/30 rounded-xl p-6 border-2 border-blue-200 dark:border-blue-800 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Total Files</p>
-                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300 mt-2">
-                    {totalItems}
-                  </p>
-                </div>
-                <div className="p-3 bg-blue-600 dark:bg-blue-500 rounded-xl shadow-lg group-hover:rotate-12 transition-transform">
-                  <HardDrive className="w-7 h-7 text-white" />
-                </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-all hover:bg-white/10 hover:-translate-y-0.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-cyan-200 uppercase tracking-wider">Total Files</p>
+                <p className="text-3xl font-bold text-white mt-2">
+                  {totalItems}
+                </p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200">
+                <HardDrive className="w-6 h-6" />
               </div>
             </div>
           </div>
 
-          <div className="group relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-600 to-pink-600 opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-            <div className="relative bg-gradient-to-br from-purple-50 via-fuchsia-50 to-purple-100 dark:from-purple-900/30 dark:via-fuchsia-900/30 dark:to-purple-800/30 rounded-xl p-6 border-2 border-purple-200 dark:border-purple-800 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Storage Used</p>
-                  <p className="text-3xl font-bold text-purple-700 dark:text-purple-300 mt-2">
-                    {(totalSize / 1024 / 1024).toFixed(1)} MB
-                  </p>
-                </div>
-                <div className="p-3 bg-purple-600 dark:bg-purple-500 rounded-xl shadow-lg group-hover:rotate-12 transition-transform">
-                  <Shield className="w-7 h-7 text-white" />
-                </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-all hover:bg-white/10 hover:-translate-y-0.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-blue-200 uppercase tracking-wider">Storage Used</p>
+                <p className="text-3xl font-bold text-white mt-2">
+                  {(totalSize / 1024 / 1024).toFixed(1)} MB
+                </p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200">
+                <Shield className="w-6 h-6" />
               </div>
             </div>
           </div>
 
-          <div className="group relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-pink-600 to-rose-600 opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-            <div className="relative bg-gradient-to-br from-pink-50 via-rose-50 to-pink-100 dark:from-pink-900/30 dark:via-rose-900/30 dark:to-pink-800/30 rounded-xl p-6 border-2 border-pink-200 dark:border-pink-800 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-pink-600 dark:text-pink-400 uppercase tracking-wider">Images</p>
-                  <p className="text-3xl font-bold text-pink-700 dark:text-pink-300 mt-2">
-                    {imageCount}
-                  </p>
-                </div>
-                <div className="p-3 bg-pink-600 dark:bg-pink-500 rounded-xl shadow-lg group-hover:rotate-12 transition-transform">
-                  <ImageIcon className="w-7 h-7 text-white" />
-                </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-all hover:bg-white/10 hover:-translate-y-0.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-indigo-200 uppercase tracking-wider">Images</p>
+                <p className="text-3xl font-bold text-white mt-2">
+                  {imageCount}
+                </p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-200">
+                <ImageIcon className="w-6 h-6" />
               </div>
             </div>
           </div>
 
-          <div className="group relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-blue-600 opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-            <div className="relative bg-gradient-to-br from-indigo-50 via-blue-50 to-indigo-100 dark:from-indigo-900/30 dark:via-blue-900/30 dark:to-indigo-800/30 rounded-xl p-6 border-2 border-indigo-200 dark:border-indigo-800 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-300">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Videos</p>
-                  <p className="text-3xl font-bold text-indigo-700 dark:text-indigo-300 mt-2">
-                    {videoCount}
-                  </p>
-                </div>
-                <div className="p-3 bg-indigo-600 dark:bg-indigo-500 rounded-xl shadow-lg group-hover:rotate-12 transition-transform">
-                  <VideoIcon className="w-7 h-7 text-white" />
-                </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-all hover:bg-white/10 hover:-translate-y-0.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-amber-200 uppercase tracking-wider">Videos</p>
+                <p className="text-3xl font-bold text-white mt-2">
+                  {videoCount}
+                </p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/20 text-amber-200">
+                <VideoIcon className="w-6 h-6" />
               </div>
             </div>
           </div>
@@ -1127,51 +1830,50 @@ export function VaultContent() {
 
       <div className="grid gap-4 xl:gap-6 xl:grid-cols-12">
         {/* Profiles */}
-        <div className="xl:col-span-3 relative group self-start">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-xl opacity-30 group-hover:opacity-50 blur transition-all duration-300"></div>
-          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 border border-gray-200 dark:border-gray-700 backdrop-blur-sm">
+        <div className="xl:col-span-3 self-start">
+          <div className="rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-cyan-900/20 p-5 backdrop-blur">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Profiles</p>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">Instagram</h3>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Profiles</p>
+                <h3 className="text-xl font-bold text-white">Instagram</h3>
               </div>
-              <div className="p-2 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-lg">
-                <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200">
+                <Sparkles className="w-5 h-5" />
               </div>
             </div>
             {loadingProfiles ? (
-              <div className="flex items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+              <div className="flex items-center justify-center py-12">
                 <div className="relative">
-                  <Loader2 className="h-8 w-8 animate-spin text-purple-600 dark:text-purple-400" />
-                  <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
+                  <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+                  <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400 animate-pulse" />
                 </div>
               </div>
             ) : profiles.length === 0 ? (
               <div className="text-center py-8">
-                <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                  <Shield className="w-8 h-8 text-gray-400" />
+                <div className="p-4 bg-white/10 rounded-2xl w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                  <Shield className="w-8 h-8 text-slate-400" />
                 </div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">No profiles found</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Create a profile to get started</p>
+                <p className="text-sm font-medium text-white mb-1">No profiles found</p>
+                <p className="text-xs text-slate-400">Create a profile to get started</p>
               </div>
             ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden pr-1">
+              <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden pr-1 vault-scrollbar">
                 {profiles.map((profile) => {
                   const isActive = profile.id === selectedProfileId;
                   return (
                     <button
                       key={profile.id}
                       onClick={() => handleSelectProfile(profile.id)}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-300 ${
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 ${
                         isActive
-                          ? "bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white shadow-lg"
-                          : "bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-600"
+                          ? "bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40"
+                          : "bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10"
                       }`}
                     >
                       <div className="flex flex-col items-start">
                         <span className="font-semibold">{profile.name}</span>
                         {profile.instagramUsername && (
-                          <span className={`text-xs mt-0.5 ${isActive ? 'text-white/90' : 'text-gray-500 dark:text-gray-400'}`}>
+                          <span className={`text-xs mt-0.5 ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
                             @{profile.instagramUsername}
                           </span>
                         )}
@@ -1179,8 +1881,8 @@ export function VaultContent() {
                       {profile.isDefault && (
                         <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                           isActive 
-                            ? 'bg-white/20 border border-white/30 text-white' 
-                            : 'bg-purple-100 dark:bg-purple-900/40 border border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-400'
+                            ? 'bg-white/20 text-white' 
+                            : 'bg-cyan-500/20 text-cyan-300'
                         }`}>Default</span>
                       )}
                     </button>
@@ -1192,54 +1894,53 @@ export function VaultContent() {
         </div>
 
         {/* Folders */}
-        <div className="xl:col-span-3 relative group self-start">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 rounded-xl opacity-20 group-hover:opacity-40 blur transition-all duration-300"></div>
-          <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 border border-gray-200 dark:border-gray-700 backdrop-blur-sm space-y-4">
+        <div className="xl:col-span-3 self-start">
+          <div className="rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-cyan-900/20 p-5 backdrop-blur space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Folders</p>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 dark:from-pink-400 dark:to-purple-400 bg-clip-text text-transparent">Categories</h3>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Folders</p>
+                <h3 className="text-xl font-bold text-white">Categories</h3>
               </div>
-              <div className="p-2 bg-gradient-to-br from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 rounded-lg">
-                <Folder className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200">
+                <Folder className="w-5 h-5" />
               </div>
             </div>
 
             <div className="flex items-center space-x-2">
               <div className="flex-1 relative">
-                <FolderPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <FolderPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   value={folderNameInput}
                   onChange={(e) => setFolderNameInput(e.target.value)}
                   placeholder="New folder name"
                   onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
-                  className="w-full pl-10 pr-3 py-2.5 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-gray-900 dark:text-white"
+                  className="w-full pl-10 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white placeholder-slate-400"
                   disabled={!selectedProfileId}
                 />
               </div>
               <button
                 onClick={handleCreateFolder}
                 disabled={!selectedProfileId || !folderNameInput.trim()}
-                className="p-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                className="p-2.5 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-cyan-900/40 hover:shadow-xl hover:-translate-y-0.5 active:scale-95"
                 title="Create folder"
               >
                 <Plus className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden pr-1">
+            <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden pr-1 vault-scrollbar">
               {selectedProfileId && visibleFolders.length === 0 && (
                 <div className="text-center py-6 px-2">
-                  <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full w-12 h-12 mx-auto mb-2 flex items-center justify-center">
-                    <Folder className="w-6 h-6 text-gray-400" />
+                  <div className="p-3 bg-white/10 rounded-2xl w-12 h-12 mx-auto mb-2 flex items-center justify-center">
+                    <Folder className="w-6 h-6 text-slate-400" />
                   </div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">No folders yet</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Create one to organize items</p>
+                  <p className="text-sm font-medium text-white mb-1">No folders yet</p>
+                  <p className="text-xs text-slate-400">Create one to organize items</p>
                 </div>
               )}
               {visibleFolders.map((folder) => {
-                const isActive = folder.id === selectedFolderId;
+                const isActive = folder.id === selectedFolderId && !selectedSharedFolder;
                 // For default "All Media" folder, count all items; otherwise count items in specific folder
                 const itemCount = folder.isDefault
                   ? vaultItems.filter((item) => item.profileId === selectedProfileId).length
@@ -1248,10 +1949,10 @@ export function VaultContent() {
                 return (
                   <div
                     key={folder.id}
-                    className={`group/folder flex items-center justify-between px-3 py-3 rounded-lg border-2 transition-all duration-300 ${
+                    className={`group/folder flex items-center justify-between px-3 py-3 rounded-xl border transition-all duration-300 ${
                       isActive
-                        ? "border-purple-500 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 shadow-lg"
-                        : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 hover:border-purple-300 dark:hover:border-purple-700"
+                        ? "border-cyan-500/50 bg-cyan-500/10 shadow-lg"
+                        : "border-white/10 bg-white/5 hover:border-cyan-500/30 hover:bg-white/10"
                     }`}
                   >
                   {editingFolderId === folder.id ? (
@@ -1260,11 +1961,11 @@ export function VaultContent() {
                         value={editingFolderName}
                         onChange={(e) => setEditingFolderName(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()}
-                        className="flex-1 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 border-2 border-purple-300 dark:border-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white"
+                        className="flex-1 px-3 py-1.5 rounded-xl bg-white/10 border border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-white"
                       />
                       <button
                         onClick={handleUpdateFolder}
-                        className="p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-all shadow-lg hover:scale-105"
+                        className="p-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 transition-all"
                         title="Save"
                       >
                         <Check className="h-4 w-4" />
@@ -1274,7 +1975,7 @@ export function VaultContent() {
                           setEditingFolderId(null);
                           setEditingFolderName("");
                         }}
-                        className="p-2 rounded-lg bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500 transition-all"
+                        className="p-2 rounded-xl bg-white/10 text-slate-300 hover:bg-white/20 transition-all"
                         title="Cancel"
                       >
                         <X className="h-4 w-4" />
@@ -1282,18 +1983,22 @@ export function VaultContent() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => setSelectedFolderId(folder.id)}
+                      onClick={() => {
+                        setSelectedFolderId(folder.id);
+                        setSelectedSharedFolder(null); // Deselect shared folder
+                        setSharedFolderItems([]); // Clear shared folder items
+                      }}
                       className="flex-1 flex items-center space-x-2.5 text-left min-w-0"
                     >
-                      <Folder className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-purple-600 dark:text-purple-400' : 'text-gray-500 dark:text-gray-400'}`} />
-                      <span className={`font-semibold truncate ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>{folder.name}</span>
+                      <Folder className={`h-5 w-5 flex-shrink-0 ${isActive && !selectedSharedFolder ? 'text-cyan-400' : 'text-slate-400'}`} />
+                      <span className={`font-semibold truncate ${isActive && !selectedSharedFolder ? 'text-white' : 'text-slate-200'}`}>{folder.name}</span>
                       <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full ${
-                        isActive 
-                          ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
-                          : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-400'
+                        isActive && !selectedSharedFolder
+                          ? 'bg-cyan-500/20 text-cyan-300'
+                          : 'bg-white/10 text-slate-400'
                       }`}>{itemCount}</span>
                       {folder.isDefault && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 flex-shrink-0">Default</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 flex-shrink-0">Default</span>
                       )}
                     </button>
                   )}
@@ -1301,20 +2006,30 @@ export function VaultContent() {
                   {editingFolderId !== folder.id && (
                     <div className="flex items-center space-x-1 ml-2 flex-shrink-0">
                       <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenShareModal(folder);
+                        }}
+                        className="p-2 rounded-xl hover:bg-cyan-500/20 transition-all"
+                        title="Share folder"
+                      >
+                        <Share2 className="h-4 w-4 text-cyan-400" />
+                      </button>
+                      <button
                         onClick={() => startEditFolder(folder)}
                         disabled={folder.isDefault}
-                        className="p-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        className="p-2 rounded-xl hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                         title="Rename"
                       >
-                        <Edit2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        <Edit2 className="h-4 w-4 text-slate-400" />
                       </button>
                       {!folder.isDefault && (
                         <button
                           onClick={() => handleDeleteFolder(folder.id)}
-                          className="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
+                          className="p-2 rounded-xl hover:bg-red-500/20 transition-all"
                           title="Delete"
                         >
-                          <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                          <Trash2 className="h-4 w-4 text-red-400" />
                         </button>
                       )}
                     </div>
@@ -1323,22 +2038,90 @@ export function VaultContent() {
               );
             })}
           </div>
+
+          {/* Shared With Me Section */}
+          {sharedFolders.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-dashed border-white/20">
+              <div className="flex items-center gap-2 mb-3">
+                <Users className="w-4 h-4 text-cyan-400" />
+                <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
+                  Shared With Me
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-cyan-500/20 text-cyan-300 rounded-full">
+                  {sharedFolders.length}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {sharedFolders.map((shared) => {
+                  const isActive = selectedSharedFolder?.folderId === shared.folderId;
+                  return (
+                    <button
+                      key={shared.id}
+                      onClick={() => loadSharedFolderItems(shared)}
+                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-300 text-left ${
+                        isActive
+                          ? "border-cyan-500/50 bg-cyan-500/10 shadow-lg"
+                          : "border-white/10 bg-white/5 hover:border-cyan-500/30 hover:bg-white/10"
+                      }`}
+                    >
+                      <Folder className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-semibold truncate ${isActive ? 'text-white' : 'text-slate-200'}`}>
+                            {shared.folderName}
+                          </span>
+                          <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full ${
+                            isActive 
+                              ? 'bg-cyan-500/20 text-cyan-300'
+                              : 'bg-white/10 text-slate-400'
+                          }`}>{shared.itemCount}</span>
+                          <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 flex-shrink-0">
+                            <Eye className="w-3 h-3" />
+                            {shared.permission}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 truncate mt-0.5">
+                          From: {shared.sharedBy} • {shared.profileName}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Content */}
-      <div className="xl:col-span-6 relative group">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-xl opacity-20 blur transition-all duration-300"></div>
-        <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-xl p-5 border border-gray-200 dark:border-gray-700 backdrop-blur-sm space-y-4 max-h-[600px] flex flex-col">
+      <div className="xl:col-span-6">
+        <div className="rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-cyan-900/20 p-5 backdrop-blur space-y-4 max-h-[600px] flex flex-col">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Content</p>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                  {selectedFolder?.name || "Select a folder"}
-                </h3>
-                {selectedProfile && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                  {isViewingShared ? 'Shared Content' : 'Content'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-bold text-white">
+                    {selectedFolder?.name || "Select a folder"}
+                  </h3>
+                  {isViewingShared && (
+                    <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">
+                      <Users className="w-3 h-3" />
+                      {selectedSharedFolder?.permission}
+                    </span>
+                  )}
+                </div>
+                {isViewingShared && selectedSharedFolder ? (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    <span className="inline-flex items-center gap-1">
+                      <Share2 className="w-3 h-3" />
+                      Shared by {selectedSharedFolder.sharedBy} • {selectedSharedFolder.profileName}
+                    </span>
+                  </p>
+                ) : selectedProfile && (
+                  <p className="text-xs text-slate-400 mt-0.5">
                     <span className="inline-flex items-center gap-1">
                       <Sparkles className="w-3 h-3" />
                       {selectedProfile.name}
@@ -1346,15 +2129,24 @@ export function VaultContent() {
                   </p>
                 )}
               </div>
+              
+              {/* View-only mode banner */}
+              {isViewingShared && !canEdit && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-500/30 rounded-xl">
+                  <Eye className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-medium text-amber-300">View Only</span>
+                </div>
+              )}
+              
               {/* Search Input */}
               <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search vault items..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-gray-900 dark:text-white"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white placeholder-slate-400"
                 />
               </div>
             </div>
@@ -1368,9 +2160,9 @@ export function VaultContent() {
                     type="checkbox"
                     checked={selectedItems.size > 0 && selectedItems.size === filteredItems.length}
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                    className="w-4 h-4 text-cyan-500 border-white/20 rounded bg-white/5 focus:ring-2 focus:ring-cyan-500"
                   />
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  <span className="text-xs font-medium text-slate-400">
                     {selectedItems.size > 0 ? `${selectedItems.size} selected` : 'Select all'}
                   </span>
                 </div>
@@ -1379,30 +2171,34 @@ export function VaultContent() {
               {/* Action Bar - Show when items are selected */}
               {selectedItems.size > 0 && (
                 <div className="flex items-center gap-2 animate-slideIn">
-                  <button
-                    onClick={handleBulkMove}
-                    disabled={isMoving}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Move className="h-3 w-3" />}
-                    Move
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={handleBulkMove}
+                      disabled={isMoving}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Move className="h-3 w-3" />}
+                      Move
+                    </button>
+                  )}
                   <button
                     onClick={handleDownloadZip}
                     disabled={isDownloading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isDownloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                     ZIP
                   </button>
-                  <button
-                    onClick={handleBulkDelete}
-                    disabled={isDeleting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                    Delete
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={isDeleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      Delete
+                    </button>
+                  )}
                 </div>
               )}
               
@@ -1410,20 +2206,20 @@ export function VaultContent() {
               <div className="flex items-center gap-2 flex-wrap ml-auto">
                 <button
                   onClick={() => setContentFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     contentFilter === 'all'
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
+                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
                   }`}
                 >
                   All
                 </button>
                 <button
                   onClick={() => setContentFilter('photos')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
                     contentFilter === 'photos'
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
+                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
                   }`}
                 >
                   <ImageIcon className="w-3 h-3" />
@@ -1431,10 +2227,10 @@ export function VaultContent() {
                 </button>
                 <button
                   onClick={() => setContentFilter('videos')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
                     contentFilter === 'videos'
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
+                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
                   }`}
                 >
                   <VideoIcon className="w-3 h-3" />
@@ -1442,10 +2238,10 @@ export function VaultContent() {
                 </button>
                 <button
                   onClick={() => setContentFilter('audio')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
                     contentFilter === 'audio'
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
+                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
                   }`}
                 >
                   <Music4 className="w-3 h-3" />
@@ -1453,10 +2249,10 @@ export function VaultContent() {
                 </button>
                 <button
                   onClick={() => setContentFilter('gifs')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
                     contentFilter === 'gifs'
-                      ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
+                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
                   }`}
                 >
                   GIFs
@@ -1465,47 +2261,47 @@ export function VaultContent() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1">
-          {!selectedProfileId ? (
-            <div className="border border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center text-gray-600 dark:text-gray-400">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1 vault-scrollbar">
+          {!selectedProfileId && !selectedSharedFolder ? (
+            <div className="border border-dashed border-white/20 rounded-2xl p-8 text-center text-slate-400">
               Select a profile to start using the vault.
             </div>
-          ) : !selectedFolderId ? (
-            <div className="border border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center text-gray-600 dark:text-gray-400">
+          ) : !selectedFolderId && !selectedSharedFolder ? (
+            <div className="border border-dashed border-white/20 rounded-2xl p-8 text-center text-slate-400">
               Create a folder to organize your vault items.
             </div>
           ) : loadingItems ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm animate-pulse">
+                <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-4 animate-pulse">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
-                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/2"></div>
+                      <div className="h-4 bg-white/10 rounded w-3/4"></div>
+                      <div className="h-3 bg-white/5 rounded w-1/2"></div>
                     </div>
-                    <div className="h-8 w-8 bg-gray-300 dark:bg-gray-700 rounded-md"></div>
+                    <div className="h-8 w-8 bg-white/10 rounded-xl"></div>
                   </div>
-                  <div className="h-48 bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+                  <div className="h-48 bg-white/10 rounded-xl"></div>
                 </div>
               ))}
             </div>
           ) : (
             <>
               {filteredItems.length === 0 ? (
-                <div className="bg-gray-50 dark:bg-gray-800/70 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-10 text-center">
-                  <Lock className="h-10 w-10 text-gray-400 mx-auto mb-3" />
-                  <p className="font-semibold text-gray-900 dark:text-white mb-1">No items in this folder</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Upload some content to get started.</p>
+                <div className="bg-white/5 border border-dashed border-white/20 rounded-2xl p-10 text-center">
+                  <Lock className="h-10 w-10 text-slate-400 mx-auto mb-3" />
+                  <p className="font-semibold text-white mb-1">No items in this folder</p>
+                  <p className="text-sm text-slate-400">Upload some content to get started.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredItems.map((item) => (
                     <div
                       key={item.id}
-                      className={`bg-white dark:bg-gray-800 border-2 rounded-lg p-4 shadow-sm flex flex-col max-w-sm hover:shadow-lg transition-all ${
+                      className={`bg-white/5 border rounded-2xl p-4 flex flex-col max-w-sm hover:shadow-lg hover:shadow-cyan-900/20 transition-all ${
                         selectedItems.has(item.id) 
-                          ? 'border-purple-500 bg-purple-50/50 dark:bg-purple-900/20' 
-                          : 'border-gray-200 dark:border-gray-700'
+                          ? 'border-cyan-500/50 bg-cyan-500/10' 
+                          : 'border-white/10 hover:border-cyan-500/30'
                       }`}
                     >
                       <div className="flex items-start justify-between mb-3">
@@ -1513,80 +2309,82 @@ export function VaultContent() {
                           type="checkbox"
                           checked={selectedItems.has(item.id)}
                           onChange={() => toggleSelectItem(item.id)}
-                          className="mt-1 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-2 focus:ring-purple-500 flex-shrink-0"
+                          className="mt-1 w-4 h-4 text-cyan-500 border-white/20 rounded bg-white/5 focus:ring-2 focus:ring-cyan-500 flex-shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2">
                             {item.fileType.startsWith("image/") ? (
-                              <ImageIcon className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                              <ImageIcon className="h-4 w-4 text-cyan-400 flex-shrink-0" />
                             ) : item.fileType.startsWith("video/") ? (
-                              <VideoIcon className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                              <VideoIcon className="h-4 w-4 text-cyan-400 flex-shrink-0" />
                             ) : item.fileType.startsWith("audio/") ? (
-                              <Music4 className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                              <Music4 className="h-4 w-4 text-cyan-400 flex-shrink-0" />
                             ) : (
-                              <FileIcon className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                              <FileIcon className="h-4 w-4 text-cyan-400 flex-shrink-0" />
                             )}
-                            <h4 className="font-semibold text-gray-900 dark:text-white text-sm truncate">{item.fileName}</h4>
+                            <h4 className="font-semibold text-white text-sm truncate">{item.fileName}</h4>
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          <p className="text-xs text-slate-400 mt-1">
                             {item.createdAt.toLocaleDateString()}
                           </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          <p className="text-xs text-slate-400 mt-0.5">
                             {(item.fileSize / 1024 / 1024).toFixed(2)} MB
                           </p>
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteItem(item.id);
-                          }}
-                          className="p-2 rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 flex-shrink-0 ml-2"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteItem(item.id);
+                            }}
+                            className="p-2 rounded-xl hover:bg-red-500/20 flex-shrink-0 ml-2 transition-all"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-400" />
+                          </button>
+                        )}
                       </div>
                       <div 
                         className="flex-1 cursor-pointer group"
                         onClick={() => setPreviewItem(item)}
                       >
                         {item.fileType.startsWith("image/") ? (
-                          <div className="relative overflow-hidden rounded-lg">
+                          <div className="relative overflow-hidden rounded-xl">
                             <img
                               src={item.awsS3Url}
                               alt={item.fileName}
-                              className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700 group-hover:scale-105 transition-transform duration-300"
+                              className="w-full h-48 object-cover rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-300"
                             />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 rounded-lg flex items-center justify-center">
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 rounded-xl flex items-center justify-center">
                               <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <div className="p-3 bg-white/90 dark:bg-gray-800/90 rounded-full">
-                                  <Search className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                                <div className="p-3 bg-white/10 backdrop-blur rounded-full">
+                                  <Search className="w-6 h-6 text-cyan-400" />
                                 </div>
                               </div>
                             </div>
                           </div>
                         ) : item.fileType.startsWith("video/") ? (
-                          <div className="relative overflow-hidden rounded-lg">
+                          <div className="relative overflow-hidden rounded-xl">
                             <video
                               src={item.awsS3Url}
-                              className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-gray-700"
+                              className="w-full h-48 object-cover rounded-xl border border-white/10"
                             />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 rounded-lg flex items-center justify-center">
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 rounded-xl flex items-center justify-center">
                               <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <div className="p-3 bg-white/90 dark:bg-gray-800/90 rounded-full">
-                                  <Search className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                                <div className="p-3 bg-white/10 backdrop-blur rounded-full">
+                                  <Search className="w-6 h-6 text-cyan-400" />
                                 </div>
                               </div>
                             </div>
                           </div>
                         ) : item.fileType.startsWith("audio/") ? (
-                          <div className="h-48 flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-gray-200 dark:border-gray-700 group-hover:scale-105 transition-transform duration-300">
-                            <Music4 className="w-16 h-16 text-purple-600 dark:text-purple-400" />
+                          <div className="h-48 flex items-center justify-center bg-gradient-to-br from-cyan-900/20 to-indigo-900/20 rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-300">
+                            <Music4 className="w-16 h-16 text-cyan-400" />
                           </div>
                         ) : (
-                          <div className="h-48 flex items-center justify-center bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 group-hover:scale-105 transition-transform duration-300">
-                            <FileIcon className="w-16 h-16 text-gray-400" />
+                          <div className="h-48 flex items-center justify-center bg-white/5 rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-300">
+                            <FileIcon className="w-16 h-16 text-slate-400" />
                           </div>
                         )}
                       </div>
@@ -1598,6 +2396,7 @@ export function VaultContent() {
           )}
           </div>
         </div>
+      </div>
       </div>
     </div>
     </div>

@@ -28,6 +28,11 @@ const styleTransferSchema = z.object({
   maskImage: z.string().optional(), // Optional mask filename
   referenceImageData: z.string().optional(), // Base64 image data
   maskImageData: z.string().optional(), // Base64 mask data
+  // Vault folder support
+  saveToVault: z.boolean().optional(),
+  vaultProfileId: z.string().optional(),
+  vaultFolderId: z.string().optional(),
+  targetFolder: z.string().optional(),
   // Legacy fields for compatibility
   prompt: z.string().optional(),
   style_image_url: z.string().optional(),
@@ -189,6 +194,20 @@ export async function POST(req: NextRequest) {
 
     console.log('✅ Using clerkId for job:', targetClerkId);
 
+    // Extract vault parameters if present
+    const vaultParams = {
+      saveToVault: (validatedData as any).saveToVault || false,
+      vaultProfileId: (validatedData as any).vaultProfileId || null,
+      vaultFolderId: (validatedData as any).vaultFolderId || null,
+      targetFolder: (validatedData as any).targetFolder || null,
+    };
+
+    if (vaultParams.saveToVault) {
+      console.log('📁 Saving to vault - Profile:', vaultParams.vaultProfileId, 'Folder:', vaultParams.vaultFolderId);
+    } else if (vaultParams.targetFolder) {
+      console.log('📁 Saving to S3 folder:', vaultParams.targetFolder);
+    }
+
     // Store job in database
     await prisma.generationJob.create({
       data: {
@@ -198,6 +217,7 @@ export async function POST(req: NextRequest) {
         status: 'PROCESSING',
         params: {
           ...validatedData,
+          ...vaultParams, // Include vault params in job params
           runpodJobId: runpodData.id,
         },
         comfyUIPromptId: runpodData.id, // Store RunPod job ID here
