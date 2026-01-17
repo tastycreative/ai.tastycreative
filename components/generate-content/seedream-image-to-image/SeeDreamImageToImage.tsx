@@ -22,16 +22,119 @@ import {
   Archive,
 } from "lucide-react";
 
-interface AvailableFolderOption {
-  name: string;
-  prefix: string;
-  displayPath: string;
-  path: string;
-  depth: number;
-  isShared?: boolean;
-  permission?: 'VIEW' | 'EDIT';
-  parentPrefix?: string | null;
-}
+// Image compression utility - optimizes large images while preserving quality for AI generation
+const compressImage = async (
+  file: File,
+  maxSizeMB: number = 3.5,  // Target ~3.5MB to stay safely under limits after base64 encoding
+  maxWidthOrHeight: number = 3072  // Keep high resolution for better AI results
+): Promise<{ base64: string; compressed: boolean; originalSize: number; newSize: number }> => {
+  return new Promise((resolve, reject) => {
+    const originalSize = file.size;
+    
+    // If file is already small enough, just convert to base64
+    if (file.size <= maxSizeMB * 1024 * 1024) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve({
+          base64: reader.result as string,
+          compressed: false,
+          originalSize,
+          newSize: originalSize,
+        });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Need to compress - use canvas
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    img.onload = () => {
+      // Calculate new dimensions while maintaining aspect ratio
+      let { width, height } = img;
+      
+      // Only resize if truly massive - preserve resolution when possible
+      if (width > maxWidthOrHeight || height > maxWidthOrHeight) {
+        if (width > height) {
+          height = (height / width) * maxWidthOrHeight;
+          width = maxWidthOrHeight;
+        } else {
+          width = (width / height) * maxWidthOrHeight;
+          height = maxWidthOrHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      // Use high-quality rendering
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+      }
+
+      // Draw and compress
+      ctx?.drawImage(img, 0, 0, width, height);
+
+      // Determine output format - prefer PNG for quality if size allows, otherwise JPEG
+      const tryCompress = (quality: number, format: 'image/jpeg' | 'image/png' = 'image/jpeg'): string => {
+        if (format === 'image/png') {
+          return canvas.toDataURL('image/png');
+        }
+        return canvas.toDataURL('image/jpeg', quality);
+      };
+
+      // Start with high quality JPEG
+      let quality = 0.92;
+      let base64 = tryCompress(quality);
+      const minQuality = 0.75;  // Don't go below 75% quality to preserve details for AI
+      
+      // Reduce quality until size is acceptable (base64 is ~4/3 of binary)
+      while (base64.length * 0.75 > maxSizeMB * 1024 * 1024 && quality > minQuality) {
+        quality -= 0.05;  // Smaller steps for finer control
+        base64 = tryCompress(quality);
+      }
+      
+      // If still too large at min quality, reduce dimensions and try again
+      if (base64.length * 0.75 > maxSizeMB * 1024 * 1024) {
+        const scale = 0.8;  // Reduce to 80%
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+        quality = 0.85;
+        base64 = tryCompress(quality);
+        
+        // One more quality pass if needed
+        while (base64.length * 0.75 > maxSizeMB * 1024 * 1024 && quality > minQuality) {
+          quality -= 0.05;
+          base64 = tryCompress(quality);
+        }
+      }
+
+      const newSize = Math.round(base64.length * 0.75);
+      
+      resolve({
+        base64,
+        compressed: true,
+        originalSize,
+        newSize,
+      });
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image for compression'));
+
+    // Load image from file
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 interface InstagramProfile {
   id: string;
@@ -69,9 +172,10 @@ export default function SeeDreamImageToImage() {
   const [prompt, setPrompt] = useState("");
   const [selectedResolution, setSelectedResolution] = useState<"2K" | "4K">("2K");
   const [selectedRatio, setSelectedRatio] = useState<"1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9">("1:1");
-  const [uploadedImages, setUploadedImages] = useState<Array<{ id: string; base64: string; file: File }>>([
+  const [uploadedImages, setUploadedImages] = useState<Array<{ id: string; base64: string; file: File; wasCompressed?: boolean }>>([
   ]);
   const [maxImages, setMaxImages] = useState(1);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   // Generation State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -91,9 +195,6 @@ export default function SeeDreamImageToImage() {
 
   // Folder Selection State
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [folderType, setFolderType] = useState<FolderType>('s3');
-  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
-  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   // Vault Integration State
   const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
@@ -151,45 +252,6 @@ export default function SeeDreamImageToImage() {
       setIsLoadingHistory(false);
     }
   };
-
-  const loadFolders = useCallback(async () => {
-    if (!apiClient || !user) return;
-
-    setIsLoadingFolders(true);
-    try {
-      const response = await apiClient.get('/api/s3/folders/list-custom');
-      if (!response.ok) {
-        throw new Error('Failed to load folders');
-      }
-
-      const data = await response.json();
-      if (data.success && Array.isArray(data.folders)) {
-        const folderOptions: AvailableFolderOption[] = data.folders
-          .filter((folder: any) => !folder.permission || folder.permission === 'EDIT')
-          .map((folder: any) => ({
-            name: folder.name || '',
-            prefix: folder.prefix || '',
-            displayPath: folder.path || folder.name || '',
-            path: folder.path || '',
-            depth: folder.depth || 0,
-            isShared: folder.isShared || false,
-            permission: folder.permission,
-            parentPrefix: folder.parentPrefix,
-          }));
-
-        setAvailableFolders(folderOptions);
-      }
-    } catch (error) {
-      console.error('Failed to load folders:', error);
-    } finally {
-      setIsLoadingFolders(false);
-    }
-  }, [apiClient, user]);
-
-  // Load folders on mount
-  useEffect(() => {
-    loadFolders();
-  }, [loadFolders]);
 
   // Load vault profiles and their folders
   const loadVaultData = useCallback(async () => {
@@ -260,33 +322,50 @@ export default function SeeDreamImageToImage() {
 
   // Get display text for the selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return 'Saving to your root outputs folder';
+    if (!targetFolder) return 'Please select a vault folder to save your images';
     
     const parsed = parseTargetFolder(targetFolder);
     
     if (parsed.type === 'vault') {
       const folders = vaultFoldersByProfile[parsed.profileId || ''] || [];
       const folder = folders.find(f => f.id === parsed.folderId);
-      return `Saving to Vault: ${parsed.profileName || 'Profile'} / ${folder?.name || 'Folder'}`;
+      const profile = vaultProfiles.find(p => p.id === parsed.profileId);
+      const profileDisplay = profile?.instagramUsername ? `@${profile.instagramUsername}` : profile?.name || 'Profile';
+      return `Saving to Vault: ${profileDisplay} / ${folder?.name || 'Folder'}`;
     }
-    
-    const s3Folder = availableFolders.find(f => f.prefix === parsed.folderId);
-    return `Saving to ${s3Folder?.displayPath || 'selected folder'}`;
+    return 'Please select a vault folder';
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
+      setIsCompressing(true);
+      setError(null);
+      
+      try {
+        // Automatically compress large images (target: 2MB max, 2048px max dimension)
+        const result = await compressImage(file, 2, 2048);
+        
         const newImage = {
           id: `img-${Date.now()}`,
-          base64: reader.result as string,
+          base64: result.base64,
           file,
+          wasCompressed: result.compressed,
         };
+        
         setUploadedImages((prev) => [...prev, newImage]);
-      };
-      reader.readAsDataURL(file);
+        
+        // Show a brief notification if image was compressed
+        if (result.compressed) {
+          const savedMB = ((result.originalSize - result.newSize) / (1024 * 1024)).toFixed(1);
+          console.log(`Image compressed: ${(result.originalSize / (1024 * 1024)).toFixed(1)}MB → ${(result.newSize / (1024 * 1024)).toFixed(1)}MB (saved ${savedMB}MB)`);
+        }
+      } catch (err) {
+        console.error('Image compression failed:', err);
+        setError('Failed to process image. Please try a different file.');
+      } finally {
+        setIsCompressing(false);
+      }
     }
     // Reset input
     e.target.value = '';
@@ -312,6 +391,21 @@ export default function SeeDreamImageToImage() {
       return;
     }
 
+    // Images are already compressed during upload, but do a final sanity check
+    const MAX_TOTAL_PAYLOAD_MB = 15; // 15MB total payload limit (generous since images are pre-compressed)
+    
+    let totalSize = 0;
+    for (const img of uploadedImages) {
+      // Calculate approximate size of base64 string in bytes
+      const base64Size = img.base64.length * 0.75; // base64 is ~4/3 of original
+      totalSize += base64Size;
+    }
+    
+    if (totalSize > MAX_TOTAL_PAYLOAD_MB * 1024 * 1024) {
+      setError(`Total payload is too large. Please remove some reference images and try again.`);
+      return;
+    }
+
     setIsGenerating(true);
     setError(null);
     setGeneratedImages([]);
@@ -327,6 +421,7 @@ export default function SeeDreamImageToImage() {
         generationType: "image-to-image",
         jobId: taskId,
       });
+
 
       // Prepare request payload
       const payload: any = {
@@ -364,8 +459,34 @@ export default function SeeDreamImageToImage() {
       const response = await apiClient.post("/api/generate/seedream-image-to-image", payload);
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Generation failed");
+        // Handle non-JSON error responses (e.g., "Request Entity Too Large" from CDN/proxy)
+        let errorMessage = "Generation failed";
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || "Generation failed";
+          } else {
+            // Non-JSON response (plain text error from CDN/proxy)
+            const errorText = await response.text();
+            console.error("Non-JSON error response:", errorText);
+            
+            // Provide user-friendly error messages for common issues
+            if (response.status === 413 || errorText.toLowerCase().includes("entity too large") || errorText.toLowerCase().includes("payload too large")) {
+              errorMessage = "Image file is too large. Please use smaller images (under 4MB each) or reduce image quality.";
+            } else if (response.status === 408 || errorText.toLowerCase().includes("timeout")) {
+              errorMessage = "Request timed out. Please try again with smaller images.";
+            } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+              errorMessage = "Server is temporarily unavailable. Please try again in a few moments.";
+            } else {
+              errorMessage = `Server error (${response.status}): ${errorText.substring(0, 100)}`;
+            }
+          }
+        } catch (parseError) {
+          console.error("Error parsing response:", parseError);
+          errorMessage = `Request failed with status ${response.status}. Please try with smaller images.`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -468,7 +589,6 @@ export default function SeeDreamImageToImage() {
     setSelectedRatio("1:1");
     setMaxImages(1);
     setTargetFolder("");
-    setFolderType('s3');
     setError(null);
     setGeneratedImages([]);
     setUploadedImages([]);
@@ -584,8 +704,15 @@ export default function SeeDreamImageToImage() {
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
-                          <div className="absolute bottom-2 left-2 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-900 shadow">
-                            {index === 0 ? 'Primary' : `Ref ${index + 1}`}
+                          <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+                            <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-900 shadow">
+                              {index === 0 ? 'Primary' : `Ref ${index + 1}`}
+                            </span>
+                            {img.wasCompressed && (
+                              <span className="rounded-full bg-emerald-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow" title="Image was automatically optimized">
+                                ✓ Optimized
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -594,25 +721,35 @@ export default function SeeDreamImageToImage() {
                 )}
 
                 {/* Upload New Image Button */}
-                <label className="group flex flex-col items-center justify-center w-full h-32 rounded-xl border border-dashed border-white/20 bg-slate-950/60 cursor-pointer transition hover:border-cyan-200/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-900/30">
+                <label className={`group flex flex-col items-center justify-center w-full h-32 rounded-xl border border-dashed border-white/20 bg-slate-950/60 transition hover:border-cyan-200/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-900/30 ${isCompressing || isGenerating ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}>
                   <div className="flex flex-col items-center justify-center py-4">
                     <div className="relative mb-2">
                       <div className="absolute inset-0 bg-cyan-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                      <Upload className="relative w-8 h-8 text-cyan-200 group-hover:scale-110 transition-transform" />
+                      {isCompressing ? (
+                        <Loader2 className="relative w-8 h-8 text-cyan-200 animate-spin" />
+                      ) : (
+                        <Upload className="relative w-8 h-8 text-cyan-200 group-hover:scale-110 transition-transform" />
+                      )}
                     </div>
                     <p className="text-sm text-white">
                       <span className="font-semibold text-cyan-100">
-                        {uploadedImages.length === 0 ? 'Upload primary image' : 'Add reference image'}
+                        {isCompressing 
+                          ? 'Optimizing image...' 
+                          : uploadedImages.length === 0 
+                            ? 'Upload primary image' 
+                            : 'Add reference image'}
                       </span>
                     </p>
-                    <p className="text-[11px] text-slate-300 mt-1">PNG, JPG, WEBP (max 10MB)</p>
+                    <p className="text-[11px] text-slate-300 mt-1">
+                      {isCompressing ? 'Large images are automatically compressed' : 'PNG, JPG, WEBP • Auto-optimized'}
+                    </p>
                   </div>
                   <input
                     type="file"
                     className="hidden"
                     accept="image/*"
                     onChange={handleImageUpload}
-                    disabled={isGenerating}
+                    disabled={isGenerating || isCompressing}
                   />
                 </label>
 
@@ -707,79 +844,42 @@ export default function SeeDreamImageToImage() {
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Folder className="w-4 h-4 text-cyan-300" />
-                  <p className="text-sm font-semibold text-white">Save Destination</p>
-                  {(isLoadingFolders || isLoadingVaultData) && (
+                  <p className="text-sm font-semibold text-white">Save to Vault</p>
+                  {isLoadingVaultData && (
                     <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
                   )}
                 </div>
-                <div className="relative">
-                  <select
-                    value={targetFolder}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setTargetFolder(value);
-                      const parsed = parseTargetFolder(value);
-                      setFolderType(parsed.type);
-                    }}
-                    disabled={isGenerating || isLoadingFolders || isLoadingVaultData}
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-50"
-                  >
-                    <option value="">📁 Default Output Folder</option>
-                    
-                    {/* S3 Folders Group */}
-                    {availableFolders.length > 0 && (
-                      <optgroup label="📂 Your Output Folders">
-                        {availableFolders.map((folder) => (
-                          <option key={folder.prefix} value={folder.prefix}>
-                            {'  '.repeat(folder.depth)}{folder.name}
-                            {folder.isShared && ' (Shared)'}
+                <select
+                  value={targetFolder}
+                  onChange={(e) => setTargetFolder(e.target.value)}
+                  disabled={isLoadingVaultData || isGenerating}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-slate-100 transition focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-cyan-300 [&>optgroup]:font-semibold"
+                >
+                  <option value="" className="bg-slate-800 text-slate-100">Select a vault folder...</option>
+                  {vaultProfiles.map((profile) => {
+                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
+                    if (folders.length === 0) return null;
+                    const profileDisplay = profile.instagramUsername
+                      ? `@${profile.instagramUsername}`
+                      : profile.name;
+                    return (
+                      <optgroup key={profile.id} label={`🔒 ${profileDisplay}`} className="bg-slate-900 text-cyan-300">
+                        {folders.map((folder) => (
+                          <option
+                            key={`vault:${profile.id}:${folder.id}`}
+                            value={`vault:${profile.id}:${folder.id}`}
+                            className="bg-slate-800 text-slate-100 py-2"
+                          >
+                            {folder.name}
                           </option>
                         ))}
                       </optgroup>
-                    )}
-                    
-                    {/* Vault Folders by Profile */}
-                    {vaultProfiles.map((profile) => {
-                      const folders = vaultFoldersByProfile[profile.id] || [];
-                      if (folders.length === 0) return null;
-                      
-                      return (
-                        <optgroup 
-                          key={profile.id} 
-                          label={`📸 Vault - ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                        >
-                          {folders.map((folder) => (
-                            <option 
-                              key={folder.id} 
-                              value={`vault:${profile.id}:${folder.id}`}
-                            >
-                              {folder.name}{folder.isDefault ? ' (Default)' : ''}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                </div>
-                
-                {/* Folder type indicator */}
-                <div className="flex items-center gap-2">
-                  {targetFolder && targetFolder.startsWith('vault:') ? (
-                    <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-200">
-                      <Archive className="w-3 h-3" />
-                      <span>Vault Storage</span>
-                    </div>
-                  ) : targetFolder ? (
-                    <div className="flex items-center gap-1.5 rounded-full bg-cyan-500/20 px-2.5 py-1 text-[11px] text-cyan-200">
-                      <Folder className="w-3 h-3" />
-                      <span>S3 Storage</span>
-                    </div>
-                  ) : null}
-                  <p className="text-xs text-slate-300 flex-1">
-                    {getSelectedFolderDisplay()}
-                  </p>
-                </div>
+                    );
+                  })}
+                </select>
+                <p className="text-xs text-slate-400">
+                  {getSelectedFolderDisplay()}
+                </p>
               </div>
 
               {/* Batch Size */}

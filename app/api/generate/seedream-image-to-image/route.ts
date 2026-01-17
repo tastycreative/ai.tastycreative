@@ -247,7 +247,7 @@ export async function POST(request: NextRequest) {
         const [width, height] = (item.size || body.size || '2048x2048').split('x').map(Number);
         
         if (saveToVault && vaultProfileId && vaultFolderId) {
-          // Save to vault database
+          // Save to vault database with generation metadata
           const vaultItem = await prisma.vaultItem.create({
             data: {
               clerkId: userId,
@@ -258,6 +258,17 @@ export async function POST(request: NextRequest) {
               fileSize: imageBuffer.length,
               awsS3Key: s3Key,
               awsS3Url: publicUrl,
+              metadata: {
+                source: 'seedream-i2i',
+                generationType: 'image-to-image',
+                model: data.model || model,
+                prompt: body.prompt,
+                size: item.size || body.size,
+                resolution: body.size?.includes('4096') || body.size?.includes('4704') || body.size?.includes('5504') || body.size?.includes('6240') ? '4K' : '2K',
+                watermark: body.watermark,
+                numReferenceImages: Array.isArray(image) ? image.length : 1,
+                generatedAt: new Date().toISOString(),
+              },
             },
           });
 

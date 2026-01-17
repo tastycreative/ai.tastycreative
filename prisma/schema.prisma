@@ -1133,6 +1133,7 @@ model VaultItem {
   fileSize  Int         // File size in bytes
   awsS3Key  String      // S3 object key: vault/{clerkId}/{profileId}/{folderId}/{fileName}
   awsS3Url  String      // Direct S3 URL
+  metadata  Json?       // Optional metadata (generation parameters, prompt, model, etc.)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   folder    VaultFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)

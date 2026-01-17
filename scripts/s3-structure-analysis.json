@@ -1,0 +1,422 @@
+{
+  "generatedAt": "2026-01-16T14:52:53.414Z",
+  "summary": {
+    "totalFiles": 9996,
+    "totalSize": 13661014402,
+    "usersWithFolders": 7,
+    "orphanFiles": 86
+  },
+  "users": [
+    {
+      "clerkId": "user_32YA38MHDp0tdq9YlkGHupi4gz1",
+      "email": null,
+      "totalFiles": 5037,
+      "totalSize": 5960224533,
+      "rootFileCount": 3973,
+      "folders": [
+        {
+          "name": "00_naomi-generations",
+          "fileCount": 52,
+          "totalSize": 63867398
+        },
+        {
+          "name": "essie---nov-5",
+          "fileCount": 32,
+          "totalSize": 38487823
+        },
+        {
+          "name": "essie-video-gen---nov-5",
+          "fileCount": 16,
+          "totalSize": 10001956
+        },
+        {
+          "name": "fps_boost",
+          "fileCount": 25,
+          "totalSize": 24804514
+        },
+        {
+          "name": "kenzie---nov-5",
+          "fileCount": 18,
+          "totalSize": 18746085
+        },
+        {
+          "name": "kenzie-image-gen-nov-4",
+          "fileCount": 51,
+          "totalSize": 72955972
+        },
+        {
+          "name": "lila--january-13",
+          "fileCount": 51,
+          "totalSize": 47229862
+        },
+        {
+          "name": "lila-generations",
+          "fileCount": 52,
+          "totalSize": 43160124
+        },
+        {
+          "name": "model-faces_-nov-10",
+          "fileCount": 62,
+          "totalSize": 86110953
+        },
+        {
+          "name": "naomi-image-gen---nov-4",
+          "fileCount": 59,
+          "totalSize": 88823548
+        },
+        {
+          "name": "nov-5---naomi",
+          "fileCount": 29,
+          "totalSize": 33759925
+        },
+        {
+          "name": "nov-6-essie",
+          "fileCount": 40,
+          "totalSize": 55156787
+        },
+        {
+          "name": "nov-6-essie_video-gen",
+          "fileCount": 19,
+          "totalSize": 16789161
+        },
+        {
+          "name": "nov6-naomi-video-gen",
+          "fileCount": 25,
+          "totalSize": 13747290
+        },
+        {
+          "name": "nov6-naomi",
+          "fileCount": 47,
+          "totalSize": 51800697
+        },
+        {
+          "name": "nov7_naomi",
+          "fileCount": 104,
+          "totalSize": 118964629
+        },
+        {
+          "name": "nov7_naomi_video_gen",
+          "fileCount": 34,
+          "totalSize": 19136547
+        },
+        {
+          "name": "nov8_kenzie-video-gen",
+          "fileCount": 10,
+          "totalSize": 4701972
+        },
+        {
+          "name": "nov8_kenzie",
+          "fileCount": 30,
+          "totalSize": 32220069
+        },
+        {
+          "name": "nov8_naomi-video-gen",
+          "fileCount": 29,
+          "totalSize": 21229213
+        },
+        {
+          "name": "nov8_naomi",
+          "fileCount": 59,
+          "totalSize": 68922868
+        },
+        {
+          "name": "november-4-video-generation---naomi",
+          "fileCount": 23,
+          "totalSize": 14347801
+        },
+        {
+          "name": "november-5-video-generation---kenzie",
+          "fileCount": 14,
+          "totalSize": 8532433
+        },
+        {
+          "name": "salah-generations",
+          "fileCount": 157,
+          "totalSize": 221406104
+        },
+        {
+          "name": "test_folder",
+          "fileCount": 26,
+          "totalSize": 117075515
+        }
+      ]
+    },
+    {
+      "clerkId": "user_32sjLN4UQyvoR7ZooJKUwniYvmj",
+      "email": null,
+      "totalFiles": 4271,
+      "totalSize": 6512505438,
+      "rootFileCount": 3122,
+      "folders": [
+        {
+          "name": "essiesfw",
+          "fileCount": 5,
+          "totalSize": 5099645
+        },
+        {
+          "name": "fps_boost",
+          "fileCount": 47,
+          "totalSize": 84363926
+        },
+        {
+          "name": "lila-rowan",
+          "fileCount": 243,
+          "totalSize": 683889850
+        },
+        {
+          "name": "naomi-sfw",
+          "fileCount": 57,
+          "totalSize": 117515455
+        },
+        {
+          "name": "new-model--asia",
+          "fileCount": 296,
+          "totalSize": 477756090
+        },
+        {
+          "name": "salah",
+          "fileCount": 387,
+          "totalSize": 678527655
+        },
+        {
+          "name": "yuri",
+          "fileCount": 114,
+          "totalSize": 150586783
+        }
+      ]
+    },
+    {
+      "clerkId": "user_30dULT8ZLO1jthhCEgn349cKcvT",
+      "email": "rapdeleon0404@gmail.com",
+      "totalFiles": 345,
+      "totalSize": 756749646,
+      "rootFileCount": 18,
+      "folders": [
+        {
+          "name": "12",
+          "fileCount": 112,
+          "totalSize": 117442984
+        },
+        {
+          "name": "fps_boost",
+          "fileCount": 11,
+          "totalSize": 13109107
+        },
+        {
+          "name": "jan-6",
+          "fileCount": 170,
+          "totalSize": 562118663
+        },
+        {
+          "name": "nov-2",
+          "fileCount": 23,
+          "totalSize": 22412912
+        },
+        {
+          "name": "temp",
+          "fileCount": 1,
+          "totalSize": 1772714
+        },
+        {
+          "name": "vault:cmi4l5pd10001hhrgqfs3bzug:cmjcr49su0005hhq85ksbi5g8",
+          "fileCount": 2,
+          "totalSize": 1153215
+        },
+        {
+          "name": "vault:cmi4l5pd10001hhrgqfs3bzug:cmjcrwylx000chhq8sjdwn2pz",
+          "fileCount": 6,
+          "totalSize": 6142096
+        },
+        {
+          "name": "vault:cmjbafz04000bhhsgcy7inhbv:cmjcs1c6m000ghhq8hpsml9ze",
+          "fileCount": 2,
+          "totalSize": 2821400
+        }
+      ]
+    },
+    {
+      "clerkId": "user_31ES2FrA077MVrkOXsGrUbiCXKX",
+      "email": "rapdeleon0404@gmail.com",
+      "totalFiles": 162,
+      "totalSize": 215028992,
+      "rootFileCount": 33,
+      "folders": [
+        {
+          "name": "ai-model-6",
+          "fileCount": 18,
+          "totalSize": 22541508
+        },
+        {
+          "name": "nov-3",
+          "fileCount": 3,
+          "totalSize": 2380543
+        },
+        {
+          "name": "nov-4",
+          "fileCount": 1,
+          "totalSize": 130
+        },
+        {
+          "name": "nov-5",
+          "fileCount": 101,
+          "totalSize": 127547577
+        },
+        {
+          "name": "nov-8",
+          "fileCount": 6,
+          "totalSize": 19511125
+        }
+      ]
+    },
+    {
+      "clerkId": "user_30dKpxGYsQUlkP4nNyM5hQm7Ne8",
+      "email": "txl.tasty@gmail.com",
+      "totalFiles": 63,
+      "totalSize": 78429702,
+      "rootFileCount": 9,
+      "folders": [
+        {
+          "name": "fps_boost",
+          "fileCount": 1,
+          "totalSize": 1032484
+        },
+        {
+          "name": "main",
+          "fileCount": 53,
+          "totalSize": 65332733
+        }
+      ]
+    },
+    {
+      "clerkId": "user_30jxATDqYuUneSqppGUHNfIo9Qs",
+      "email": "rafaeldeleon0820@gmail.com",
+      "totalFiles": 29,
+      "totalSize": 27879511,
+      "rootFileCount": 0,
+      "folders": [
+        {
+          "name": "fps",
+          "fileCount": 17,
+          "totalSize": 20723151
+        },
+        {
+          "name": "yuri-sfw",
+          "fileCount": 11,
+          "totalSize": 7156231
+        },
+        {
+          "name": "yuri",
+          "fileCount": 1,
+          "totalSize": 129
+        }
+      ]
+    },
+    {
+      "clerkId": "user_31Ej3gLzrV3B4MkA2N3aOBqsSjM",
+      "email": "rafaeldeleon0820@gmail.com",
+      "totalFiles": 3,
+      "totalSize": 1168369,
+      "rootFileCount": 1,
+      "folders": [
+        {
+          "name": "naomi",
+          "fileCount": 1,
+          "totalSize": 130
+        },
+        {
+          "name": "yuri",
+          "fileCount": 1,
+          "totalSize": 129
+        }
+      ]
+    }
+  ],
+  "orphanFiles": [
+    "outputs/053beab9-0d3b-4de2-9241-dbc3777768b0/ComfyUI_1761537156658_472101045_00000_.png",
+    "outputs/0908808c-f0ed-42ff-b9bf-e6ebeeaa02f7/ComfyUI_1759910690076_859019503_00000_.png",
+    "outputs/0908808c-f0ed-42ff-b9bf-e6ebeeaa02f7/ComfyUI_1759910691121_773623147_00001_.png",
+    "outputs/0908808c-f0ed-42ff-b9bf-e6ebeeaa02f7/ComfyUI_1759910692516_895379083_00002_.png",
+    "outputs/0908808c-f0ed-42ff-b9bf-e6ebeeaa02f7/ComfyUI_1759910693401_549504015_00003_.png",
+    "outputs/0e76142e-c036-43e9-b34a-654d639ebb87/ComfyUI_1759828223785_834740847_00000_.png",
+    "outputs/0e76142e-c036-43e9-b34a-654d639ebb87/ComfyUI_1759828225165_21126148_00001_.png",
+    "outputs/0e76142e-c036-43e9-b34a-654d639ebb87/ComfyUI_1759828226514_614733125_00002_.png",
+    "outputs/1864e895-4462-4b02-a5e3-4b2f99447a3d/ComfyUI_1759915066338_955384414_00000_.png",
+    "outputs/1864e895-4462-4b02-a5e3-4b2f99447a3d/ComfyUI_1759915067911_554753142_00001_.png",
+    "outputs/1ae15a5b-944c-4b3d-895a-91bd84216f17/ComfyUI_1759818201465_60746991_00000_.png",
+    "outputs/1b648af5-46d0-4aae-bdf7-5b08a803c00b/ComfyUI_1759818013504_469415615_00000_.png",
+    "outputs/22761c4f-87d1-44d5-bb8c-11c6c3e25080/ComfyUI_1761477308731_726488579_00000_.png",
+    "outputs/247c1a9c-b93d-4630-a5db-6fa6c8c18489/ComfyUI_1761477088332_76269947_00000_.png",
+    "outputs/247c1a9c-b93d-4630-a5db-6fa6c8c18489/ComfyUI_1761477089691_561575896_00001_.png",
+    "outputs/24fb629e-b366-44ab-b117-f7042702efee/ComfyUI_1761118781151_225261702_00000_.png",
+    "outputs/24fb629e-b366-44ab-b117-f7042702efee/ComfyUI_1761118782047_851503301_00001_.png",
+    "outputs/24fb629e-b366-44ab-b117-f7042702efee/ComfyUI_1761118783263_28902644_00002_.png",
+    "outputs/24fb629e-b366-44ab-b117-f7042702efee/ComfyUI_1761118784103_118907485_00003_.png",
+    "outputs/2baa82c0-57ae-42f4-aeb9-34d34cbb0777/ComfyUI_1761473688475_850980334_00002_.png",
+    "outputs/3361a1f1-1ae2-4b53-a641-c977a2be457b/ComfyUI_1761540985038_43790398_00000_.png",
+    "outputs/3361a1f1-1ae2-4b53-a641-c977a2be457b/ComfyUI_1761540986188_762215688_00001_.png",
+    "outputs/3361a1f1-1ae2-4b53-a641-c977a2be457b/ComfyUI_1761540987300_590381210_00002_.png",
+    "outputs/3361a1f1-1ae2-4b53-a641-c977a2be457b/ComfyUI_1761540988422_392192798_00003_.png",
+    "outputs/3361a1f1-1ae2-4b53-a641-c977a2be457b/ComfyUI_1761540989530_952176175_00004_.png",
+    "outputs/3ce619de-465b-42d3-b147-9fb5bf2dfc52/ComfyUI_1761118936740_722497326_00000_.png",
+    "outputs/3ce619de-465b-42d3-b147-9fb5bf2dfc52/ComfyUI_1761118938013_88071147_00001_.png",
+    "outputs/3ce619de-465b-42d3-b147-9fb5bf2dfc52/ComfyUI_1761118938914_466456902_00002_.png",
+    "outputs/3ce619de-465b-42d3-b147-9fb5bf2dfc52/ComfyUI_1761118939824_674049967_00003_.png",
+    "outputs/4321e955-94ac-4173-9484-10c3018812bd/ComfyUI_1759929771126_685794196_00001_.png",
+    "outputs/4625662d-9a3c-4f64-9fbd-9a6a004178d3/ComfyUI_1761477501755_845812065_00000_.png",
+    "outputs/4625662d-9a3c-4f64-9fbd-9a6a004178d3/ComfyUI_1761477502788_482985926_00001_.png",
+    "outputs/52ef8599-130a-4459-997a-302701af50df/ComfyUI_1761540840865_784100037_00000_.png",
+    "outputs/52ef8599-130a-4459-997a-302701af50df/ComfyUI_1761540842279_994705259_00001_.png",
+    "outputs/52ef8599-130a-4459-997a-302701af50df/ComfyUI_1761540843522_74411970_00002_.png",
+    "outputs/5331fd67-ed0c-48d5-b863-85e152cba583/ComfyUI_1761118503175_612062156_00000_.png",
+    "outputs/5331fd67-ed0c-48d5-b863-85e152cba583/ComfyUI_1761118505178_603829210_00001_.png",
+    "outputs/5331fd67-ed0c-48d5-b863-85e152cba583/ComfyUI_1761118506917_538552023_00002_.png",
+    "outputs/5331fd67-ed0c-48d5-b863-85e152cba583/ComfyUI_1761118507887_882835726_00003_.png",
+    "outputs/557adb92-59c7-4f95-9616-37dd5a9958ae/ComfyUI_1761477643586_735273277_00003_.png",
+    "outputs/6999b4a4-be2e-4e2d-b977-a6677e506905/ComfyUI_1759832340378_358564222_00000_.png",
+    "outputs/6999b4a4-be2e-4e2d-b977-a6677e506905/ComfyUI_1759832341856_271151325_00001_.png",
+    "outputs/6999b4a4-be2e-4e2d-b977-a6677e506905/ComfyUI_1759832342758_342177338_00002_.png",
+    "outputs/6a31032b-490d-427e-9151-dbc1e425aebb/ComfyUI_1759909943003_63126451_00001_.png",
+    "outputs/6a31032b-490d-427e-9151-dbc1e425aebb/ComfyUI_1759909944379_569862119_00002_.png",
+    "outputs/6a31032b-490d-427e-9151-dbc1e425aebb/ComfyUI_1759909945651_553074659_00003_.png",
+    "outputs/75f334d3-06bb-42b9-a063-9539eaa195b7/ComfyUI_1759910523618_679003791_00000_.png",
+    "outputs/75f334d3-06bb-42b9-a063-9539eaa195b7/ComfyUI_1759910524840_212869112_00001_.png",
+    "outputs/75f334d3-06bb-42b9-a063-9539eaa195b7/ComfyUI_1759910526360_287793831_00002_.png",
+    "outputs/75f334d3-06bb-42b9-a063-9539eaa195b7/ComfyUI_1759910527657_760230960_00003_.png",
+    "outputs/76fc0c94-4d72-4abd-9d2e-0bb30a253584/ComfyUI_1761329245203_858360273_00000_.png",
+    "outputs/78782d84-0535-4652-becf-356c6299665a/ComfyUI_1759929645953_917278639_00000_.png",
+    "outputs/78782d84-0535-4652-becf-356c6299665a/ComfyUI_1759929647659_348113804_00001_.png",
+    "outputs/78782d84-0535-4652-becf-356c6299665a/ComfyUI_1759929649234_913437817_00002_.png",
+    "outputs/8127f398-a40e-463c-b795-c4f108856b3f/ComfyUI_1759828695455_442019517_00000_.png",
+    "outputs/8127f398-a40e-463c-b795-c4f108856b3f/ComfyUI_1759828696875_40829291_00001_.png",
+    "outputs/8ac9e160-a8a0-4bfb-8cc2-c045e1be530c/ComfyUI_1759818112650_334764748_00000_.png",
+    "outputs/8babd069-554d-4d7c-b081-028c6f61a95b/ComfyUI_1761537313487_940786116_00000_.png",
+    "outputs/8babd069-554d-4d7c-b081-028c6f61a95b/ComfyUI_1761537314812_849098830_00001_.png",
+    "outputs/8babd069-554d-4d7c-b081-028c6f61a95b/ComfyUI_1761537315963_101559830_00002_.png",
+    "outputs/8babd069-554d-4d7c-b081-028c6f61a95b/ComfyUI_1761537317141_636548033_00003_.png",
+    "outputs/8babd069-554d-4d7c-b081-028c6f61a95b/ComfyUI_1761537318502_761818060_00004_.png",
+    "outputs/930c049c-8ec6-4935-8535-fbce1a10b486/ComfyUI_1761474018035_551281071_00000_.png",
+    "outputs/930c049c-8ec6-4935-8535-fbce1a10b486/ComfyUI_1761474019948_746133669_00001_.png",
+    "outputs/930c049c-8ec6-4935-8535-fbce1a10b486/ComfyUI_1761474022508_172024580_00003_.png",
+    "outputs/930c049c-8ec6-4935-8535-fbce1a10b486/ComfyUI_1761474023433_719493694_00004_.png",
+    "outputs/9956bb9d-3625-468a-97da-b507759c6cdb/ComfyUI_1759929390377_451983379_00000_.png",
+    "outputs/9956bb9d-3625-468a-97da-b507759c6cdb/ComfyUI_1759929391499_672766847_00001_.png",
+    "outputs/9956bb9d-3625-468a-97da-b507759c6cdb/ComfyUI_1759929393011_236182734_00002_.png",
+    "outputs/9c89f334-1b1c-44c6-96d9-e49ab581056e/ComfyUI_1759910150246_354547133_00000_.png",
+    "outputs/9c89f334-1b1c-44c6-96d9-e49ab581056e/ComfyUI_1759910151396_329978600_00001_.png",
+    "outputs/9c89f334-1b1c-44c6-96d9-e49ab581056e/ComfyUI_1759910152287_525246923_00002_.png",
+    "outputs/9c89f334-1b1c-44c6-96d9-e49ab581056e/ComfyUI_1759910153562_883331425_00003_.png",
+    "outputs/b579cfaa-23c4-432c-84ed-909376754d8e/ComfyUI_1761117643181_715979794_00000_.png",
+    "outputs/b579cfaa-23c4-432c-84ed-909376754d8e/ComfyUI_1761117644351_104792850_00001_.png",
+    "outputs/b67b76b5-90bf-478d-ab60-79cfa8e0a8be/ComfyUI_1759832026155_141622129_00000_.png",
+    "outputs/d7c32689-3df1-4c83-8583-e41b5bd8f02d/ComfyUI_1761540665284_188812611_00000_.png",
+    "outputs/e403e53c-92cf-456b-ad6b-c7424b108753/ComfyUI_1759928768248_100283527_00000_.png",
+    "outputs/e403e53c-92cf-456b-ad6b-c7424b108753/ComfyUI_1759928769451_41429803_00001_.png",
+    "outputs/e403e53c-92cf-456b-ad6b-c7424b108753/ComfyUI_1759928770393_572830404_00002_.png",
+    "outputs/e6aa285b-16e7-44b8-94a4-bd4b2c2a6f93/ComfyUI_1761477784117_564252694_00000_.png",
+    "outputs/e6aa285b-16e7-44b8-94a4-bd4b2c2a6f93/ComfyUI_1761477785453_975625471_00001_.png",
+    "outputs/e6aa285b-16e7-44b8-94a4-bd4b2c2a6f93/ComfyUI_1761477786646_852327809_00002_.png",
+    "outputs/e6aa285b-16e7-44b8-94a4-bd4b2c2a6f93/ComfyUI_1761477787533_251708560_00003_.png",
+    "outputs/e7283e38-6271-4d60-b5f3-d25317457825/ComfyUI_1759832489207_735116302_00000_.png",
+    "outputs/e7283e38-6271-4d60-b5f3-d25317457825/ComfyUI_1759832490175_213289676_00001_.png"
+  ]
+}

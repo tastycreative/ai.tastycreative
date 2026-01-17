@@ -1,0 +1,987 @@
+{
+  "generatedAt": "2026-01-16T14:55:11.295Z",
+  "mode": "DRY_RUN",
+  "summary": {
+    "users": 7,
+    "files": 9900,
+    "size": 13541869480,
+    "foldersToCreate": 55,
+    "profilesToCreate": 7
+  },
+  "plans": [
+    {
+      "user": {
+        "clerkId": "user_32YA38MHDp0tdq9YlkGHupi4gz1",
+        "email": null
+      },
+      "profile": {
+        "name": "Migrated Content",
+        "willCreate": true
+      },
+      "folders": [
+        {
+          "name": "Uncategorized",
+          "willCreate": true,
+          "fileCount": 3973,
+          "totalSize": 4668245287
+        },
+        {
+          "name": "salah-generations",
+          "willCreate": true,
+          "fileCount": 157,
+          "totalSize": 221406104
+        },
+        {
+          "name": "nov7_naomi",
+          "willCreate": true,
+          "fileCount": 104,
+          "totalSize": 118964629
+        },
+        {
+          "name": "model-faces_-nov-10",
+          "willCreate": true,
+          "fileCount": 62,
+          "totalSize": 86110953
+        },
+        {
+          "name": "naomi-image-gen---nov-4",
+          "willCreate": true,
+          "fileCount": 59,
+          "totalSize": 88823548
+        },
+        {
+          "name": "nov8_naomi",
+          "willCreate": true,
+          "fileCount": 59,
+          "totalSize": 68922868
+        },
+        {
+          "name": "00_naomi-generations",
+          "willCreate": true,
+          "fileCount": 52,
+          "totalSize": 63867398
+        },
+        {
+          "name": "lila-generations",
+          "willCreate": true,
+          "fileCount": 52,
+          "totalSize": 43160124
+        },
+        {
+          "name": "kenzie-image-gen-nov-4",
+          "willCreate": true,
+          "fileCount": 51,
+          "totalSize": 72955972
+        },
+        {
+          "name": "lila--january-13",
+          "willCreate": true,
+          "fileCount": 51,
+          "totalSize": 47229862
+        },
+        {
+          "name": "nov6-naomi",
+          "willCreate": true,
+          "fileCount": 47,
+          "totalSize": 51800697
+        },
+        {
+          "name": "nov-6-essie",
+          "willCreate": true,
+          "fileCount": 40,
+          "totalSize": 55156787
+        },
+        {
+          "name": "nov7_naomi_video_gen",
+          "willCreate": true,
+          "fileCount": 34,
+          "totalSize": 19136547
+        },
+        {
+          "name": "essie---nov-5",
+          "willCreate": true,
+          "fileCount": 32,
+          "totalSize": 38487823
+        },
+        {
+          "name": "nov8_kenzie",
+          "willCreate": true,
+          "fileCount": 30,
+          "totalSize": 32220069
+        },
+        {
+          "name": "nov-5---naomi",
+          "willCreate": true,
+          "fileCount": 29,
+          "totalSize": 33759925
+        },
+        {
+          "name": "nov8_naomi-video-gen",
+          "willCreate": true,
+          "fileCount": 29,
+          "totalSize": 21229213
+        },
+        {
+          "name": "test_folder",
+          "willCreate": true,
+          "fileCount": 26,
+          "totalSize": 117075515
+        },
+        {
+          "name": "fps_boost",
+          "willCreate": true,
+          "fileCount": 25,
+          "totalSize": 24804514
+        },
+        {
+          "name": "nov6-naomi-video-gen",
+          "willCreate": true,
+          "fileCount": 25,
+          "totalSize": 13747290
+        },
+        {
+          "name": "november-4-video-generation---naomi",
+          "willCreate": true,
+          "fileCount": 23,
+          "totalSize": 14347801
+        },
+        {
+          "name": "nov-6-essie_video-gen",
+          "willCreate": true,
+          "fileCount": 19,
+          "totalSize": 16789161
+        },
+        {
+          "name": "kenzie---nov-5",
+          "willCreate": true,
+          "fileCount": 18,
+          "totalSize": 18746085
+        },
+        {
+          "name": "essie-video-gen---nov-5",
+          "willCreate": true,
+          "fileCount": 16,
+          "totalSize": 10001956
+        },
+        {
+          "name": "november-5-video-generation---kenzie",
+          "willCreate": true,
+          "fileCount": 14,
+          "totalSize": 8532433
+        },
+        {
+          "name": "nov8_kenzie-video-gen",
+          "willCreate": true,
+          "fileCount": 10,
+          "totalSize": 4701972
+        }
+      ],
+      "summary": {
+        "totalFiles": 5037,
+        "totalSize": 5960224533,
+        "foldersToCreate": 26,
+        "existingFolders": 0
+      },
+      "sampleFiles": [
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/.folderinfo",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/.folderinfo",
+          "folderName": "00_naomi-generations",
+          "fileName": ".folderinfo",
+          "fileSize": 145,
+          "fileType": "application/octet-stream"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/.folderinfo",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/.folderinfo",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/.folderinfo",
+          "fileSize": 136,
+          "fileType": "application/octet-stream"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/SkinEnhancer_00001__1762858100630_8uc76vibw.png",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/SkinEnhancer_00001__1762858100630_8uc76vibw.png",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/SkinEnhancer_00001__1762858100630_8uc76vibw.png",
+          "fileSize": 1196019,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/SkinEnhancer_00001__1762860205720_b26qlx223.png",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/SkinEnhancer_00001__1762860205720_b26qlx223.png",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/SkinEnhancer_00001__1762860205720_b26qlx223.png",
+          "fileSize": 1120836,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/SkinEnhancer_00001__1762860749276_jedbygwfu.png",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/SkinEnhancer_00001__1762860749276_jedbygwfu.png",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/SkinEnhancer_00001__1762860749276_jedbygwfu.png",
+          "fileSize": 1128569,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/SkinEnhancer_00001__1762862579730_euvezh54n.png",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/SkinEnhancer_00001__1762862579730_euvezh54n.png",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/SkinEnhancer_00001__1762862579730_euvezh54n.png",
+          "fileSize": 1446202,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/SkinEnhancer_00001__1762864822147_5xaarx6sq.png",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/SkinEnhancer_00001__1762864822147_5xaarx6sq.png",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/SkinEnhancer_00001__1762864822147_5xaarx6sq.png",
+          "fileSize": 1335862,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/SkinEnhancer_00001__1762867160286_mivuf05lw.png",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/SkinEnhancer_00001__1762867160286_mivuf05lw.png",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/SkinEnhancer_00001__1762867160286_mivuf05lw.png",
+          "fileSize": 1225067,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/SkinEnhancer_00001__1762868685471_8aek422bx.png",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/SkinEnhancer_00001__1762868685471_8aek422bx.png",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/SkinEnhancer_00001__1762868685471_8aek422bx.png",
+          "fileSize": 1256395,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32YA38MHDp0tdq9YlkGHupi4gz1/00_naomi-generations/nov11_naomi/SkinEnhancer_00002__1762858250093_j54lfo4l8.png",
+          "targetKey": "vault/user_32YA38MHDp0tdq9YlkGHupi4gz1/{profileId}/{folderId}/nov11_naomi/SkinEnhancer_00002__1762858250093_j54lfo4l8.png",
+          "folderName": "00_naomi-generations",
+          "fileName": "nov11_naomi/SkinEnhancer_00002__1762858250093_j54lfo4l8.png",
+          "fileSize": 1172901,
+          "fileType": "image/png"
+        }
+      ]
+    },
+    {
+      "user": {
+        "clerkId": "user_32sjLN4UQyvoR7ZooJKUwniYvmj",
+        "email": null
+      },
+      "profile": {
+        "name": "Migrated Content",
+        "willCreate": true
+      },
+      "folders": [
+        {
+          "name": "Uncategorized",
+          "willCreate": true,
+          "fileCount": 3122,
+          "totalSize": 4314766034
+        },
+        {
+          "name": "salah",
+          "willCreate": true,
+          "fileCount": 387,
+          "totalSize": 678527655
+        },
+        {
+          "name": "new-model--asia",
+          "willCreate": true,
+          "fileCount": 296,
+          "totalSize": 477756090
+        },
+        {
+          "name": "lila-rowan",
+          "willCreate": true,
+          "fileCount": 243,
+          "totalSize": 683889850
+        },
+        {
+          "name": "yuri",
+          "willCreate": true,
+          "fileCount": 114,
+          "totalSize": 150586783
+        },
+        {
+          "name": "naomi-sfw",
+          "willCreate": true,
+          "fileCount": 57,
+          "totalSize": 117515455
+        },
+        {
+          "name": "fps_boost",
+          "willCreate": true,
+          "fileCount": 47,
+          "totalSize": 84363926
+        },
+        {
+          "name": "essiesfw",
+          "willCreate": true,
+          "fileCount": 5,
+          "totalSize": 5099645
+        }
+      ],
+      "summary": {
+        "totalFiles": 4271,
+        "totalSize": 6512505438,
+        "foldersToCreate": 8,
+        "existingFolders": 0
+      },
+      "sampleFiles": [
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_00002__1761474267043_rbhbmzyse4m.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_00002__1761474267043_rbhbmzyse4m.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_00002__1761474267043_rbhbmzyse4m.png",
+          "fileSize": 1135028,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759226785154_301357736_00001_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759226785154_301357736_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759226785154_301357736_00001_.png",
+          "fileSize": 1213466,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759226785154_301357736_00002_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759226785154_301357736_00002_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759226785154_301357736_00002_.png",
+          "fileSize": 1156202,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759228824112_2122499060_00001_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759228824112_2122499060_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759228824112_2122499060_00001_.png",
+          "fileSize": 1123509,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759228824112_2122499060_00002_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759228824112_2122499060_00002_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759228824112_2122499060_00002_.png",
+          "fileSize": 1150563,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759248224009_1758021650_00001_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759248224009_1758021650_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759248224009_1758021650_00001_.png",
+          "fileSize": 1155335,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759258698517_684988248_00001_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759258698517_684988248_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759258698517_684988248_00001_.png",
+          "fileSize": 1148749,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759258698517_684988248_00002_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759258698517_684988248_00002_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759258698517_684988248_00002_.png",
+          "fileSize": 1158963,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759258698517_684988248_00003_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759258698517_684988248_00003_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759258698517_684988248_00003_.png",
+          "fileSize": 1235479,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_32sjLN4UQyvoR7ZooJKUwniYvmj/ComfyUI_1759258698517_684988248_00004_.png",
+          "targetKey": "vault/user_32sjLN4UQyvoR7ZooJKUwniYvmj/{profileId}/{folderId}/ComfyUI_1759258698517_684988248_00004_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759258698517_684988248_00004_.png",
+          "fileSize": 1131158,
+          "fileType": "image/png"
+        }
+      ]
+    },
+    {
+      "user": {
+        "clerkId": "user_30dULT8ZLO1jthhCEgn349cKcvT",
+        "email": "rapdeleon0404@gmail.com"
+      },
+      "profile": {
+        "name": "Migrated Content",
+        "willCreate": true
+      },
+      "folders": [
+        {
+          "name": "jan-6",
+          "willCreate": true,
+          "fileCount": 170,
+          "totalSize": 562118663
+        },
+        {
+          "name": "12",
+          "willCreate": true,
+          "fileCount": 112,
+          "totalSize": 117442984
+        },
+        {
+          "name": "nov-2",
+          "willCreate": true,
+          "fileCount": 23,
+          "totalSize": 22412912
+        },
+        {
+          "name": "Uncategorized",
+          "willCreate": true,
+          "fileCount": 18,
+          "totalSize": 29776555
+        },
+        {
+          "name": "fps_boost",
+          "willCreate": true,
+          "fileCount": 11,
+          "totalSize": 13109107
+        },
+        {
+          "name": "temp",
+          "willCreate": true,
+          "fileCount": 1,
+          "totalSize": 1772714
+        }
+      ],
+      "summary": {
+        "totalFiles": 335,
+        "totalSize": 746632935,
+        "foldersToCreate": 6,
+        "existingFolders": 0
+      },
+      "sampleFiles": [
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/.folderinfo",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/.folderinfo",
+          "folderName": "12",
+          "fileName": ".folderinfo",
+          "fileSize": 127,
+          "fileType": "application/octet-stream"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/ComfyUI_00003_.mp4",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/ComfyUI_00003_.mp4",
+          "folderName": "12",
+          "fileName": "ComfyUI_00003_.mp4",
+          "fileSize": 470576,
+          "fileType": "video/mp4"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/ComfyUI_00004_.mp4",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/ComfyUI_00004_.mp4",
+          "folderName": "12",
+          "fileName": "ComfyUI_00004_.mp4",
+          "fileSize": 432119,
+          "fileType": "video/mp4"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/ComfyUI_00005_.mp4",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/ComfyUI_00005_.mp4",
+          "folderName": "12",
+          "fileName": "ComfyUI_00005_.mp4",
+          "fileSize": 558515,
+          "fileType": "video/mp4"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/ComfyUI_00006_.mp4",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/ComfyUI_00006_.mp4",
+          "folderName": "12",
+          "fileName": "ComfyUI_00006_.mp4",
+          "fileSize": 323726,
+          "fileType": "video/mp4"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/ComfyUI_1762412937806_282199688_00000_.png",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/ComfyUI_1762412937806_282199688_00000_.png",
+          "folderName": "12",
+          "fileName": "ComfyUI_1762412937806_282199688_00000_.png",
+          "fileSize": 758652,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/ComfyUI_1762416474266_263378582_00000_.png",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/ComfyUI_1762416474266_263378582_00000_.png",
+          "folderName": "12",
+          "fileName": "ComfyUI_1762416474266_263378582_00000_.png",
+          "fileSize": 997592,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/ComfyUI_1762421311200_279273401_00000_.png",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/ComfyUI_1762421311200_279273401_00000_.png",
+          "folderName": "12",
+          "fileName": "ComfyUI_1762421311200_279273401_00000_.png",
+          "fileSize": 791181,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/ComfyUI_1762427655916_31822849_00000_.png",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/ComfyUI_1762427655916_31822849_00000_.png",
+          "folderName": "12",
+          "fileName": "ComfyUI_1762427655916_31822849_00000_.png",
+          "fileSize": 884909,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dULT8ZLO1jthhCEgn349cKcvT/12/SkinEnhancer/SkinEnhancer_00001__1762419311515_gk3pocksj.png",
+          "targetKey": "vault/user_30dULT8ZLO1jthhCEgn349cKcvT/{profileId}/{folderId}/SkinEnhancer/SkinEnhancer_00001__1762419311515_gk3pocksj.png",
+          "folderName": "12",
+          "fileName": "SkinEnhancer/SkinEnhancer_00001__1762419311515_gk3pocksj.png",
+          "fileSize": 1172826,
+          "fileType": "image/png"
+        }
+      ]
+    },
+    {
+      "user": {
+        "clerkId": "user_31ES2FrA077MVrkOXsGrUbiCXKX",
+        "email": "rapdeleon0404@gmail.com"
+      },
+      "profile": {
+        "name": "Migrated Content",
+        "willCreate": true
+      },
+      "folders": [
+        {
+          "name": "nov-5",
+          "willCreate": true,
+          "fileCount": 101,
+          "totalSize": 127547577
+        },
+        {
+          "name": "Uncategorized",
+          "willCreate": true,
+          "fileCount": 33,
+          "totalSize": 43048109
+        },
+        {
+          "name": "ai-model-6",
+          "willCreate": true,
+          "fileCount": 18,
+          "totalSize": 22541508
+        },
+        {
+          "name": "nov-8",
+          "willCreate": true,
+          "fileCount": 6,
+          "totalSize": 19511125
+        },
+        {
+          "name": "nov-3",
+          "willCreate": true,
+          "fileCount": 3,
+          "totalSize": 2380543
+        },
+        {
+          "name": "nov-4",
+          "willCreate": true,
+          "fileCount": 1,
+          "totalSize": 130
+        }
+      ],
+      "summary": {
+        "totalFiles": 162,
+        "totalSize": 215028992,
+        "foldersToCreate": 6,
+        "existingFolders": 0
+      },
+      "sampleFiles": [
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00001_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00001_.png",
+          "fileSize": 1259673,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00002_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00002_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00002_.png",
+          "fileSize": 1315930,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00003_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00003_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00003_.png",
+          "fileSize": 1314311,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00004_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00004_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00004_.png",
+          "fileSize": 1178498,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00005_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00005_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00005_.png",
+          "fileSize": 1305436,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00006_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00006_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00006_.png",
+          "fileSize": 1374658,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00007_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00007_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00007_.png",
+          "fileSize": 1231354,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00008_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00008_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00008_.png",
+          "fileSize": 1403574,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00009_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00009_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00009_.png",
+          "fileSize": 1154438,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31ES2FrA077MVrkOXsGrUbiCXKX/ComfyUI_1759232075267_940890547_00010_.png",
+          "targetKey": "vault/user_31ES2FrA077MVrkOXsGrUbiCXKX/{profileId}/{folderId}/ComfyUI_1759232075267_940890547_00010_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759232075267_940890547_00010_.png",
+          "fileSize": 1132101,
+          "fileType": "image/png"
+        }
+      ]
+    },
+    {
+      "user": {
+        "clerkId": "user_30dKpxGYsQUlkP4nNyM5hQm7Ne8",
+        "email": "txl.tasty@gmail.com"
+      },
+      "profile": {
+        "name": "Migrated Content",
+        "willCreate": true
+      },
+      "folders": [
+        {
+          "name": "main",
+          "willCreate": true,
+          "fileCount": 53,
+          "totalSize": 65332733
+        },
+        {
+          "name": "Uncategorized",
+          "willCreate": true,
+          "fileCount": 9,
+          "totalSize": 12064485
+        },
+        {
+          "name": "fps_boost",
+          "willCreate": true,
+          "fileCount": 1,
+          "totalSize": 1032484
+        }
+      ],
+      "summary": {
+        "totalFiles": 63,
+        "totalSize": 78429702,
+        "foldersToCreate": 3,
+        "existingFolders": 0
+      },
+      "sampleFiles": [
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1759993966718_1340682020_00001_.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/ComfyUI_1759993966718_1340682020_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759993966718_1340682020_00001_.png",
+          "fileSize": 1248034,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1759994406139_1725196241_00001_.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/ComfyUI_1759994406139_1725196241_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759994406139_1725196241_00001_.png",
+          "fileSize": 1430495,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1759994533527_1776211028_00001_.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/ComfyUI_1759994533527_1776211028_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1759994533527_1776211028_00001_.png",
+          "fileSize": 1595486,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1760020466617_588778810_00001_.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/ComfyUI_1760020466617_588778810_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1760020466617_588778810_00001_.png",
+          "fileSize": 1147117,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1760193438231_1798075978_00001_.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/ComfyUI_1760193438231_1798075978_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1760193438231_1798075978_00001_.png",
+          "fileSize": 1301135,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1760193438231_1798075978_00002_.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/ComfyUI_1760193438231_1798075978_00002_.png",
+          "folderName": "Uncategorized",
+          "fileName": "ComfyUI_1760193438231_1798075978_00002_.png",
+          "fileSize": 1427098,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/skin_enhanced_00001__1759996654738_le1ijrvp1.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/skin_enhanced_00001__1759996654738_le1ijrvp1.png",
+          "folderName": "Uncategorized",
+          "fileName": "skin_enhanced_00001__1759996654738_le1ijrvp1.png",
+          "fileSize": 1240376,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/skin_enhanced_00001__1759999286206_1kcksobw9.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/skin_enhanced_00001__1759999286206_1kcksobw9.png",
+          "folderName": "Uncategorized",
+          "fileName": "skin_enhanced_00001__1759999286206_1kcksobw9.png",
+          "fileSize": 1362497,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/skin_enhanced_00002__1759997046081_ssqqsmdn7.png",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/skin_enhanced_00002__1759997046081_ssqqsmdn7.png",
+          "folderName": "Uncategorized",
+          "fileName": "skin_enhanced_00002__1759997046081_ssqqsmdn7.png",
+          "fileSize": 1312247,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/fps_boost/fps_boosted_00001.mp4",
+          "targetKey": "vault/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/{profileId}/{folderId}/fps_boosted_00001.mp4",
+          "folderName": "fps_boost",
+          "fileName": "fps_boosted_00001.mp4",
+          "fileSize": 1032484,
+          "fileType": "video/mp4"
+        }
+      ]
+    },
+    {
+      "user": {
+        "clerkId": "user_30jxATDqYuUneSqppGUHNfIo9Qs",
+        "email": "rafaeldeleon0820@gmail.com"
+      },
+      "profile": {
+        "name": "Migrated Content",
+        "willCreate": true
+      },
+      "folders": [
+        {
+          "name": "fps",
+          "willCreate": true,
+          "fileCount": 17,
+          "totalSize": 20723151
+        },
+        {
+          "name": "yuri-sfw",
+          "willCreate": true,
+          "fileCount": 11,
+          "totalSize": 7156231
+        },
+        {
+          "name": "yuri",
+          "willCreate": true,
+          "fileCount": 1,
+          "totalSize": 129
+        }
+      ],
+      "summary": {
+        "totalFiles": 29,
+        "totalSize": 27879511,
+        "foldersToCreate": 3,
+        "existingFolders": 0
+      },
+      "sampleFiles": [
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/.folderinfo",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/.folderinfo",
+          "folderName": "fps",
+          "fileName": ".folderinfo",
+          "fileSize": 128,
+          "fileType": "application/octet-stream"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759477655181_1001792200_00001_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759477655181_1001792200_00001_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759477655181_1001792200_00001_.png",
+          "fileSize": 1255316,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759477655181_1001792200_00002_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759477655181_1001792200_00002_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759477655181_1001792200_00002_.png",
+          "fileSize": 1464973,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759477655181_1001792200_00003_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759477655181_1001792200_00003_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759477655181_1001792200_00003_.png",
+          "fileSize": 1223625,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759477655181_1001792200_00004_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759477655181_1001792200_00004_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759477655181_1001792200_00004_.png",
+          "fileSize": 1273787,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759477655181_1001792200_00005_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759477655181_1001792200_00005_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759477655181_1001792200_00005_.png",
+          "fileSize": 1330666,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759483161039_1608119441_00001_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759483161039_1608119441_00001_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759483161039_1608119441_00001_.png",
+          "fileSize": 1314141,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759483161039_1608119441_00002_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759483161039_1608119441_00002_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759483161039_1608119441_00002_.png",
+          "fileSize": 1209180,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759483161039_1608119441_00003_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759483161039_1608119441_00003_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759483161039_1608119441_00003_.png",
+          "fileSize": 1229079,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_30jxATDqYuUneSqppGUHNfIo9Qs/fps/ComfyUI_1759483161039_1608119441_00004_.png",
+          "targetKey": "vault/user_30jxATDqYuUneSqppGUHNfIo9Qs/{profileId}/{folderId}/ComfyUI_1759483161039_1608119441_00004_.png",
+          "folderName": "fps",
+          "fileName": "ComfyUI_1759483161039_1608119441_00004_.png",
+          "fileSize": 1283347,
+          "fileType": "image/png"
+        }
+      ]
+    },
+    {
+      "user": {
+        "clerkId": "user_31Ej3gLzrV3B4MkA2N3aOBqsSjM",
+        "email": "rafaeldeleon0820@gmail.com"
+      },
+      "profile": {
+        "name": "Migrated Content",
+        "willCreate": true
+      },
+      "folders": [
+        {
+          "name": "Uncategorized",
+          "willCreate": true,
+          "fileCount": 1,
+          "totalSize": 1168110
+        },
+        {
+          "name": "naomi",
+          "willCreate": true,
+          "fileCount": 1,
+          "totalSize": 130
+        },
+        {
+          "name": "yuri",
+          "willCreate": true,
+          "fileCount": 1,
+          "totalSize": 129
+        }
+      ],
+      "summary": {
+        "totalFiles": 3,
+        "totalSize": 1168369,
+        "foldersToCreate": 3,
+        "existingFolders": 0
+      },
+      "sampleFiles": [
+        {
+          "sourceKey": "outputs/user_31Ej3gLzrV3B4MkA2N3aOBqsSjM/FluxKontext_1761465616842_337098754344_00001_.png",
+          "targetKey": "vault/user_31Ej3gLzrV3B4MkA2N3aOBqsSjM/{profileId}/{folderId}/FluxKontext_1761465616842_337098754344_00001_.png",
+          "folderName": "Uncategorized",
+          "fileName": "FluxKontext_1761465616842_337098754344_00001_.png",
+          "fileSize": 1168110,
+          "fileType": "image/png"
+        },
+        {
+          "sourceKey": "outputs/user_31Ej3gLzrV3B4MkA2N3aOBqsSjM/naomi/.folderinfo",
+          "targetKey": "vault/user_31Ej3gLzrV3B4MkA2N3aOBqsSjM/{profileId}/{folderId}/.folderinfo",
+          "folderName": "naomi",
+          "fileName": ".folderinfo",
+          "fileSize": 130,
+          "fileType": "application/octet-stream"
+        },
+        {
+          "sourceKey": "outputs/user_31Ej3gLzrV3B4MkA2N3aOBqsSjM/yuri/.folderinfo",
+          "targetKey": "vault/user_31Ej3gLzrV3B4MkA2N3aOBqsSjM/{profileId}/{folderId}/.folderinfo",
+          "folderName": "yuri",
+          "fileName": ".folderinfo",
+          "fileSize": 129,
+          "fileType": "application/octet-stream"
+        }
+      ]
+    }
+  ]
+}

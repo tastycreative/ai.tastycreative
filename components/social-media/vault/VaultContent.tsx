@@ -1,26 +1,38 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef, memo } from "react";
 import { createPortal } from "react-dom";
+
+// Debounce hook for search
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+// Constants for pagination
+const ITEMS_PER_PAGE = 50;
 import {
-  Shield,
-  Lock,
   Plus,
   Search,
   Trash2,
   Edit2,
   Folder,
+  FolderOpen,
   FolderPlus,
   Check,
   X,
   Loader2,
   File as FileIcon,
   Image as ImageIcon,
+  Menu,
+  PanelLeftClose,
   Video as VideoIcon,
   Music4,
   AlertCircle,
-  Sparkles,
-  HardDrive,
   Upload,
   Download,
   Move,
@@ -30,7 +42,17 @@ import {
   Share2,
   Users,
   Eye,
-  UserPlus,
+  Grid3X3,
+  List,
+  Calendar,
+  HardDrive,
+  ChevronDown,
+  FolderClosed,
+  PlayCircle,
+  Info,
+  Sparkles,
+  Maximize2,
+  Wand2,
 } from "lucide-react";
 
 interface InstagramProfile {
@@ -45,11 +67,11 @@ interface VaultFolder {
   name: string;
   profileId: string;
   isDefault?: boolean;
-  hasShares?: boolean; // Folder is shared with others
+  hasShares?: boolean;
 }
 
 interface SharedVaultFolder {
-  id: string; // share id
+  id: string;
   folderId: string;
   folderName: string;
   profileId: string;
@@ -92,6 +114,25 @@ interface AvailableUser {
   displayName: string;
 }
 
+interface VaultItemMetadata {
+  source?: string;
+  generationType?: string;
+  model?: string;
+  prompt?: string;
+  size?: string;
+  resolution?: string;
+  watermark?: boolean;
+  numReferenceImages?: number;
+  generatedAt?: string;
+  // Additional fields for other generation types
+  negativePrompt?: string;
+  steps?: number;
+  cfgScale?: number;
+  seed?: number;
+  sampler?: string;
+  [key: string]: any; // Allow other custom fields
+}
+
 interface VaultItem {
   id: string;
   fileName: string;
@@ -102,6 +143,7 @@ interface VaultItem {
   updatedAt: Date;
   folderId: string;
   profileId: string;
+  metadata?: VaultItemMetadata | null;
 }
 
 export function VaultContent() {
@@ -109,16 +151,18 @@ export function VaultContent() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
 
-  const [folders, setFolders] = useState<VaultFolder[]>([]); // Folders for current profile
-  const [allFolders, setAllFolders] = useState<VaultFolder[]>([]); // All folders across all profiles
+  const [folders, setFolders] = useState<VaultFolder[]>([]);
+  const [allFolders, setAllFolders] = useState<VaultFolder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [folderNameInput, setFolderNameInput] = useState("");
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false);
 
   const [vaultItems, setVaultItems] = useState<VaultItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [contentFilter, setContentFilter] = useState<'all' | 'photos' | 'videos' | 'audio' | 'gifs'>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -127,18 +171,17 @@ export function VaultContent() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveToFolderId, setMoveToFolderId] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
-  const [isCopyMode, setIsCopyMode] = useState(false); // true = copy, false = move
+  const [isCopyMode, setIsCopyMode] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Sharing state
   const [sharedFolders, setSharedFolders] = useState<SharedVaultFolder[]>([]);
   const [loadingSharedFolders, setLoadingSharedFolders] = useState(false);
   const [selectedSharedFolder, setSelectedSharedFolder] = useState<SharedVaultFolder | null>(null);
-  const [sharedFolderItems, setSharedFolderItems] = useState<VaultItem[]>([]); // Separate state to avoid overwriting user's items
+  const [sharedFolderItems, setSharedFolderItems] = useState<VaultItem[]>([]);
   const [showShareModal, setShowShareModal] = useState(false);
   const [folderToShare, setFolderToShare] = useState<VaultFolder | null>(null);
   const [shareModalLoading, setShareModalLoading] = useState(false);
@@ -149,19 +192,71 @@ export function VaultContent() {
   const [shareNote, setShareNote] = useState('');
   const [userSearchQuery, setUserSearchQuery] = useState('');
 
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [showPreviewInfo, setShowPreviewInfo] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Debounce search for better performance
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  // Reset display count when folder or filter changes
+  useEffect(() => {
+    setDisplayCount(ITEMS_PER_PAGE);
+  }, [selectedFolderId, selectedSharedFolder, contentFilter, debouncedSearchQuery]);
+
+  // Clear selection when changing folders
+  useEffect(() => {
+    setSelectedItems(new Set());
+    setSelectionMode(false);
+  }, [selectedFolderId, selectedSharedFolder]);
+
+  // Auto-enable selection mode when items are selected (but don't auto-disable)
+  useEffect(() => {
+    if (selectedItems.size > 0 && !selectionMode) {
+      setSelectionMode(true);
+    }
+  }, [selectedItems.size, selectionMode]);
+
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const toggleSelectItem = (itemId: string) => {
+  const toggleSelectItem = (itemId: string, e?: React.MouseEvent) => {
     const newSelected = new Set(selectedItems);
+    
+    // Shift+click for range selection
+    if (e?.shiftKey && selectedItems.size > 0) {
+      const itemIds = filteredItems.map(item => item.id);
+      const lastSelectedId = Array.from(selectedItems).pop();
+      const lastIndex = itemIds.indexOf(lastSelectedId || '');
+      const currentIndex = itemIds.indexOf(itemId);
+      
+      if (lastIndex !== -1 && currentIndex !== -1) {
+        const start = Math.min(lastIndex, currentIndex);
+        const end = Math.max(lastIndex, currentIndex);
+        for (let i = start; i <= end; i++) {
+          newSelected.add(itemIds[i]);
+        }
+        setSelectedItems(newSelected);
+        return;
+      }
+    }
+    
     if (newSelected.has(itemId)) {
       newSelected.delete(itemId);
     } else {
       newSelected.add(itemId);
     }
     setSelectedItems(newSelected);
+  };
+
+  const clearSelection = () => {
+    setSelectedItems(new Set());
+    setSelectionMode(false);
   };
 
   const toggleSelectAll = () => {
@@ -183,14 +278,13 @@ export function VaultContent() {
       );
       
       await Promise.all(deletePromises);
-      // Update the correct state based on whether viewing shared folder or own folder
       if (selectedSharedFolder) {
         setSharedFolderItems(sharedFolderItems.filter(item => !selectedItems.has(item.id)));
       } else {
         setVaultItems(vaultItems.filter(item => !selectedItems.has(item.id)));
       }
       setSelectedItems(new Set());
-      showToast(`Successfully deleted ${selectedItems.size} file(s)!`, "success");
+      showToast(`Deleted ${selectedItems.size} file(s)`, "success");
     } catch (error) {
       console.error("Error deleting items:", error);
       showToast("Failed to delete some files", "error");
@@ -214,7 +308,6 @@ export function VaultContent() {
       
       const selectedFiles = vaultItems.filter(item => selectedItems.has(item.id));
       
-      // Download all files and add to zip
       const promises = selectedFiles.map(async (item) => {
         try {
           const response = await fetch(item.awsS3Url);
@@ -227,7 +320,6 @@ export function VaultContent() {
       
       await Promise.all(promises);
       
-      // Generate and download zip
       const content = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(content);
       const a = document.createElement('a');
@@ -238,7 +330,7 @@ export function VaultContent() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      showToast(`Downloaded ${selectedFiles.length} file(s) as ZIP!`, "success");
+      showToast(`Downloaded ${selectedFiles.length} file(s)`, "success");
     } catch (error) {
       console.error("Error creating zip:", error);
       showToast("Failed to create ZIP file", "error");
@@ -286,12 +378,10 @@ export function VaultContent() {
     }
   }, [selectedProfileId]);
 
-  // Load shared folders on mount
   useEffect(() => {
     loadSharedFolders();
   }, []);
 
-  // Load all folders across all profiles (for move/copy modal)
   useEffect(() => {
     if (profiles.length > 0) {
       loadAllFolders();
@@ -314,7 +404,6 @@ export function VaultContent() {
       const data = await response.json();
       setFolders(data);
 
-      // Auto-select first folder or create default
       if (data.length === 0) {
         await createDefaultFolder();
       } else if (!selectedFolderId || !data.some((f: VaultFolder) => f.id === selectedFolderId)) {
@@ -325,7 +414,6 @@ export function VaultContent() {
     }
   };
 
-  // Load all folders across all profiles (for move/copy modal)
   const loadAllFolders = async () => {
     try {
       const response = await fetch('/api/vault/folders');
@@ -356,7 +444,7 @@ export function VaultContent() {
 
       const folder = await response.json();
       setFolders([folder]);
-      setAllFolders(prev => [...prev, folder]); // Also add to allFolders
+      setAllFolders(prev => [...prev, folder]);
       setSelectedFolderId(folder.id);
     } catch (error) {
       console.error("Error creating default folder:", error);
@@ -368,7 +456,6 @@ export function VaultContent() {
 
     setLoadingItems(true);
     try {
-      // Always load all items for the profile to ensure accurate folder counts
       const url = `/api/vault/items?profileId=${selectedProfileId}`;
 
       const response = await fetch(url);
@@ -387,18 +474,16 @@ export function VaultContent() {
     }
   };
 
-  // Load items from a shared folder
   const loadSharedFolderItems = async (sharedFolder: SharedVaultFolder) => {
     setLoadingItems(true);
     setSelectedSharedFolder(sharedFolder);
-    setSelectedFolderId(null); // Deselect owned folder
+    setSelectedFolderId(null);
     
     try {
       const response = await fetch(`/api/vault/items?sharedFolderId=${sharedFolder.folderId}`);
       if (!response.ok) throw new Error("Failed to load shared folder items");
 
       const data = await response.json();
-      // Use separate state for shared folder items to preserve user's own vault items
       setSharedFolderItems(data.map((item: any) => ({
         ...item,
         createdAt: new Date(item.createdAt),
@@ -412,7 +497,6 @@ export function VaultContent() {
     }
   };
 
-  // Load folders shared with the current user
   const loadSharedFolders = async () => {
     setLoadingSharedFolders(true);
     try {
@@ -432,7 +516,6 @@ export function VaultContent() {
     }
   };
 
-  // Load available users for sharing
   const loadAvailableUsers = async () => {
     try {
       const response = await fetch('/api/users/list');
@@ -453,7 +536,6 @@ export function VaultContent() {
     }
   };
 
-  // Load current shares for a folder
   const loadCurrentShares = async (folderId: string) => {
     try {
       const response = await fetch(`/api/vault/folders/share?vaultFolderId=${folderId}`);
@@ -466,7 +548,6 @@ export function VaultContent() {
     }
   };
 
-  // Open share modal
   const handleOpenShareModal = async (folder: VaultFolder) => {
     setFolderToShare(folder);
     setShowShareModal(true);
@@ -480,7 +561,6 @@ export function VaultContent() {
     setShareModalLoading(false);
   };
 
-  // Share folder with user
   const handleShareFolder = async () => {
     if (!folderToShare || !selectedUserToShare) return;
 
@@ -499,15 +579,14 @@ export function VaultContent() {
 
       if (!response.ok) throw new Error("Failed to share folder");
 
-      showToast(`Folder shared with ${selectedUserToShare.displayName}`, "success");
+      showToast(`Shared with ${selectedUserToShare.displayName}`, "success");
       
-      // Reset form and reload shares
       setSelectedUserToShare(null);
       setUserSearchQuery('');
       setShareNote('');
       setSharePermission('VIEW');
       await loadCurrentShares(folderToShare.id);
-      loadFolders(); // Refresh to show "shared" badge
+      loadFolders();
     } catch (error) {
       console.error("Error sharing folder:", error);
       showToast("Failed to share folder", "error");
@@ -516,7 +595,6 @@ export function VaultContent() {
     }
   };
 
-  // Remove share
   const handleRemoveShare = async (sharedWithClerkId: string, displayName: string) => {
     if (!folderToShare) return;
 
@@ -534,7 +612,7 @@ export function VaultContent() {
 
       showToast(`Removed access for ${displayName}`, "success");
       await loadCurrentShares(folderToShare.id);
-      loadFolders(); // Refresh to update "shared" badge
+      loadFolders();
     } catch (error) {
       console.error("Error removing share:", error);
       showToast("Failed to remove share", "error");
@@ -543,8 +621,9 @@ export function VaultContent() {
 
   const handleSelectProfile = (id: string) => {
     setSelectedProfileId(id);
-    setSelectedSharedFolder(null); // Deselect shared folder when changing profile
-    setSharedFolderItems([]); // Clear shared folder items
+    setSelectedSharedFolder(null);
+    setSharedFolderItems([]);
+    setProfileDropdownOpen(false);
     const profileFolders = folders.filter((f) => f.profileId === id);
     const nextFolder = profileFolders[0];
     setSelectedFolderId(nextFolder ? nextFolder.id : null);
@@ -567,10 +646,11 @@ export function VaultContent() {
 
       const newFolder = await response.json();
       setFolders([...folders, newFolder]);
-      setAllFolders([...allFolders, newFolder]); // Also add to allFolders
+      setAllFolders([...allFolders, newFolder]);
       setSelectedFolderId(newFolder.id);
       setFolderNameInput("");
-      showToast("Folder created successfully!", "success");
+      setShowNewFolderInput(false);
+      showToast("Folder created", "success");
     } catch (error) {
       console.error("Error creating folder:", error);
       showToast("Failed to create folder", "error");
@@ -600,7 +680,6 @@ export function VaultContent() {
           folder.id === editingFolderId ? { ...folder, name: editingFolderName.trim() } : folder
         )
       );
-      // Also update in allFolders
       setAllFolders((prev) =>
         prev.map((folder) =>
           folder.id === editingFolderId ? { ...folder, name: editingFolderName.trim() } : folder
@@ -608,7 +687,7 @@ export function VaultContent() {
       );
       setEditingFolderId(null);
       setEditingFolderName("");
-      showToast("Folder renamed successfully!", "success");
+      showToast("Folder renamed", "success");
     } catch (error) {
       console.error("Error updating folder:", error);
       showToast("Failed to update folder", "error");
@@ -619,7 +698,7 @@ export function VaultContent() {
     const folder = folders.find((f) => f.id === folderId);
     if (folder?.isDefault) return;
 
-    if (!confirm("Are you sure you want to delete this folder and all its contents?")) return;
+    if (!confirm("Delete this folder and all its contents?")) return;
 
     try {
       const response = await fetch(`/api/vault/folders/${folderId}`, {
@@ -629,14 +708,14 @@ export function VaultContent() {
       if (!response.ok) throw new Error("Failed to delete folder");
 
       setFolders(folders.filter((f) => f.id !== folderId));
-      setAllFolders(allFolders.filter((f) => f.id !== folderId)); // Also remove from allFolders
+      setAllFolders(allFolders.filter((f) => f.id !== folderId));
       setVaultItems(vaultItems.filter((item) => item.folderId !== folderId));
 
       if (selectedFolderId === folderId) {
         const remaining = folders.filter((f) => f.id !== folderId && f.profileId === selectedProfileId);
         setSelectedFolderId(remaining[0]?.id || null);
       }
-      showToast("Folder deleted successfully!", "success");
+      showToast("Folder deleted", "success");
     } catch (error) {
       console.error("Error deleting folder:", error);
       showToast("Failed to delete folder", "error");
@@ -653,7 +732,6 @@ export function VaultContent() {
 
     try {
       const uploadPromises = newFiles.map(async (file) => {
-        // Step 1: Get presigned URL from server
         const presignedResponse = await fetch("/api/vault/presigned-url", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -671,9 +749,8 @@ export function VaultContent() {
           throw new Error(errorData.error || `Failed to get upload URL for ${file.name}`);
         }
 
-        const { presignedUrl, s3Key, awsS3Url, fileName, fileType, fileSize, profileId, folderId } = await presignedResponse.json();
+        const { presignedUrl, s3Key, awsS3Url, profileId, folderId } = await presignedResponse.json();
 
-        // Step 2: Upload directly to S3 using presigned URL
         const uploadResponse = await fetch(presignedUrl, {
           method: "PUT",
           body: file,
@@ -686,7 +763,6 @@ export function VaultContent() {
           throw new Error(`Failed to upload ${file.name} to storage`);
         }
 
-        // Step 3: Confirm upload and create database record
         const confirmResponse = await fetch("/api/vault/confirm-upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -725,7 +801,7 @@ export function VaultContent() {
       setNewFiles([]);
       setIsAddingNew(false);
       setUploadProgress(0);
-      showToast(`Successfully uploaded ${uploadedItems.length} file(s)!`, "success");
+      showToast(`Uploaded ${uploadedItems.length} file(s)`, "success");
     } catch (error: any) {
       console.error("Error uploading files:", error);
       showToast(error.message || "Failed to upload some files", "error");
@@ -734,7 +810,7 @@ export function VaultContent() {
   };
 
   const handleDeleteItem = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this file?")) return;
+    if (!confirm("Delete this file?")) return;
 
     try {
       const response = await fetch(`/api/vault/items/${id}`, {
@@ -743,24 +819,23 @@ export function VaultContent() {
 
       if (!response.ok) throw new Error("Failed to delete item");
 
-      // Update the correct state based on whether viewing shared folder or own folder
       if (selectedSharedFolder) {
         setSharedFolderItems(sharedFolderItems.filter((item) => item.id !== id));
       } else {
         setVaultItems(vaultItems.filter((item) => item.id !== id));
       }
-      showToast("File deleted successfully!", "success");
+      showToast("File deleted", "success");
     } catch (error) {
       console.error("Error deleting item:", error);
-      showToast("Failed to delete item", "error");
+      showToast("Failed to delete file", "error");
     }
   };
 
-  const filteredItems = useMemo(() => {
-    // If viewing a shared folder, use sharedFolderItems (not vaultItems)
+  // All filtered items (not paginated)
+  const allFilteredItems = useMemo(() => {
     if (selectedSharedFolder) {
       return sharedFolderItems
-        .filter((item) => item.fileName.toLowerCase().includes(searchQuery.toLowerCase()))
+        .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
         .filter((item) => {
           if (contentFilter === 'all') return true;
           if (contentFilter === 'photos') return item.fileType.startsWith('image/') && item.fileType !== 'image/gif';
@@ -771,24 +846,17 @@ export function VaultContent() {
         });
     }
 
-    // Check if current folder is the default "All Media" folder
     const currentFolder = folders.find(f => f.id === selectedFolderId);
     const isDefaultFolder = currentFolder?.isDefault === true;
 
     return vaultItems
       .filter((item) => {
-        // Always filter by profile
         if (item.profileId !== selectedProfileId) return false;
-        
-        // If it's the default folder, show all items for this profile
-        // Otherwise, only show items from the selected folder
         if (!isDefaultFolder && item.folderId !== selectedFolderId) return false;
-        
         return true;
       })
-      .filter((item) => item.fileName.toLowerCase().includes(searchQuery.toLowerCase()))
+      .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
       .filter((item) => {
-        // Filter by content type
         if (contentFilter === 'all') return true;
         if (contentFilter === 'photos') return item.fileType.startsWith('image/') && item.fileType !== 'image/gif';
         if (contentFilter === 'videos') return item.fileType.startsWith('video/');
@@ -796,7 +864,48 @@ export function VaultContent() {
         if (contentFilter === 'gifs') return item.fileType === 'image/gif';
         return true;
       });
-  }, [vaultItems, sharedFolderItems, selectedFolderId, selectedProfileId, searchQuery, folders, contentFilter, selectedSharedFolder]);
+  }, [vaultItems, sharedFolderItems, selectedFolderId, selectedProfileId, debouncedSearchQuery, folders, contentFilter, selectedSharedFolder]);
+
+  // Paginated items for display
+  const filteredItems = useMemo(() => {
+    return allFilteredItems.slice(0, displayCount);
+  }, [allFilteredItems, displayCount]);
+
+  // Keyboard shortcuts for selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape to clear selection
+      if (e.key === 'Escape' && selectedItems.size > 0) {
+        setSelectedItems(new Set());
+        setSelectionMode(false);
+      }
+      // Ctrl/Cmd + A to select all (when not in an input)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a' && 
+          !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+        e.preventDefault();
+        if (allFilteredItems.length > 0) {
+          setSelectedItems(new Set(allFilteredItems.map(item => item.id)));
+          setSelectionMode(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedItems.size, allFilteredItems]);
+
+  const hasMoreItems = displayCount < allFilteredItems.length;
+  
+  const loadMoreItems = useCallback(() => {
+    setDisplayCount(prev => Math.min(prev + ITEMS_PER_PAGE, allFilteredItems.length));
+  }, [allFilteredItems.length]);
+
+  // Infinite scroll handler
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 200 && hasMoreItems) {
+      loadMoreItems();
+    }
+  }, [hasMoreItems, loadMoreItems]);
 
   const visibleFolders = folders.filter((folder) => folder.profileId === selectedProfileId);
   const selectedProfile = profiles.find((p) => p.id === selectedProfileId) || null;
@@ -804,11 +913,9 @@ export function VaultContent() {
     ? { id: selectedSharedFolder.folderId, name: selectedSharedFolder.folderName, profileId: selectedSharedFolder.profileId, isDefault: selectedSharedFolder.isDefault }
     : visibleFolders.find((folder) => folder.id === selectedFolderId) || null;
   
-  // Check if viewing shared content (read-only mode)
   const isViewingShared = selectedSharedFolder !== null;
   const canEdit = !isViewingShared || selectedSharedFolder?.permission === 'EDIT';
 
-  // Calculate stats
   const totalItems = vaultItems.filter(item => item.profileId === selectedProfileId).length;
   const totalSize = vaultItems
     .filter(item => item.profileId === selectedProfileId)
@@ -820,207 +927,112 @@ export function VaultContent() {
     item.profileId === selectedProfileId && item.fileType.startsWith('video/')
   ).length;
 
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  };
+
   return (
     <>
-      {/* Custom Scrollbar Styles */}
       <style jsx global>{`
-        .vault-scrollbar::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
-        }
-        .vault-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 3px;
-        }
-        .vault-scrollbar::-webkit-scrollbar-thumb {
-          background: linear-gradient(180deg, rgba(34, 211, 238, 0.4), rgba(99, 102, 241, 0.4));
-          border-radius: 3px;
-        }
-        .vault-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: linear-gradient(180deg, rgba(34, 211, 238, 0.6), rgba(99, 102, 241, 0.6));
-        }
+        .vault-scroll::-webkit-scrollbar { width: 8px; }
+        .vault-scroll::-webkit-scrollbar-track { background: transparent; }
+        .vault-scroll::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.3); border-radius: 4px; }
+        .vault-scroll::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.5); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+        .animate-slideUp { animation: slideUp 0.2s ease-out; }
       `}</style>
 
-      {/* Upload Modal - React Portal */}
+      {/* Toast */}
+      {toast && createPortal(
+        <div className="fixed bottom-4 right-4 z-[100] animate-slideUp">
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${
+            toast.type === 'success' ? 'bg-emerald-900/90 text-emerald-100 border border-emerald-700' : 
+            toast.type === 'error' ? 'bg-red-900/90 text-red-100 border border-red-700' : 'bg-blue-900/90 text-blue-100 border border-blue-700'
+          }`}>
+            {toast.type === 'success' && <Check className="w-5 h-5 text-emerald-400" />}
+            {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-400" />}
+            {toast.type === 'info' && <AlertCircle className="w-5 h-5 text-blue-400" />}
+            <p className="text-sm font-medium">{toast.message}</p>
+            <button onClick={() => setToast(null)} className="ml-2 hover:opacity-70"><X className="w-4 h-4" /></button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Upload Modal */}
       {isAddingNew && typeof window !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm"
-            onClick={() => {
-              setIsAddingNew(false);
-              setNewFiles([]);
-              setIsDragging(false);
-            }}
-          />
-          
-          {/* Modal */}
-          <div className="relative rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/30 backdrop-blur w-full max-w-2xl animate-slideIn">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-cyan-900/50">
-                  <Upload className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-white">Upload Media</h3>
-              </div>
-              <button
-                onClick={() => {
-                  setIsAddingNew(false);
-                  setNewFiles([]);
-                  setIsDragging(false);
-                }}
-                className="p-2 rounded-xl hover:bg-white/10 transition-colors"
-                title="Close"
-              >
-                <X className="h-5 w-5 text-slate-400" />
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setIsAddingNew(false); setNewFiles([]); }} />
+          <div className="relative bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg animate-slideUp border-t sm:border border-gray-700 max-h-[90vh] sm:max-h-none overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-700">
+              <h3 className="text-base sm:text-lg font-semibold text-white">Upload Files</h3>
+              <button onClick={() => { setIsAddingNew(false); setNewFiles([]); }} className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
-
-            {/* Body */}
-            <div className="p-6 space-y-4">
-              {/* Drag and Drop Area */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto max-h-[60vh] sm:max-h-none vault-scroll">
               <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  const files = Array.from(e.dataTransfer.files);
-                  setNewFiles(prev => [...prev, ...files]);
-                }}
-                className={`relative border-2 border-dashed rounded-2xl p-8 transition-all duration-300 ${
-                  isDragging
-                    ? 'border-cyan-400 bg-cyan-500/10 scale-[1.02]'
-                    : 'border-white/20 bg-white/5 hover:border-cyan-400/50 hover:bg-white/10'
-                }`}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+                onDrop={(e) => { e.preventDefault(); setIsDragging(false); setNewFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }}
+                className={`relative border-2 border-dashed rounded-xl p-6 sm:p-8 transition-all ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500 hover:bg-gray-800/50'}`}
               >
-                <div className="flex flex-col items-center justify-center space-y-3">
-                  <div className="p-4 bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 rounded-2xl">
-                    <Upload className="w-8 h-8 text-cyan-400" />
+                <div className="flex flex-col items-center gap-3">
+                  <div className={`p-3 rounded-full ${isDragging ? 'bg-blue-500/20' : 'bg-gray-800'}`}>
+                    <Upload className={`w-6 h-6 ${isDragging ? 'text-blue-400' : 'text-gray-400'}`} />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-semibold text-white mb-1">
-                      Drag and drop files here
-                    </p>
-                    <p className="text-xs text-slate-400">or click to browse</p>
+                    <p className="text-sm font-medium text-gray-200">Tap to select files</p>
+                    <p className="text-xs text-gray-500 mt-1 hidden sm:block">or drag and drop</p>
                   </div>
-                  <input
-                    type="file"
-                    accept="image/*,video/*,audio/*"
-                    multiple
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      setNewFiles(prev => [...prev, ...files]);
-                    }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
+                  <input type="file" accept="image/*,video/*,audio/*" multiple onChange={(e) => setNewFiles(prev => [...prev, ...Array.from(e.target.files || [])])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                 </div>
               </div>
-
-              {/* Selected Files List */}
               {newFiles.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-200">
-                      Selected Files ({newFiles.length})
-                    </p>
-                    <button
-                      onClick={() => setNewFiles([])}
-                      className="text-xs text-red-400 hover:text-red-300 transition-colors"
-                    >
-                      Clear all
-                    </button>
+                    <p className="text-sm font-medium text-gray-300">{newFiles.length} file(s) selected</p>
+                    <button onClick={() => setNewFiles([])} className="text-xs text-red-400 hover:text-red-300">Clear all</button>
                   </div>
-                  <div className="max-h-48 overflow-y-auto space-y-2 pr-2 vault-scrollbar">
+                  <div className="max-h-40 overflow-y-auto space-y-2 vault-scroll">
                     {newFiles.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10"
-                      >
-                        <div className="flex items-center space-x-3 flex-1 min-w-0">
-                          {file.type.startsWith('image/') ? (
-                            <ImageIcon className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-                          ) : file.type.startsWith('video/') ? (
-                            <VideoIcon className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-                          ) : file.type.startsWith('audio/') ? (
-                            <Music4 className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-                          ) : (
-                            <FileIcon className="w-5 h-5 text-cyan-400 flex-shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-white truncate">{file.name}</p>
-                            <p className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                          </div>
+                      <div key={index} className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg">
+                        <div className="p-2 bg-gray-700 rounded-lg">
+                          {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-blue-400" /> :
+                           file.type.startsWith('video/') ? <VideoIcon className="w-4 h-4 text-purple-400" /> :
+                           file.type.startsWith('audio/') ? <Music4 className="w-4 h-4 text-pink-400" /> : <FileIcon className="w-4 h-4 text-gray-400" />}
                         </div>
-                        <button
-                          onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== index))}
-                          className="p-1.5 rounded-lg hover:bg-red-500/20 transition-colors flex-shrink-0 ml-2"
-                          title="Remove"
-                        >
-                          <X className="w-4 h-4 text-red-400" />
-                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-200 truncate">{file.name}</p>
+                          <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                        </div>
+                        <button onClick={() => setNewFiles(prev => prev.filter((_, i) => i !== index))} className="p-1 hover:bg-gray-700 rounded"><X className="w-4 h-4 text-gray-500" /></button>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              <div className="flex items-center space-x-2 text-xs text-slate-400">
-                <Sparkles className="w-3 h-3 text-cyan-400" />
-                <span>Supports images, videos, GIFs, and audio files (no size limit)</span>
-              </div>
-
-              {/* Upload Progress Bar */}
               {uploadProgress > 0 && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-300 font-medium">Uploading...</span>
-                    <span className="text-cyan-400 font-semibold">{uploadProgress}%</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Uploading...</span>
+                    <span className="text-blue-400 font-medium">{uploadProgress}%</span>
                   </div>
-                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
+                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end space-x-3 p-6 border-t border-white/10">
-              <button
-                onClick={() => {
-                  setIsAddingNew(false);
-                  setNewFiles([]);
-                  setIsDragging(false);
-                  setUploadProgress(0);
-                }}
-                disabled={uploadProgress > 0}
-                className="px-5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddItem}
-                disabled={newFiles.length === 0 || uploadProgress > 0}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg shadow-cyan-900/40 hover:shadow-xl transition-all flex items-center gap-2"
-              >
-                {uploadProgress > 0 ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>Upload {newFiles.length > 0 && `(${newFiles.length})`}</>
-                )}
+            <div className="flex gap-3 p-4 sm:p-5 border-t border-gray-700">
+              <button onClick={() => { setIsAddingNew(false); setNewFiles([]); setUploadProgress(0); }} disabled={uploadProgress > 0} className="flex-1 px-4 py-2.5 text-gray-300 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm sm:text-base font-medium transition-colors disabled:opacity-50">Cancel</button>
+              <button onClick={handleAddItem} disabled={newFiles.length === 0 || uploadProgress > 0} className="flex-1 px-4 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm sm:text-base font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {uploadProgress > 0 ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Upload
               </button>
             </div>
           </div>
@@ -1028,268 +1040,85 @@ export function VaultContent() {
         document.body
       )}
 
-      {/* Move/Copy Modal - React Portal */}
+      {/* Move/Copy Modal */}
       {showMoveModal && typeof window !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div 
-            className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm"
-            onClick={() => {
-              setShowMoveModal(false);
-              setIsCopyMode(false);
-            }}
-          />
-          
-          <div className="relative rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/30 backdrop-blur w-full max-w-md animate-slideIn">
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
-              <div className="flex items-center space-x-3">
-                <div className={`p-2.5 rounded-xl shadow-lg ${isCopyMode ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-900/50' : 'bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-cyan-900/50'}`}>
-                  {isCopyMode ? <Copy className="w-5 h-5 text-white" /> : <Move className="w-5 h-5 text-white" />}
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {isCopyMode ? 'Copy' : 'Move'} {selectedItems.size} item{selectedItems.size > 1 ? 's' : ''}
-                </h3>
-              </div>
-              <button
-                onClick={() => {
-                  setShowMoveModal(false);
-                  setIsCopyMode(false);
-                }}
-                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowMoveModal(false); setIsCopyMode(false); }} />
+          <div className="relative bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md animate-slideUp border-t sm:border border-gray-700">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-700">
+              <h3 className="text-base sm:text-lg font-semibold text-white">{isCopyMode ? 'Copy' : 'Move'} {selectedItems.size} item(s)</h3>
+              <button onClick={() => { setShowMoveModal(false); setIsCopyMode(false); }} className="p-2 hover:bg-gray-800 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
             </div>
-            
-            <div className="p-6 space-y-4">
-              {/* Copy/Move Toggle - Always show */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-slate-300">
-                  Action Type
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setIsCopyMode(false)}
-                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                      !isCopyMode
-                        ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
-                        : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    <Move className="w-4 h-4" />
-                      Move
-                    </button>
-                    <button
-                      onClick={() => setIsCopyMode(true)}
-                      className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                        isCopyMode
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-900/40'
-                          : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
-                      }`}
-                    >
-                      <Copy className="w-4 h-4" />
-                      Copy
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {isCopyMode 
-                      ? '📋 Copy will duplicate files (originals stay in current folder)'
-                      : '📦 Move will transfer files (removes from current folder)'}
-                  </p>
-                </div>
-
+            <div className="p-4 sm:p-5 space-y-4">
+              <div className="flex gap-2">
+                <button onClick={() => setIsCopyMode(false)} className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm sm:text-base font-medium transition-colors ${!isCopyMode ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}><Move className="w-4 h-4" /> Move</button>
+                <button onClick={() => setIsCopyMode(true)} className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm sm:text-base font-medium transition-colors ${isCopyMode ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'}`}><Copy className="w-4 h-4" /> Copy</button>
+              </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-300 mb-2">
-                  Select destination folder
-                </label>
-                <select
-                  value={moveToFolderId || ''}
-                  onChange={(e) => setMoveToFolderId(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white vault-scrollbar"
-                >
-                  <option value="" className="bg-slate-900">Choose folder...</option>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Destination folder</label>
+                <select value={moveToFolderId || ''} onChange={(e) => setMoveToFolderId(e.target.value)} className="w-full px-3 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                  <option value="">Select folder...</option>
                   {isViewingShared ? (
                     <>
-                      {/* When viewing shared folder, show user's own folders grouped by profile */}
                       {profiles.map(profile => {
                         const profileFolders = allFolders.filter(f => f.profileId === profile.id && !f.isDefault);
                         if (profileFolders.length === 0) return null;
-                        return (
-                          <optgroup key={profile.id} label={`Your Profile: ${profile.name}`} className="bg-slate-900">
-                            {profileFolders.map(folder => (
-                              <option key={folder.id} value={folder.id} className="bg-slate-900">{folder.name}</option>
-                            ))}
-                          </optgroup>
-                        );
+                        return (<optgroup key={profile.id} label={profile.name}>{profileFolders.map(folder => (<option key={folder.id} value={folder.id}>{folder.name}</option>))}</optgroup>);
                       })}
-                      {/* Also show other shared folders with EDIT permission */}
                       {sharedFolders.filter(sf => sf.permission === 'EDIT' && sf.folderId !== selectedSharedFolder?.folderId).length > 0 && (
-                        <optgroup label="Other Shared Folders (Edit Access)" className="bg-slate-900">
-                          {sharedFolders
-                            .filter(sf => sf.permission === 'EDIT' && sf.folderId !== selectedSharedFolder?.folderId)
-                            .map(sf => (
-                              <option key={sf.folderId} value={sf.folderId} className="bg-slate-900">
-                                {sf.folderName} (from {sf.ownerName})
-                              </option>
-                            ))}
-                        </optgroup>
+                        <optgroup label="Shared Folders">{sharedFolders.filter(sf => sf.permission === 'EDIT' && sf.folderId !== selectedSharedFolder?.folderId).map(sf => (<option key={sf.folderId} value={sf.folderId}>{sf.folderName} (from {sf.ownerName})</option>))}</optgroup>
                       )}
                     </>
                   ) : (
                     <>
-                      {/* When viewing own folder, show folders from ALL profiles (exclude default/All Media folders) */}
                       {profiles.map(profile => {
-                        const profileFolders = allFolders.filter(f => 
-                          f.profileId === profile.id && 
-                          !f.isDefault && // Exclude "All Media" default folders
-                          !(profile.id === selectedProfileId && f.id === selectedFolderId) // Exclude current folder
-                        );
+                        const profileFolders = allFolders.filter(f => f.profileId === profile.id && !f.isDefault && !(profile.id === selectedProfileId && f.id === selectedFolderId));
                         if (profileFolders.length === 0) return null;
-                        return (
-                          <optgroup key={profile.id} label={`${profile.id === selectedProfileId ? '📍 Current: ' : ''}${profile.name}`} className="bg-slate-900">
-                            {profileFolders.map(folder => (
-                              <option key={folder.id} value={folder.id} className="bg-slate-900">{folder.name}</option>
-                            ))}
-                          </optgroup>
-                        );
+                        return (<optgroup key={profile.id} label={`${profile.id === selectedProfileId ? '📍 ' : ''}${profile.name}`}>{profileFolders.map(folder => (<option key={folder.id} value={folder.id}>{folder.name}</option>))}</optgroup>);
                       })}
-                      {/* Also show shared folders with EDIT permission */}
                       {sharedFolders.filter(sf => sf.permission === 'EDIT').length > 0 && (
-                        <optgroup label="Shared Folders (Edit Access)" className="bg-slate-900">
-                          {sharedFolders
-                            .filter(sf => sf.permission === 'EDIT')
-                            .map(sf => (
-                              <option key={sf.folderId} value={sf.folderId} className="bg-slate-900">
-                                {sf.folderName} (from {sf.ownerName})
-                              </option>
-                            ))}
-                        </optgroup>
+                        <optgroup label="Shared Folders">{sharedFolders.filter(sf => sf.permission === 'EDIT').map(sf => (<option key={sf.folderId} value={sf.folderId}>{sf.folderName} (from {sf.ownerName})</option>))}</optgroup>
                       )}
                     </>
                   )}
                 </select>
               </div>
-              
               <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowMoveModal(false);
-                    setIsCopyMode(false);
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 text-slate-300 rounded-xl font-semibold hover:bg-white/10 transition-all"
-                >
-                  Cancel
-                </button>
+                <button onClick={() => { setShowMoveModal(false); setIsCopyMode(false); }} className="flex-1 px-4 py-2.5 text-gray-300 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors">Cancel</button>
                 <button
                   onClick={async () => {
-                    if (!moveToFolderId) {
-                      showToast('Please select a destination folder', 'error');
-                      return;
-                    }
-                    
+                    if (!moveToFolderId) { showToast('Select a destination folder', 'error'); return; }
                     setIsMoving(true);
                     try {
                       const itemsToProcess = Array.from(selectedItems);
-                      
                       if (isCopyMode) {
-                        // COPY: Use the copy endpoint
-                        const results = await Promise.all(
-                          itemsToProcess.map(async (itemId) => {
-                            const response = await fetch(`/api/vault/items/${itemId}/copy`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ folderId: moveToFolderId }),
-                            });
-                            
-                            if (!response.ok) {
-                              const error = await response.text();
-                              console.error(`Failed to copy item ${itemId}:`, error);
-                              return { success: false, itemId };
-                            }
-                            
-                            return { success: true, itemId };
-                          })
-                        );
-                        
+                        const results = await Promise.all(itemsToProcess.map(async (itemId) => {
+                          const response = await fetch(`/api/vault/items/${itemId}/copy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folderId: moveToFolderId }) });
+                          return { success: response.ok, itemId };
+                        }));
                         const failedCopies = results.filter(r => !r.success);
-                        
-                        if (failedCopies.length > 0) {
-                          showToast(`Failed to copy ${failedCopies.length} item(s)`, 'error');
-                        } else {
-                          showToast(`Successfully copied ${itemsToProcess.length} item(s)!`, 'success');
-                        }
-                        
-                        // Reload user's own items to show the copied files
+                        if (failedCopies.length > 0) showToast(`Failed to copy ${failedCopies.length} item(s)`, 'error');
+                        else showToast(`Copied ${itemsToProcess.length} item(s)`, 'success');
                         await loadItems();
-                        
                       } else {
-                        // MOVE: Use the existing move endpoint
-                        const results = await Promise.all(
-                          itemsToProcess.map(async (itemId) => {
-                            const response = await fetch(`/api/vault/items/${itemId}`, {
-                              method: 'PATCH',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ folderId: moveToFolderId }),
-                            });
-                            
-                            if (!response.ok) {
-                              const error = await response.text();
-                              console.error(`Failed to move item ${itemId}:`, error);
-                              return { success: false, itemId };
-                            }
-                            
-                            return { success: true, itemId };
-                          })
-                        );
-                        
+                        const results = await Promise.all(itemsToProcess.map(async (itemId) => {
+                          const response = await fetch(`/api/vault/items/${itemId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folderId: moveToFolderId }) });
+                          return { success: response.ok, itemId };
+                        }));
                         const failedMoves = results.filter(r => !r.success);
-                        
-                        if (failedMoves.length > 0) {
-                          showToast(`Failed to move ${failedMoves.length} item(s)`, 'error');
-                        } else {
-                          showToast(`Successfully moved ${itemsToProcess.length} item(s)!`, 'success');
-                        }
-                        
-                        // Update the correct state based on whether viewing shared folder
-                        if (selectedSharedFolder) {
-                          // Remove moved items from shared folder view
-                          setSharedFolderItems(sharedFolderItems.filter(item => !selectedItems.has(item.id)));
-                          // Also reload user's own items
-                          await loadItems();
-                        } else {
-                          // Reload items from backend to get fresh data
-                          await loadItems();
-                        }
+                        if (failedMoves.length > 0) showToast(`Failed to move ${failedMoves.length} item(s)`, 'error');
+                        else showToast(`Moved ${itemsToProcess.length} item(s)`, 'success');
+                        if (selectedSharedFolder) { setSharedFolderItems(sharedFolderItems.filter(item => !selectedItems.has(item.id))); await loadItems(); }
+                        else await loadItems();
                       }
-                      
-                      setSelectedItems(new Set());
-                      setShowMoveModal(false);
-                      setMoveToFolderId(null);
-                      setIsCopyMode(false);
-                    } catch (error) {
-                      console.error(`Error ${isCopyMode ? 'copying' : 'moving'} items:`, error);
-                      showToast(`Failed to ${isCopyMode ? 'copy' : 'move'} items`, 'error');
-                    } finally {
-                      setIsMoving(false);
-                    }
+                      setSelectedItems(new Set()); setShowMoveModal(false); setMoveToFolderId(null); setIsCopyMode(false);
+                    } catch (error) { showToast(`Failed to ${isCopyMode ? 'copy' : 'move'} items`, 'error'); }
+                    finally { setIsMoving(false); }
                   }}
                   disabled={!moveToFolderId || isMoving}
-                  className={`flex-1 px-4 py-2.5 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${
-                    isCopyMode 
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-900/40'
-                      : 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 shadow-cyan-900/40'
-                  }`}
+                  className={`flex-1 px-4 py-2.5 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${isCopyMode ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                 >
-                  {isMoving ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      {isCopyMode ? 'Copying...' : 'Moving...'}
-                    </>
-                  ) : (
-                    <>
-                      {isCopyMode ? <Copy className="w-5 h-5" /> : <Move className="w-5 h-5" />}
-                      {isCopyMode ? 'Copy Files' : 'Move Files'}
-                    </>
-                  )}
+                  {isMoving ? <Loader2 className="w-4 h-4 animate-spin" /> : isCopyMode ? <Copy className="w-4 h-4" /> : <Move className="w-4 h-4" />} {isCopyMode ? 'Copy' : 'Move'}
                 </button>
               </div>
             </div>
@@ -1298,390 +1127,263 @@ export function VaultContent() {
         document.body
       )}
 
-      {/* Enhanced Preview Modal - React Portal */}
+      {/* Preview Modal */}
       {previewItem && typeof window !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 animate-fadeIn">
-          <div 
-            className="absolute inset-0 bg-slate-950/95 backdrop-blur-sm"
-            onClick={() => setPreviewItem(null)}
-          />
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 animate-fadeIn"
+          onClick={() => { setPreviewItem(null); setShowPreviewInfo(false); }}
+        >
+          <button onClick={(e) => { e.stopPropagation(); setPreviewItem(null); setShowPreviewInfo(false); }} className="absolute top-3 sm:top-4 right-3 sm:right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors z-10"><X className="w-5 sm:w-6 h-5 sm:h-6 text-white" /></button>
+          {filteredItems.length > 1 && (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); const idx = filteredItems.findIndex(item => item.id === previewItem.id); setPreviewItem(filteredItems[idx > 0 ? idx - 1 : filteredItems.length - 1]); }} className="absolute left-2 sm:left-4 p-2 sm:p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors z-10"><ChevronLeft className="w-5 sm:w-6 h-5 sm:h-6 text-white" /></button>
+              <button onClick={(e) => { e.stopPropagation(); const idx = filteredItems.findIndex(item => item.id === previewItem.id); setPreviewItem(filteredItems[idx < filteredItems.length - 1 ? idx + 1 : 0]); }} className="absolute right-2 sm:right-4 p-2 sm:p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors z-10"><ChevronRight className="w-5 sm:w-6 h-5 sm:h-6 text-white" /></button>
+            </>
+          )}
           
-          <div className="relative rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/30 backdrop-blur w-full max-w-6xl max-h-[95vh] flex flex-col animate-slideIn">
-            {/* Header with metadata */}
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-white/10">
-              <div className="flex items-center space-x-3 min-w-0 flex-1">
-                <div className="p-2.5 bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-cyan-900/50 flex-shrink-0">
-                  {previewItem.fileType.startsWith('image/') ? (
-                    <ImageIcon className="w-5 h-5 text-white" />
-                  ) : previewItem.fileType.startsWith('video/') ? (
-                    <VideoIcon className="w-5 h-5 text-white" />
-                  ) : previewItem.fileType.startsWith('audio/') ? (
-                    <Music4 className="w-5 h-5 text-white" />
-                  ) : (
-                    <FileIcon className="w-5 h-5 text-white" />
+          {/* Main content area with info panel */}
+          <div 
+            className={`flex gap-4 max-w-[95vw] ${showPreviewInfo && previewItem.metadata ? 'max-w-6xl' : 'max-w-5xl'} mx-2 sm:mx-4 transition-all`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Media preview */}
+            <div className={`${showPreviewInfo && previewItem.metadata ? 'flex-1' : 'w-full'} max-h-[75vh] sm:max-h-[85vh]`}>
+              {previewItem.fileType.startsWith('image/') ? <img src={previewItem.awsS3Url} alt={previewItem.fileName} className="max-w-full max-h-[75vh] sm:max-h-[85vh] object-contain rounded-lg" /> :
+               previewItem.fileType.startsWith('video/') ? <video src={previewItem.awsS3Url} controls autoPlay playsInline className="max-w-full max-h-[75vh] sm:max-h-[85vh] rounded-lg" /> :
+               previewItem.fileType.startsWith('audio/') ? (
+                 <div className="bg-gray-900 rounded-2xl p-6 sm:p-8 text-center border border-gray-700 mx-4">
+                   <Music4 className="w-16 sm:w-20 h-16 sm:h-20 text-purple-400 mx-auto mb-4" />
+                   <p className="text-white font-medium mb-4 text-sm sm:text-base truncate max-w-[250px] sm:max-w-none mx-auto">{previewItem.fileName}</p>
+                   <audio src={previewItem.awsS3Url} controls autoPlay className="w-full" />
+                 </div>
+               ) : (
+                 <div className="bg-gray-900 rounded-2xl p-6 sm:p-8 text-center border border-gray-700 mx-4"><FileIcon className="w-16 sm:w-20 h-16 sm:h-20 text-gray-600 mx-auto mb-4" /><p className="text-gray-400 text-sm sm:text-base">Preview not available</p></div>
+               )}
+            </div>
+            
+            {/* Info panel - shows generation parameters */}
+            {showPreviewInfo && previewItem.metadata && (
+              <div className="hidden sm:block w-80 bg-gray-900/95 backdrop-blur border border-gray-700 rounded-2xl p-5 overflow-y-auto max-h-[85vh] animate-slideUp">
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-700">
+                  <div className="p-2 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 rounded-lg">
+                    <Wand2 className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Generation Info</h3>
+                    <p className="text-xs text-gray-400">AI-generated content</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {/* Source/Type */}
+                  {(previewItem.metadata.source || previewItem.metadata.generationType) && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Source</label>
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-cyan-400" />
+                        <span className="text-sm text-gray-200">
+                          {previewItem.metadata.source === 'seedream-i2i' ? 'SeeDream 4.5 Image-to-Image' :
+                           previewItem.metadata.source || previewItem.metadata.generationType || 'Unknown'}
+                        </span>
+                      </div>
+                    </div>
                   )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-base sm:text-lg font-bold text-white truncate">{previewItem.fileName}</h3>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-400 mt-1">
-                    <span>{(previewItem.fileSize / 1024 / 1024).toFixed(2)} MB</span>
-                    <span>•</span>
-                    <span>{previewItem.fileType}</span>
-                    <span>•</span>
-                    <span>{previewItem.createdAt.toLocaleDateString()}</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => setPreviewItem(null)}
-                className="p-2 hover:bg-white/10 rounded-xl transition-colors flex-shrink-0 ml-2"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-            
-            {/* Content area with navigation */}
-            <div className="flex-1 overflow-hidden flex items-center relative bg-slate-900/50">
-              {/* Previous button */}
-              {filteredItems.length > 1 && (
-                <button
-                  onClick={() => {
-                    const currentIndex = filteredItems.findIndex(item => item.id === previewItem.id);
-                    const prevIndex = currentIndex > 0 ? currentIndex - 1 : filteredItems.length - 1;
-                    setPreviewItem(filteredItems[prevIndex]);
-                  }}
-                  className="absolute left-2 sm:left-4 z-10 p-2 sm:p-3 bg-white/10 hover:bg-white/20 rounded-full shadow-lg transition-all hover:scale-110 border border-white/10"
-                >
-                  <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                </button>
-              )}
-              
-              {/* Content */}
-              <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-auto">
-                {previewItem.fileType.startsWith('image/') ? (
-                  <img
-                    src={previewItem.awsS3Url}
-                    alt={previewItem.fileName}
-                    className="max-w-full max-h-[calc(95vh-220px)] object-contain rounded-xl"
-                    onLoad={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      console.log(`Image dimensions: ${img.naturalWidth}x${img.naturalHeight}`);
-                    }}
-                  />
-                ) : previewItem.fileType.startsWith('video/') ? (
-                  <video
-                    src={previewItem.awsS3Url}
-                    controls
-                    autoPlay
-                    className="max-w-full max-h-[calc(95vh-220px)] rounded-xl"
-                  />
-                ) : previewItem.fileType.startsWith('audio/') ? (
-                  <div className="w-full max-w-2xl">
-                    <div className="bg-gradient-to-br from-cyan-500/10 to-indigo-500/10 rounded-2xl p-8 mb-6 border border-white/10">
-                      <Music4 className="w-20 h-20 text-cyan-400 mx-auto mb-4" />
-                      <p className="text-center text-slate-300 font-semibold">{previewItem.fileName}</p>
+                  
+                  {/* Prompt */}
+                  {previewItem.metadata.prompt && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Prompt</label>
+                      <p className="text-sm text-gray-200 bg-gray-800/50 rounded-lg p-3 max-h-32 overflow-y-auto leading-relaxed">
+                        {previewItem.metadata.prompt}
+                      </p>
                     </div>
-                    <audio src={previewItem.awsS3Url} controls autoPlay className="w-full" />
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <FileIcon className="w-20 h-20 text-slate-500 mx-auto mb-4" />
-                    <p className="text-slate-400">Preview not available for this file type</p>
-                  </div>
-                )}
-              </div>
-              
-              {/* Next button */}
-              {filteredItems.length > 1 && (
-                <button
-                  onClick={() => {
-                    const currentIndex = filteredItems.findIndex(item => item.id === previewItem.id);
-                    const nextIndex = currentIndex < filteredItems.length - 1 ? currentIndex + 1 : 0;
-                    setPreviewItem(filteredItems[nextIndex]);
-                  }}
-                  className="absolute right-2 sm:right-4 z-10 p-2 sm:p-3 bg-white/10 hover:bg-white/20 rounded-full shadow-lg transition-all hover:scale-110 border border-white/10"
-                >
-                  <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                </button>
-              )}
-            </div>
-            
-            {/* Footer with actions and info */}
-            <div className="border-t border-white/10">
-              {/* Item counter */}
-              {filteredItems.length > 1 && (
-                <div className="px-4 sm:px-6 py-2 bg-white/5 text-center">
-                  <span className="text-xs sm:text-sm text-slate-400 font-medium">
-                    {filteredItems.findIndex(item => item.id === previewItem.id) + 1} of {filteredItems.length}
-                  </span>
-                </div>
-              )}
-              
-              {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-4 sm:p-6 gap-3">
-                <a
-                  href={previewItem.awsS3Url}
-                  download={previewItem.fileName}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 transition-all shadow-lg shadow-cyan-900/40 hover:shadow-xl"
-                >
-                  <Download className="w-5 h-5" />
-                  <span className="hidden sm:inline">Download</span>
-                </a>
-                {canEdit && (
-                  <button
-                    onClick={() => {
-                      handleDeleteItem(previewItem.id);
-                      setPreviewItem(null);
-                    }}
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 border border-red-500/30 text-red-400 rounded-xl font-semibold hover:bg-red-500/30 transition-all"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                    <span className="hidden sm:inline">Delete</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Share Folder Modal - React Portal */}
-      {showShareModal && folderToShare && typeof window !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div 
-            className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm"
-            onClick={() => {
-              setShowShareModal(false);
-              setFolderToShare(null);
-              setSelectedUserToShare(null);
-              setUserSearchQuery('');
-              setShareNote('');
-            }}
-          />
-          
-          <div className="relative rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/30 backdrop-blur w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slideIn vault-scrollbar">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10 sticky top-0 bg-slate-950/95 backdrop-blur z-10">
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-cyan-900/50">
-                  <Share2 className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">
-                    Share Folder
-                  </h3>
-                  <p className="text-sm text-slate-400">{folderToShare.name}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowShareModal(false);
-                  setFolderToShare(null);
-                  setSelectedUserToShare(null);
-                  setUserSearchQuery('');
-                  setShareNote('');
-                }}
-                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {shareModalLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-                </div>
-              ) : (
-                <>
-                  {/* Share with new user */}
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-white flex items-center gap-2">
-                      <UserPlus className="w-4 h-4 text-cyan-400" />
-                      Share with User
-                    </h4>
-                    
-                    {/* User search */}
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Search users by name or email..."
-                        value={userSearchQuery}
-                        onChange={(e) => setUserSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white placeholder-slate-400"
-                      />
-                    </div>
-                    
-                    {/* User list */}
-                    <div className="max-h-40 overflow-y-auto space-y-2 border border-white/10 rounded-xl p-2 bg-white/5 vault-scrollbar">
-                      {availableUsers
-                        .filter(user => {
-                          const query = userSearchQuery.toLowerCase();
-                          return user.displayName.toLowerCase().includes(query) ||
-                            (user.email?.toLowerCase().includes(query) ?? false);
-                        })
-                        .filter(user => !currentShares.some(s => s.sharedWithClerkId === user.clerkId))
-                        .slice(0, 10)
-                        .map(user => (
-                          <button
-                            key={user.clerkId}
-                            onClick={() => setSelectedUserToShare(user)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left ${
-                              selectedUserToShare?.clerkId === user.clerkId
-                                ? 'bg-cyan-500/20 border border-cyan-500/50'
-                                : 'hover:bg-white/10 border border-transparent'
-                            }`}
-                          >
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-indigo-500 flex items-center justify-center text-white font-semibold text-sm">
-                              {user.displayName.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-white truncate">{user.displayName}</p>
-                              {user.email && (
-                                <p className="text-xs text-slate-400 truncate">{user.email}</p>
-                              )}
-                            </div>
-                            {selectedUserToShare?.clerkId === user.clerkId && (
-                              <Check className="w-5 h-5 text-cyan-400" />
-                            )}
-                          </button>
-                        ))
-                      }
-                      {availableUsers.length === 0 && (
-                        <p className="text-center py-4 text-slate-400 text-sm">
-                          No users available to share with
-                        </p>
+                  )}
+                  
+                  {/* Resolution & Size */}
+                  {(previewItem.metadata.size || previewItem.metadata.resolution) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {previewItem.metadata.resolution && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Resolution</label>
+                          <div className="flex items-center gap-2">
+                            <Maximize2 className="w-4 h-4 text-purple-400" />
+                            <span className="text-sm text-gray-200">{previewItem.metadata.resolution}</span>
+                          </div>
+                        </div>
+                      )}
+                      {previewItem.metadata.size && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Dimensions</label>
+                          <span className="text-sm text-gray-200">{previewItem.metadata.size}</span>
+                        </div>
                       )}
                     </div>
-
-                    {/* Permission selector */}
-                    {selectedUserToShare && (
-                      <div className="flex items-center gap-4">
-                        <label className="text-sm font-medium text-slate-300">Permission:</label>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setSharePermission('VIEW')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
-                              sharePermission === 'VIEW'
-                                ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-300'
-                                : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
-                            }`}
-                          >
-                            <Eye className="w-4 h-4" />
-                            View Only
-                          </button>
-                          <button
-                            onClick={() => setSharePermission('EDIT')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
-                              sharePermission === 'EDIT'
-                                ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300'
-                                : 'bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10'
-                            }`}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            Can Edit
-                          </button>
+                  )}
+                  
+                  {/* Model */}
+                  {previewItem.metadata.model && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Model</label>
+                      <span className="text-sm text-gray-200">{previewItem.metadata.model}</span>
+                    </div>
+                  )}
+                  
+                  {/* Reference Images */}
+                  {previewItem.metadata.numReferenceImages && previewItem.metadata.numReferenceImages > 0 && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Reference Images</label>
+                      <span className="text-sm text-gray-200">{previewItem.metadata.numReferenceImages}</span>
+                    </div>
+                  )}
+                  
+                  {/* Negative Prompt */}
+                  {previewItem.metadata.negativePrompt && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Negative Prompt</label>
+                      <p className="text-sm text-gray-400 bg-gray-800/50 rounded-lg p-3 max-h-24 overflow-y-auto">
+                        {previewItem.metadata.negativePrompt}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Advanced params */}
+                  {(previewItem.metadata.steps || previewItem.metadata.cfgScale || previewItem.metadata.seed) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {previewItem.metadata.steps && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Steps</label>
+                          <span className="text-sm text-gray-200">{previewItem.metadata.steps}</span>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Optional note */}
-                    {selectedUserToShare && (
-                      <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-1">
-                          Note (optional)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Add a message..."
-                          value={shareNote}
-                          onChange={(e) => setShareNote(e.target.value)}
-                          className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white placeholder-slate-400"
-                        />
-                      </div>
-                    )}
-
-                    {/* Share button */}
-                    {selectedUserToShare && (
-                      <button
-                        onClick={handleShareFolder}
-                        disabled={shareModalLoading}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-900/40"
-                      >
-                        {shareModalLoading ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            Sharing...
-                          </>
-                        ) : (
-                          <>
-                            <Share2 className="w-5 h-5" />
-                            Share with {selectedUserToShare.displayName}
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Current shares */}
-                  <div className="space-y-4 pt-4 border-t border-white/10">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-white flex items-center gap-2">
-                        <Users className="w-4 h-4 text-cyan-400" />
-                        Currently Shared With
-                      </h4>
-                      <span className="px-2 py-0.5 text-xs font-bold bg-white/10 text-slate-300 rounded-full">
-                        {currentShares.length}
+                      )}
+                      {previewItem.metadata.cfgScale && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">CFG Scale</label>
+                          <span className="text-sm text-gray-200">{previewItem.metadata.cfgScale}</span>
+                        </div>
+                      )}
+                      {previewItem.metadata.seed && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Seed</label>
+                          <span className="text-xs text-gray-200 font-mono">{previewItem.metadata.seed}</span>
+                        </div>
+                      )}
+                      {previewItem.metadata.sampler && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sampler</label>
+                          <span className="text-sm text-gray-200">{previewItem.metadata.sampler}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Generated At */}
+                  {previewItem.metadata.generatedAt && (
+                    <div className="space-y-1 pt-2 border-t border-gray-700">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Generated</label>
+                      <span className="text-sm text-gray-400">
+                        {new Date(previewItem.metadata.generatedAt).toLocaleString()}
                       </span>
                     </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Bottom action bar */}
+          <div 
+            className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-4 bg-gray-900/80 backdrop-blur border border-gray-700 rounded-full px-3 sm:px-6 py-2 sm:py-3 max-w-[90vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="text-white text-xs sm:text-sm truncate max-w-[100px] sm:max-w-[200px]">{previewItem.fileName}</span>
+            <span className="text-gray-400 text-xs sm:text-sm hidden sm:inline">{formatFileSize(previewItem.fileSize)}</span>
+            {/* Info button - only show if metadata exists */}
+            {previewItem.metadata && (
+              <button 
+                onClick={() => setShowPreviewInfo(!showPreviewInfo)} 
+                className={`p-1.5 sm:p-2 rounded-full transition-colors hidden sm:block ${showPreviewInfo ? 'bg-cyan-500/30 text-cyan-400' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                title="View generation info"
+              >
+                <Info className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+              </button>
+            )}
+            <a href={previewItem.awsS3Url} download={previewItem.fileName} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></a>
+            {canEdit && <button onClick={() => { handleDeleteItem(previewItem.id); setPreviewItem(null); setShowPreviewInfo(false); }} className="p-1.5 sm:p-2 bg-red-500/20 hover:bg-red-500/30 rounded-full transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
+          </div>
+        </div>,
+        document.body
+      )}
 
+      {/* Share Modal */}
+      {showShareModal && folderToShare && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowShareModal(false); setFolderToShare(null); setSelectedUserToShare(null); setUserSearchQuery(''); setShareNote(''); }} />
+          <div className="relative bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[85vh] sm:max-h-[90vh] overflow-hidden animate-slideUp border-t sm:border border-gray-700">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-700">
+              <div>
+                <h3 className="text-base sm:text-lg font-semibold text-white">Share Folder</h3>
+                <p className="text-xs sm:text-sm text-gray-400 truncate max-w-[200px] sm:max-w-none">{folderToShare.name}</p>
+              </div>
+              <button onClick={() => { setShowShareModal(false); setFolderToShare(null); setSelectedUserToShare(null); setUserSearchQuery(''); setShareNote(''); }} className="p-2 hover:bg-gray-800 rounded-lg transition-colors"><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <div className="p-4 sm:p-5 space-y-4 sm:space-y-5 overflow-y-auto max-h-[calc(85vh-120px)] sm:max-h-[calc(90vh-120px)] vault-scroll">
+              {shareModalLoading ? (
+                <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-gray-300">Share with user</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input type="text" placeholder="Search users..." value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                    </div>
+                    <div className="max-h-32 overflow-y-auto border border-gray-700 rounded-lg vault-scroll">
+                      {availableUsers.filter(user => { const q = userSearchQuery.toLowerCase(); return user.displayName.toLowerCase().includes(q) || (user.email?.toLowerCase().includes(q) ?? false); }).filter(user => !currentShares.some(s => s.sharedWithClerkId === user.clerkId)).slice(0, 10).map(user => (
+                        <button key={user.clerkId} onClick={() => setSelectedUserToShare(user)} className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${selectedUserToShare?.clerkId === user.clerkId ? 'bg-blue-600/20' : 'hover:bg-gray-800'}`}>
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">{user.displayName.charAt(0).toUpperCase()}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-200 truncate">{user.displayName}</p>
+                            {user.email && <p className="text-xs text-gray-500 truncate">{user.email}</p>}
+                          </div>
+                          {selectedUserToShare?.clerkId === user.clerkId && <Check className="w-5 h-5 text-blue-400" />}
+                        </button>
+                      ))}
+                      {availableUsers.length === 0 && <p className="text-center py-4 text-gray-500 text-sm">No users available</p>}
+                    </div>
+                    {selectedUserToShare && (
+                      <>
+                        <div className="flex gap-2">
+                          <button onClick={() => setSharePermission('VIEW')} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${sharePermission === 'VIEW' ? 'bg-blue-600/20 text-blue-400 border border-blue-500' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}><Eye className="w-4 h-4" /> View only</button>
+                          <button onClick={() => setSharePermission('EDIT')} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${sharePermission === 'EDIT' ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}><Edit2 className="w-4 h-4" /> Can edit</button>
+                        </div>
+                        <input type="text" placeholder="Add a note (optional)" value={shareNote} onChange={(e) => setShareNote(e.target.value)} className="w-full px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        <button onClick={handleShareFolder} disabled={shareModalLoading} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50">
+                          {shareModalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />} Share with {selectedUserToShare.displayName}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <div className="pt-4 border-t border-gray-700">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-sm font-medium text-gray-300">Currently shared with</label>
+                      <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">{currentShares.length}</span>
+                    </div>
                     {currentShares.length === 0 ? (
-                      <div className="text-center py-8 border border-dashed border-white/20 rounded-2xl bg-white/5">
-                        <Users className="w-12 h-12 text-slate-500 mx-auto mb-3" />
-                        <p className="text-sm font-medium text-slate-400">
-                          Not shared with anyone yet
-                        </p>
-                      </div>
+                      <div className="text-center py-6 border border-dashed border-gray-700 rounded-lg"><Users className="w-8 h-8 text-gray-600 mx-auto mb-2" /><p className="text-sm text-gray-500">Not shared yet</p></div>
                     ) : (
                       <div className="space-y-2">
                         {currentShares.map((share) => (
-                          <div
-                            key={share.id}
-                            className="flex items-center justify-between px-4 py-3 bg-white/5 rounded-xl border border-white/10"
-                          >
+                          <div key={share.id} className="flex items-center justify-between p-3 bg-gray-800 rounded-lg">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-indigo-500 flex items-center justify-center text-white font-semibold">
-                                {share.sharedWithUser?.displayName?.charAt(0).toUpperCase() || '?'}
-                              </div>
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">{share.sharedWithUser?.displayName?.charAt(0).toUpperCase() || '?'}</div>
                               <div>
-                                <p className="font-medium text-white">
-                                  {share.sharedWithUser?.displayName || share.sharedWithClerkId}
-                                </p>
-                                {share.sharedWithUser?.email && (
-                                  <p className="text-xs text-slate-400">
-                                    {share.sharedWithUser.email}
-                                  </p>
-                                )}
+                                <p className="text-sm font-medium text-gray-200">{share.sharedWithUser?.displayName || share.sharedWithClerkId}</p>
+                                {share.sharedWithUser?.email && <p className="text-xs text-gray-500">{share.sharedWithUser.email}</p>}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full ${
-                                share.permission === 'EDIT'
-                                  ? 'bg-emerald-500/20 text-emerald-300'
-                                  : 'bg-cyan-500/20 text-cyan-300'
-                              }`}>
-                                {share.permission === 'EDIT' ? <Edit2 className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                                {share.permission}
-                              </span>
-                              <button
-                                onClick={() => handleRemoveShare(share.sharedWithClerkId, share.sharedWithUser?.displayName || 'User')}
-                                className="p-2 hover:bg-red-500/20 rounded-xl transition-colors"
-                                title="Remove access"
-                              >
-                                <Trash2 className="w-4 h-4 text-red-400" />
-                              </button>
+                              <span className={`text-xs px-2 py-1 rounded-full ${share.permission === 'EDIT' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-blue-900/50 text-blue-400'}`}>{share.permission}</span>
+                              <button onClick={() => handleRemoveShare(share.sharedWithClerkId, share.sharedWithUser?.displayName || 'User')} className="p-1.5 hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 className="w-4 h-4 text-red-400" /></button>
                             </div>
                           </div>
                         ))}
@@ -1696,710 +1398,497 @@ export function VaultContent() {
         document.body
       )}
 
-    <div className="relative min-h-screen bg-slate-950 text-slate-50">
-      {/* Background Effects */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-indigo-400/10 blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-blue-500/5 blur-3xl" />
-      </div>
-
-      <div className="relative space-y-6 animate-fadeIn p-6">
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed top-4 right-4 z-50 animate-slideInRight">
-          <div className={`flex items-center space-x-3 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border ${
-            toast.type === 'success' 
-              ? 'bg-emerald-500/20 border-emerald-500/30 shadow-emerald-900/30' 
-              : toast.type === 'error'
-              ? 'bg-red-500/20 border-red-500/30 shadow-red-900/30'
-              : 'bg-cyan-500/20 border-cyan-500/30 shadow-cyan-900/30'
-          }`}>
-            {toast.type === 'success' && <Check className="w-5 h-5 text-emerald-400" />}
-            {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-400" />}
-            {toast.type === 'info' && <Sparkles className="w-5 h-5 text-cyan-400" />}
-            <p className={`text-sm font-medium ${
-              toast.type === 'success' 
-                ? 'text-emerald-200' 
-                : toast.type === 'error'
-                ? 'text-red-200'
-                : 'text-cyan-200'
-            }`}>
-              {toast.message}
-            </p>
-            <button onClick={() => setToast(null)} className="ml-2 hover:opacity-70 transition-opacity">
-              <X className="w-4 h-4 text-white/60" />
-            </button>
-          </div>
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setSidebarOpen(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-2">
-          <div className="flex items-center space-x-3">
-            <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-cyan-900/50">
-              <Shield className="w-6 h-6 text-white" />
-              <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Secure Storage</p>
-              <h1 className="text-3xl sm:text-4xl font-black text-white">
-                Vault
-              </h1>
-            </div>
-          </div>
-          <p className="text-sm text-slate-300 ml-14">
-            {selectedProfile ? `Managing vault for ${selectedProfile.name}` : 'Select a profile to start'}
-          </p>
-        </div>
-        {!isViewingShared && (
-          <button
-            onClick={() => setIsAddingNew(true)}
-            disabled={!selectedProfileId || !selectedFolderId}
-            className="group relative overflow-hidden flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 text-white rounded-2xl transition-all duration-300 shadow-lg shadow-cyan-900/40 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <Upload className="w-5 h-5 relative z-10" />
-            <span className="font-semibold relative z-10">Upload Media</span>
-            <Sparkles className="w-4 h-4 relative z-10 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </button>
-        )}
-      </div>
-
-      {/* Stats Cards */}
-      {selectedProfileId && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-all hover:bg-white/10 hover:-translate-y-0.5">
+      {/* Main Layout */}
+      <div className="h-[calc(100vh-120px)] sm:h-[calc(100vh-120px)] flex bg-gray-950 rounded-xl border border-gray-800 overflow-hidden relative">
+        {/* Sidebar */}
+        <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative z-50 lg:z-auto w-72 lg:w-64 h-full bg-gray-900 border-r border-gray-800 flex flex-col rounded-l-xl overflow-hidden transition-transform duration-300 ease-in-out`}>
+          <div className="p-4 border-b border-gray-800">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-cyan-200 uppercase tracking-wider">Total Files</p>
-                <p className="text-3xl font-bold text-white mt-2">
-                  {totalItems}
-                </p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200">
-                <HardDrive className="w-6 h-6" />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-all hover:bg-white/10 hover:-translate-y-0.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-blue-200 uppercase tracking-wider">Storage Used</p>
-                <p className="text-3xl font-bold text-white mt-2">
-                  {(totalSize / 1024 / 1024).toFixed(1)} MB
-                </p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200">
-                <Shield className="w-6 h-6" />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-all hover:bg-white/10 hover:-translate-y-0.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-indigo-200 uppercase tracking-wider">Images</p>
-                <p className="text-3xl font-bold text-white mt-2">
-                  {imageCount}
-                </p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-200">
-                <ImageIcon className="w-6 h-6" />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur transition-all hover:bg-white/10 hover:-translate-y-0.5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-amber-200 uppercase tracking-wider">Videos</p>
-                <p className="text-3xl font-bold text-white mt-2">
-                  {videoCount}
-                </p>
-              </div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/20 text-amber-200">
-                <VideoIcon className="w-6 h-6" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid gap-4 xl:gap-6 xl:grid-cols-12">
-        {/* Profiles */}
-        <div className="xl:col-span-3 self-start">
-          <div className="rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-cyan-900/20 p-5 backdrop-blur">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Profiles</p>
-                <h3 className="text-xl font-bold text-white">Instagram</h3>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200">
-                <Sparkles className="w-5 h-5" />
-              </div>
-            </div>
-            {loadingProfiles ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="relative">
-                  <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
-                  <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400 animate-pulse" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                  <HardDrive className="w-5 h-5 text-white" />
                 </div>
+                <span className="font-semibold text-white">Media Vault</span>
               </div>
-            ) : profiles.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="p-4 bg-white/10 rounded-2xl w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                  <Shield className="w-8 h-8 text-slate-400" />
-                </div>
-                <p className="text-sm font-medium text-white mb-1">No profiles found</p>
-                <p className="text-xs text-slate-400">Create a profile to get started</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden pr-1 vault-scrollbar">
-                {profiles.map((profile) => {
-                  const isActive = profile.id === selectedProfileId;
-                  return (
-                    <button
-                      key={profile.id}
-                      onClick={() => handleSelectProfile(profile.id)}
-                      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 ${
-                        isActive
-                          ? "bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40"
-                          : "bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10"
-                      }`}
-                    >
-                      <div className="flex flex-col items-start">
-                        <span className="font-semibold">{profile.name}</span>
-                        {profile.instagramUsername && (
-                          <span className={`text-xs mt-0.5 ${isActive ? 'text-white/80' : 'text-slate-400'}`}>
-                            @{profile.instagramUsername}
-                          </span>
-                        )}
-                      </div>
-                      {profile.isDefault && (
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                          isActive 
-                            ? 'bg-white/20 text-white' 
-                            : 'bg-cyan-500/20 text-cyan-300'
-                        }`}>Default</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Folders */}
-        <div className="xl:col-span-3 self-start">
-          <div className="rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-cyan-900/20 p-5 backdrop-blur space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Folders</p>
-                <h3 className="text-xl font-bold text-white">Categories</h3>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200">
-                <Folder className="w-5 h-5" />
-              </div>
+              <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-gray-800 rounded-lg transition-colors">
+                <PanelLeftClose className="w-5 h-5 text-gray-400" />
+              </button>
             </div>
+          </div>
 
-            <div className="flex items-center space-x-2">
-              <div className="flex-1 relative">
-                <FolderPlus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={folderNameInput}
-                  onChange={(e) => setFolderNameInput(e.target.value)}
-                  placeholder="New folder name"
-                  onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
-                  className="w-full pl-10 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white placeholder-slate-400"
-                  disabled={!selectedProfileId}
-                />
-              </div>
-              <button
-                onClick={handleCreateFolder}
-                disabled={!selectedProfileId || !folderNameInput.trim()}
-                className="p-2.5 rounded-xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white hover:from-cyan-500 hover:via-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-cyan-900/40 hover:shadow-xl hover:-translate-y-0.5 active:scale-95"
-                title="Create folder"
-              >
-                <Plus className="h-5 w-5" />
+          <div className="p-3 border-b border-gray-800">
+            <div className="relative">
+              <button onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-6 h-6 bg-blue-600/30 rounded-full flex items-center justify-center">
+                    <span className="text-xs font-medium text-blue-400">{selectedProfile?.name?.charAt(0) || '?'}</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-200 truncate">{selectedProfile?.name || 'Select profile'}</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {profileDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20 overflow-hidden">
+                  {loadingProfiles ? (
+                    <div className="p-4 text-center"><Loader2 className="w-5 h-5 animate-spin text-gray-500 mx-auto" /></div>
+                  ) : profiles.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-500">No profiles</div>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto vault-scroll">
+                      {profiles.map((profile) => (
+                        <button key={profile.id} onClick={() => handleSelectProfile(profile.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${profile.id === selectedProfileId ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-gray-700 text-gray-300'}`}>
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${profile.id === selectedProfileId ? 'bg-blue-600/30' : 'bg-gray-700'}`}>
+                            <span className="text-xs font-medium">{profile.name?.charAt(0) || '?'}</span>
+                          </div>
+                          <span className="text-sm font-medium truncate">{profile.name}</span>
+                          {profile.id === selectedProfileId && <Check className="w-4 h-4 ml-auto" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto vault-scroll p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Folders</span>
+              <button onClick={() => setShowNewFolderInput(true)} disabled={!selectedProfileId} className="p-1 hover:bg-gray-800 rounded transition-colors disabled:opacity-50">
+                <Plus className="w-4 h-4 text-gray-500" />
               </button>
             </div>
 
-            <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden pr-1 vault-scrollbar">
-              {selectedProfileId && visibleFolders.length === 0 && (
-                <div className="text-center py-6 px-2">
-                  <div className="p-3 bg-white/10 rounded-2xl w-12 h-12 mx-auto mb-2 flex items-center justify-center">
-                    <Folder className="w-6 h-6 text-slate-400" />
-                  </div>
-                  <p className="text-sm font-medium text-white mb-1">No folders yet</p>
-                  <p className="text-xs text-slate-400">Create one to organize items</p>
-                </div>
-              )}
+            {showNewFolderInput && (
+              <div className="flex items-center gap-2 mb-2">
+                <input type="text" value={folderNameInput} onChange={(e) => setFolderNameInput(e.target.value)} placeholder="Folder name" onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()} autoFocus className="flex-1 px-2 py-1.5 text-sm bg-gray-800 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <button onClick={handleCreateFolder} disabled={!folderNameInput.trim()} className="p-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Check className="w-4 h-4" /></button>
+                <button onClick={() => { setShowNewFolderInput(false); setFolderNameInput(''); }} className="p-1.5 bg-gray-800 text-gray-400 rounded-lg"><X className="w-4 h-4" /></button>
+              </div>
+            )}
+
+            <div className="space-y-1">
               {visibleFolders.map((folder) => {
                 const isActive = folder.id === selectedFolderId && !selectedSharedFolder;
-                // For default "All Media" folder, count all items; otherwise count items in specific folder
-                const itemCount = folder.isDefault
-                  ? vaultItems.filter((item) => item.profileId === selectedProfileId).length
-                  : vaultItems.filter((item) => item.folderId === folder.id && item.profileId === selectedProfileId).length;
-
+                const itemCount = folder.isDefault ? vaultItems.filter((item) => item.profileId === selectedProfileId).length : vaultItems.filter((item) => item.folderId === folder.id && item.profileId === selectedProfileId).length;
                 return (
-                  <div
-                    key={folder.id}
-                    className={`group/folder flex items-center justify-between px-3 py-3 rounded-xl border transition-all duration-300 ${
-                      isActive
-                        ? "border-cyan-500/50 bg-cyan-500/10 shadow-lg"
-                        : "border-white/10 bg-white/5 hover:border-cyan-500/30 hover:bg-white/10"
-                    }`}
-                  >
-                  {editingFolderId === folder.id ? (
-                    <div className="flex-1 flex items-center space-x-2">
-                      <input
-                        value={editingFolderName}
-                        onChange={(e) => setEditingFolderName(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()}
-                        className="flex-1 px-3 py-1.5 rounded-xl bg-white/10 border border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-white"
-                      />
-                      <button
-                        onClick={handleUpdateFolder}
-                        className="p-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 transition-all"
-                        title="Save"
-                      >
-                        <Check className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingFolderId(null);
-                          setEditingFolderName("");
-                        }}
-                        className="p-2 rounded-xl bg-white/10 text-slate-300 hover:bg-white/20 transition-all"
-                        title="Cancel"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setSelectedFolderId(folder.id);
-                        setSelectedSharedFolder(null); // Deselect shared folder
-                        setSharedFolderItems([]); // Clear shared folder items
-                      }}
-                      className="flex-1 flex items-center space-x-2.5 text-left min-w-0"
-                    >
-                      <Folder className={`h-5 w-5 flex-shrink-0 ${isActive && !selectedSharedFolder ? 'text-cyan-400' : 'text-slate-400'}`} />
-                      <span className={`font-semibold truncate ${isActive && !selectedSharedFolder ? 'text-white' : 'text-slate-200'}`}>{folder.name}</span>
-                      <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full ${
-                        isActive && !selectedSharedFolder
-                          ? 'bg-cyan-500/20 text-cyan-300'
-                          : 'bg-white/10 text-slate-400'
-                      }`}>{itemCount}</span>
-                      {folder.isDefault && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 flex-shrink-0">Default</span>
-                      )}
-                    </button>
-                  )}
+                  <div key={folder.id} className="group">
+                    {editingFolderId === folder.id ? (
+                      <div className="flex items-center gap-2 px-2">
+                        <input value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()} autoFocus className="flex-1 px-2 py-1.5 text-sm bg-gray-800 border border-gray-600 rounded-lg text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                        <button onClick={handleUpdateFolder} className="p-1 text-emerald-400"><Check className="w-4 h-4" /></button>
+                        <button onClick={() => { setEditingFolderId(null); setEditingFolderName(''); }} className="p-1 text-gray-500"><X className="w-4 h-4" /></button>
+                      </div>
+                    ) : (
+                      <div onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolder(null); setSharedFolderItems([]); setSidebarOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer ${isActive ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-gray-800 text-gray-400'}`}>
+                        {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
+                        <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${isActive ? 'bg-blue-600/30 text-blue-400' : 'bg-gray-800 text-gray-500'}`}>{itemCount}</span>
+                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                          <button onClick={(e) => { e.stopPropagation(); handleOpenShareModal(folder); }} className="p-1 hover:bg-gray-700 rounded" title="Share"><Share2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                          {!folder.isDefault && (
+                            <>
+                              <button onClick={(e) => { e.stopPropagation(); startEditFolder(folder); }} className="p-1 hover:bg-gray-700 rounded" title="Rename"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="p-1 hover:bg-gray-700 rounded" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-                  {editingFolderId !== folder.id && (
-                    <div className="flex items-center space-x-1 ml-2 flex-shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenShareModal(folder);
-                        }}
-                        className="p-2 rounded-xl hover:bg-cyan-500/20 transition-all"
-                        title="Share folder"
-                      >
-                        <Share2 className="h-4 w-4 text-cyan-400" />
-                      </button>
-                      <button
-                        onClick={() => startEditFolder(folder)}
-                        disabled={folder.isDefault}
-                        className="p-2 rounded-xl hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                        title="Rename"
-                      >
-                        <Edit2 className="h-4 w-4 text-slate-400" />
-                      </button>
-                      {!folder.isDefault && (
-                        <button
-                          onClick={() => handleDeleteFolder(folder.id)}
-                          className="p-2 rounded-xl hover:bg-red-500/20 transition-all"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-400" />
-                        </button>
-                      )}
-                    </div>
-                  )}
+            {sharedFolders.length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Shared with me</span>
+                  <span className="text-xs bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded-full">{sharedFolders.length}</span>
                 </div>
-              );
-            })}
+                <div className="space-y-1">
+                  {sharedFolders.map((shared) => {
+                    const isActive = selectedSharedFolder?.folderId === shared.folderId;
+                    return (
+                      <button key={shared.id} onClick={() => { loadSharedFolderItems(shared); setSidebarOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isActive ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-gray-800 text-gray-400'}`}>
+                        <Users className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-gray-500'}`} />
+                        <div className="flex-1 min-w-0 text-left">
+                          <span className="text-sm font-medium truncate block">{shared.folderName}</span>
+                          <span className="text-xs text-gray-500 truncate block">From {shared.sharedBy}</span>
+                        </div>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${shared.permission === 'EDIT' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>{shared.permission === 'EDIT' ? 'Edit' : 'View'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Shared With Me Section */}
-          {sharedFolders.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-dashed border-white/20">
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="w-4 h-4 text-cyan-400" />
-                <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
-                  Shared With Me
-                </span>
-                <span className="px-2 py-0.5 text-[10px] font-bold bg-cyan-500/20 text-cyan-300 rounded-full">
-                  {sharedFolders.length}
-                </span>
+          {selectedProfileId && (
+            <div className="p-4 border-t border-gray-800">
+              <div className="text-xs text-gray-500 mb-2">Storage used</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-semibold text-white">{formatFileSize(totalSize)}</span>
               </div>
-              <div className="space-y-2">
-                {sharedFolders.map((shared) => {
-                  const isActive = selectedSharedFolder?.folderId === shared.folderId;
-                  return (
-                    <button
-                      key={shared.id}
-                      onClick={() => loadSharedFolderItems(shared)}
-                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-300 text-left ${
-                        isActive
-                          ? "border-cyan-500/50 bg-cyan-500/10 shadow-lg"
-                          : "border-white/10 bg-white/5 hover:border-cyan-500/30 hover:bg-white/10"
-                      }`}
-                    >
-                      <Folder className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-semibold truncate ${isActive ? 'text-white' : 'text-slate-200'}`}>
-                            {shared.folderName}
-                          </span>
-                          <span className={`text-xs flex-shrink-0 px-2 py-0.5 rounded-full ${
-                            isActive 
-                              ? 'bg-cyan-500/20 text-cyan-300'
-                              : 'bg-white/10 text-slate-400'
-                          }`}>{shared.itemCount}</span>
-                          <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 flex-shrink-0">
-                            <Eye className="w-3 h-3" />
-                            {shared.permission}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 truncate mt-0.5">
-                          From: {shared.sharedBy} • {shared.profileName}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
+                <span className="flex items-center gap-1"><ImageIcon className="w-3 h-3" /> {imageCount}</span>
+                <span className="flex items-center gap-1"><VideoIcon className="w-3 h-3" /> {videoCount}</span>
+                <span className="flex items-center gap-1"><FileIcon className="w-3 h-3" /> {totalItems}</span>
               </div>
             </div>
           )}
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="xl:col-span-6">
-        <div className="rounded-3xl border border-white/10 bg-white/5 shadow-2xl shadow-cyan-900/20 p-5 backdrop-blur space-y-4 max-h-[600px] flex flex-col">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden w-full relative">
+          <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-3 sm:py-4">
+            {/* Mobile header row */}
+            <div className="flex items-center gap-3 lg:hidden mb-3">
+              <button onClick={() => setSidebarOpen(true)} className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
+                <Menu className="w-5 h-5 text-gray-300" />
+              </button>
+              <h1 className="text-lg font-semibold text-white truncate flex-1">{selectedFolder?.name || 'Select a folder'}</h1>
+              {!isViewingShared && (
+                <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || !selectedFolderId} className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50">
+                  <Upload className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+            
+            {/* Desktop header row */}
+            <div className="hidden lg:flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                  {isViewingShared ? 'Shared Content' : 'Content'}
-                </p>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-bold text-white">
-                    {selectedFolder?.name || "Select a folder"}
-                  </h3>
-                  {isViewingShared && (
-                    <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300">
-                      <Users className="w-3 h-3" />
-                      {selectedSharedFolder?.permission}
-                    </span>
-                  )}
-                </div>
-                {isViewingShared && selectedSharedFolder ? (
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    <span className="inline-flex items-center gap-1">
-                      <Share2 className="w-3 h-3" />
-                      Shared by {selectedSharedFolder.sharedBy} • {selectedSharedFolder.profileName}
-                    </span>
-                  </p>
-                ) : selectedProfile && (
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    <span className="inline-flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      {selectedProfile.name}
-                    </span>
+                <h1 className="text-xl font-semibold text-white">{selectedFolder?.name || 'Select a folder'}</h1>
+                {isViewingShared && selectedSharedFolder && (
+                  <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5">
+                    <Share2 className="w-3.5 h-3.5" /> Shared by {selectedSharedFolder.sharedBy}
+                    {!canEdit && <span className="text-amber-400 ml-2">(View only)</span>}
                   </p>
                 )}
               </div>
-              
-              {/* View-only mode banner */}
-              {isViewingShared && !canEdit && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/20 border border-amber-500/30 rounded-xl">
-                  <Eye className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-medium text-amber-300">View Only</span>
+              <div className="flex items-center gap-3">
+                <div className="relative w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input type="text" placeholder="Search files..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" />
                 </div>
-              )}
-              
-              {/* Search Input */}
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search vault items..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition-all text-white placeholder-slate-400"
-                />
+                <div className="flex items-center bg-gray-800 rounded-lg p-1">
+                  <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-gray-700 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-4 h-4" /></button>
+                  <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-gray-700 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
+                </div>
+                {!isViewingShared && (
+                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || !selectedFolderId} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50">
+                    <Upload className="w-4 h-4" /> Upload
+                  </button>
+                )}
               </div>
             </div>
-
-            {/* Bulk Selection & Actions Row */}
-            <div className="flex flex-wrap items-center gap-3">
-              {/* Bulk Selection */}
-              {filteredItems.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.size > 0 && selectedItems.size === filteredItems.length}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 text-cyan-500 border-white/20 rounded bg-white/5 focus:ring-2 focus:ring-cyan-500"
-                  />
-                  <span className="text-xs font-medium text-slate-400">
-                    {selectedItems.size > 0 ? `${selectedItems.size} selected` : 'Select all'}
-                  </span>
-                </div>
-              )}
-              
-              {/* Action Bar - Show when items are selected */}
-              {selectedItems.size > 0 && (
-                <div className="flex items-center gap-2 animate-slideIn">
-                  {canEdit && (
-                    <button
-                      onClick={handleBulkMove}
-                      disabled={isMoving}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isMoving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Move className="h-3 w-3" />}
-                      Move
-                    </button>
-                  )}
-                  <button
-                    onClick={handleDownloadZip}
-                    disabled={isDownloading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isDownloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                    ZIP
-                  </button>
-                  {canEdit && (
-                    <button
-                      onClick={handleBulkDelete}
-                      disabled={isDeleting}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                      Delete
-                    </button>
-                  )}
-                </div>
-              )}
-              
-              {/* Content Type Filter */}
-              <div className="flex items-center gap-2 flex-wrap ml-auto">
-                <button
-                  onClick={() => setContentFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    contentFilter === 'all'
-                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
-                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setContentFilter('photos')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
-                    contentFilter === 'photos'
-                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
-                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  <ImageIcon className="w-3 h-3" />
-                  Photos
-                </button>
-                <button
-                  onClick={() => setContentFilter('videos')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
-                    contentFilter === 'videos'
-                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
-                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  <VideoIcon className="w-3 h-3" />
-                  Videos
-                </button>
-                <button
-                  onClick={() => setContentFilter('audio')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 ${
-                    contentFilter === 'audio'
-                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
-                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  <Music4 className="w-3 h-3" />
-                  Audio
-                </button>
-                <button
-                  onClick={() => setContentFilter('gifs')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                    contentFilter === 'gifs'
-                      ? 'bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-lg shadow-cyan-900/40'
-                      : 'bg-white/5 text-slate-300 border border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  GIFs
-                </button>
+            
+            {/* Mobile shared folder info */}
+            {isViewingShared && selectedSharedFolder && (
+              <p className="text-sm text-gray-400 flex items-center gap-1 lg:hidden mb-3">
+                <Share2 className="w-3.5 h-3.5" /> Shared by {selectedSharedFolder.sharedBy}
+                {!canEdit && <span className="text-amber-400 ml-2">(View only)</span>}
+              </p>
+            )}
+            
+            {/* Mobile search and view toggle */}
+            <div className="flex items-center gap-2 lg:hidden mb-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" />
               </div>
+              <div className="flex items-center bg-gray-800 rounded-lg p-1">
+                <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-gray-700 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-4 h-4" /></button>
+                <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-gray-700 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
+              </div>
+            </div>
+            
+            {/* Filters and selection mode toggle */}
+            <div className="flex items-center justify-between gap-3 mt-3 lg:mt-4">
+              <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0 vault-scroll">
+                {['all', 'photos', 'videos', 'audio', 'gifs'].map((filter) => (
+                  <button key={filter} onClick={() => setContentFilter(filter as any)} className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0 ${contentFilter === filter ? 'bg-blue-600/20 text-blue-400' : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'}`}>{filter.charAt(0).toUpperCase() + filter.slice(1)}</button>
+                ))}
+              </div>
+              {filteredItems.length > 0 && (
+                <button 
+                  onClick={() => {
+                    if (selectionMode) {
+                      clearSelection();
+                    } else {
+                      setSelectionMode(true);
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0 ${selectionMode ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'}`}
+                >
+                  <Check className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                  <span className="hidden sm:inline">{selectionMode ? 'Cancel' : 'Select'}</span>
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1 vault-scrollbar">
-          {!selectedProfileId && !selectedSharedFolder ? (
-            <div className="border border-dashed border-white/20 rounded-2xl p-8 text-center text-slate-400">
-              Select a profile to start using the vault.
-            </div>
-          ) : !selectedFolderId && !selectedSharedFolder ? (
-            <div className="border border-dashed border-white/20 rounded-2xl p-8 text-center text-slate-400">
-              Create a folder to organize your vault items.
-            </div>
-          ) : loadingItems ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-4 animate-pulse">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-white/10 rounded w-3/4"></div>
-                      <div className="h-3 bg-white/5 rounded w-1/2"></div>
-                    </div>
-                    <div className="h-8 w-8 bg-white/10 rounded-xl"></div>
+          <div ref={contentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto vault-scroll p-3 sm:p-4 md:p-6 bg-gray-950 rounded-br-xl">
+            {!selectedProfileId && !selectedSharedFolder ? (
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                <div className="w-14 sm:w-16 h-14 sm:h-16 bg-gray-800 rounded-2xl flex items-center justify-center mb-4"><Folder className="w-7 sm:w-8 h-7 sm:h-8 text-gray-600" /></div>
+                <h3 className="text-base sm:text-lg font-medium text-white mb-1">Select a profile</h3>
+                <p className="text-xs sm:text-sm text-gray-500">Choose a profile from the sidebar to view your files</p>
+                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors">
+                  <Menu className="w-4 h-4" /> Open sidebar
+                </button>
+              </div>
+            ) : !selectedFolderId && !selectedSharedFolder ? (
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                <div className="w-14 sm:w-16 h-14 sm:h-16 bg-gray-800 rounded-2xl flex items-center justify-center mb-4"><FolderPlus className="w-7 sm:w-8 h-7 sm:h-8 text-gray-600" /></div>
+                <h3 className="text-base sm:text-lg font-medium text-white mb-1">Create a folder</h3>
+                <p className="text-xs sm:text-sm text-gray-500">Organize your files by creating folders</p>
+                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors">
+                  <Menu className="w-4 h-4" /> Open sidebar
+                </button>
+              </div>
+            ) : loadingItems ? (
+              <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4' : 'space-y-2'}>
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className={viewMode === 'grid' ? 'bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 animate-pulse' : 'bg-gray-900 rounded-lg border border-gray-800 p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
+                    <div className={viewMode === 'grid' ? 'aspect-square bg-gray-800 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-gray-800 rounded-lg flex-shrink-0'} />
+                    <div className={viewMode === 'grid' ? '' : 'flex-1'}><div className="h-3 sm:h-4 bg-gray-800 rounded w-3/4 mb-2" /><div className="h-2 sm:h-3 bg-gray-800 rounded w-1/2" /></div>
                   </div>
-                  <div className="h-48 bg-white/10 rounded-xl"></div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              {filteredItems.length === 0 ? (
-                <div className="bg-white/5 border border-dashed border-white/20 rounded-2xl p-10 text-center">
-                  <Lock className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-                  <p className="font-semibold text-white mb-1">No items in this folder</p>
-                  <p className="text-sm text-slate-400">Upload some content to get started.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                ))}
+              </div>
+            ) : allFilteredItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                <div className="w-14 sm:w-16 h-14 sm:h-16 bg-gray-800 rounded-2xl flex items-center justify-center mb-4"><FileIcon className="w-7 sm:w-8 h-7 sm:h-8 text-gray-600" /></div>
+                <h3 className="text-base sm:text-lg font-medium text-white mb-1">No files yet</h3>
+                <p className="text-xs sm:text-sm text-gray-500 mb-4">Upload some files to get started</p>
+                {!isViewingShared && <button onClick={() => setIsAddingNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"><Upload className="w-4 h-4" /> Upload files</button>}
+              </div>
+            ) : viewMode === 'grid' ? (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
+                  {filteredItems.length > 0 && selectionMode && (
+                    <div className="col-span-full flex items-center justify-between mb-2 px-2 py-2 bg-gray-900/80 backdrop-blur-sm rounded-lg border border-gray-800">
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === allFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 cursor-pointer" />
+                        <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${allFilteredItems.length}` : 'Select all'}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">Shift+click for range</span>
+                    </div>
+                  )}
                   {filteredItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`bg-white/5 border rounded-2xl p-4 flex flex-col max-w-sm hover:shadow-lg hover:shadow-cyan-900/20 transition-all ${
-                        selectedItems.has(item.id) 
-                          ? 'border-cyan-500/50 bg-cyan-500/10' 
-                          : 'border-white/10 hover:border-cyan-500/30'
-                      }`}
+                    <div 
+                      key={item.id} 
+                      className={`group bg-gray-900 rounded-lg sm:rounded-xl border transition-all cursor-pointer ${selectedItems.has(item.id) ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-gray-800 hover:border-gray-700 hover:shadow-lg'}`}
+                      onClick={(e) => {
+                        if (selectionMode) {
+                          e.preventDefault();
+                          toggleSelectItem(item.id, e);
+                        }
+                      }}
                     >
-                      <div className="flex items-start justify-between mb-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.has(item.id)}
-                          onChange={() => toggleSelectItem(item.id)}
-                          className="mt-1 w-4 h-4 text-cyan-500 border-white/20 rounded bg-white/5 focus:ring-2 focus:ring-cyan-500 flex-shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2">
-                            {item.fileType.startsWith("image/") ? (
-                              <ImageIcon className="h-4 w-4 text-cyan-400 flex-shrink-0" />
-                            ) : item.fileType.startsWith("video/") ? (
-                              <VideoIcon className="h-4 w-4 text-cyan-400 flex-shrink-0" />
-                            ) : item.fileType.startsWith("audio/") ? (
-                              <Music4 className="h-4 w-4 text-cyan-400 flex-shrink-0" />
-                            ) : (
-                              <FileIcon className="h-4 w-4 text-cyan-400 flex-shrink-0" />
-                            )}
-                            <h4 className="font-semibold text-white text-sm truncate">{item.fileName}</h4>
-                          </div>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {item.createdAt.toLocaleDateString()}
-                          </p>
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            {(item.fileSize / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                        {canEdit && (
-                          <button
+                      <div className="relative">
+                        <div className={`absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-10 transition-opacity ${selectionMode || selectedItems.has(item.id) ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'}`}>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedItems.has(item.id)} 
+                            onChange={(e) => toggleSelectItem(item.id)} 
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteItem(item.id);
-                            }}
-                            className="p-2 rounded-xl hover:bg-red-500/20 flex-shrink-0 ml-2 transition-all"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-400" />
-                          </button>
-                        )}
+                              toggleSelectItem(item.id, e as unknown as React.MouseEvent);
+                            }} 
+                            className="w-4 h-4 sm:w-4 sm:h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 shadow-sm cursor-pointer" 
+                          />
+                        </div>
+                        <div className="aspect-square p-2 sm:p-3" onClick={(e) => { if (!selectionMode) { e.stopPropagation(); setPreviewItem(item); } }}>
+                          {item.fileType.startsWith('image/') ? <img src={item.awsS3Url} alt={item.fileName} loading="lazy" className="w-full h-full object-cover rounded-lg" /> :
+                           item.fileType.startsWith('video/') ? (
+                             <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
+                               <video src={item.awsS3Url} preload="none" className="w-full h-full object-cover" />
+                               <div className="absolute inset-0 flex items-center justify-center"><div className="w-8 sm:w-10 h-8 sm:h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center"><PlayCircle className="w-5 sm:w-6 h-5 sm:h-6 text-white" /></div></div>
+                             </div>
+                           ) : item.fileType.startsWith('audio/') ? (
+                             <div className="w-full h-full bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-lg flex items-center justify-center"><Music4 className="w-10 sm:w-12 h-10 sm:h-12 text-purple-400" /></div>
+                           ) : (
+                             <div className="w-full h-full bg-gray-800 rounded-lg flex items-center justify-center"><FileIcon className="w-10 sm:w-12 h-10 sm:h-12 text-gray-600" /></div>
+                           )}
+                        </div>
+                        <div className={`absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex items-center gap-1 transition-opacity ${!selectionMode && (selectedItems.has(item.id) ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100')} ${selectionMode ? 'hidden' : ''}`}>
+                          {/* AI Generated indicator */}
+                          {item.metadata && (
+                            <div className="p-1 sm:p-1.5 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur shadow-sm rounded-lg" title="AI Generated - Click to view details">
+                              <Sparkles className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+                            </div>
+                          )}
+                          <a href={item.awsS3Url} download={item.fileName} onClick={(e) => e.stopPropagation()} className="p-1 sm:p-1.5 bg-gray-900/80 backdrop-blur shadow-sm rounded-lg hover:bg-gray-800 transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-300" /></a>
+                          {canEdit && <button onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} className="p-1 sm:p-1.5 bg-gray-900/80 backdrop-blur shadow-sm rounded-lg hover:bg-red-900/50 transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
+                        </div>
                       </div>
-                      <div 
-                        className="flex-1 cursor-pointer group"
-                        onClick={() => setPreviewItem(item)}
-                      >
-                        {item.fileType.startsWith("image/") ? (
-                          <div className="relative overflow-hidden rounded-xl">
-                            <img
-                              src={item.awsS3Url}
-                              alt={item.fileName}
-                              className="w-full h-48 object-cover rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-300"
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 rounded-xl flex items-center justify-center">
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <div className="p-3 bg-white/10 backdrop-blur rounded-full">
-                                  <Search className="w-6 h-6 text-cyan-400" />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : item.fileType.startsWith("video/") ? (
-                          <div className="relative overflow-hidden rounded-xl">
-                            <video
-                              src={item.awsS3Url}
-                              className="w-full h-48 object-cover rounded-xl border border-white/10"
-                            />
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 rounded-xl flex items-center justify-center">
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <div className="p-3 bg-white/10 backdrop-blur rounded-full">
-                                  <Search className="w-6 h-6 text-cyan-400" />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : item.fileType.startsWith("audio/") ? (
-                          <div className="h-48 flex items-center justify-center bg-gradient-to-br from-cyan-900/20 to-indigo-900/20 rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-300">
-                            <Music4 className="w-16 h-16 text-cyan-400" />
-                          </div>
-                        ) : (
-                          <div className="h-48 flex items-center justify-center bg-white/5 rounded-xl border border-white/10 group-hover:scale-105 transition-transform duration-300">
-                            <FileIcon className="w-16 h-16 text-slate-400" />
-                          </div>
-                        )}
+                      <div className="px-2 sm:px-3 pb-2 sm:pb-3">
+                        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate">{item.fileName}</p>
+                        <div className="flex items-center justify-between mt-0.5 sm:mt-1">
+                          <span className="text-[10px] sm:text-xs text-gray-500">{formatFileSize(item.fileSize)}</span>
+                          <span className="text-[10px] sm:text-xs text-gray-600 hidden sm:inline">{item.createdAt.toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
-            </>
-          )}
+                {hasMoreItems && (
+                  <div className="flex justify-center mt-4 sm:mt-6">
+                    <button onClick={loadMoreItems} className="px-4 sm:px-6 py-2 sm:py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm sm:text-base font-medium transition-colors flex items-center gap-2">
+                      <Loader2 className="w-4 h-4" /> Load more ({allFilteredItems.length - filteredItems.length})
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {filteredItems.length > 0 && selectionMode && (
+                    <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-gray-900/80 backdrop-blur-sm rounded-lg mb-2 border border-gray-800">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === allFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 cursor-pointer" />
+                        <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${allFilteredItems.length}` : 'Select all'}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">Shift+click for range</span>
+                    </div>
+                  )}
+                  {filteredItems.map((item) => (
+                    <div 
+                      key={item.id} 
+                      onClick={(e) => {
+                        if (selectionMode) {
+                          toggleSelectItem(item.id, e);
+                        } else {
+                          setPreviewItem(item);
+                        }
+                      }} 
+                      className={`group flex items-center gap-2 sm:gap-4 p-2 sm:p-3 bg-gray-900 rounded-lg border transition-all cursor-pointer ${selectedItems.has(item.id) ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-gray-800 hover:border-gray-700'}`}
+                    >
+                      <div className={`transition-opacity ${selectionMode || selectedItems.has(item.id) ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedItems.has(item.id)} 
+                          onChange={() => toggleSelectItem(item.id)} 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelectItem(item.id, e as unknown as React.MouseEvent);
+                          }} 
+                          className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 flex-shrink-0 cursor-pointer" 
+                        />
+                      </div>
+                      <div className="w-10 sm:w-12 h-10 sm:h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
+                        {item.fileType.startsWith('image/') ? <img src={item.awsS3Url} alt={item.fileName} loading="lazy" className="w-full h-full object-cover" /> :
+                         item.fileType.startsWith('video/') ? <div className="w-full h-full bg-black flex items-center justify-center"><VideoIcon className="w-4 sm:w-5 h-4 sm:h-5 text-white" /></div> :
+                         item.fileType.startsWith('audio/') ? <div className="w-full h-full bg-purple-900/30 flex items-center justify-center"><Music4 className="w-4 sm:w-5 h-4 sm:h-5 text-purple-400" /></div> :
+                         <div className="w-full h-full flex items-center justify-center"><FileIcon className="w-4 sm:w-5 h-4 sm:h-5 text-gray-500" /></div>}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate">{item.fileName}</p>
+                        <p className="text-[10px] sm:text-xs text-gray-500">{formatFileSize(item.fileSize)}</p>
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-gray-600 items-center gap-1 hidden md:flex"><Calendar className="w-3 sm:w-3.5 h-3 sm:h-3.5" />{item.createdAt.toLocaleDateString()}</div>
+                      <div className={`flex items-center gap-1 transition-opacity flex-shrink-0 ${selectionMode ? 'hidden' : 'sm:opacity-0 sm:group-hover:opacity-100'}`}>
+                        <a href={item.awsS3Url} download={item.fileName} onClick={(e) => e.stopPropagation()} className="p-1.5 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-400" /></a>
+                        {canEdit && <button onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} className="p-1.5 sm:p-2 hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {hasMoreItems && (
+                  <div className="flex justify-center mt-6">
+                    <button onClick={loadMoreItems} className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors flex items-center gap-2">
+                      <Loader2 className="w-4 h-4" /> Load more ({allFilteredItems.length - filteredItems.length} remaining)
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
+
+          {/* Floating Selection Action Bar */}
+          {selectedItems.size > 0 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 animate-slideUp">
+              <div className="flex items-center gap-2 sm:gap-3 bg-gray-900/95 backdrop-blur-lg border border-gray-700 rounded-2xl px-3 sm:px-5 py-2.5 sm:py-3 shadow-2xl shadow-black/50">
+                {/* Selection count */}
+                <div className="flex items-center gap-2 pr-2 sm:pr-3 border-r border-gray-700">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-xs sm:text-sm font-bold text-white">{selectedItems.size}</span>
+                  </div>
+                  <span className="text-xs sm:text-sm text-gray-300 hidden sm:inline">selected</span>
+                </div>
+                
+                {/* Select all */}
+                <button 
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <Check className="w-4 h-4" />
+                  <span className="hidden sm:inline">{selectedItems.size === allFilteredItems.length ? 'Deselect all' : 'Select all'}</span>
+                </button>
+                
+                {/* Divider */}
+                <div className="w-px h-6 bg-gray-700" />
+                
+                {/* Actions */}
+                {canEdit && (
+                  <button 
+                    onClick={handleBulkMove} 
+                    disabled={isMoving}
+                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-blue-400 hover:bg-blue-600/20 rounded-lg transition-colors disabled:opacity-50"
+                    title="Move"
+                  >
+                    <Move className="w-4 h-4" />
+                    <span className="hidden md:inline">Move</span>
+                  </button>
+                )}
+                
+                <button 
+                  onClick={handleDownloadZip} 
+                  disabled={isDownloading}
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-emerald-400 hover:bg-emerald-600/20 rounded-lg transition-colors disabled:opacity-50"
+                  title="Download"
+                >
+                  {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span className="hidden md:inline">Download</span>
+                </button>
+                
+                {canEdit && (
+                  <button 
+                    onClick={handleBulkDelete} 
+                    disabled={isDeleting}
+                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-red-400 hover:bg-red-600/20 rounded-lg transition-colors disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    <span className="hidden md:inline">Delete</span>
+                  </button>
+                )}
+                
+                {/* Divider */}
+                <div className="w-px h-6 bg-gray-700" />
+                
+                {/* Close */}
+                <button 
+                  onClick={clearSelection}
+                  className="p-1.5 sm:p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                  title="Clear selection (Esc)"
+                >
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-      </div>
-    </div>
-    </div>
     </>
   );
 }

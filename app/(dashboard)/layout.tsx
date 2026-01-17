@@ -40,6 +40,8 @@ import {
   Hash,
   ListChecks,
   Layers,
+  Film,
+  Move,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -250,6 +252,36 @@ export default function DashboardLayout({
           href: "/workspace/generate-content/seedream-image-to-video",
           icon: PlayCircle,
         },
+        {
+          name: "DIVIDER_4",
+          href: "#",
+          icon: Sparkles,
+        },
+        {
+          name: "KLING_AI_GROUP_LABEL",
+          href: "#",
+          icon: Film,
+        },
+        {
+          name: "Kling Text to Video",
+          href: "/workspace/generate-content/kling-text-to-video",
+          icon: PlayCircle,
+        },
+        {
+          name: "Kling Image to Video",
+          href: "/workspace/generate-content/kling-image-to-video",
+          icon: Video,
+        },
+        {
+          name: "Kling Multi-Image to Video",
+          href: "/workspace/generate-content/kling-multi-image-to-video",
+          icon: Film,
+        },
+        {
+          name: "Kling Motion Control",
+          href: "/workspace/generate-content/kling-motion-control",
+          icon: Move,
+        },
       ],
     },
     {
@@ -262,9 +294,9 @@ export default function DashboardLayout({
           icon: Users,
         },
         {
-          name: "Generated Content",
-          href: "/workspace/generated-content",
-          icon: FileText,
+          name: "Vault",
+          href: "/workspace/vault",
+          icon: Shield,
         },
       ],
     },
@@ -291,11 +323,6 @@ export default function DashboardLayout({
           name: "Bookmarks",
           href: "/workspace/bookmarks",
           icon: Bookmark,
-        },
-        {
-          name: "Vault",
-          href: "/workspace/vault",
-          icon: Shield,
         },
         {
           name: "My Creators",
@@ -556,6 +583,39 @@ export default function DashboardLayout({
                   </span>
                 </div>
                 <div className="h-1 w-1 rounded-full bg-cyan-400 dark:bg-cyan-300 animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null;
+    }
+
+    // Handle Kling AI group label
+    if (item.name === "KLING_AI_GROUP_LABEL") {
+      return sidebarOpen ? (
+        <div
+          key="kling-ai-group-label"
+          className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
+        >
+          <div className="relative">
+            {/* Background glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-pink-500/10 rounded-lg blur-sm"></div>
+
+            {/* Main label container */}
+            <div className="relative bg-gradient-to-r from-violet-500/20 via-purple-500/20 to-pink-500/20 dark:from-violet-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-violet-400/30 dark:border-violet-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 xs:space-x-2">
+                  <div className="relative">
+                    <Film className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-violet-400 dark:text-violet-300 animate-pulse" />
+                    <div className="absolute inset-0 h-3.5 w-3.5 xs:h-4 xs:w-4 text-violet-400 dark:text-violet-300 opacity-50 blur-sm">
+                      <Film className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
+                    </div>
+                  </div>
+                  <span className="text-[10px] xs:text-xs font-bold bg-gradient-to-r from-violet-400 via-purple-400 to-pink-400 dark:from-violet-300 dark:via-purple-300 dark:to-pink-300 bg-clip-text text-transparent uppercase tracking-wider">
+                    Kling AI
+                  </span>
+                </div>
+                <div className="h-1 w-1 rounded-full bg-violet-400 dark:bg-violet-300 animate-pulse"></div>
               </div>
             </div>
           </div>

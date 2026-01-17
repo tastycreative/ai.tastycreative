@@ -1,0 +1,109 @@
+{
+  "generatedAt": "2026-01-17T16:25:55.293Z",
+  "mode": "DRY_RUN",
+  "verification": {
+    "verified": true,
+    "vaultItemCount": 11153,
+    "outputFileCount": 9910,
+    "details": [
+      "Vault items in database: 11153",
+      "Files in vault/ S3 folder: 11152",
+      "Files in outputs/ S3 folder (user folders): 9910",
+      "\nVerification ratio: 112.5%",
+      "✅ Vault has sufficient files to proceed with cleanup"
+    ]
+  },
+  "summary": {
+    "totalFiles": 9900,
+    "totalSize": 13541869480,
+    "users": [
+      {
+        "userId": "user_30dKpxGYsQUlkP4nNyM5hQm7Ne8",
+        "count": 63,
+        "size": 78429702
+      },
+      {
+        "userId": "user_30dULT8ZLO1jthhCEgn349cKcvT",
+        "count": 335,
+        "size": 746632935
+      },
+      {
+        "userId": "user_30jxATDqYuUneSqppGUHNfIo9Qs",
+        "count": 29,
+        "size": 27879511
+      },
+      {
+        "userId": "user_31ES2FrA077MVrkOXsGrUbiCXKX",
+        "count": 162,
+        "size": 215028992
+      },
+      {
+        "userId": "user_31Ej3gLzrV3B4MkA2N3aOBqsSjM",
+        "count": 3,
+        "size": 1168369
+      },
+      {
+        "userId": "user_32YA38MHDp0tdq9YlkGHupi4gz1",
+        "count": 5037,
+        "size": 5960224533
+      },
+      {
+        "userId": "user_32sjLN4UQyvoR7ZooJKUwniYvmj",
+        "count": 4271,
+        "size": 6512505438
+      }
+    ]
+  },
+  "sampleFiles": [
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1759993966718_1340682020_00001_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1759994406139_1725196241_00001_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1759994533527_1776211028_00001_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1760020466617_588778810_00001_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1760193438231_1798075978_00001_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/ComfyUI_1760193438231_1798075978_00002_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/fps_boost/fps_boosted_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/.folderinfo",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_00001__1760537889587_sq6eualfawp.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_00001__1760867462205_127hj7989uh.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_00001__1761470300175_q37dqb4yqn.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_00001__1761482632794_yzhscbyn8w.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_00001__1761576940631_hzvo3ghc9pc.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_00001__1761737620243_563qsl0bds8.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_00002__1761738056626_hj25f2x2mw5.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_1760193438231_1798075978_00003_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_1760193438231_1798075978_00004_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_1760193438231_1798075978_00005_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_1760193913113_625127485_00001_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_1760193913113_625127485_00002_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_1760193913113_625127485_00003_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_1760193913113_625127485_00004_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/ComfyUI_1760193913113_625127485_00005_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/FaceSwap_00001__1762462893808.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/FluxKontext_1761399454668_925900745299_00001_.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhd4bf5p000bl504zsxxeb2q_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhd70kga000mkw042574hjyg_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhd9aptt0001jo044l2h614h_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhda42ju0002ky04lso03ue1_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhda7nau0005l4047gvny67u_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhdawyko000hl404mkhb84jr_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhdduppd0005l704fbsfr2x5_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhde2hjt0001jj04347px1i8_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmheptykm0001jl04hgktzr59_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmheq8bgf0001jo04o5i7uxax_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmheq9fnz0003js041qzv003q_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmheqdoii0003jo047q36uf7z_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmheqks260009js04zypm25bs_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmheqlxud000djs04ta53fd3p_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmheqxomx0007jo04doffmkan_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmher3z4m000fjs04n8mo8rni_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmher6k3p000ajo04jf1q82yy_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmherdage000jjs0421hfyof8_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmheresqw0003ii047v4d4hwm_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhergdc3000qjo04gr6gm41j_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmherkma00007ii040ljl2lth_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/fps_boosted_cmhg81x9o000ejy04t0052j1v_00001.mp4",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/skin_enhanced_00001__1761919638733_znb7kwse9.png",
+    "outputs/user_30dKpxGYsQUlkP4nNyM5hQm7Ne8/main/skin_enhanced_00002__1761919639738_znb7kwse9.png"
+  ]
+}

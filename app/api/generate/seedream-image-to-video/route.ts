@@ -380,7 +380,7 @@ export async function GET(request: NextRequest) {
         let formattedVideo: any;
         
         if (saveToVault && vaultProfileId && vaultFolderId) {
-          // Create VaultItem for vault storage
+          // Create VaultItem for vault storage with generation metadata
           const vaultItem = await prisma.vaultItem.create({
             data: {
               clerkId: userId,
@@ -391,6 +391,19 @@ export async function GET(request: NextRequest) {
               awsS3Key: s3Key,
               awsS3Url: awsS3Url,
               fileSize: videoBuffer.length,
+              metadata: {
+                source: "seedream-i2v",
+                generationType: "image-to-video",
+                model: "SeeDream 4.5",
+                prompt: params?.prompt || "Unknown prompt",
+                resolution: data.resolution,
+                ratio: data.ratio,
+                duration: data.duration || 5,
+                fps: data.framespersecond,
+                seed: data.seed,
+                cameraFixed: params?.cameraFixed,
+                generatedAt: new Date().toISOString(),
+              },
             },
           });
 

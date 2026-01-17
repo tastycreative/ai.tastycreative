@@ -25,17 +25,6 @@ import {
   Archive,
 } from "lucide-react";
 
-interface AvailableFolderOption {
-  name: string;
-  prefix: string;
-  displayPath: string;
-  path: string;
-  depth: number;
-  isShared?: boolean;
-  permission?: "VIEW" | "EDIT";
-  parentPrefix?: string | null;
-}
-
 interface InstagramProfile {
   id: string;
   name: string;
@@ -49,8 +38,6 @@ interface VaultFolder {
   profileId: string;
   isDefault?: boolean;
 }
-
-type FolderType = "s3" | "vault";
 
 interface GeneratedVideo {
   id: string;
@@ -113,10 +100,6 @@ export default function SeeDreamImageToVideo() {
   const [generateAudio, setGenerateAudio] = useState(true);
 
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<
-    AvailableFolderOption[]
-  >([]);
-  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   // Vault folder state
   const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
@@ -152,37 +135,6 @@ export default function SeeDreamImageToVideo() {
     () => RESOLUTION_DIMENSIONS[resolution][aspectRatio],
     [resolution, aspectRatio]
   );
-
-  const loadFolders = useCallback(async () => {
-    if (!apiClient || !user) return;
-    setIsLoadingFolders(true);
-    try {
-      const response = await apiClient.get("/api/s3/folders/list-custom");
-      if (!response.ok) throw new Error("Failed to load folders");
-      const data = await response.json();
-      if (data.success && Array.isArray(data.folders)) {
-        const folderOptions: AvailableFolderOption[] = data.folders
-          .filter(
-            (folder: any) => !folder.permission || folder.permission === "EDIT"
-          )
-          .map((folder: any) => ({
-            name: folder.name || "",
-            prefix: folder.prefix || "",
-            displayPath: folder.path || folder.name || "",
-            path: folder.path || "",
-            depth: folder.depth || 0,
-            isShared: folder.isShared || false,
-            permission: folder.permission,
-            parentPrefix: folder.parentPrefix,
-          }));
-        setAvailableFolders(folderOptions);
-      }
-    } catch (err) {
-      console.error("Failed to load folders:", err);
-    } finally {
-      setIsLoadingFolders(false);
-    }
-  }, [apiClient, user]);
 
   // Load vault profiles and folders
   const loadVaultData = useCallback(async () => {
@@ -231,40 +183,23 @@ export default function SeeDreamImageToVideo() {
     }
   }, [apiClient, user]);
 
-  // Parse the target folder value to determine type and IDs
-  const parseTargetFolder = (value: string): { type: FolderType; profileId?: string; folderId?: string; prefix?: string } => {
-    if (value.startsWith("vault:")) {
-      const parts = value.split(":");
-      return {
-        type: "vault",
-        profileId: parts[1],
-        folderId: parts[2],
-      };
-    }
-    return {
-      type: "s3",
-      prefix: value,
-    };
-  };
-
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return "Videos save to your root outputs folder";
+    if (!targetFolder) return "Select a vault folder to save videos";
     
-    const parsed = parseTargetFolder(targetFolder);
-    if (parsed.type === "vault" && parsed.profileId && parsed.folderId) {
-      const profile = vaultProfiles.find((p) => p.id === parsed.profileId);
-      const folders = vaultFoldersByProfile[parsed.profileId] || [];
-      const folder = folders.find((f) => f.id === parsed.folderId);
+    if (targetFolder.startsWith("vault:")) {
+      const parts = targetFolder.split(":");
+      const profileId = parts[1];
+      const folderId = parts[2];
+      const profile = vaultProfiles.find((p) => p.id === profileId);
+      const folders = vaultFoldersByProfile[profileId] || [];
+      const folder = folders.find((f) => f.id === folderId);
       if (profile && folder) {
         const profileDisplay = profile.instagramUsername ? `@${profile.instagramUsername}` : profile.name;
         return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
       }
-    } else if (parsed.type === "s3" && parsed.prefix) {
-      const folder = availableFolders.find((f) => f.prefix === parsed.prefix);
-      return `Saving to ${folder?.displayPath || "selected folder"}`;
     }
-    return "Videos save to selected folder";
+    return "Select a vault folder to save videos";
   };
 
   const loadGenerationHistory = useCallback(async () => {
@@ -287,11 +222,10 @@ export default function SeeDreamImageToVideo() {
 
   useEffect(() => {
     if (apiClient) {
-      loadFolders();
       loadVaultData();
       loadGenerationHistory();
     }
-  }, [apiClient, loadFolders, loadVaultData, loadGenerationHistory]);
+  }, [apiClient, loadVaultData, loadGenerationHistory]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -439,9 +373,6 @@ export default function SeeDreamImageToVideo() {
         jobId: localTaskId,
       });
 
-      // Parse target folder for vault vs S3
-      const parsedFolder = parseTargetFolder(targetFolder);
-
       const payload: any = {
         prompt: prompt.trim(),
         image: uploadedImage,
@@ -455,13 +386,12 @@ export default function SeeDreamImageToVideo() {
         generateAudio,
       };
 
-      // Add folder params based on type
-      if (parsedFolder.type === "vault" && parsedFolder.profileId && parsedFolder.folderId) {
+      // Add vault folder params if selected
+      if (targetFolder.startsWith("vault:")) {
+        const parts = targetFolder.split(":");
         payload.saveToVault = true;
-        payload.vaultProfileId = parsedFolder.profileId;
-        payload.vaultFolderId = parsedFolder.folderId;
-      } else if (parsedFolder.prefix) {
-        payload.targetFolder = parsedFolder.prefix;
+        payload.vaultProfileId = parts[1];
+        payload.vaultFolderId = parts[2];
       }
 
       const response = await apiClient.post(
@@ -896,49 +826,37 @@ export default function SeeDreamImageToVideo() {
               {/* Folder Selection */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-cyan-300" />
-                  <p className="text-sm font-semibold text-white">Save Destination</p>
-                  {(isLoadingFolders || isLoadingVaultData) && (
-                    <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+                  <Archive className="w-4 h-4 text-purple-300" />
+                  <p className="text-sm font-semibold text-white">Save to Vault</p>
+                  {isLoadingVaultData && (
+                    <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
                   )}
                 </div>
                 <div className="relative">
                   <select
                     value={targetFolder}
                     onChange={(e) => setTargetFolder(e.target.value)}
-                    disabled={isGenerating || isLoadingFolders || isLoadingVaultData}
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-50"
+                    disabled={isGenerating || isLoadingVaultData}
+                    className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-purple-300"
                   >
-                    <option value="">📁 Default Output Folder</option>
-                    
-                    {/* S3 Folders Group */}
-                    {availableFolders.length > 0 && (
-                      <optgroup label="📂 Your Output Folders">
-                        {availableFolders.map((folder) => (
-                          <option key={folder.prefix} value={folder.prefix}>
-                            {'  '.repeat(folder.depth)}{folder.name}
-                            {folder.isShared && ' (Shared)'}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
+                    <option value="">Select a vault folder...</option>
                     
                     {/* Vault Folders by Profile */}
                     {vaultProfiles.map((profile) => {
-                      const folders = vaultFoldersByProfile[profile.id] || [];
+                      const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
                       if (folders.length === 0) return null;
                       
                       return (
                         <optgroup 
                           key={profile.id} 
-                          label={`📸 Vault - ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
+                          label={`${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
                         >
                           {folders.map((folder) => (
                             <option 
                               key={folder.id} 
                               value={`vault:${profile.id}:${folder.id}`}
                             >
-                              {folder.name}{folder.isDefault ? ' (Default)' : ''}
+                              {folder.name}
                             </option>
                           ))}
                         </optgroup>
@@ -948,19 +866,14 @@ export default function SeeDreamImageToVideo() {
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 </div>
                 
-                {/* Folder type indicator */}
+                {/* Folder indicator */}
                 <div className="flex items-center gap-2">
-                  {targetFolder && targetFolder.startsWith('vault:') ? (
+                  {targetFolder && (
                     <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-200">
                       <Archive className="w-3 h-3" />
                       <span>Vault Storage</span>
                     </div>
-                  ) : targetFolder ? (
-                    <div className="flex items-center gap-1.5 rounded-full bg-cyan-500/20 px-2.5 py-1 text-[11px] text-cyan-200">
-                      <Folder className="w-3 h-3" />
-                      <span>S3 Storage</span>
-                    </div>
-                  ) : null}
+                  )}
                   <p className="text-xs text-slate-300 flex-1">
                     {getSelectedFolderDisplay()}
                   </p>

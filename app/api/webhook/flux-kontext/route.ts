@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
 
           // Check if we should save to vault
           if (shouldSaveToVault) {
-            // Save to vault database
+            // Save to vault database with generation metadata
             console.log(`💾 Saving to vault - Profile: ${jobParams.vaultProfileId}, Folder: ${jobParams.vaultFolderId}`);
             
             const vaultItem = await prisma.vaultItem.create({
@@ -126,6 +126,13 @@ export async function POST(request: NextRequest) {
                 fileSize: imageData.fileSize || 0,
                 awsS3Key: imageData.awsS3Key,
                 awsS3Url: imageData.awsS3Url,
+                metadata: {
+                  source: "flux-kontext",
+                  generationType: "image-editing",
+                  model: jobParams?.model || "flux-kontext",
+                  prompt: jobParams?.prompt || "",
+                  generatedAt: new Date().toISOString(),
+                },
               },
             });
 

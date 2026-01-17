@@ -1,0 +1,82 @@
+{
+  "completedAt": "2026-01-16T17:15:28.567Z",
+  "summary": {
+    "usersProcessed": 7,
+    "filesCopied": 9900,
+    "vaultItemsCreated": 9900,
+    "foldersCreated": 55,
+    "totalErrors": 0
+  },
+  "results": [
+    {
+      "success": true,
+      "user": "user_32YA38MHDp0tdq9YlkGHupi4gz1",
+      "foldersCreated": 26,
+      "filesProcessed": 5037,
+      "filesCopied": 5037,
+      "vaultItemsCreated": 5037,
+      "errors": [],
+      "profileId": "cmkh04rqf0001hhxs85tb6ji6"
+    },
+    {
+      "success": true,
+      "user": "user_32sjLN4UQyvoR7ZooJKUwniYvmj",
+      "foldersCreated": 8,
+      "filesProcessed": 4271,
+      "filesCopied": 4271,
+      "vaultItemsCreated": 4271,
+      "errors": [],
+      "profileId": "cmkh2o0oo07snhhxs1o40hl6z"
+    },
+    {
+      "success": true,
+      "user": "rapdeleon0404@gmail.com",
+      "foldersCreated": 6,
+      "filesProcessed": 335,
+      "filesCopied": 335,
+      "vaultItemsCreated": 335,
+      "errors": [],
+      "profileId": "cmkh4sgwz0ee7hhxstgugulaa"
+    },
+    {
+      "success": true,
+      "user": "rapdeleon0404@gmail.com",
+      "foldersCreated": 6,
+      "filesProcessed": 162,
+      "filesCopied": 162,
+      "vaultItemsCreated": 162,
+      "errors": [],
+      "profileId": "cmkh4yp4e0ex1hhxs3t5f8rp7"
+    },
+    {
+      "success": true,
+      "user": "txl.tasty@gmail.com",
+      "foldersCreated": 3,
+      "filesProcessed": 63,
+      "filesCopied": 63,
+      "vaultItemsCreated": 63,
+      "errors": [],
+      "profileId": "cmkh51jwk0f69hhxsy4tcr98z"
+    },
+    {
+      "success": true,
+      "user": "rafaeldeleon0820@gmail.com",
+      "foldersCreated": 3,
+      "filesProcessed": 29,
+      "filesCopied": 29,
+      "vaultItemsCreated": 29,
+      "errors": [],
+      "profileId": "cmkh52mvt0f9whhxsnmp8c3m8"
+    },
+    {
+      "success": true,
+      "user": "rafaeldeleon0820@gmail.com",
+      "foldersCreated": 3,
+      "filesProcessed": 3,
+      "filesCopied": 3,
+      "vaultItemsCreated": 3,
+      "errors": [],
+      "profileId": "cmkh534eg0fbnhhxsco3zmvuu"
+    }
+  ]
+}

@@ -12,6 +12,7 @@ import {
   Clock,
   Download,
   Film,
+  Folder,
   Info,
   Loader2,
   Play,
@@ -22,6 +23,8 @@ import {
   Video,
   Zap,
   X,
+  Wand2,
+  Camera,
 } from "lucide-react";
 
 interface InstagramProfile {
@@ -38,65 +41,72 @@ interface VaultFolder {
   isDefault?: boolean;
 }
 
+type FolderType = "s3" | "vault";
+
 interface GeneratedVideo {
   id: string;
   videoUrl: string;
   prompt: string;
-  modelVersion: string;
-  duration: number;
-  cameraFixed: boolean;
+  model: string;
+  duration: string;
+  aspectRatio: string;
   createdAt: string;
   status: "completed" | "processing" | "failed";
 }
 
-const RESOLUTION_DIMENSIONS = {
-  "720p": {
-    "16:9": "1280×720",
-    "4:3": "1112×834",
-    "1:1": "960×960",
-    "3:4": "834×1112",
-    "9:16": "720×1280",
-    "21:9": "1470×630",
-    adaptive: "Auto",
-  },
-  "1080p": {
-    "16:9": "1920×1080",
-    "4:3": "1440×1080",
-    "1:1": "1080×1080",
-    "3:4": "1080×1440",
-    "9:16": "1080×1920",
-    "21:9": "2520×1080",
-    adaptive: "Auto",
-  },
-} as const;
-
-const ASPECT_RATIOS = [
-  "16:9",
-  "4:3",
-  "1:1",
-  "3:4",
-  "9:16",
-  "21:9",
-  "adaptive",
+// Kling model options
+const MODEL_OPTIONS = [
+  { value: "kling-v1", label: "Kling V1", description: "Standard quality" },
+  { value: "kling-v1-5", label: "Kling V1.5", description: "Enhanced quality" },
+  { value: "kling-v1-6", label: "Kling V1.6", description: "Latest model" },
 ] as const;
 
-const sliderToDuration = (value: number) => (value === 0 ? -1 : value + 3);
+// Mode options
+const MODE_OPTIONS = [
+  { value: "std", label: "Standard", description: "Faster generation" },
+  { value: "pro", label: "Professional", description: "Higher quality" },
+] as const;
 
-export default function SeeDreamTextToVideo() {
+// Duration options
+const DURATION_OPTIONS = [
+  { value: "5", label: "5 seconds", description: "Quick clip" },
+  { value: "10", label: "10 seconds", description: "Extended clip" },
+] as const;
+
+// Aspect ratio options
+const ASPECT_RATIO_OPTIONS = [
+  { value: "16:9", label: "16:9", description: "Landscape (HD)" },
+  { value: "9:16", label: "9:16", description: "Portrait (Stories/Reels)" },
+  { value: "1:1", label: "1:1", description: "Square" },
+] as const;
+
+// Camera control options
+const CAMERA_CONTROL_OPTIONS = [
+  { value: "down_back", label: "Down & Back", description: "Pull back and down" },
+  { value: "forward_up", label: "Forward & Up", description: "Push in and up" },
+  { value: "right_turn_forward", label: "Right Turn Forward", description: "Pan right while moving forward" },
+  { value: "left_turn_forward", label: "Left Turn Forward", description: "Pan left while moving forward" },
+  { value: "zoom_in", label: "Zoom In", description: "Gradual zoom in" },
+  { value: "zoom_out", label: "Zoom Out", description: "Gradual zoom out" },
+] as const;
+
+export default function KlingTextToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
 
+  // Form state
   const [prompt, setPrompt] = useState("");
-  const [resolution, setResolution] = useState<"720p" | "1080p">("720p");
-  const [aspectRatio, setAspectRatio] = useState<(typeof ASPECT_RATIOS)[number]>(
-    "16:9"
-  );
-  const [duration, setDuration] = useState(4);
-  const [durationSliderValue, setDurationSliderValue] = useState(1);
-  const [cameraFixed, setCameraFixed] = useState(false);
-  const [generateAudio, setGenerateAudio] = useState(true);
+  const [negativePrompt, setNegativePrompt] = useState("");
+  const [model, setModel] = useState<string>("kling-v1-6");
+  const [mode, setMode] = useState<string>("std");
+  const [duration, setDuration] = useState<string>("5");
+  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
+  const [cfgScale, setCfgScale] = useState<number>(0.5);
+  const [useCameraControl, setUseCameraControl] = useState(false);
+  const [cameraControl, setCameraControl] = useState<string>("zoom_in");
 
+  // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
 
   // Vault folder state
@@ -104,6 +114,7 @@ export default function SeeDreamTextToVideo() {
   const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
+  // Generation state
   const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
   const [generationHistory, setGenerationHistory] = useState<GeneratedVideo[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
@@ -123,24 +134,17 @@ export default function SeeDreamTextToVideo() {
     });
   };
 
-  const currentDimensions = useMemo(
-    () => RESOLUTION_DIMENSIONS[resolution][aspectRatio],
-    [resolution, aspectRatio]
-  );
-
   // Load vault profiles and folders
   const loadVaultData = useCallback(async () => {
     if (!apiClient || !user) return;
     setIsLoadingVaultData(true);
     try {
-      // Load profiles
       const profilesResponse = await apiClient.get("/api/instagram/profiles");
       if (profilesResponse.ok) {
         const profilesData = await profilesResponse.json();
         const profiles: InstagramProfile[] = profilesData.profiles || [];
         setVaultProfiles(profiles);
 
-        // Load folders for each profile
         const foldersByProfile: Record<string, VaultFolder[]> = {};
         for (const profile of profiles) {
           try {
@@ -149,7 +153,6 @@ export default function SeeDreamTextToVideo() {
             );
             if (foldersResponse.ok) {
               const foldersData = await foldersResponse.json();
-              // API returns folders array directly, not wrapped in { folders: [...] }
               foldersByProfile[profile.id] = Array.isArray(foldersData) ? foldersData : (foldersData.folders || []);
             }
           } catch (err) {
@@ -166,23 +169,37 @@ export default function SeeDreamTextToVideo() {
     }
   }, [apiClient, user]);
 
+  // Parse the target folder value to determine type and IDs
+  const parseTargetFolder = (value: string): { type: FolderType; profileId?: string; folderId?: string; prefix?: string } => {
+    if (value.startsWith("vault:")) {
+      const parts = value.split(":");
+      return {
+        type: "vault",
+        profileId: parts[1],
+        folderId: parts[2],
+      };
+    }
+    return {
+      type: "s3",
+      prefix: value,
+    };
+  };
+
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return "Select a vault folder to save videos";
+    if (!targetFolder) return "Please select a vault folder to save your video";
     
-    if (targetFolder.startsWith("vault:")) {
-      const parts = targetFolder.split(":");
-      const profileId = parts[1];
-      const folderId = parts[2];
-      const profile = vaultProfiles.find((p) => p.id === profileId);
-      const folders = vaultFoldersByProfile[profileId] || [];
-      const folder = folders.find((f) => f.id === folderId);
+    const parsed = parseTargetFolder(targetFolder);
+    if (parsed.type === "vault" && parsed.profileId && parsed.folderId) {
+      const profile = vaultProfiles.find((p) => p.id === parsed.profileId);
+      const folders = vaultFoldersByProfile[parsed.profileId] || [];
+      const folder = folders.find((f) => f.id === parsed.folderId);
       if (profile && folder) {
         const profileDisplay = profile.instagramUsername ? `@${profile.instagramUsername}` : profile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+        return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
       }
     }
-    return "Select a vault folder to save videos";
+    return "Please select a vault folder";
   };
 
   const loadGenerationHistory = useCallback(async () => {
@@ -190,7 +207,7 @@ export default function SeeDreamTextToVideo() {
     setIsLoadingHistory(true);
     try {
       const response = await apiClient.get(
-        "/api/generate/seedream-text-to-video?history=true"
+        "/api/generate/kling-text-to-video?history=true"
       );
       if (response.ok) {
         const data = await response.json();
@@ -210,7 +227,7 @@ export default function SeeDreamTextToVideo() {
     }
   }, [apiClient, loadVaultData, loadGenerationHistory]);
 
-  const pollTaskStatus = (apiTaskId: string, localTaskId: string) => {
+  const pollTaskStatus = (taskId: string, localTaskId: string) => {
     const maxAttempts = 120;
     let attempts = 0;
 
@@ -232,7 +249,7 @@ export default function SeeDreamTextToVideo() {
           });
 
           const response = await apiClient?.get(
-            `/api/generate/seedream-text-to-video?taskId=${apiTaskId}`
+            `/api/generate/kling-text-to-video?taskId=${taskId}`
           );
           if (!response) throw new Error("API client not available");
           if (!response.ok) {
@@ -263,7 +280,7 @@ export default function SeeDreamTextToVideo() {
             throw new Error(data.error || "Video generation failed");
           }
 
-          if (data.status === "processing") {
+          if (data.status === "processing" || data.status === "submitted") {
             if (attempts < maxAttempts) {
               setTimeout(poll, 5000);
               return;
@@ -313,47 +330,59 @@ export default function SeeDreamTextToVideo() {
     setError(null);
     setGeneratedVideos([]);
     setPollingStatus("Submitting task...");
-    const localTaskId = `seedream-t2v-${Date.now()}`;
+    const localTaskId = `kling-t2v-${Date.now()}`;
 
     try {
       updateGlobalProgress({
         isGenerating: true,
         progress: 0,
         stage: "starting",
-        message: "Starting SeeDream 4.5 Text-to-Video generation...",
+        message: "Starting Kling Text-to-Video generation...",
         generationType: "image-to-video",
         jobId: localTaskId,
       });
 
+      // Parse target folder for vault vs S3
+      const parsedFolder = parseTargetFolder(targetFolder);
+      
       const payload: any = {
         prompt: prompt.trim(),
-        model: "ep-20260105171451-cljlk",
-        resolution,
-        ratio: aspectRatio,
+        negative_prompt: negativePrompt.trim() || undefined,
+        model,
+        mode,
         duration,
-        seed: -1,
-        cameraFixed,
-        watermark: false,
-        generateAudio,
+        aspect_ratio: aspectRatio,
+        cfg_scale: cfgScale,
       };
 
-      // Add vault folder params if selected
-      if (targetFolder.startsWith("vault:")) {
-        const parts = targetFolder.split(":");
+      // Add camera control if enabled
+      if (useCameraControl) {
+        payload.camera_control = {
+          type: "simple",
+          config: {
+            type: cameraControl,
+          },
+        };
+      }
+
+      // Add folder params based on type
+      if (parsedFolder.type === "vault" && parsedFolder.profileId && parsedFolder.folderId) {
         payload.saveToVault = true;
-        payload.vaultProfileId = parts[1];
-        payload.vaultFolderId = parts[2];
+        payload.vaultProfileId = parsedFolder.profileId;
+        payload.vaultFolderId = parsedFolder.folderId;
+      } else if (parsedFolder.prefix) {
+        payload.targetFolder = parsedFolder.prefix;
       }
 
       const response = await apiClient.post(
-        "/api/generate/seedream-text-to-video",
+        "/api/generate/kling-text-to-video",
         payload
       );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage =
-          errorData.details?.error?.message || errorData.error || "Generation failed";
+          errorData.details?.message || errorData.error || "Generation failed";
         throw new Error(errorMessage);
       }
 
@@ -410,21 +439,19 @@ export default function SeeDreamTextToVideo() {
 
   const handleReset = () => {
     setPrompt("");
-    setDuration(4);
-    setDurationSliderValue(1);
-    setResolution("720p");
+    setNegativePrompt("");
+    setModel("kling-v1-6");
+    setMode("std");
+    setDuration("5");
     setAspectRatio("16:9");
-    setCameraFixed(false);
-    setGenerateAudio(true);
+    setCfgScale(0.5);
+    setUseCameraControl(false);
+    setCameraControl("zoom_in");
     setTargetFolder("");
     setError(null);
     setGeneratedVideos([]);
     setPollingStatus("");
   };
-
-  useEffect(() => {
-    setDuration(sliderToDuration(durationSliderValue));
-  }, [durationSliderValue]);
 
   useEffect(() => {
     if (showVideoModal) {
@@ -452,54 +479,56 @@ export default function SeeDreamTextToVideo() {
   return (
     <div className="relative min-h-screen bg-slate-950 text-slate-50">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-amber-400/10 blur-3xl" />
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-pink-400/10 blur-3xl" />
         <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+        {/* Header Section */}
         <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-start">
-          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-violet-900/30 backdrop-blur">
             <div className="flex items-center gap-3 mb-4">
-              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-cyan-900/50">
+              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-pink-600 shadow-lg shadow-violet-900/50">
                 <Film className="w-6 h-6 text-white" />
                 <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Motion Studio</p>
-                <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5 — Text to Video</h1>
+                <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Motion Studio</p>
+                <h1 className="text-3xl sm:text-4xl font-black text-white">Kling AI — Text to Video</h1>
               </div>
             </div>
             <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
-              Turn scripts into finished shots with SeeDream 4.5. Dial in framing, duration, camera movement, and audio for cinematic clips.
+              Create stunning AI-generated videos from text prompts using Kling AI&apos;s powerful models. 
+              Supports professional mode, camera controls, and multiple aspect ratios.
             </p>
 
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-200">
                   <Zap className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Speed</p>
-                  <p className="text-sm font-semibold text-white">Auto durations</p>
+                  <p className="text-xs text-slate-300">Duration</p>
+                  <p className="text-sm font-semibold text-white">5s or 10s</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-200">
-                  <Settings className="w-5 h-5" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500/20 text-pink-200">
+                  <Camera className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Framing</p>
-                  <p className="text-sm font-semibold text-white">Smart ratios</p>
+                  <p className="text-xs text-slate-300">Camera</p>
+                  <p className="text-sm font-semibold text-white">AI Controls</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-200">
-                  <Download className="w-5 h-5" />
+                  <Wand2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs text-slate-300">Output</p>
-                  <p className="text-sm font-semibold text-white">720p / 1080p</p>
+                  <p className="text-xs text-slate-300">Model</p>
+                  <p className="text-sm font-semibold text-white">Kling V1.6</p>
                 </div>
               </div>
             </div>
@@ -510,7 +539,7 @@ export default function SeeDreamTextToVideo() {
               <button
                 type="button"
                 onClick={() => setShowHelpModal(true)}
-                className="group inline-flex items-center gap-2 rounded-full bg-white text-slate-900 px-4 py-2 text-sm font-semibold shadow-lg shadow-cyan-900/20 transition hover:-translate-y-0.5 hover:shadow-xl"
+                className="group inline-flex items-center gap-2 rounded-full bg-white text-slate-900 px-4 py-2 text-sm font-semibold shadow-lg shadow-violet-900/20 transition hover:-translate-y-0.5 hover:shadow-xl"
                 title="View Help & Tips"
               >
                 <Info className="w-4 h-4" />
@@ -518,16 +547,16 @@ export default function SeeDreamTextToVideo() {
               </button>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-cyan-500/10 via-blue-500/10 to-indigo-500/10 p-4 shadow-2xl shadow-cyan-900/20 backdrop-blur">
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-violet-500/10 via-purple-500/10 to-pink-500/10 p-4 shadow-2xl shadow-violet-900/20 backdrop-blur">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Current setup</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Current setup</p>
                   <p className="text-sm font-semibold text-white">
-                    {resolution} · {aspectRatio} · {duration === -1 ? "Auto" : `${duration}s`}
+                    {MODEL_OPTIONS.find(m => m.value === model)?.label} · {mode === "pro" ? "Professional" : "Standard"} · {duration}s
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-200/80">
-                  <span className="rounded-full bg-white/10 px-3 py-1">{currentDimensions}</span>
+                  <span className="rounded-full bg-white/10 px-3 py-1">{aspectRatio}</span>
                   <span
                     className={`rounded-full px-3 py-1 ${
                       isGenerating
@@ -540,7 +569,7 @@ export default function SeeDreamTextToVideo() {
                 </div>
               </div>
               {pollingStatus && (
-                <div className="mt-3 flex items-center gap-2 text-sm text-cyan-100">
+                <div className="mt-3 flex items-center gap-2 text-sm text-violet-100">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>{pollingStatus}</span>
                 </div>
@@ -549,193 +578,236 @@ export default function SeeDreamTextToVideo() {
           </div>
         </div>
 
+        {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-[420px_1fr] items-start">
+          {/* Left Panel - Controls */}
           <div className="space-y-6">
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-cyan-900/40 backdrop-blur space-y-6">
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-violet-900/40 backdrop-blur space-y-6">
+              {/* Prompt Input */}
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-100">Prompt *</label>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder={
-                    "Describe the video you want to create...\n\nExample: Multiple shots. A detective enters a dimly lit room. He examines the clues on the table and picks up an item from the surface."
+                    "Describe the video you want to create...\n\nExample: A beautiful sunset over the ocean, golden light reflecting on gentle waves, seabirds flying in slow motion across the sky."
                   }
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-transparent disabled:opacity-50"
-                  rows={6}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50"
+                  rows={5}
                   disabled={isGenerating}
                 />
-                <p className="text-xs text-slate-300">Include movement, camera, and style cues for best results.</p>
+                <p className="text-xs text-slate-300">Be descriptive for best results. Include motion, style, and atmosphere details.</p>
               </div>
 
+              {/* Negative Prompt */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-100">Negative Prompt (Optional)</label>
+                <textarea
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  placeholder="What to avoid: blurry, distorted, low quality..."
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 placeholder-slate-400 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50"
+                  rows={2}
+                  disabled={isGenerating}
+                />
+              </div>
+
+              {/* Model Selection */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-100">Resolution</label>
-                  <span className="text-xs text-slate-400">720p is faster; 1080p is sharper.</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {(["720p", "1080p"] as const).map((option) => (
+                <label className="text-sm font-semibold text-slate-100">Model</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {MODEL_OPTIONS.map((option) => (
                     <button
-                      key={option}
-                      onClick={() => setResolution(option)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                        resolution === option
-                          ? "border-cyan-400/70 bg-gradient-to-br from-cyan-500/20 via-blue-500/10 to-indigo-500/10 text-white shadow-cyan-900/40"
+                      key={option.value}
+                      onClick={() => setModel(option.value)}
+                      className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                        model === option.value
+                          ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
                           : "border-white/10 bg-white/5 text-slate-100/90"
                       } disabled:opacity-50`}
                       disabled={isGenerating}
                     >
-                      <p className="text-sm font-semibold">{option}</p>
-                      <p className="text-xs text-slate-300">{option === "720p" ? "HD" : "Full HD"}</p>
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      <p className="text-xs text-slate-300">{option.description}</p>
                     </button>
                   ))}
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-100">Aspect Ratio</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {ASPECT_RATIOS.map((ratio) => (
+              {/* Mode Selection */}
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-100">Quality Mode</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {MODE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setMode(option.value)}
+                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                        mode === option.value
+                          ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
+                          : "border-white/10 bg-white/5 text-slate-100/90"
+                      } disabled:opacity-50`}
+                      disabled={isGenerating}
+                    >
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      <p className="text-xs text-slate-300">{option.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Duration Selection */}
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-100">Duration</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {DURATION_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setDuration(option.value)}
+                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                        duration === option.value
+                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
+                          : "border-white/10 bg-white/5 text-slate-200"
+                      } disabled:opacity-50`}
+                      disabled={isGenerating}
+                    >
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      <p className="text-xs text-slate-300">{option.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Aspect Ratio Selection */}
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-slate-100">Aspect Ratio</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {ASPECT_RATIO_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setAspectRatio(option.value)}
+                      className={`rounded-xl border px-3 py-2 text-center transition hover:-translate-y-0.5 ${
+                        aspectRatio === option.value
+                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
+                          : "border-white/10 bg-white/5 text-slate-200"
+                      } disabled:opacity-50`}
+                      disabled={isGenerating}
+                    >
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      <p className="text-xs text-slate-400">{option.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* CFG Scale */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-slate-100">Creativity (CFG Scale)</label>
+                  <span className="text-xs text-slate-300">{cfgScale.toFixed(1)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  value={cfgScale}
+                  onChange={(e) => setCfgScale(Number(e.target.value))}
+                  className="w-full accent-violet-400"
+                  disabled={isGenerating}
+                />
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>More Creative</span>
+                  <span>More Accurate</span>
+                </div>
+              </div>
+
+              {/* Camera Control */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setUseCameraControl(!useCameraControl)}
+                  className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                    useCameraControl
+                      ? "border-pink-400/70 bg-pink-500/10 text-white shadow-pink-900/30"
+                      : "border-white/10 bg-white/5 text-slate-200"
+                  } disabled:opacity-50`}
+                  disabled={isGenerating}
+                >
+                  <div className="flex items-center gap-3">
+                    <Camera className="w-5 h-5" />
+                    <div>
+                      <p className="text-sm font-semibold">Camera Control</p>
+                      <p className="text-xs text-slate-300">
+                        {useCameraControl ? "AI camera movements enabled" : "Click to enable camera movements"}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                {useCameraControl && (
+                  <div className="grid grid-cols-2 gap-2 pl-2">
+                    {CAMERA_CONTROL_OPTIONS.map((option) => (
                       <button
-                        key={ratio}
-                        onClick={() => setAspectRatio(ratio)}
-                        className={`rounded-xl border px-3 py-2 text-xs font-semibold transition hover:-translate-y-0.5 ${
-                          aspectRatio === ratio
-                            ? "border-cyan-400/70 bg-cyan-500/10 text-white shadow-cyan-900/30"
+                        key={option.value}
+                        onClick={() => setCameraControl(option.value)}
+                        className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 ${
+                          cameraControl === option.value
+                            ? "border-pink-400/70 bg-pink-500/10 text-white"
                             : "border-white/10 bg-white/5 text-slate-200"
                         } disabled:opacity-50`}
                         disabled={isGenerating}
                       >
-                        {ratio}
+                        <p className="text-xs font-semibold">{option.label}</p>
                       </button>
                     ))}
                   </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 flex items-center justify-between">
-                  <span className="text-slate-300">Video dimensions</span>
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-                    {currentDimensions}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-100">Duration</label>
-                  <span className="text-xs text-slate-300">Auto picks 4-12s based on prompt</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-300 w-12">Auto</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={9}
-                    step={1}
-                    value={durationSliderValue}
-                    onChange={(e) => setDurationSliderValue(Number(e.target.value))}
-                    className="flex-1 accent-cyan-400"
-                    disabled={isGenerating}
-                  />
-                  <span className="text-xs text-slate-300 w-12 text-right">12s</span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-slate-300">
-                  <span>Selected</span>
-                  <span className="rounded-full bg-white/5 px-3 py-1 text-white">
-                    {duration === -1 ? "Auto" : `${duration} seconds`}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setCameraFixed((prev) => !prev)}
-                  className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                    cameraFixed
-                      ? "border-cyan-400/70 bg-cyan-500/10 text-white shadow-cyan-900/30"
-                      : "border-white/10 bg-white/5 text-slate-200"
-                  } disabled:opacity-50`}
-                  disabled={isGenerating}
-                >
-                  <p className="text-sm font-semibold">Camera Fixed</p>
-                  <p className="text-xs text-slate-300">
-                    {cameraFixed ? "Static framing" : "Allow dynamic camera moves"}
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setGenerateAudio((prev) => !prev)}
-                  className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                    generateAudio
-                      ? "border-emerald-400/70 bg-emerald-500/10 text-white shadow-emerald-900/30"
-                      : "border-white/10 bg-white/5 text-slate-200"
-                  } disabled:opacity-50`}
-                  disabled={isGenerating}
-                >
-                  <p className="text-sm font-semibold">Generate Audio</p>
-                  <p className="text-xs text-slate-300">
-                    {generateAudio ? "Voices, foley, music" : "Video only"}
-                  </p>
-                </button>
+                )}
               </div>
 
               {/* Folder Selection */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Archive className="w-4 h-4 text-purple-300" />
+                  <Folder className="w-4 h-4 text-violet-300" />
                   <p className="text-sm font-semibold text-white">Save to Vault</p>
                   {isLoadingVaultData && (
-                    <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
+                    <Loader2 className="w-3 h-3 animate-spin text-violet-300" />
                   )}
                 </div>
-                <div className="relative">
-                  <select
-                    value={targetFolder}
-                    onChange={(e) => setTargetFolder(e.target.value)}
-                    disabled={isGenerating || isLoadingVaultData}
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-purple-300"
-                  >
-                    <option value="">Select a vault folder...</option>
-                    
-                    {/* Vault Folders by Profile */}
-                    {vaultProfiles.map((profile) => {
-                      const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                      if (folders.length === 0) return null;
-                      
-                      return (
-                        <optgroup 
-                          key={profile.id} 
-                          label={`${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                        >
-                          {folders.map((folder) => (
-                            <option 
-                              key={folder.id} 
-                              value={`vault:${profile.id}:${folder.id}`}
-                            >
-                              {folder.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                </div>
-                
-                {/* Folder indicator */}
-                <div className="flex items-center gap-2">
-                  {targetFolder && (
-                    <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-200">
-                      <Archive className="w-3 h-3" />
-                      <span>Vault Storage</span>
-                    </div>
-                  )}
-                  <p className="text-xs text-slate-300 flex-1">
-                    {getSelectedFolderDisplay()}
-                  </p>
-                </div>
+                <select
+                  value={targetFolder}
+                  onChange={(e) => setTargetFolder(e.target.value)}
+                  disabled={isLoadingVaultData || isGenerating}
+                  className="w-full rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-slate-100 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-violet-300 [&>optgroup]:font-semibold"
+                >
+                  <option value="" className="bg-slate-800 text-slate-100">Select a vault folder...</option>
+                  {vaultProfiles.map((profile) => {
+                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
+                    if (folders.length === 0) return null;
+                    const profileDisplay = profile.instagramUsername
+                      ? `@${profile.instagramUsername}`
+                      : profile.name;
+                    return (
+                      <optgroup key={profile.id} label={`🔒 ${profileDisplay}`} className="bg-slate-900 text-violet-300">
+                        {folders.map((folder) => (
+                          <option
+                            key={`vault:${profile.id}:${folder.id}`}
+                            value={`vault:${profile.id}:${folder.id}`}
+                            className="bg-slate-800 text-slate-100 py-2"
+                          >
+                            {folder.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+                <p className="text-xs text-slate-400">
+                  {getSelectedFolderDisplay()}
+                </p>
               </div>
 
+              {/* Error Display */}
               {error && (
                 <div className="flex items-center gap-2 rounded-2xl border border-red-400/50 bg-red-500/10 px-4 py-3 text-sm text-red-100">
                   <AlertCircle className="w-4 h-4" />
@@ -743,11 +815,12 @@ export default function SeeDreamTextToVideo() {
                 </div>
               )}
 
+              {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating}
-                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-pink-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"
                 >
                   {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                   {isGenerating ? "Generating..." : "Generate Video"}
@@ -764,11 +837,13 @@ export default function SeeDreamTextToVideo() {
             </div>
           </div>
 
+          {/* Right Panel - Results */}
           <div className="space-y-6">
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+            {/* Generated Videos */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-violet-900/30 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Latest output</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Latest output</p>
                   <h2 className="text-lg font-semibold text-white">Generated videos</h2>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-300">
@@ -803,13 +878,13 @@ export default function SeeDreamTextToVideo() {
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/0 to-transparent opacity-0 group-hover:opacity-100 transition" />
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs text-white">
                         <span className="rounded-full bg-white/10 px-3 py-1">
-                          {video.duration === -1 ? "Auto" : `${video.duration}s`} · {video.modelVersion}
+                          {video.duration}s · {video.aspectRatio}
                         </span>
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDownload(video.videoUrl, `${video.id}.mp4`);
+                            handleDownload(video.videoUrl, `kling-${video.id}.mp4`);
                           }}
                           className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-1 text-[11px] font-semibold backdrop-blur"
                         >
@@ -823,10 +898,11 @@ export default function SeeDreamTextToVideo() {
               )}
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+            {/* Generation History */}
+            <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-violet-900/30 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Library</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
                   <h2 className="text-lg font-semibold text-white">Recent generations</h2>
                 </div>
                 <button
@@ -868,14 +944,14 @@ export default function SeeDreamTextToVideo() {
                         <div className="flex flex-col gap-1">
                           <span className="font-semibold text-white truncate">{video.prompt}</span>
                           <span className="text-slate-400">
-                            {video.duration === -1 ? "Auto" : `${video.duration}s`} · {video.modelVersion}
+                            {video.duration}s · {video.model}
                           </span>
                         </div>
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDownload(video.videoUrl, `${video.id}.mp4`);
+                            handleDownload(video.videoUrl, `kling-${video.id}.mp4`);
                           }}
                           className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white transition hover:-translate-y-0.5"
                         >
@@ -892,6 +968,7 @@ export default function SeeDreamTextToVideo() {
         </div>
       </div>
 
+      {/* Video Modal */}
       {showVideoModal && selectedVideo &&
         createPortal(
           <div
@@ -922,7 +999,7 @@ export default function SeeDreamTextToVideo() {
               <div className="p-4 text-sm text-slate-200">
                 <p className="font-semibold text-white mb-1">{selectedVideo.prompt}</p>
                 <p className="text-slate-400">
-                  {selectedVideo.duration === -1 ? "Auto" : `${selectedVideo.duration}s`} · {selectedVideo.modelVersion}
+                  {selectedVideo.duration}s · {selectedVideo.aspectRatio} · {selectedVideo.model}
                 </p>
               </div>
             </div>
@@ -930,6 +1007,7 @@ export default function SeeDreamTextToVideo() {
           document.body
         )}
 
+      {/* Help Modal */}
       {showHelpModal &&
         createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur">
@@ -945,25 +1023,27 @@ export default function SeeDreamTextToVideo() {
 
               <div className="space-y-6 text-slate-100">
                 <div className="flex items-center gap-2">
-                  <Info className="w-5 h-5 text-cyan-400" />
-                  <h3 className="text-xl font-semibold">Prompting tips</h3>
+                  <Info className="w-5 h-5 text-violet-400" />
+                  <h3 className="text-xl font-semibold">Kling AI Text-to-Video Guide</h3>
                 </div>
+                
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-2xl p-4">
                     <p className="font-semibold text-emerald-100 mb-2">✓ Do</p>
                     <ul className="text-sm space-y-1 text-emerald-50 list-disc list-inside">
-                      <li>Describe subject, movement, and background</li>
-                      <li>Call out camera moves (pan, dolly, zoom)</li>
-                      <li>Specify duration or leave Auto</li>
-                      <li>Include quotes for dialogue when audio is on</li>
+                      <li>Be specific about subject, action, and setting</li>
+                      <li>Describe camera movements explicitly</li>
+                      <li>Include lighting and atmosphere details</li>
+                      <li>Use Professional mode for complex scenes</li>
                     </ul>
                   </div>
                   <div className="bg-red-500/10 border border-red-400/30 rounded-2xl p-4">
                     <p className="font-semibold text-red-100 mb-2">✗ Avoid</p>
                     <ul className="text-sm space-y-1 text-red-50 list-disc list-inside">
-                      <li>Vague single-word prompts</li>
+                      <li>Vague or single-word prompts</li>
+                      <li>Contradictory instructions</li>
                       <li>Too many simultaneous actions</li>
-                      <li>Contradictory camera or lighting</li>
+                      <li>Overly complex scene changes</li>
                     </ul>
                   </div>
                 </div>
@@ -971,32 +1051,27 @@ export default function SeeDreamTextToVideo() {
                 <div className="grid sm:grid-cols-2 gap-3">
                   <div className="border border-white/10 rounded-2xl p-4 bg-white/5">
                     <h4 className="font-semibold mb-2 flex items-center gap-2">
-                      <Settings className="w-4 h-4 text-cyan-400" />
+                      <Settings className="w-4 h-4 text-violet-400" />
                       Parameters
                     </h4>
                     <ul className="text-sm space-y-1 text-slate-200 list-disc list-inside">
-                      <li>Resolution: 720p (faster) or 1080p (sharper)</li>
-                      <li>Aspect: cinematic 16:9, vertical 9:16, square 1:1, adaptive auto</li>
-                      <li>Duration: Auto 4-12s or fixed seconds</li>
-                      <li>Camera Fixed: lock framing for static shots</li>
-                      <li>Audio: generates voice/foley/music when enabled</li>
+                      <li><strong>Model:</strong> V1.6 is latest, V1.5 is stable</li>
+                      <li><strong>Mode:</strong> Pro for quality, Std for speed</li>
+                      <li><strong>Duration:</strong> 5s quick, 10s extended</li>
+                      <li><strong>Aspect:</strong> 16:9 landscape, 9:16 portrait</li>
+                      <li><strong>CFG:</strong> Lower = more creative</li>
                     </ul>
                   </div>
                   <div className="border border-white/10 rounded-2xl p-4 bg-white/5">
                     <h4 className="font-semibold mb-2 flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-cyan-400" />
-                      Examples
+                      <Camera className="w-4 h-4 text-violet-400" />
+                      Camera Controls
                     </h4>
-                    <ul className="text-sm space-y-2 text-slate-200 list-disc list-inside">
-                      <li>
-                        "Multiple shots. Detective enters dimly lit room. Examines clues, picks up item. Camera cuts to him thinking." (Auto duration)
-                      </li>
-                      <li>
-                        "Under a clear blue sky, vast white daisy fields stretch out. Slow dolly toward a single daisy with dew." (Camera fixed)
-                      </li>
-                      <li>
-                        "A man stops a woman and says, \"Remember, never point your finger at the moon.\"" (Audio on)
-                      </li>
+                    <ul className="text-sm space-y-1 text-slate-200 list-disc list-inside">
+                      <li><strong>Zoom In/Out:</strong> Gradual focal changes</li>
+                      <li><strong>Down & Back:</strong> Pull away motion</li>
+                      <li><strong>Forward & Up:</strong> Push in motion</li>
+                      <li><strong>Turn Forward:</strong> Pan while moving</li>
                     </ul>
                   </div>
                 </div>
@@ -1004,12 +1079,13 @@ export default function SeeDreamTextToVideo() {
                 <div className="border border-amber-400/30 bg-amber-500/10 rounded-2xl p-4">
                   <h4 className="font-semibold flex items-center gap-2 text-amber-100">
                     <AlertCircle className="w-4 h-4" />
-                    Notes
+                    Tips
                   </h4>
                   <ul className="text-sm space-y-1 text-amber-50 list-disc list-inside">
-                    <li>Text-to-video is creative; results vary. For precision, generate an image first then use Image-to-Video.</li>
-                    <li>Videos save to your S3 storage automatically.</li>
-                    <li>Frame rate: 24 fps · Format: MP4.</li>
+                    <li>Generation typically takes 2-5 minutes depending on duration and mode</li>
+                    <li>Professional mode produces higher quality but takes longer</li>
+                    <li>Use negative prompts to avoid common issues like blur or distortion</li>
+                    <li>Videos are automatically saved to your S3 storage or Vault</li>
                   </ul>
                 </div>
               </div>
