@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
                 generationType: 'text-to-image',
                 model: data.model || model,
                 prompt: body.prompt,
-                negativePrompt: body.negativePrompt || null,
+                negativePrompt: body.negative_prompt || null,
                 size: item.size || body.size,
                 resolution: body.size?.includes('4096') || body.size?.includes('4704') || body.size?.includes('5504') || body.size?.includes('6240') ? '4K' : '2K',
                 watermark: body.watermark,
