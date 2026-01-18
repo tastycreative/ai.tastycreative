@@ -456,7 +456,11 @@ export default function SeeDreamImageToImage() {
         };
       }
 
-      const response = await apiClient.post("/api/generate/seedream-image-to-image", payload);
+      // Calculate dynamic timeout: 1 minute per image (minimum 2 minutes)
+      const timeoutMs = Math.max(maxImages * 60000, 120000);
+      console.log(`⏱️ Setting timeout to ${timeoutMs / 1000}s for ${maxImages} image(s)`);
+
+      const response = await apiClient.post("/api/generate/seedream-image-to-image", payload, { timeout: timeoutMs });
       
       if (!response.ok) {
         // Handle non-JSON error responses (e.g., "Request Entity Too Large" from CDN/proxy)

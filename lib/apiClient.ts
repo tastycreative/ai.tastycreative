@@ -16,11 +16,14 @@ class AuthenticatedApiClient {
     this.getToken = getToken;
   }
 
-  private async makeRequest(url: string, options: RequestInit = {}): Promise<Response> {
+  private async makeRequest(url: string, options: RequestInit & { customTimeout?: number } = {}): Promise<Response> {
+    // Extract custom timeout before passing options to fetch
+    const { customTimeout, ...fetchOptions } = options;
+    
     // Enhanced debug logging
     console.log('🌐 === API CLIENT REQUEST (CLERK) ===');
     console.log('📍 Request URL:', url);
-    console.log('🔧 Request method:', options.method || 'GET');
+    console.log('🔧 Request method:', fetchOptions.method || 'GET');
     console.log('⏰ Timestamp:', new Date().toISOString());
     
     // Get the Clerk token
@@ -69,15 +72,18 @@ class AuthenticatedApiClient {
       const startTime = Date.now();
       console.log('🚀 Sending request...');
       
-      // Add a timeout to the fetch request - longer timeout for upload operations
+      // Add a timeout to the fetch request - supports custom timeout for heavy operations
       const controller = new AbortController();
       const isUploadOperation = url.includes('/upload') || url.includes('/blob') || url.includes('/sync');
       const isImageGeneration = url.includes('/generate/');
-      const timeoutDuration = isUploadOperation ? 300000 : isImageGeneration ? 120000 : 30000; // 5 min for uploads, 2 min for generation, 30s for others
+      // Use custom timeout if provided, otherwise: 5 min for uploads, 2 min default for generation, 30s for others
+      const defaultTimeout = isUploadOperation ? 300000 : isImageGeneration ? 120000 : 30000;
+      const timeoutDuration = customTimeout || defaultTimeout;
       const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
+      console.log(`⏱️ Timeout set to ${Math.round(timeoutDuration / 1000)}s ${customTimeout ? '(custom)' : '(default)'}`);
       
       const response = await fetch(url, {
-        ...options,
+        ...fetchOptions,
         headers,
         signal: controller.signal,
       });
@@ -89,7 +95,6 @@ class AuthenticatedApiClient {
       console.log('📊 Response status:', response.status, response.statusText);
       console.log('🌐 Response URL:', response.url);
       console.log('📋 Response headers:', Object.fromEntries(response.headers.entries()));
-      console.log(`⏰ Used ${isUploadOperation ? '5-minute' : isImageGeneration ? '2-minute' : '30-second'} timeout for this operation`);
 
       // Log response body for debugging (only for non-successful responses)
       if (!response.ok) {
@@ -150,7 +155,7 @@ class AuthenticatedApiClient {
     return this.makeRequest(url, { method: 'GET' });
   }
 
-  async post(url: string, data?: any): Promise<Response> {
+  async post(url: string, data?: any, options?: { timeout?: number }): Promise<Response> {
     console.log('📝 API Client POST:', url);
     if (data) {
       if (data instanceof FormData) {
@@ -170,7 +175,7 @@ class AuthenticatedApiClient {
       body = JSON.stringify(data); // Stringify other data
     }
     
-    return this.makeRequest(url, { method: 'POST', body });
+    return this.makeRequest(url, { method: 'POST', body, customTimeout: options?.timeout });
   }
 
   async patch(url: string, data?: any): Promise<Response> {
