@@ -323,12 +323,49 @@ export async function incrementInfluencerUsage(clerkId: string, fileName: string
 // Helper to ensure user exists in database
 export async function ensureUserExists(clerkId: string): Promise<void> {
   try {
+    // First, check if user exists and has data
+    const existingUser = await prisma.user.findUnique({
+      where: { clerkId },
+      select: { email: true, firstName: true, lastName: true }
+    });
+
+    if (existingUser && (existingUser.email || existingUser.firstName || existingUser.lastName)) {
+      // User exists with data, no action needed
+      return;
+    }
+
+    // User doesn't exist or has no data, try to fetch from Clerk
+    let clerkUserData: { email?: string | null; firstName?: string | null; lastName?: string | null; imageUrl?: string | null } = {};
+    
+    try {
+      const { clerkClient } = await import('@clerk/nextjs/server');
+      const clerk = await clerkClient();
+      const clerkUser = await clerk.users.getUser(clerkId);
+      clerkUserData = {
+        email: clerkUser.emailAddresses[0]?.emailAddress || null,
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        imageUrl: clerkUser.imageUrl,
+      };
+    } catch (clerkError) {
+      console.warn('Could not fetch Clerk data for user:', clerkId, clerkError);
+    }
+
     await prisma.user.upsert({
       where: { clerkId },
-      update: {},
+      update: {
+        // Update with Clerk data if available and fields are empty
+        ...(clerkUserData.email && { email: clerkUserData.email }),
+        ...(clerkUserData.firstName && { firstName: clerkUserData.firstName }),
+        ...(clerkUserData.lastName && { lastName: clerkUserData.lastName }),
+        ...(clerkUserData.imageUrl && { imageUrl: clerkUserData.imageUrl }),
+      },
       create: { 
         clerkId,
-        // You can add more user data from Clerk here if needed
+        email: clerkUserData.email,
+        firstName: clerkUserData.firstName,
+        lastName: clerkUserData.lastName,
+        imageUrl: clerkUserData.imageUrl,
       }
     });
   } catch (error) {
