@@ -108,6 +108,12 @@ interface VaultFolder {
   isDefault?: boolean;
 }
 
+interface AvailableFolderOption {
+  depth: number;
+  isShared: boolean;
+  displayPath: string;
+}
+
 const sanitizePrefix = (prefix: string): string => {
   if (!prefix) {
     return '';
