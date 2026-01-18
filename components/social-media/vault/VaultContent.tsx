@@ -13,8 +13,8 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// Constants for pagination
-const ITEMS_PER_PAGE = 50;
+// Constants for pagination - reduced for better initial load performance
+const ITEMS_PER_PAGE = 30;
 import {
   Plus,
   Search,
@@ -146,6 +146,280 @@ interface VaultItem {
   metadata?: VaultItemMetadata | null;
 }
 
+// Memoized Grid Item Component for performance
+interface GridItemProps {
+  item: VaultItem;
+  isSelected: boolean;
+  selectionMode: boolean;
+  canEdit: boolean;
+  onSelect: (id: string, e?: React.MouseEvent) => void;
+  onPreview: (item: VaultItem) => void;
+  onDelete: (id: string) => void;
+  formatFileSize: (bytes: number) => string;
+}
+
+const VaultGridItem = memo(function VaultGridItem({
+  item,
+  isSelected,
+  selectionMode,
+  canEdit,
+  onSelect,
+  onPreview,
+  onDelete,
+  formatFileSize,
+}: GridItemProps) {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (selectionMode) {
+      e.preventDefault();
+      onSelect(item.id, e);
+    }
+  }, [selectionMode, onSelect, item.id]);
+
+  const handlePreviewClick = useCallback((e: React.MouseEvent) => {
+    if (!selectionMode) {
+      e.stopPropagation();
+      onPreview(item);
+    }
+  }, [selectionMode, onPreview, item]);
+
+  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect(item.id, e);
+  }, [onSelect, item.id]);
+
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(item.id);
+  }, [onDelete, item.id]);
+
+  return (
+    <div
+      className={`vault-item group bg-gray-900 rounded-lg sm:rounded-xl border transition-all cursor-pointer ${
+        isSelected
+          ? 'border-blue-500 ring-2 ring-blue-500/30'
+          : 'border-gray-800 hover:border-gray-700 hover:shadow-lg'
+      }`}
+      onClick={handleClick}
+    >
+      <div className="relative">
+        <div
+          className={`absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-10 transition-opacity ${
+            selectionMode || isSelected
+              ? 'opacity-100'
+              : 'opacity-0 sm:group-hover:opacity-100'
+          }`}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onSelect(item.id)}
+            onClick={handleCheckboxClick}
+            className="w-4 h-4 sm:w-4 sm:h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 shadow-sm cursor-pointer"
+          />
+        </div>
+        <div
+          className="aspect-square p-2 sm:p-3"
+          onClick={handlePreviewClick}
+        >
+          {item.fileType.startsWith('image/') ? (
+            <img
+              src={item.awsS3Url}
+              alt={item.fileName}
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover rounded-lg bg-gray-800"
+            />
+          ) : item.fileType.startsWith('video/') ? (
+            <div className="relative w-full h-full bg-gray-800 rounded-lg overflow-hidden">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 sm:w-10 h-8 sm:h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center">
+                  <PlayCircle className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
+                </div>
+              </div>
+            </div>
+          ) : item.fileType.startsWith('audio/') ? (
+            <div className="w-full h-full bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-lg flex items-center justify-center">
+              <Music4 className="w-10 sm:w-12 h-10 sm:h-12 text-purple-400" />
+            </div>
+          ) : (
+            <div className="w-full h-full bg-gray-800 rounded-lg flex items-center justify-center">
+              <FileIcon className="w-10 sm:w-12 h-10 sm:h-12 text-gray-600" />
+            </div>
+          )}
+        </div>
+        <div
+          className={`absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex items-center gap-1 transition-opacity ${
+            !selectionMode && (isSelected ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100')
+          } ${selectionMode ? 'hidden' : ''}`}
+        >
+          {item.metadata && (
+            <div
+              className="p-1 sm:p-1.5 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur shadow-sm rounded-lg"
+              title="AI Generated - Click to view details"
+            >
+              <Sparkles className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+            </div>
+          )}
+          <a
+            href={item.awsS3Url}
+            download={item.fileName}
+            onClick={(e) => e.stopPropagation()}
+            className="p-1 sm:p-1.5 bg-gray-900/80 backdrop-blur shadow-sm rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-300" />
+          </a>
+          {canEdit && (
+            <button
+              onClick={handleDeleteClick}
+              className="p-1 sm:p-1.5 bg-gray-900/80 backdrop-blur shadow-sm rounded-lg hover:bg-red-900/50 transition-colors"
+            >
+              <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="px-2 sm:px-3 pb-2 sm:pb-3">
+        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate">
+          {item.fileName}
+        </p>
+        <div className="flex items-center justify-between mt-0.5 sm:mt-1">
+          <span className="text-[10px] sm:text-xs text-gray-500">
+            {formatFileSize(item.fileSize)}
+          </span>
+          <span className="text-[10px] sm:text-xs text-gray-600 hidden sm:inline">
+            {item.createdAt.toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Memoized List Item Component for performance
+interface ListItemProps {
+  item: VaultItem;
+  isSelected: boolean;
+  selectionMode: boolean;
+  canEdit: boolean;
+  onSelect: (id: string, e?: React.MouseEvent) => void;
+  onPreview: (item: VaultItem) => void;
+  onDelete: (id: string) => void;
+  formatFileSize: (bytes: number) => string;
+}
+
+const VaultListItem = memo(function VaultListItem({
+  item,
+  isSelected,
+  selectionMode,
+  canEdit,
+  onSelect,
+  onPreview,
+  onDelete,
+  formatFileSize,
+}: ListItemProps) {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (selectionMode) {
+      onSelect(item.id, e);
+    } else {
+      onPreview(item);
+    }
+  }, [selectionMode, onSelect, onPreview, item]);
+
+  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect(item.id, e);
+  }, [onSelect, item.id]);
+
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete(item.id);
+  }, [onDelete, item.id]);
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`vault-item group flex items-center gap-2 sm:gap-4 p-2 sm:p-3 bg-gray-900 rounded-lg border transition-all cursor-pointer ${
+        isSelected
+          ? 'border-blue-500 ring-2 ring-blue-500/30'
+          : 'border-gray-800 hover:border-gray-700'
+      }`}
+    >
+      <div
+        className={`transition-opacity ${
+          selectionMode || isSelected
+            ? 'opacity-100'
+            : 'opacity-0 sm:group-hover:opacity-100'
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onSelect(item.id)}
+          onClick={handleCheckboxClick}
+          className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+        />
+      </div>
+      <div className="w-10 sm:w-12 h-10 sm:h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
+        {item.fileType.startsWith('image/') ? (
+          <img
+            src={item.awsS3Url}
+            alt={item.fileName}
+            loading="lazy"
+            decoding="async"
+            className="w-full h-full object-cover"
+          />
+        ) : item.fileType.startsWith('video/') ? (
+          <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+            <VideoIcon className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+          </div>
+        ) : item.fileType.startsWith('audio/') ? (
+          <div className="w-full h-full bg-purple-900/30 flex items-center justify-center">
+            <Music4 className="w-4 sm:w-5 h-4 sm:h-5 text-purple-400" />
+          </div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <FileIcon className="w-4 sm:w-5 h-4 sm:h-5 text-gray-500" />
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate">
+          {item.fileName}
+        </p>
+        <p className="text-[10px] sm:text-xs text-gray-500">
+          {formatFileSize(item.fileSize)}
+        </p>
+      </div>
+      <div className="text-[10px] sm:text-xs text-gray-600 items-center gap-1 hidden md:flex">
+        <Calendar className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+        {item.createdAt.toLocaleDateString()}
+      </div>
+      <div
+        className={`flex items-center gap-1 transition-opacity flex-shrink-0 ${
+          selectionMode ? 'hidden' : 'sm:opacity-0 sm:group-hover:opacity-100'
+        }`}
+      >
+        <a
+          href={item.awsS3Url}
+          download={item.fileName}
+          onClick={(e) => e.stopPropagation()}
+          className="p-1.5 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors"
+        >
+          <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-400" />
+        </a>
+        {canEdit && (
+          <button
+            onClick={handleDeleteClick}
+            className="p-1.5 sm:p-2 hover:bg-red-900/30 rounded-lg transition-colors"
+          >
+            <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export function VaultContent() {
   const [profiles, setProfiles] = useState<InstagramProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
@@ -225,34 +499,48 @@ export function VaultContent() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const toggleSelectItem = (itemId: string, e?: React.MouseEvent) => {
-    const newSelected = new Set(selectedItems);
-    
-    // Shift+click for range selection
-    if (e?.shiftKey && selectedItems.size > 0) {
-      const itemIds = filteredItems.map(item => item.id);
-      const lastSelectedId = Array.from(selectedItems).pop();
-      const lastIndex = itemIds.indexOf(lastSelectedId || '');
+  const toggleSelectItem = useCallback((itemId: string) => {
+    setSelectedItems(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(itemId)) {
+        newSelected.delete(itemId);
+      } else {
+        newSelected.add(itemId);
+      }
+      return newSelected;
+    });
+  }, []);
+
+  // Store last selected item for range selection
+  const lastSelectedRef = useRef<string | null>(null);
+  
+  // Combined select handler that handles both range and single selection
+  // Note: Range selection uses allFilteredItems which is computed in a useMemo below
+  const handleSelectItem = useCallback((itemId: string, e?: React.MouseEvent, itemList?: VaultItem[]) => {
+    // If shift key is pressed and we have a last selected item, do range selection
+    if (e?.shiftKey && lastSelectedRef.current && itemList) {
+      const itemIds = itemList.map(item => item.id);
+      const lastIndex = itemIds.indexOf(lastSelectedRef.current);
       const currentIndex = itemIds.indexOf(itemId);
       
       if (lastIndex !== -1 && currentIndex !== -1) {
         const start = Math.min(lastIndex, currentIndex);
         const end = Math.max(lastIndex, currentIndex);
-        for (let i = start; i <= end; i++) {
-          newSelected.add(itemIds[i]);
-        }
-        setSelectedItems(newSelected);
+        setSelectedItems(prev => {
+          const newSelected = new Set(prev);
+          for (let i = start; i <= end; i++) {
+            newSelected.add(itemIds[i]);
+          }
+          return newSelected;
+        });
         return;
       }
     }
     
-    if (newSelected.has(itemId)) {
-      newSelected.delete(itemId);
-    } else {
-      newSelected.add(itemId);
-    }
-    setSelectedItems(newSelected);
-  };
+    // Regular toggle
+    lastSelectedRef.current = itemId;
+    toggleSelectItem(itemId);
+  }, [toggleSelectItem]);
 
   const clearSelection = () => {
     setSelectedItems(new Set());
@@ -871,6 +1159,11 @@ export function VaultContent() {
     return allFilteredItems.slice(0, displayCount);
   }, [allFilteredItems, displayCount]);
 
+  // Wrapped select handler that includes filteredItems for range selection
+  const onSelectItem = useCallback((id: string, e?: React.MouseEvent) => {
+    handleSelectItem(id, e, filteredItems);
+  }, [handleSelectItem, filteredItems]);
+
   // Keyboard shortcuts for selection
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -945,6 +1238,14 @@ export function VaultContent() {
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
         .animate-slideUp { animation: slideUp 0.2s ease-out; }
+        /* Performance optimizations for grid items */
+        .vault-item { 
+          content-visibility: auto;
+          contain-intrinsic-size: 0 200px;
+        }
+        .vault-item img {
+          will-change: transform;
+        }
       `}</style>
 
       {/* Toast */}
@@ -1684,61 +1985,17 @@ export function VaultContent() {
                     </div>
                   )}
                   {filteredItems.map((item) => (
-                    <div 
-                      key={item.id} 
-                      className={`group bg-gray-900 rounded-lg sm:rounded-xl border transition-all cursor-pointer ${selectedItems.has(item.id) ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-gray-800 hover:border-gray-700 hover:shadow-lg'}`}
-                      onClick={(e) => {
-                        if (selectionMode) {
-                          e.preventDefault();
-                          toggleSelectItem(item.id, e);
-                        }
-                      }}
-                    >
-                      <div className="relative">
-                        <div className={`absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-10 transition-opacity ${selectionMode || selectedItems.has(item.id) ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'}`}>
-                          <input 
-                            type="checkbox" 
-                            checked={selectedItems.has(item.id)} 
-                            onChange={(e) => toggleSelectItem(item.id)} 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleSelectItem(item.id, e as unknown as React.MouseEvent);
-                            }} 
-                            className="w-4 h-4 sm:w-4 sm:h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 shadow-sm cursor-pointer" 
-                          />
-                        </div>
-                        <div className="aspect-square p-2 sm:p-3" onClick={(e) => { if (!selectionMode) { e.stopPropagation(); setPreviewItem(item); } }}>
-                          {item.fileType.startsWith('image/') ? <img src={item.awsS3Url} alt={item.fileName} loading="lazy" className="w-full h-full object-cover rounded-lg" /> :
-                           item.fileType.startsWith('video/') ? (
-                             <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
-                               <video src={item.awsS3Url} preload="none" className="w-full h-full object-cover" />
-                               <div className="absolute inset-0 flex items-center justify-center"><div className="w-8 sm:w-10 h-8 sm:h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center"><PlayCircle className="w-5 sm:w-6 h-5 sm:h-6 text-white" /></div></div>
-                             </div>
-                           ) : item.fileType.startsWith('audio/') ? (
-                             <div className="w-full h-full bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-lg flex items-center justify-center"><Music4 className="w-10 sm:w-12 h-10 sm:h-12 text-purple-400" /></div>
-                           ) : (
-                             <div className="w-full h-full bg-gray-800 rounded-lg flex items-center justify-center"><FileIcon className="w-10 sm:w-12 h-10 sm:h-12 text-gray-600" /></div>
-                           )}
-                        </div>
-                        <div className={`absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex items-center gap-1 transition-opacity ${!selectionMode && (selectedItems.has(item.id) ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100')} ${selectionMode ? 'hidden' : ''}`}>
-                          {/* AI Generated indicator */}
-                          {item.metadata && (
-                            <div className="p-1 sm:p-1.5 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur shadow-sm rounded-lg" title="AI Generated - Click to view details">
-                              <Sparkles className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
-                            </div>
-                          )}
-                          <a href={item.awsS3Url} download={item.fileName} onClick={(e) => e.stopPropagation()} className="p-1 sm:p-1.5 bg-gray-900/80 backdrop-blur shadow-sm rounded-lg hover:bg-gray-800 transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-300" /></a>
-                          {canEdit && <button onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} className="p-1 sm:p-1.5 bg-gray-900/80 backdrop-blur shadow-sm rounded-lg hover:bg-red-900/50 transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
-                        </div>
-                      </div>
-                      <div className="px-2 sm:px-3 pb-2 sm:pb-3">
-                        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate">{item.fileName}</p>
-                        <div className="flex items-center justify-between mt-0.5 sm:mt-1">
-                          <span className="text-[10px] sm:text-xs text-gray-500">{formatFileSize(item.fileSize)}</span>
-                          <span className="text-[10px] sm:text-xs text-gray-600 hidden sm:inline">{item.createdAt.toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
+                    <VaultGridItem
+                      key={item.id}
+                      item={item}
+                      isSelected={selectedItems.has(item.id)}
+                      selectionMode={selectionMode}
+                      canEdit={canEdit}
+                      onSelect={onSelectItem}
+                      onPreview={setPreviewItem}
+                      onDelete={handleDeleteItem}
+                      formatFileSize={formatFileSize}
+                    />
                   ))}
                 </div>
                 {hasMoreItems && (
@@ -1762,45 +2019,17 @@ export function VaultContent() {
                     </div>
                   )}
                   {filteredItems.map((item) => (
-                    <div 
-                      key={item.id} 
-                      onClick={(e) => {
-                        if (selectionMode) {
-                          toggleSelectItem(item.id, e);
-                        } else {
-                          setPreviewItem(item);
-                        }
-                      }} 
-                      className={`group flex items-center gap-2 sm:gap-4 p-2 sm:p-3 bg-gray-900 rounded-lg border transition-all cursor-pointer ${selectedItems.has(item.id) ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-gray-800 hover:border-gray-700'}`}
-                    >
-                      <div className={`transition-opacity ${selectionMode || selectedItems.has(item.id) ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100'}`}>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedItems.has(item.id)} 
-                          onChange={() => toggleSelectItem(item.id)} 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleSelectItem(item.id, e as unknown as React.MouseEvent);
-                          }} 
-                          className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 flex-shrink-0 cursor-pointer" 
-                        />
-                      </div>
-                      <div className="w-10 sm:w-12 h-10 sm:h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
-                        {item.fileType.startsWith('image/') ? <img src={item.awsS3Url} alt={item.fileName} loading="lazy" className="w-full h-full object-cover" /> :
-                         item.fileType.startsWith('video/') ? <div className="w-full h-full bg-black flex items-center justify-center"><VideoIcon className="w-4 sm:w-5 h-4 sm:h-5 text-white" /></div> :
-                         item.fileType.startsWith('audio/') ? <div className="w-full h-full bg-purple-900/30 flex items-center justify-center"><Music4 className="w-4 sm:w-5 h-4 sm:h-5 text-purple-400" /></div> :
-                         <div className="w-full h-full flex items-center justify-center"><FileIcon className="w-4 sm:w-5 h-4 sm:h-5 text-gray-500" /></div>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate">{item.fileName}</p>
-                        <p className="text-[10px] sm:text-xs text-gray-500">{formatFileSize(item.fileSize)}</p>
-                      </div>
-                      <div className="text-[10px] sm:text-xs text-gray-600 items-center gap-1 hidden md:flex"><Calendar className="w-3 sm:w-3.5 h-3 sm:h-3.5" />{item.createdAt.toLocaleDateString()}</div>
-                      <div className={`flex items-center gap-1 transition-opacity flex-shrink-0 ${selectionMode ? 'hidden' : 'sm:opacity-0 sm:group-hover:opacity-100'}`}>
-                        <a href={item.awsS3Url} download={item.fileName} onClick={(e) => e.stopPropagation()} className="p-1.5 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-400" /></a>
-                        {canEdit && <button onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} className="p-1.5 sm:p-2 hover:bg-red-900/30 rounded-lg transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
-                      </div>
-                    </div>
+                    <VaultListItem
+                      key={item.id}
+                      item={item}
+                      isSelected={selectedItems.has(item.id)}
+                      selectionMode={selectionMode}
+                      canEdit={canEdit}
+                      onSelect={onSelectItem}
+                      onPreview={setPreviewItem}
+                      onDelete={handleDeleteItem}
+                      formatFileSize={formatFileSize}
+                    />
                   ))}
                 </div>
                 {hasMoreItems && (
