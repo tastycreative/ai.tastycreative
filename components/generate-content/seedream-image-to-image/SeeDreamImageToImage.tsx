@@ -479,8 +479,10 @@ export default function SeeDreamImageToImage() {
             if (response.status === 413 || errorText.toLowerCase().includes("entity too large") || errorText.toLowerCase().includes("payload too large")) {
               errorMessage = "Image file is too large. Please use smaller images (under 4MB each) or reduce image quality.";
             } else if (response.status === 408 || errorText.toLowerCase().includes("timeout")) {
-              errorMessage = "Request timed out. Please try again with smaller images.";
-            } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+              errorMessage = "Request timed out. Please try with fewer images (max 5 per batch).";
+            } else if (response.status === 504 || errorText.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+              errorMessage = "Server timeout: Generation took too long. Please try with fewer images (1-3 recommended) or simpler prompts.";
+            } else if (response.status === 502 || response.status === 503) {
               errorMessage = "Server is temporarily unavailable. Please try again in a few moments.";
             } else {
               errorMessage = `Server error (${response.status}): ${errorText.substring(0, 100)}`;
@@ -895,21 +897,24 @@ export default function SeeDreamImageToImage() {
                 <input
                   type="range"
                   min="1"
-                  max="15"
+                  max="5"
                   value={maxImages}
                   onChange={(e) => setMaxImages(Number(e.target.value))}
                   className="w-full accent-cyan-400"
                   disabled={isGenerating}
                 />
                 <div className="flex items-center justify-between text-[11px] text-slate-300">
-                  <span>Solo</span>
-                  <span>Series</span>
+                  <span>1</span>
+                  <span>2</span>
+                  <span>3</span>
+                  <span>4</span>
+                  <span>5</span>
                 </div>
                 <p className="text-xs text-slate-300 text-center">
                   Match batch size to how many outputs you request in the prompt.
                 </p>
                 <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 p-3 text-xs text-amber-50">
-                  💡 Keep phrasing consistent across a batch for cohesive results.
+                  💡 Max 5 images per batch. For more, run multiple batches.
                 </div>
               </div>
 
@@ -1149,7 +1154,7 @@ export default function SeeDreamImageToImage() {
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <h4 className="text-sm font-semibold text-white mb-1">🎨 Batch size</h4>
-                      <p className="text-sm text-slate-200/80">1 for the hero output; 2-15 for variations or angles. Keep input images + outputs ≤ 15.</p>
+                      <p className="text-sm text-slate-200/80">1 for single output; 2-5 for variations. For more, run multiple batches.</p>
                     </div>
                   </div>
                 </section>
@@ -1184,7 +1189,7 @@ export default function SeeDreamImageToImage() {
                   </div>
                   <ul className="space-y-1 list-disc list-inside">
                     <li>Primary image drives composition; others guide style.</li>
-                    <li>Inputs + outputs must be ≤ 15 for a batch.</li>
+                    <li>Max 5 images per batch to ensure reliable generation.</li>
                     <li>Larger inputs may take longer.</li>
                     <li>All results save automatically to S3.</li>
                   </ul>
