@@ -416,7 +416,7 @@ export default function SeeDreamTextToImage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-200"><Zap className="w-5 h-5" /></div>
                 <div>
                   <p className="text-xs text-slate-300">Speed</p>
-                  <p className="text-sm font-semibold text-white">Batch up to 15</p>
+                  <p className="text-sm font-semibold text-white">Batch up to 5</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
@@ -615,7 +615,7 @@ export default function SeeDreamTextToImage() {
                 <input
                   type="range"
                   min="1"
-                  max="15"
+                  max="5"
                   value={maxImages}
                   onChange={(e) => {
                     const value = Number(e.target.value);
@@ -626,14 +626,17 @@ export default function SeeDreamTextToImage() {
                   disabled={isGenerating}
                 />
                 <div className="flex items-center justify-between text-[11px] text-slate-300">
-                  <span>Solo</span>
-                  <span>Series</span>
+                  <span>1</span>
+                  <span>2</span>
+                  <span>3</span>
+                  <span>4</span>
+                  <span>5</span>
                 </div>
                 <p className="text-xs text-slate-300 text-center">
                   Match batch size to how many images your prompt requests.
                 </p>
                 <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 p-3 text-xs text-amber-50">
-                  💡 Tip: Keep language consistent across a batch to maintain cohesion.
+                  💡 Max 5 images per batch. For more, run multiple batches.
                 </div>
               </div>
 
@@ -870,7 +873,7 @@ export default function SeeDreamTextToImage() {
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <h4 className="text-sm font-semibold text-white mb-1">🎨 Batch size</h4>
-                      <p className="text-sm text-slate-200/80">Use 1 for the hero shot, 2-15 for variations, storyboards, or product angles. Match the number in your prompt.</p>
+                      <p className="text-sm text-slate-200/80">Use 1 for the hero shot, 2-5 for variations. For more, run multiple batches.</p>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <h4 className="text-sm font-semibold text-white mb-1">📁 Save to folder</h4>
