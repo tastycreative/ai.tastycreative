@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Upload, X, Download, Wand2, Loader2, Image as ImageIcon, AlertCircle, Share2, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Send, Sparkles, Brain, Copy, Check, Folder, ChevronDown, Archive } from 'lucide-react';
+import { Upload, X, Download, Wand2, Loader2, Image as ImageIcon, AlertCircle, Share2, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Send, Sparkles, Brain, Copy, Check, ChevronDown, Archive } from 'lucide-react';
 import { useApiClient } from '@/lib/apiClient';
 
 interface JobStatus {
@@ -40,17 +40,6 @@ interface DatabaseImage {
   createdAt: Date | string;
 }
 
-interface AvailableFolderOption {
-  name: string;
-  prefix: string;
-  displayPath: string;
-  path: string;
-  depth: number;
-  isShared?: boolean;
-  permission?: 'VIEW' | 'EDIT';
-  parentPrefix?: string | null;
-}
-
 // Vault interfaces
 interface InstagramProfile {
   id: string;
@@ -65,50 +54,6 @@ interface VaultFolder {
   profileId: string;
   isDefault: boolean;
 }
-
-type FolderType = 's3' | 'vault';
-
-const sanitizePrefix = (prefix: string): string => {
-  if (!prefix) {
-    return '';
-  }
-  const normalized = prefix.replace(/\\/g, '/').replace(/\/+/g, '/');
-  return normalized.endsWith('/') ? normalized : `${normalized}/`;
-};
-
-const formatSegmentName = (segment: string): string => {
-  if (!segment) {
-    return '';
-  }
-  return segment
-    .split('-')
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-};
-
-const deriveFolderMeta = (prefix: string) => {
-  const sanitized = sanitizePrefix(prefix);
-  const parts = sanitized.split('/').filter(Boolean);
-  const relativeSegments = parts.slice(2);
-  const displaySegments = relativeSegments.map(formatSegmentName);
-  const depth = Math.max(relativeSegments.length, 1);
-  const parentPrefix = relativeSegments.length <= 1 ? null : `${parts.slice(0, -1).join('/')}/`;
-  return {
-    sanitized,
-    relativeSegments,
-    displaySegments,
-    depth,
-    parentPrefix,
-    path: relativeSegments.join('/'),
-  };
-};
-
-const buildFolderOptionLabel = (folder: AvailableFolderOption): string => {
-  const indent = folder.depth > 1 ? `${'\u00A0'.repeat((folder.depth - 1) * 2)}↳ ` : '';
-  const icon = folder.isShared ? '🤝' : '📁';
-  return `${icon} ${indent}${folder.displayPath}`;
-};
 
 const PROGRESS_STAGES: Array<{ key: 'queued' | 'processing' | 'saving'; label: string; description: string }> = [
   {
@@ -154,8 +99,6 @@ export default function FluxKontextPage() {
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string>('');
   const [targetFolder, setTargetFolder] = useState<string>('');
-  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
-  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
 
@@ -190,101 +133,21 @@ export default function FluxKontextPage() {
     seed: Math.floor(Math.random() * 1000000000000)
   };
 
-  // Load available folders
-  const loadFolders = useCallback(async () => {
-    if (!apiClient || !user) return;
-
-    setIsLoadingFolders(true);
-    try {
-      const response = await apiClient.get('/api/s3/folders/list-custom');
-      if (!response.ok) {
-        throw new Error('Failed to load folders');
-      }
-
-      const data = await response.json();
-      if (!data.success || !Array.isArray(data.folders)) {
-        throw new Error('Invalid folder data received');
-      }
-
-      const foldersRaw: any[] = data.folders;
-
-      const mappedOptions = foldersRaw
-        .map((folder) => {
-          const prefix = folder.prefix;
-          if (!prefix || typeof prefix !== 'string') {
-            return null;
-          }
-
-          const meta = deriveFolderMeta(prefix);
-          const displayPath = meta.displaySegments.join(' / ') || folder.name || 'Untitled';
-
-          const option: AvailableFolderOption = {
-            name: folder.name || displayPath,
-            prefix: meta.sanitized,
-            displayPath,
-            path: meta.path,
-            depth: meta.depth,
-            isShared: folder.isShared || false,
-            permission: folder.permission || 'EDIT',
-            parentPrefix: meta.parentPrefix,
-          };
-
-          return option;
-        })
-        .filter((option): option is AvailableFolderOption => {
-          if (!option) return false;
-          // Only show folders with EDIT permission (exclude VIEW-only shared folders)
-          if (option.isShared && option.permission === 'VIEW') return false;
-          return true;
-        });
-
-      const dedupedMap = new Map<string, AvailableFolderOption>();
-      mappedOptions.forEach((option) => {
-        dedupedMap.set(option.prefix, option);
-      });
-
-      const deduped = Array.from(dedupedMap.values()).sort((a, b) => a.displayPath.localeCompare(b.displayPath));
-
-      setAvailableFolders(deduped);
-      console.log('📁 Loaded editable folders with subfolder support:', deduped);
-    } catch (error) {
-      console.error('Error loading folders:', error);
-    } finally {
-      setIsLoadingFolders(false);
-    }
-  }, [apiClient, user]);
-
-  const selectedFolderOption = useMemo(
-    () => availableFolders.find((folder) => folder.prefix === targetFolder),
-    [availableFolders, targetFolder]
-  );
-
-  // Parse target folder to determine type (s3 or vault)
-  const parseTargetFolder = (value: string): { type: FolderType; folderId: string; profileId?: string; profileName?: string } => {
-    if (value.startsWith('vault:')) {
-      const parts = value.replace('vault:', '').split(':');
+  // Get display text for the selected folder
+  const getSelectedFolderDisplay = (): string => {
+    if (!targetFolder) return 'Select a vault folder to save your output';
+    
+    if (targetFolder.startsWith('vault:')) {
+      const parts = targetFolder.replace('vault:', '').split(':');
       const profileId = parts[0];
       const folderId = parts[1];
       const profile = vaultProfiles.find(p => p.id === profileId);
-      return { type: 'vault', folderId, profileId, profileName: profile?.name };
-    }
-    return { type: 's3', folderId: value };
-  };
-
-  // Get display text for the selected folder
-  const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return 'Saving to your root outputs folder';
-    
-    const parsed = parseTargetFolder(targetFolder);
-    
-    if (parsed.type === 'vault') {
-      const folders = vaultFoldersByProfile[parsed.profileId || ''] || [];
-      const folder = folders.find(f => f.id === parsed.folderId);
-      return `Saving to Vault: ${parsed.profileName || 'Profile'} / ${folder?.name || 'Folder'}`;
+      const folders = vaultFoldersByProfile[profileId] || [];
+      const folder = folders.find(f => f.id === folderId);
+      return `Saving to Vault: ${profile?.name || 'Profile'} / ${folder?.name || 'Folder'}`;
     }
     
-    const s3Folder = availableFolders.find(f => f.prefix === parsed.folderId);
-    return `Saving to ${s3Folder?.displayPath || 'selected folder'}`;
+    return 'Select a vault folder to save your output';
   };
 
   // Load vault data (profiles and folders)
@@ -338,13 +201,6 @@ export default function FluxKontextPage() {
     
     loadVaultData();
   }, [apiClient, user]);
-
-  // Load folders on mount
-  useEffect(() => {
-    if (apiClient && user) {
-      loadFolders();
-    }
-  }, [apiClient, user, loadFolders]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -520,16 +376,9 @@ export default function FluxKontextPage() {
   const createWorkflowForFluxKontext = useCallback((
     imageBase64: string
   ) => {
-    // Check if this is a vault folder - if so, use temporary path
-    let normalizedTargetFolder: string;
-    if (targetFolder.startsWith('vault:')) {
-      // For vault folders, use user ID prefix only - vault path handled by webhook
-      normalizedTargetFolder = `outputs/${user?.id}/`;
-      console.log("💾 Using temporary path for vault storage:", normalizedTargetFolder);
-    } else {
-      normalizedTargetFolder = sanitizePrefix(targetFolder);
-      console.log("📁 Using S3 folder prefix:", normalizedTargetFolder);
-    }
+    // Use temporary path for vault storage - vault path handled by webhook
+    const normalizedTargetFolder = `outputs/${user?.id}/`;
+    console.log("💾 Using temporary path for vault storage:", normalizedTargetFolder);
     
     return {
       "37": {
@@ -663,7 +512,7 @@ export default function FluxKontextPage() {
     }
 
     if (!targetFolder) {
-      setError('Please select a folder to save the output');
+      setError('Please select a vault folder to save the output');
       return;
     }
 
@@ -677,16 +526,15 @@ export default function FluxKontextPage() {
 
       const workflow = createWorkflowForFluxKontext(imageBase64);
 
-      // Parse target folder to check if it's a vault folder
-      const parsed = parseTargetFolder(targetFolder);
-      const saveToVault = parsed.type === 'vault';
+      // Parse vault folder
+      const parts = targetFolder.replace('vault:', '').split(':');
+      const profileId = parts[0];
+      const folderId = parts[1];
       
-      console.log('📁 Folder info:', {
+      console.log('📁 Vault folder info:', {
         targetFolder,
-        folderType: parsed.type,
-        saveToVault,
-        profileId: parsed.profileId,
-        folderId: parsed.folderId
+        profileId,
+        folderId
       });
 
       const response = await apiClient.post('/api/jobs/flux-kontext', {
@@ -695,9 +543,9 @@ export default function FluxKontextPage() {
         prompt,
         params: FIXED_VALUES,
         // Vault parameters
-        saveToVault: saveToVault,
-        vaultProfileId: saveToVault ? parsed.profileId : undefined,
-        vaultFolderId: saveToVault ? parsed.folderId : undefined,
+        saveToVault: true,
+        vaultProfileId: profileId,
+        vaultFolderId: folderId,
       });
 
       if (!response.ok) {
@@ -1055,11 +903,11 @@ export default function FluxKontextPage() {
             {/* Folder Selection */}
             <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                <Archive className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
                 <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
-                  Save Destination
+                  Save to Vault
                 </h2>
-                {(isLoadingFolders || isLoadingVaultData) && (
+                {isLoadingVaultData && (
                   <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-purple-400" />
                 )}
               </div>
@@ -1067,39 +915,27 @@ export default function FluxKontextPage() {
                 <select
                   value={targetFolder}
                   onChange={(e) => setTargetFolder(e.target.value)}
-                  disabled={isProcessing || isLoadingFolders || isLoadingVaultData}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-white dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed dark:text-white shadow-inner text-sm sm:text-base"
+                  disabled={isProcessing || isLoadingVaultData}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-gray-800 border-2 border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-inner text-sm sm:text-base [&>option]:bg-gray-800 [&>option]:text-white [&>optgroup]:bg-gray-800 [&>optgroup]:text-gray-400"
                 >
-                  <option value="">📁 Default Output Folder</option>
+                  <option value="">📁 Select a vault folder...</option>
                   
-                  {/* S3 Folders Group */}
-                  {availableFolders.length > 0 && (
-                    <optgroup label="📂 Your Output Folders">
-                      {availableFolders.map((folder) => (
-                        <option key={folder.prefix} value={folder.prefix}>
-                          {'  '.repeat(folder.depth)}{folder.name}
-                          {folder.isShared && ' (Shared)'}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  
-                  {/* Vault Folders by Profile - Each profile as its own optgroup */}
+                  {/* Vault Folders by Profile */}
                   {vaultProfiles.map((profile) => {
-                    const folders = vaultFoldersByProfile[profile.id] || [];
+                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
                     if (folders.length === 0) return null;
                     
                     return (
                       <optgroup 
                         key={profile.id} 
-                        label={`📸 Vault - ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
+                        label={`📸 ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
                       >
                         {folders.map((folder) => (
                           <option 
                             key={folder.id} 
                             value={`vault:${profile.id}:${folder.id}`}
                           >
-                            {folder.name}{folder.isDefault ? ' (Default)' : ''}
+                            📁 {folder.name}
                           </option>
                         ))}
                       </optgroup>
@@ -1109,19 +945,14 @@ export default function FluxKontextPage() {
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
               </div>
               
-              {/* Folder type indicator */}
+              {/* Folder indicator */}
               <div className="flex items-center gap-2 mt-2">
-                {targetFolder && targetFolder.startsWith('vault:') ? (
+                {targetFolder && (
                   <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-600 dark:text-purple-300">
                     <Archive className="w-3 h-3" />
                     <span>Vault Storage</span>
                   </div>
-                ) : targetFolder ? (
-                  <div className="flex items-center gap-1.5 rounded-full bg-blue-500/20 px-2.5 py-1 text-[11px] text-blue-600 dark:text-blue-300">
-                    <Folder className="w-3 h-3" />
-                    <span>S3 Storage</span>
-                  </div>
-                ) : null}
+                )}
                 <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 flex-1">
                   {getSelectedFolderDisplay()}
                 </p>

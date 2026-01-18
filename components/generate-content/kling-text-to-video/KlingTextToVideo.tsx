@@ -54,11 +54,14 @@ interface GeneratedVideo {
   status: "completed" | "processing" | "failed";
 }
 
-// Kling model options
+// Kling model options with feature support flags
 const MODEL_OPTIONS = [
-  { value: "kling-v1", label: "Kling V1", description: "Standard quality" },
-  { value: "kling-v1-5", label: "Kling V1.5", description: "Enhanced quality" },
-  { value: "kling-v1-6", label: "Kling V1.6", description: "Latest model" },
+  { value: "kling-v1", label: "Kling V1", description: "Standard quality", supportsSound: false, supportsCfgScale: true, supportsCameraControl: false },
+  { value: "kling-v1-6", label: "Kling V1.6", description: "Enhanced V1", supportsSound: false, supportsCfgScale: true, supportsCameraControl: true },
+  { value: "kling-v2-master", label: "Kling V2 Master", description: "V2 high quality", supportsSound: false, supportsCfgScale: false, supportsCameraControl: true },
+  { value: "kling-v2-1-master", label: "Kling V2.1 Master", description: "V2.1 improved", supportsSound: false, supportsCfgScale: false, supportsCameraControl: true },
+  { value: "kling-v2-5-turbo", label: "Kling V2.5 Turbo", description: "Fast V2.5", supportsSound: false, supportsCfgScale: false, supportsCameraControl: true },
+  { value: "kling-v2-6", label: "Kling V2.6", description: "Latest with audio", supportsSound: true, supportsCfgScale: false, supportsCameraControl: true },
 ] as const;
 
 // Mode options
@@ -81,13 +84,22 @@ const ASPECT_RATIO_OPTIONS = [
 ] as const;
 
 // Camera control options
-const CAMERA_CONTROL_OPTIONS = [
-  { value: "down_back", label: "Down & Back", description: "Pull back and down" },
-  { value: "forward_up", label: "Forward & Up", description: "Push in and up" },
-  { value: "right_turn_forward", label: "Right Turn Forward", description: "Pan right while moving forward" },
-  { value: "left_turn_forward", label: "Left Turn Forward", description: "Pan left while moving forward" },
-  { value: "zoom_in", label: "Zoom In", description: "Gradual zoom in" },
-  { value: "zoom_out", label: "Zoom Out", description: "Gradual zoom out" },
+const CAMERA_CONTROL_TYPE_OPTIONS = [
+  { value: "simple", label: "Simple (6-axis)", description: "Custom 6-axis control" },
+  { value: "down_back", label: "Down & Back", description: "Pan down and zoom out" },
+  { value: "forward_up", label: "Forward & Up", description: "Zoom in and pan up" },
+  { value: "right_turn_forward", label: "Right Turn Forward", description: "Rotate right and advance" },
+  { value: "left_turn_forward", label: "Left Turn Forward", description: "Rotate left and advance" },
+] as const;
+
+// 6-axis camera config options (for simple type)
+const CAMERA_AXIS_OPTIONS = [
+  { key: "horizontal", label: "Horizontal", description: "Left/Right movement", min: -10, max: 10 },
+  { key: "vertical", label: "Vertical", description: "Up/Down movement", min: -10, max: 10 },
+  { key: "pan", label: "Pan", description: "Up/Down rotation", min: -10, max: 10 },
+  { key: "tilt", label: "Tilt", description: "Left/Right rotation", min: -10, max: 10 },
+  { key: "roll", label: "Roll", description: "Clockwise/Counter rotation", min: -10, max: 10 },
+  { key: "zoom", label: "Zoom", description: "Focal length change", min: -10, max: 10 },
 ] as const;
 
 export default function KlingTextToVideo() {
@@ -103,8 +115,24 @@ export default function KlingTextToVideo() {
   const [duration, setDuration] = useState<string>("5");
   const [aspectRatio, setAspectRatio] = useState<string>("16:9");
   const [cfgScale, setCfgScale] = useState<number>(0.5);
+  const [sound, setSound] = useState<"on" | "off">("off");
   const [useCameraControl, setUseCameraControl] = useState(false);
-  const [cameraControl, setCameraControl] = useState<string>("zoom_in");
+  const [cameraControlType, setCameraControlType] = useState<string>("simple");
+  const [cameraConfig, setCameraConfig] = useState<Record<string, number>>({
+    horizontal: 0,
+    vertical: 0,
+    pan: 0,
+    tilt: 0,
+    roll: 0,
+    zoom: 0,
+  });
+  const [selectedCameraAxis, setSelectedCameraAxis] = useState<string>("zoom");
+
+  // Check model feature support
+  const currentModel = MODEL_OPTIONS.find(m => m.value === model);
+  const currentModelSupportsSound = currentModel?.supportsSound ?? false;
+  const currentModelSupportsCfgScale = currentModel?.supportsCfgScale ?? true;
+  const currentModelSupportsCameraControl = currentModel?.supportsCameraControl ?? false;
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -348,21 +376,41 @@ export default function KlingTextToVideo() {
       const payload: any = {
         prompt: prompt.trim(),
         negative_prompt: negativePrompt.trim() || undefined,
-        model,
+        model_name: model, // API uses model_name, not model
         mode,
         duration,
         aspect_ratio: aspectRatio,
-        cfg_scale: cfgScale,
       };
 
-      // Add camera control if enabled
-      if (useCameraControl) {
-        payload.camera_control = {
-          type: "simple",
-          config: {
-            type: cameraControl,
-          },
-        };
+      // Add CFG scale only for V1 models that support it
+      if (currentModelSupportsCfgScale) {
+        payload.cfg_scale = cfgScale;
+      }
+
+      // Add sound parameter (only for V2.6+ models)
+      if (currentModelSupportsSound) {
+        payload.sound = sound;
+      }
+
+      // Add camera control if enabled and model supports it
+      if (useCameraControl && currentModelSupportsCameraControl) {
+        if (cameraControlType === "simple") {
+          // For simple type, build config with the selected axis value
+          const config: Record<string, number> = {};
+          // Only include the selected axis with non-zero value
+          if (cameraConfig[selectedCameraAxis] !== 0) {
+            config[selectedCameraAxis] = cameraConfig[selectedCameraAxis];
+          }
+          payload.camera_control = {
+            type: "simple",
+            config: Object.keys(config).length > 0 ? config : undefined,
+          };
+        } else {
+          // For predefined types (down_back, forward_up, etc.), config must be empty
+          payload.camera_control = {
+            type: cameraControlType,
+          };
+        }
       }
 
       // Add folder params based on type
@@ -445,8 +493,18 @@ export default function KlingTextToVideo() {
     setDuration("5");
     setAspectRatio("16:9");
     setCfgScale(0.5);
+    setSound("off");
     setUseCameraControl(false);
-    setCameraControl("zoom_in");
+    setCameraControlType("simple");
+    setCameraConfig({
+      horizontal: 0,
+      vertical: 0,
+      pan: 0,
+      tilt: 0,
+      roll: 0,
+      zoom: 0,
+    });
+    setSelectedCameraAxis("zoom");
     setTargetFolder("");
     setError(null);
     setGeneratedVideos([]);
@@ -615,11 +673,21 @@ export default function KlingTextToVideo() {
               {/* Model Selection */}
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-100">Model</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {MODEL_OPTIONS.map((option) => (
                     <button
                       key={option.value}
-                      onClick={() => setModel(option.value)}
+                      onClick={() => {
+                        setModel(option.value);
+                        // Reset sound if switching to a model that doesn't support it
+                        if (!option.supportsSound) {
+                          setSound("off");
+                        }
+                        // Reset camera control if switching to a model that doesn't support it
+                        if (!option.supportsCameraControl) {
+                          setUseCameraControl(false);
+                        }
+                      }}
                       className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                         model === option.value
                           ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
@@ -627,12 +695,50 @@ export default function KlingTextToVideo() {
                       } disabled:opacity-50`}
                       disabled={isGenerating}
                     >
-                      <p className="text-sm font-semibold">{option.label}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold">{option.label}</p>
+                        {option.supportsSound && (
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">🔊</span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-300">{option.description}</p>
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* Sound Toggle (only for V2.6+) */}
+              {currentModelSupportsSound && (
+                <div className="space-y-3">
+                  <label className="text-sm font-semibold text-slate-100">Audio Generation</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setSound("off")}
+                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                        sound === "off"
+                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
+                          : "border-white/10 bg-white/5 text-slate-200"
+                      } disabled:opacity-50`}
+                      disabled={isGenerating}
+                    >
+                      <p className="text-sm font-semibold">🔇 No Audio</p>
+                      <p className="text-xs text-slate-300">Video only</p>
+                    </button>
+                    <button
+                      onClick={() => setSound("on")}
+                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                        sound === "on"
+                          ? "border-emerald-400/70 bg-emerald-500/10 text-white shadow-emerald-900/30"
+                          : "border-white/10 bg-white/5 text-slate-200"
+                      } disabled:opacity-50`}
+                      disabled={isGenerating}
+                    >
+                      <p className="text-sm font-semibold">🔊 With Audio</p>
+                      <p className="text-xs text-slate-300">Generate sound</p>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Mode Selection */}
               <div className="space-y-3">
@@ -700,70 +806,159 @@ export default function KlingTextToVideo() {
                 </div>
               </div>
 
-              {/* CFG Scale */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-100">Creativity (CFG Scale)</label>
-                  <span className="text-xs text-slate-300">{cfgScale.toFixed(1)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  value={cfgScale}
-                  onChange={(e) => setCfgScale(Number(e.target.value))}
-                  className="w-full accent-violet-400"
-                  disabled={isGenerating}
-                />
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>More Creative</span>
-                  <span>More Accurate</span>
-                </div>
-              </div>
-
-              {/* Camera Control */}
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setUseCameraControl(!useCameraControl)}
-                  className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                    useCameraControl
-                      ? "border-pink-400/70 bg-pink-500/10 text-white shadow-pink-900/30"
-                      : "border-white/10 bg-white/5 text-slate-200"
-                  } disabled:opacity-50`}
-                  disabled={isGenerating}
-                >
-                  <div className="flex items-center gap-3">
-                    <Camera className="w-5 h-5" />
-                    <div>
-                      <p className="text-sm font-semibold">Camera Control</p>
-                      <p className="text-xs text-slate-300">
-                        {useCameraControl ? "AI camera movements enabled" : "Click to enable camera movements"}
-                      </p>
-                    </div>
+              {/* CFG Scale - Only for V1 models */}
+              {currentModelSupportsCfgScale && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-slate-100">Creativity (CFG Scale)</label>
+                    <span className="text-xs text-slate-300">{cfgScale.toFixed(1)}</span>
                   </div>
-                </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    value={cfgScale}
+                    onChange={(e) => setCfgScale(Number(e.target.value))}
+                    className="w-full accent-violet-400"
+                    disabled={isGenerating}
+                  />
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>More Creative</span>
+                    <span>More Accurate</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Camera Control - Only for V1.6+ models */}
+              {currentModelSupportsCameraControl && (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setUseCameraControl(!useCameraControl)}
+                    className={`w-full rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                      useCameraControl
+                        ? "border-pink-400/70 bg-pink-500/10 text-white shadow-pink-900/30"
+                        : "border-white/10 bg-white/5 text-slate-200"
+                    } disabled:opacity-50`}
+                    disabled={isGenerating}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Camera className="w-5 h-5" />
+                      <div>
+                        <p className="text-sm font-semibold">Camera Control</p>
+                        <p className="text-xs text-slate-300">
+                          {useCameraControl ? "AI camera movements enabled" : "Click to enable camera movements"}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
 
                 {useCameraControl && (
-                  <div className="grid grid-cols-2 gap-2 pl-2">
-                    {CAMERA_CONTROL_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => setCameraControl(option.value)}
-                        className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 ${
-                          cameraControl === option.value
-                            ? "border-pink-400/70 bg-pink-500/10 text-white"
-                            : "border-white/10 bg-white/5 text-slate-200"
-                        } disabled:opacity-50`}
-                        disabled={isGenerating}
-                      >
-                        <p className="text-xs font-semibold">{option.label}</p>
-                      </button>
-                    ))}
+                  <div className="space-y-4 pl-2">
+                    {/* Camera Control Type Selection */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-200">Movement Type</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {CAMERA_CONTROL_TYPE_OPTIONS.map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => setCameraControlType(option.value)}
+                            className={`rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 ${
+                              cameraControlType === option.value
+                                ? "border-pink-400/70 bg-pink-500/10 text-white"
+                                : "border-white/10 bg-white/5 text-slate-200"
+                            } disabled:opacity-50`}
+                            disabled={isGenerating}
+                          >
+                            <p className="text-xs font-semibold">{option.label}</p>
+                            <p className="text-[10px] text-slate-400">{option.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 6-Axis Config (only for simple type) */}
+                    {cameraControlType === "simple" && (
+                      <div className="space-y-3 border-t border-white/10 pt-3">
+                        <label className="text-xs font-semibold text-slate-200">6-Axis Configuration</label>
+                        <p className="text-[10px] text-slate-400">Select one axis and set its value. Only one axis can be non-zero.</p>
+                        
+                        {/* Axis Selection */}
+                        <div className="grid grid-cols-3 gap-1">
+                          {CAMERA_AXIS_OPTIONS.map((axis) => (
+                            <button
+                              key={axis.key}
+                              onClick={() => {
+                                setSelectedCameraAxis(axis.key);
+                                // Reset all other axes to 0
+                                setCameraConfig({
+                                  horizontal: 0,
+                                  vertical: 0,
+                                  pan: 0,
+                                  tilt: 0,
+                                  roll: 0,
+                                  zoom: 0,
+                                  [axis.key]: cameraConfig[axis.key] || 0,
+                                });
+                              }}
+                              className={`rounded-lg border px-2 py-1.5 text-center transition ${
+                                selectedCameraAxis === axis.key
+                                  ? "border-pink-400/70 bg-pink-500/10 text-white"
+                                  : "border-white/10 bg-white/5 text-slate-300"
+                              } disabled:opacity-50`}
+                              disabled={isGenerating}
+                            >
+                              <p className="text-[10px] font-semibold">{axis.label}</p>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Selected Axis Slider */}
+                        {selectedCameraAxis && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-slate-300">
+                                {CAMERA_AXIS_OPTIONS.find(a => a.key === selectedCameraAxis)?.description}
+                              </span>
+                              <span className="text-xs font-mono text-pink-300">
+                                {cameraConfig[selectedCameraAxis]?.toFixed(0) || 0}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={-10}
+                              max={10}
+                              step={1}
+                              value={cameraConfig[selectedCameraAxis] || 0}
+                              onChange={(e) => {
+                                const newValue = Number(e.target.value);
+                                setCameraConfig({
+                                  horizontal: 0,
+                                  vertical: 0,
+                                  pan: 0,
+                                  tilt: 0,
+                                  roll: 0,
+                                  zoom: 0,
+                                  [selectedCameraAxis]: newValue,
+                                });
+                              }}
+                              className="w-full accent-pink-400"
+                              disabled={isGenerating}
+                            />
+                            <div className="flex justify-between text-[10px] text-slate-500">
+                              <span>-10</span>
+                              <span>0</span>
+                              <span>+10</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+              )}
 
               {/* Folder Selection */}
               <div className="space-y-2">

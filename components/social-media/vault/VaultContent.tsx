@@ -203,19 +203,26 @@ const VaultGridItem = memo(function VaultGridItem({
     >
       <div className="relative">
         <div
-          className={`absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-10 transition-opacity ${
+          className={`absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-20 transition-opacity ${
             selectionMode || isSelected
               ? 'opacity-100'
-              : 'opacity-0 sm:group-hover:opacity-100'
+              : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
           }`}
         >
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => onSelect(item.id)}
-            onClick={handleCheckboxClick}
-            className="w-4 h-4 sm:w-4 sm:h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 shadow-sm cursor-pointer"
-          />
+          <label 
+            className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-gray-900/80 backdrop-blur rounded-lg cursor-pointer hover:bg-gray-700 transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                e.stopPropagation();
+                onSelect(item.id);
+              }}
+              className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 shadow-sm cursor-pointer"
+            />
+          </label>
         </div>
         <div
           className="aspect-square p-2 sm:p-3"
@@ -225,14 +232,30 @@ const VaultGridItem = memo(function VaultGridItem({
             <img
               src={item.awsS3Url}
               alt={item.fileName}
-              loading="lazy"
-              decoding="async"
               className="w-full h-full object-cover rounded-lg bg-gray-800"
+              onError={(e) => {
+                const img = e.currentTarget;
+                if (!img.dataset.retried) {
+                  img.dataset.retried = 'true';
+                  img.src = item.awsS3Url + '?t=' + Date.now();
+                }
+              }}
             />
           ) : item.fileType.startsWith('video/') ? (
             <div className="relative w-full h-full bg-gray-800 rounded-lg overflow-hidden">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-8 sm:w-10 h-8 sm:h-10 bg-white/20 backdrop-blur rounded-full flex items-center justify-center">
+              <video
+                src={item.awsS3Url}
+                className="w-full h-full object-cover"
+                muted
+                playsInline
+                preload="metadata"
+                onLoadedData={(e) => {
+                  const video = e.currentTarget;
+                  video.currentTime = 0.1;
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <div className="w-8 sm:w-10 h-8 sm:h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center">
                   <PlayCircle className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
                 </div>
               </div>
@@ -348,29 +371,52 @@ const VaultListItem = memo(function VaultListItem({
         className={`transition-opacity ${
           selectionMode || isSelected
             ? 'opacity-100'
-            : 'opacity-0 sm:group-hover:opacity-100'
+            : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onSelect(item.id)}
-          onClick={handleCheckboxClick}
-          className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 flex-shrink-0 cursor-pointer"
-        />
+        <label className="flex items-center justify-center w-8 h-8 cursor-pointer hover:bg-gray-800 rounded-lg transition-colors">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => {
+              e.stopPropagation();
+              onSelect(item.id);
+            }}
+            className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 flex-shrink-0 cursor-pointer"
+          />
+        </label>
       </div>
       <div className="w-10 sm:w-12 h-10 sm:h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
         {item.fileType.startsWith('image/') ? (
           <img
             src={item.awsS3Url}
             alt={item.fileName}
-            loading="lazy"
-            decoding="async"
             className="w-full h-full object-cover"
+            onError={(e) => {
+              const img = e.currentTarget;
+              if (!img.dataset.retried) {
+                img.dataset.retried = 'true';
+                img.src = item.awsS3Url + '?t=' + Date.now();
+              }
+            }}
           />
         ) : item.fileType.startsWith('video/') ? (
-          <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-            <VideoIcon className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+          <div className="relative w-full h-full bg-gray-800">
+            <video
+              src={item.awsS3Url}
+              className="w-full h-full object-cover"
+              muted
+              playsInline
+              preload="metadata"
+              onLoadedData={(e) => {
+                const video = e.currentTarget;
+                video.currentTime = 0.1;
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <VideoIcon className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+            </div>
           </div>
         ) : item.fileType.startsWith('audio/') ? (
           <div className="w-full h-full bg-purple-900/30 flex items-center justify-center">
@@ -1238,14 +1284,6 @@ export function VaultContent() {
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
         .animate-slideUp { animation: slideUp 0.2s ease-out; }
-        /* Performance optimizations for grid items */
-        .vault-item { 
-          content-visibility: auto;
-          contain-intrinsic-size: 0 200px;
-        }
-        .vault-item img {
-          will-change: transform;
-        }
       `}</style>
 
       {/* Toast */}

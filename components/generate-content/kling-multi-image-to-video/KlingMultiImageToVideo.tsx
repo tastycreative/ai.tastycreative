@@ -28,6 +28,110 @@ import {
   Images,
 } from "lucide-react";
 
+// Image compression utility - optimizes large images while preserving quality for AI generation
+const compressImage = async (
+  file: File,
+  maxSizeMB: number = 3.5,
+  maxWidthOrHeight: number = 2048
+): Promise<{ file: File; compressed: boolean; originalSize: number; newSize: number }> => {
+  return new Promise((resolve, reject) => {
+    const originalSize = file.size;
+    
+    if (file.size <= maxSizeMB * 1024 * 1024) {
+      resolve({ file, compressed: false, originalSize, newSize: originalSize });
+      return;
+    }
+
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    img.onload = () => {
+      let { width, height } = img;
+      
+      if (width > maxWidthOrHeight || height > maxWidthOrHeight) {
+        if (width > height) {
+          height = (height / width) * maxWidthOrHeight;
+          width = maxWidthOrHeight;
+        } else {
+          width = (width / height) * maxWidthOrHeight;
+          height = maxWidthOrHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+      }
+
+      ctx?.drawImage(img, 0, 0, width, height);
+
+      let quality = 0.92;
+      const minQuality = 0.75;
+      
+      const tryCompress = (q: number): Promise<Blob | null> => {
+        return new Promise((res) => {
+          canvas.toBlob((blob) => res(blob), 'image/jpeg', q);
+        });
+      };
+
+      const compressLoop = async () => {
+        let blob = await tryCompress(quality);
+        
+        while (blob && blob.size > maxSizeMB * 1024 * 1024 && quality > minQuality) {
+          quality -= 0.05;
+          blob = await tryCompress(quality);
+        }
+        
+        if (blob && blob.size > maxSizeMB * 1024 * 1024) {
+          const scale = 0.8;
+          canvas.width = Math.round(width * scale);
+          canvas.height = Math.round(height * scale);
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          quality = 0.85;
+          blob = await tryCompress(quality);
+          
+          while (blob && blob.size > maxSizeMB * 1024 * 1024 && quality > minQuality) {
+            quality -= 0.05;
+            blob = await tryCompress(quality);
+          }
+        }
+
+        if (!blob) {
+          reject(new Error('Failed to compress image'));
+          return;
+        }
+
+        const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+
+        resolve({
+          file: compressedFile,
+          compressed: true,
+          originalSize,
+          newSize: blob.size,
+        });
+      };
+
+      compressLoop();
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image for compression'));
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 interface InstagramProfile {
   id: string;
   name: string;
@@ -61,11 +165,9 @@ interface UploadedImage {
   preview: string;
 }
 
-// Kling model options
+// Kling model options - Multi-image only supports V1.6
 const MODEL_OPTIONS = [
-  { value: "kling-v1", label: "Kling V1", description: "Standard quality" },
-  { value: "kling-v1-5", label: "Kling V1.5", description: "Enhanced quality" },
-  { value: "kling-v1-6", label: "Kling V1.6", description: "Latest model" },
+  { value: "kling-v1-6", label: "Kling V1.6", description: "Multi-image support" },
 ] as const;
 
 // Mode options
@@ -80,6 +182,13 @@ const DURATION_OPTIONS = [
   { value: "10", label: "10 seconds", description: "Extended clip" },
 ] as const;
 
+// Aspect ratio options
+const ASPECT_RATIO_OPTIONS = [
+  { value: "16:9", label: "16:9", description: "Landscape (HD)" },
+  { value: "9:16", label: "9:16", description: "Portrait (Stories/Reels)" },
+  { value: "1:1", label: "1:1", description: "Square" },
+] as const;
+
 export default function KlingMultiImageToVideo() {
   const apiClient = useApiClient();
   const { user } = useUser();
@@ -91,11 +200,13 @@ export default function KlingMultiImageToVideo() {
   const [model, setModel] = useState<string>("kling-v1-6");
   const [mode, setMode] = useState<string>("std");
   const [duration, setDuration] = useState<string>("5");
-  const [cfgScale, setCfgScale] = useState<number>(0.5);
+  const [aspectRatio, setAspectRatio] = useState<string>("16:9");
 
-  // Image upload state
+  // Image upload state - API supports up to 4 images
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const MAX_IMAGES = 4;
+  const [isCompressing, setIsCompressing] = useState(false);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -218,30 +329,52 @@ export default function KlingMultiImageToVideo() {
     }
   }, [apiClient, loadVaultData, loadGenerationHistory]);
 
-  // Handle image upload
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle image upload with compression
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     
     // Filter valid image files
     const validFiles = files.filter(file => file.type.startsWith("image/"));
     
-    // Check total count
+    // Check total count - API supports max 4 images
     const totalImages = uploadedImages.length + validFiles.length;
-    if (totalImages > 5) {
-      setError("Maximum 5 images allowed");
+    if (totalImages > MAX_IMAGES) {
+      setError(`Maximum ${MAX_IMAGES} images allowed`);
       return;
     }
 
-    // Create preview URLs
-    validFiles.forEach(file => {
-      const preview = URL.createObjectURL(file);
-      const newImage: UploadedImage = {
-        id: `${Date.now()}-${Math.random()}`,
-        file,
-        preview,
-      };
-      setUploadedImages(prev => [...prev, newImage]);
-    });
+    // Check individual file sizes (allow up to 20MB since we compress)
+    const oversizedFiles = validFiles.filter(f => f.size > 20 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      setError("Each image must be less than 20MB");
+      return;
+    }
+
+    setError(null);
+    setIsCompressing(true);
+
+    try {
+      // Compress and add each file
+      for (const file of validFiles) {
+        const result = await compressImage(file, 3, 2048);
+        const preview = URL.createObjectURL(result.file);
+        const newImage: UploadedImage = {
+          id: `${Date.now()}-${Math.random()}`,
+          file: result.file,
+          preview,
+        };
+        setUploadedImages(prev => [...prev, newImage]);
+        
+        if (result.compressed) {
+          console.log(`[Kling Multi-I2V] Image compressed: ${(result.originalSize / (1024 * 1024)).toFixed(1)}MB → ${(result.newSize / (1024 * 1024)).toFixed(1)}MB`);
+        }
+      }
+    } catch (err) {
+      console.error("Image compression failed:", err);
+      setError("Failed to process one or more images. Please try different files.");
+    } finally {
+      setIsCompressing(false);
+    }
 
     // Reset input
     if (e.target) {
@@ -405,6 +538,10 @@ export default function KlingMultiImageToVideo() {
       setError("Please upload at least 2 images");
       return;
     }
+    if (!prompt.trim()) {
+      setError("Prompt is required for multi-image video generation");
+      return;
+    }
 
     setIsGenerating(true);
     setError(null);
@@ -425,18 +562,20 @@ export default function KlingMultiImageToVideo() {
       // Prepare form data
       const formData = new FormData();
       
-      // Add images
+      // Add images - API expects image_list format
       uploadedImages.forEach((img, index) => {
         formData.append(`image${index + 1}`, img.file);
       });
 
-      // Add parameters
-      if (prompt) formData.append("prompt", prompt);
-      if (negativePrompt) formData.append("negative_prompt", negativePrompt);
-      formData.append("model", model);
+      // Add parameters - using correct API field names
+      formData.append("prompt", prompt.trim()); // Required
+      if (negativePrompt.trim()) {
+        formData.append("negative_prompt", negativePrompt.trim());
+      }
+      formData.append("model_name", model); // API uses model_name
       formData.append("mode", mode);
       formData.append("duration", duration);
-      formData.append("cfg_scale", cfgScale.toString());
+      formData.append("aspect_ratio", aspectRatio); // Add aspect ratio
 
       // Parse target folder for vault vs S3
       const parsedFolder = parseTargetFolder(targetFolder);
@@ -519,7 +658,7 @@ export default function KlingMultiImageToVideo() {
     setModel("kling-v1-6");
     setMode("std");
     setDuration("5");
-    setCfgScale(0.5);
+    setAspectRatio("16:9");
     setUploadedImages([]);
     setTargetFolder("");
     setError(null);
@@ -573,7 +712,7 @@ export default function KlingMultiImageToVideo() {
               </div>
             </div>
             <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
-              Create smooth transitions and animations from 2-5 images using Kling AI&apos;s 
+              Create smooth transitions and animations from 2-4 images using Kling AI&apos;s 
               multi-image interpolation technology. Perfect for creating dynamic morphing videos.
             </p>
 
@@ -584,7 +723,7 @@ export default function KlingMultiImageToVideo() {
                 </div>
                 <div>
                   <p className="text-xs text-slate-300">Images</p>
-                  <p className="text-sm font-semibold text-white">2-5 Images</p>
+                  <p className="text-sm font-semibold text-white">2-4 Images</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
@@ -660,25 +799,39 @@ export default function KlingMultiImageToVideo() {
               {/* Image Upload Section */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-100">Upload Images (2-5) *</label>
-                  <span className="text-xs text-slate-400">{uploadedImages.length}/5</span>
+                  <label className="text-sm font-semibold text-slate-100">Upload Images (2-4) <span className="text-red-400">*</span></label>
+                  <span className="text-xs text-slate-400">{uploadedImages.length}/{MAX_IMAGES}</span>
                 </div>
                 
-                {uploadedImages.length < 5 && (
+                {uploadedImages.length < MAX_IMAGES && (
                   <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isGenerating}
+                    onClick={() => !isCompressing && fileInputRef.current?.click()}
+                    disabled={isGenerating || isCompressing}
                     className="w-full py-6 border-2 border-dashed border-white/20 hover:border-violet-400/50 rounded-2xl bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <div className="p-3 bg-violet-500/10 rounded-full group-hover:bg-violet-500/20 transition-colors">
-                      <Upload className="h-6 w-6 text-violet-300" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-white font-medium">Click to upload images</p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {uploadedImages.length === 0 ? "Upload 2-5 images to start" : `Add ${5 - uploadedImages.length} more`}
-                      </p>
-                    </div>
+                    {isCompressing ? (
+                      <>
+                        <div className="p-3 bg-violet-500/10 rounded-full">
+                          <Loader2 className="h-6 w-6 text-violet-300 animate-spin" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-white font-medium">Compressing images...</p>
+                          <p className="text-xs text-slate-400 mt-1">Please wait</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-3 bg-violet-500/10 rounded-full group-hover:bg-violet-500/20 transition-colors">
+                          <Upload className="h-6 w-6 text-violet-300" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-white font-medium">Click to upload images</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {uploadedImages.length === 0 ? "Upload 2-4 images · Auto-compressed" : `Add ${MAX_IMAGES - uploadedImages.length} more`}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </button>
                 )}
 
@@ -689,6 +842,7 @@ export default function KlingMultiImageToVideo() {
                   multiple
                   onChange={handleImageUpload}
                   className="hidden"
+                  disabled={isCompressing}
                 />
 
                 {/* Image Preview Grid */}
@@ -745,7 +899,7 @@ export default function KlingMultiImageToVideo() {
 
               {/* Prompt Input */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-100">Prompt (Optional)</label>
+                <label className="text-sm font-semibold text-slate-100">Prompt <span className="text-red-400">*</span></label>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
@@ -754,7 +908,7 @@ export default function KlingMultiImageToVideo() {
                   rows={3}
                   disabled={isGenerating}
                 />
-                <p className="text-xs text-slate-300">Optional: Guide the transition style between images.</p>
+                <p className="text-xs text-slate-300">Required: Describe the transition style between images.</p>
               </div>
 
               {/* Negative Prompt */}
@@ -836,25 +990,25 @@ export default function KlingMultiImageToVideo() {
                 </div>
               </div>
 
-              {/* CFG Scale */}
+              {/* Aspect Ratio Selection */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-semibold text-slate-100">Creativity (CFG Scale)</label>
-                  <span className="text-xs text-slate-300">{cfgScale.toFixed(1)}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.1}
-                  value={cfgScale}
-                  onChange={(e) => setCfgScale(Number(e.target.value))}
-                  className="w-full accent-violet-400"
-                  disabled={isGenerating}
-                />
-                <div className="flex justify-between text-xs text-slate-400">
-                  <span>More Creative</span>
-                  <span>More Accurate</span>
+                <label className="text-sm font-semibold text-slate-100">Aspect Ratio</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {ASPECT_RATIO_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setAspectRatio(option.value)}
+                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                        aspectRatio === option.value
+                          ? "border-violet-400/70 bg-violet-500/10 text-white shadow-violet-900/30"
+                          : "border-white/10 bg-white/5 text-slate-200"
+                      } disabled:opacity-50`}
+                      disabled={isGenerating}
+                    >
+                      <p className="text-sm font-semibold">{option.label}</p>
+                      <p className="text-xs text-slate-300">{option.description}</p>
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -912,16 +1066,16 @@ export default function KlingMultiImageToVideo() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || uploadedImages.length < 2}
+                  disabled={isGenerating || isCompressing || uploadedImages.length < 2}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-pink-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60"
                 >
-                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {isGenerating ? "Generating..." : "Generate Video"}
+                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : isCompressing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {isGenerating ? "Generating..." : isCompressing ? "Processing Images..." : "Generate Video"}
                 </button>
                 <button
                   onClick={handleReset}
                   type="button"
-                  disabled={isGenerating}
+                  disabled={isGenerating || isCompressing}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
                 >
                   <RotateCcw className="w-4 h-4" /> Reset
@@ -1127,7 +1281,7 @@ export default function KlingMultiImageToVideo() {
                   <div className="bg-emerald-500/10 border border-emerald-400/30 rounded-2xl p-4">
                     <h4 className="font-semibold text-emerald-100 mb-2">✓ Best Practices</h4>
                     <ul className="text-sm space-y-1 text-emerald-50">
-                      <li>• Use 2-5 images in logical sequence</li>
+                      <li>• Use 2-4 images in logical sequence</li>
                       <li>• Keep similar composition across images</li>
                       <li>• Use high-quality source images</li>
                       <li>• Consistent lighting helps smooth transitions</li>

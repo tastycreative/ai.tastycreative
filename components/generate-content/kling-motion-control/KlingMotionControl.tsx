@@ -29,6 +29,125 @@ import {
   Wand2,
 } from "lucide-react";
 
+// Image compression utility - optimizes large images while preserving quality for AI generation
+const compressImage = async (
+  file: File,
+  maxSizeMB: number = 3.5,  // Target ~3.5MB to stay safely under limits after base64 encoding
+  maxWidthOrHeight: number = 2048  // Keep reasonable resolution for AI
+): Promise<{ file: File; compressed: boolean; originalSize: number; newSize: number }> => {
+  return new Promise((resolve, reject) => {
+    const originalSize = file.size;
+    
+    // If file is already small enough, return as-is
+    if (file.size <= maxSizeMB * 1024 * 1024) {
+      resolve({
+        file,
+        compressed: false,
+        originalSize,
+        newSize: originalSize,
+      });
+      return;
+    }
+
+    // Need to compress - use canvas
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    img.onload = () => {
+      // Calculate new dimensions while maintaining aspect ratio
+      let { width, height } = img;
+      
+      // Only resize if truly massive - preserve resolution when possible
+      if (width > maxWidthOrHeight || height > maxWidthOrHeight) {
+        if (width > height) {
+          height = (height / width) * maxWidthOrHeight;
+          width = maxWidthOrHeight;
+        } else {
+          width = (width / height) * maxWidthOrHeight;
+          height = maxWidthOrHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      // Use high-quality rendering
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+      }
+
+      // Draw and compress
+      ctx?.drawImage(img, 0, 0, width, height);
+
+      // Start with high quality JPEG
+      let quality = 0.92;
+      const minQuality = 0.75;  // Don't go below 75% quality to preserve details for AI
+      
+      const tryCompress = (q: number): Promise<Blob | null> => {
+        return new Promise((res) => {
+          canvas.toBlob((blob) => res(blob), 'image/jpeg', q);
+        });
+      };
+
+      const compressLoop = async () => {
+        let blob = await tryCompress(quality);
+        
+        // Reduce quality until size is acceptable
+        while (blob && blob.size > maxSizeMB * 1024 * 1024 && quality > minQuality) {
+          quality -= 0.05;
+          blob = await tryCompress(quality);
+        }
+        
+        // If still too large at min quality, reduce dimensions and try again
+        if (blob && blob.size > maxSizeMB * 1024 * 1024) {
+          const scale = 0.8;
+          canvas.width = Math.round(width * scale);
+          canvas.height = Math.round(height * scale);
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          quality = 0.85;
+          blob = await tryCompress(quality);
+          
+          while (blob && blob.size > maxSizeMB * 1024 * 1024 && quality > minQuality) {
+            quality -= 0.05;
+            blob = await tryCompress(quality);
+          }
+        }
+
+        if (!blob) {
+          reject(new Error('Failed to compress image'));
+          return;
+        }
+
+        const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+
+        resolve({
+          file: compressedFile,
+          compressed: true,
+          originalSize,
+          newSize: blob.size,
+        });
+      };
+
+      compressLoop();
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image for compression'));
+
+    // Load image from file
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 interface InstagramProfile {
   id: string;
   name: string;
@@ -80,13 +199,15 @@ export default function KlingMotionControl() {
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<"std" | "pro">("std");
   const [characterOrientation, setCharacterOrientation] = useState<"image" | "video">("image");
-  const [keepOriginalSound, setKeepOriginalSound] = useState(false);
+  const [keepOriginalSound, setKeepOriginalSound] = useState(true); // API default is "yes"
 
   // File state
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionInfo, setCompressionInfo] = useState<string | null>(null);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -196,8 +317,15 @@ export default function KlingMotionControl() {
     try {
       const response = await apiClient.get("/api/generate/kling-motion-control?history=true");
       if (response.ok) {
-        const data = await response.json();
-        setGenerationHistory(data.videos || []);
+        // Safely parse JSON response
+        const responseText = await response.text();
+        try {
+          const data = JSON.parse(responseText);
+          setGenerationHistory(data.videos || []);
+        } catch (parseError) {
+          console.error("Error parsing history response:", responseText.substring(0, 200));
+          setGenerationHistory([]);
+        }
       }
     } catch (err) {
       console.error("Error loading video history:", err);
@@ -214,8 +342,8 @@ export default function KlingMotionControl() {
     }
   }, [user, apiClient, loadVaultData, loadGenerationHistory]);
 
-  // Handle image file selection
-  const handleImageSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle image file selection with automatic compression
+  const handleImageSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -224,19 +352,42 @@ export default function KlingMotionControl() {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Image must be less than 10MB");
+    // Allow larger initial files since we'll compress them
+    if (file.size > 20 * 1024 * 1024) {
+      setError("Image must be less than 20MB");
       return;
     }
 
     setError(null);
-    setImageFile(file);
+    setCompressionInfo(null);
+    setIsCompressing(true);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Compress image if needed (target 3MB max for safe upload)
+      const result = await compressImage(file, 3, 2048);
+      
+      setImageFile(result.file);
+
+      // Show compression info if image was compressed
+      if (result.compressed) {
+        const savedMB = ((result.originalSize - result.newSize) / (1024 * 1024)).toFixed(1);
+        const newSizeMB = (result.newSize / (1024 * 1024)).toFixed(1);
+        setCompressionInfo(`Image compressed: ${newSizeMB}MB (saved ${savedMB}MB)`);
+        console.log(`[Kling Motion Control] Image compressed: ${(result.originalSize / (1024 * 1024)).toFixed(1)}MB → ${newSizeMB}MB`);
+      }
+
+      // Create preview from the (possibly compressed) file
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(result.file);
+    } catch (err) {
+      console.error("Image compression failed:", err);
+      setError("Failed to process image. Please try a different file.");
+    } finally {
+      setIsCompressing(false);
+    }
   }, []);
 
   // Handle video file selection
@@ -249,8 +400,10 @@ export default function KlingMotionControl() {
       return;
     }
 
-    if (file.size > 100 * 1024 * 1024) {
-      setError("Video must be less than 100MB");
+    // Reduce max video size to 50MB to avoid "Request Entity Too Large" errors
+    // Some CDNs and proxies have stricter limits
+    if (file.size > 50 * 1024 * 1024) {
+      setError("Video must be less than 50MB. Please compress your video or use a shorter clip.");
       return;
     }
 
@@ -264,6 +417,7 @@ export default function KlingMotionControl() {
   const clearImage = useCallback(() => {
     setImageFile(null);
     setImagePreview(null);
+    setCompressionInfo(null);
     if (imageInputRef.current) {
       imageInputRef.current.value = "";
     }
@@ -304,12 +458,24 @@ export default function KlingMotionControl() {
           });
 
           const response = await fetch(`/api/generate/kling-motion-control?taskId=${taskId}`);
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || "Failed to check task status");
+          
+          // Safely parse JSON response
+          let data;
+          const responseText = await response.text();
+          try {
+            data = JSON.parse(responseText);
+          } catch (parseError) {
+            console.error("[Kling Motion Control] Failed to parse poll response:", responseText.substring(0, 200));
+            throw new Error(
+              response.ok
+                ? "Received invalid response while checking status. Please try again."
+                : `Server error (${response.status}): Unable to check generation status`
+            );
           }
-
-          const data = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(data.error || data.message || "Failed to check task status");
+          }
 
           if (data.status === "completed" && data.videos && data.videos.length > 0) {
             updateGlobalProgress({
@@ -430,10 +596,22 @@ export default function KlingMotionControl() {
         body: formData,
       });
 
-      const data = await response.json();
+      // Safely parse JSON response - handle cases where server returns non-JSON
+      let data;
+      const responseText = await response.text();
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("[Kling Motion Control] Failed to parse response:", responseText.substring(0, 200));
+        throw new Error(
+          response.ok 
+            ? "Received invalid response from server. Please try again." 
+            : `Server error (${response.status}): ${responseText.substring(0, 100)}`
+        );
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to start video generation");
+        throw new Error(data.error || data.message || "Failed to start video generation");
       }
 
       setCurrentTaskId(data.taskId);
@@ -495,7 +673,7 @@ export default function KlingMotionControl() {
     setPrompt("");
     setMode("std");
     setCharacterOrientation("image");
-    setKeepOriginalSound(false);
+    setKeepOriginalSound(true); // API default is "yes"
     clearImage();
     clearVideo();
     setTargetFolder("");
@@ -657,17 +835,31 @@ export default function KlingMotionControl() {
                     >
                       <X className="w-4 h-4" />
                     </button>
+                    {compressionInfo && (
+                      <div className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg bg-emerald-500/80 text-xs text-white text-center">
+                        {compressionInfo}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div
-                    onClick={() => !isGenerating && imageInputRef.current?.click()}
+                    onClick={() => !isGenerating && !isCompressing && imageInputRef.current?.click()}
                     className={`aspect-video rounded-2xl border-2 border-dashed border-white/20 hover:border-violet-500/50 bg-white/5 flex flex-col items-center justify-center gap-2 cursor-pointer transition ${
-                      isGenerating ? "opacity-50 cursor-not-allowed" : ""
+                      isGenerating || isCompressing ? "opacity-50 cursor-not-allowed" : ""
                     }`}
                   >
-                    <Upload className="h-8 w-8 text-slate-400" />
-                    <span className="text-sm text-slate-300">Click to upload character image</span>
-                    <span className="text-xs text-slate-400">Max 10MB · JPG, PNG, WebP</span>
+                    {isCompressing ? (
+                      <>
+                        <Loader2 className="h-8 w-8 text-violet-400 animate-spin" />
+                        <span className="text-sm text-slate-300">Compressing image...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 text-slate-400" />
+                        <span className="text-sm text-slate-300">Click to upload character image</span>
+                        <span className="text-xs text-slate-400">Max 20MB · Auto-compressed · JPG, PNG, WebP</span>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -677,9 +869,9 @@ export default function KlingMotionControl() {
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={handleImageSelect}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isCompressing}
                 />
-                <p className="text-xs text-slate-300">Upload the character you want to animate.</p>
+                <p className="text-xs text-slate-300">Upload the character you want to animate. Large images are automatically compressed.</p>
               </div>
 
               {/* Reference Video Upload */}
@@ -713,7 +905,7 @@ export default function KlingMotionControl() {
                   >
                     <Upload className="h-8 w-8 text-slate-400" />
                     <span className="text-sm text-slate-300">Click to upload reference video</span>
-                    <span className="text-xs text-slate-400">Max 100MB · MP4, MOV, WebM · 3-30s</span>
+                    <span className="text-xs text-slate-400">Max 50MB · MP4, MOV, WebM · 3-30s</span>
                   </div>
                 )}
 
@@ -725,7 +917,7 @@ export default function KlingMotionControl() {
                   onChange={handleVideoSelect}
                   disabled={isGenerating}
                 />
-                <p className="text-xs text-slate-300">Upload a video showing the motion to transfer.</p>
+                <p className="text-xs text-slate-300">Upload a video showing the motion to transfer. Keep videos under 50MB for best results.</p>
               </div>
 
               {/* Character Orientation */}
@@ -881,16 +1073,16 @@ export default function KlingMotionControl() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || !imageFile || !videoFile}
+                  disabled={isGenerating || isCompressing || !imageFile || !videoFile}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-pink-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                   {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {isGenerating ? "Generating..." : "Generate Video"}
+                  {isGenerating ? "Generating..." : isCompressing ? "Processing Image..." : "Generate Video"}
                 </button>
                 <button
                   onClick={handleReset}
                   type="button"
-                  disabled={isGenerating}
+                  disabled={isGenerating || isCompressing}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60"
                 >
                   <RotateCcw className="w-4 h-4" /> Reset

@@ -192,7 +192,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const data = await response.json();
+    // Safely parse successful response
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("[Kling Motion Control] Failed to parse API response:", responseText.substring(0, 500));
+      return NextResponse.json(
+        {
+          error: "Received invalid response from Kling API. Please try again.",
+          details: { rawResponse: responseText.substring(0, 200) },
+        },
+        { status: 502 }
+      );
+    }
+    
     console.log("[Kling Motion Control] API response:", {
       code: data.code,
       message: data.message,
@@ -326,12 +341,27 @@ export async function GET(request: NextRequest) {
       const errorText = await response.text();
       console.error("[Kling Motion Control] Status check error:", errorText);
       return NextResponse.json(
-        { error: "Failed to check task status" },
+        { error: "Failed to check task status", status: "failed" },
         { status: response.status }
       );
     }
 
-    const data = await response.json();
+    // Safely parse successful response
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("[Kling Motion Control] Failed to parse status response:", responseText.substring(0, 500));
+      return NextResponse.json(
+        {
+          error: "Received invalid response while checking status. Please try again.",
+          status: "failed",
+        },
+        { status: 502 }
+      );
+    }
+    
     console.log("[Kling Motion Control] Task status response:", {
       code: data.code,
       taskId: taskId,

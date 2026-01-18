@@ -26,7 +26,6 @@ import {
   Layers,
   ImageIcon,
   Clock,
-  Folder,
   ChevronDown,
   Archive,
 } from "lucide-react";
@@ -83,17 +82,6 @@ interface DatabaseVideo {
   createdAt: Date | string;
 }
 
-interface AvailableFolderOption {
-  name: string;
-  prefix: string;
-  displayPath: string;
-  path: string;
-  depth: number;
-  isShared?: boolean;
-  permission?: 'VIEW' | 'EDIT';
-  parentPrefix?: string | null;
-}
-
 // Vault interfaces
 interface InstagramProfile {
   id: string;
@@ -109,49 +97,7 @@ interface VaultFolder {
   isDefault?: boolean;
 }
 
-type FolderType = 's3' | 'vault';
 
-const sanitizePrefix = (prefix: string): string => {
-  if (!prefix) {
-    return '';
-  }
-  const normalized = prefix.replace(/\\/g, '/').replace(/\/+/g, '/');
-  return normalized.endsWith('/') ? normalized : `${normalized}/`;
-};
-
-const formatSegmentName = (segment: string): string => {
-  if (!segment) {
-    return '';
-  }
-  return segment
-    .split('-')
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-};
-
-const deriveFolderMeta = (prefix: string) => {
-  const sanitized = sanitizePrefix(prefix);
-  const parts = sanitized.split('/').filter(Boolean);
-  const relativeSegments = parts.slice(2);
-  const displaySegments = relativeSegments.map(formatSegmentName);
-  const depth = Math.max(relativeSegments.length, 1);
-  const parentPrefix = relativeSegments.length <= 1 ? null : `${parts.slice(0, -1).join('/')}/`;
-  return {
-    sanitized,
-    relativeSegments,
-    displaySegments,
-    depth,
-    parentPrefix,
-    path: relativeSegments.join('/'),
-  };
-};
-
-const buildFolderOptionLabel = (folder: AvailableFolderOption): string => {
-  const indent = folder.depth > 1 ? `${'\u00A0'.repeat((folder.depth - 1) * 2)}↳ ` : '';
-  const icon = folder.isShared ? '🤝' : '📁';
-  return `${icon} ${indent}${folder.displayPath}`;
-};
 
 // Constants
 const ASPECT_RATIOS = [
@@ -467,8 +413,6 @@ export default function ImageToVideoPage() {
 
   // Folder selection states
   const [targetFolder, setTargetFolder] = useState<string>("");
-  const [availableFolders, setAvailableFolders] = useState<AvailableFolderOption[]>([]);
-  const [isLoadingFolders, setIsLoadingFolders] = useState(true);
 
   // Vault folder states
   const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
@@ -481,46 +425,24 @@ export default function ImageToVideoPage() {
   );
   const [videoStats, setVideoStats] = useState<any>(null);
 
-  const selectedFolderOption = useMemo(
-    () => {
-      if (!targetFolder || availableFolders.length === 0) {
-        return null;
-      }
-      const normalized = sanitizePrefix(targetFolder);
-      return availableFolders.find((f) => f.prefix === normalized) || null;
-    },
-    [availableFolders, targetFolder]
-  );
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Parse target folder to determine type (s3 or vault)
-  const parseTargetFolder = (value: string): { type: FolderType; folderId: string; profileId?: string; profileName?: string } => {
-    if (value.startsWith('vault:')) {
-      const parts = value.replace('vault:', '').split(':');
+  // Get display text for the selected folder
+  const getSelectedFolderDisplay = (): string => {
+    if (!targetFolder) return 'Select a vault folder to save your output';
+    
+    if (targetFolder.startsWith('vault:')) {
+      const parts = targetFolder.replace('vault:', '').split(':');
       const profileId = parts[0];
       const folderId = parts[1];
       const profile = vaultProfiles.find(p => p.id === profileId);
-      return { type: 'vault', folderId, profileId, profileName: profile?.name };
-    }
-    return { type: 's3', folderId: value };
-  };
-
-  // Get display text for the selected folder
-  const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return 'Saving to your default outputs folder';
-    
-    const parsed = parseTargetFolder(targetFolder);
-    
-    if (parsed.type === 'vault') {
-      const folders = vaultFoldersByProfile[parsed.profileId || ''] || [];
-      const folder = folders.find(f => f.id === parsed.folderId);
-      return `Saving to Vault: ${parsed.profileName || 'Profile'} / ${folder?.name || 'Folder'}`;
+      const folders = vaultFoldersByProfile[profileId] || [];
+      const folder = folders.find(f => f.id === folderId);
+      return `Saving to Vault: ${profile?.name || 'Profile'} / ${folder?.name || 'Folder'}`;
     }
     
-    const s3Folder = availableFolders.find(f => f.prefix === parsed.folderId);
-    return `Saving to ${s3Folder?.displayPath || 'selected folder'}`;
+    return 'Select a vault folder to save your output';
   };
 
   // Helper function to determine if a failed job was actually cancelled
@@ -650,77 +572,6 @@ export default function ImageToVideoPage() {
     }
     fetchVideoStats();
   }, []);
-
-  // Load folders for selection
-  useEffect(() => {
-    const loadFolders = async () => {
-      if (!apiClient || !user) {
-        console.log("⏳ Waiting for apiClient and user to load folders");
-        return;
-      }
-
-      try {
-        setIsLoadingFolders(true);
-        console.log("📁 Loading custom folders for image-to-video...");
-
-        const response = await apiClient.get("/api/s3/folders/list-custom");
-
-        if (!response.ok) {
-          throw new Error(`Failed to load folders: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log("📊 Folders loaded:", data);
-
-        if (data.success && Array.isArray(data.folders)) {
-          const foldersRaw: any[] = data.folders;
-
-          // Build AvailableFolderOption[] with metadata
-          const folderOptionsMap = new Map<string, AvailableFolderOption>();
-
-          for (const rawFolder of foldersRaw) {
-            const prefix = rawFolder.prefix || '';
-            if (!prefix) continue;
-
-            const meta = deriveFolderMeta(prefix);
-            const option: AvailableFolderOption = {
-              name: rawFolder.name || meta.displaySegments.join(' / ') || 'Unknown',
-              prefix: meta.sanitized,
-              displayPath: meta.displaySegments.join(' / ') || rawFolder.name || 'Root',
-              path: meta.path,
-              depth: meta.depth,
-              isShared: rawFolder.isShared || false,
-              permission: rawFolder.permission || 'VIEW',
-              parentPrefix: meta.parentPrefix,
-            };
-
-            folderOptionsMap.set(meta.sanitized, option);
-          }
-
-          // Deduplicate and sort
-          const uniqueFolders = Array.from(folderOptionsMap.values());
-          uniqueFolders.sort((a, b) => {
-            if (a.permission === 'EDIT' && b.permission !== 'EDIT') return -1;
-            if (a.permission !== 'EDIT' && b.permission === 'EDIT') return 1;
-            return a.path.localeCompare(b.path);
-          });
-
-          setAvailableFolders(uniqueFolders);
-          console.log("✅ Available folders with metadata:", uniqueFolders);
-        } else {
-          console.error("❌ Invalid folders data:", data);
-          setAvailableFolders([]);
-        }
-      } catch (error) {
-        console.error("❌ Error loading folders:", error);
-        setAvailableFolders([]);
-      } finally {
-        setIsLoadingFolders(false);
-      }
-    };
-
-    loadFolders();
-  }, [apiClient, user]);
 
   // Load vault profiles and their folders
   useEffect(() => {
@@ -1167,16 +1018,8 @@ export default function ImageToVideoPage() {
   const createWorkflowJson = (params: GenerationParams, targetFolder?: string) => {
     const seed = params.seed || Math.floor(Math.random() * 1000000000);
     
-    // Normalize the target folder with sanitizePrefix
-    const normalizedTargetFolder = targetFolder ? sanitizePrefix(targetFolder) : '';
-    
-    // Build filename prefix with normalized path
-    let filenamePrefix: string;
-    if (normalizedTargetFolder) {
-      filenamePrefix = `${normalizedTargetFolder}ImageToVideo`;
-    } else {
-      filenamePrefix = "video/ComfyUI/wan2.2";
-    }
+    // Build filename prefix - for vault we use a temp location
+    const filenamePrefix = "video/ComfyUI/wan2.2";
 
     const workflow: any = {
       "6": {
@@ -1407,9 +1250,17 @@ export default function ImageToVideoPage() {
       console.log("📦 Base64 data length:", imageBase64Data.length);
       console.log("📦 Base64 data preview:", imageBase64Data.substring(0, 50) + "...");
 
-      // Parse target folder for vault support
-      const folderInfo = parseTargetFolder(targetFolder);
-      const saveToVault = folderInfo.type === 'vault';
+      // Parse vault folder
+      let vaultProfileId: string | undefined;
+      let vaultFolderId: string | undefined;
+      
+      if (targetFolder.startsWith('vault:')) {
+        const parts = targetFolder.replace('vault:', '').split(':');
+        vaultProfileId = parts[0];
+        vaultFolderId = parts[1];
+      }
+      
+      const saveToVault = !!vaultProfileId && !!vaultFolderId;
 
       // Use the serverless RunPod endpoint
       const response = await apiClient.post(
@@ -1420,15 +1271,15 @@ export default function ImageToVideoPage() {
             ...params,
             // Vault params
             saveToVault,
-            vaultProfileId: saveToVault ? folderInfo.profileId : undefined,
-            vaultFolderId: saveToVault ? folderInfo.folderId : undefined,
+            vaultProfileId: saveToVault ? vaultProfileId : undefined,
+            vaultFolderId: saveToVault ? vaultFolderId : undefined,
           },
           user_id: user?.id, // Include user_id for proper S3 folder organization
           imageData: imageBase64Data, // Include base64 image data
           // Also send vault params at top level for route.ts
           saveToVault,
-          vaultProfileId: saveToVault ? folderInfo.profileId : undefined,
-          vaultFolderId: saveToVault ? folderInfo.folderId : undefined,
+          vaultProfileId: saveToVault ? vaultProfileId : undefined,
+          vaultFolderId: saveToVault ? vaultFolderId : undefined,
         }
       );
 
@@ -1910,10 +1761,10 @@ export default function ImageToVideoPage() {
             <div className="space-y-3 sm:space-y-4">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-lg sm:rounded-xl shadow-lg">
-                  <Folder className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                  <Archive className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
                 <label className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
-                  Save to Folder
+                  Save to Vault
                 </label>
               </div>
 
@@ -1921,81 +1772,55 @@ export default function ImageToVideoPage() {
                 <select
                   value={targetFolder}
                   onChange={(e) => {
-                    const selectedValue = e.target.value;
-                    // Don't sanitize vault: prefixes
-                    const newValue = selectedValue.startsWith('vault:') 
-                      ? selectedValue 
-                      : selectedValue;
-                    setTargetFolder(newValue);
+                    setTargetFolder(e.target.value);
                   }}
-                  disabled={isLoadingFolders || isLoadingVaultData || isGenerating}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-8 sm:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-sm sm:text-base text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoadingVaultData || isGenerating}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-8 sm:pr-10 bg-gray-800 border-2 border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-inner text-sm sm:text-base [&>option]:bg-gray-800 [&>option]:text-white [&>optgroup]:bg-gray-800 [&>optgroup]:text-gray-400"
                 >
-                  <option value="">📁 Default Output Folder</option>
-                  
-                  {/* S3 Folders Group */}
-                  {availableFolders.length > 0 && (
-                    <optgroup label="📂 Your Output Folders">
-                      {availableFolders.map((folder) => (
-                        <option key={folder.prefix} value={folder.prefix}>
-                          {'  '.repeat(folder.depth)}{folder.name}
-                          {folder.isShared && ' (Shared)'}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
+                  <option value="">Select a vault folder...</option>
                   
                   {/* Vault Folders by Profile - Each profile as its own optgroup */}
                   {vaultProfiles.map((profile) => {
-                    const folders = vaultFoldersByProfile[profile.id] || [];
+                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
                     if (folders.length === 0) return null;
                     
                     return (
                       <optgroup 
                         key={profile.id} 
-                        label={`📸 Vault - ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
+                        label={`📸 ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
                       >
                         {folders.map((folder) => (
                           <option 
                             key={folder.id} 
                             value={`vault:${profile.id}:${folder.id}`}
                           >
-                            {folder.name}{folder.isDefault ? ' (Default)' : ''}
+                            {folder.name}
                           </option>
                         ))}
                       </optgroup>
                     );
                   })}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-              </div>
-
-              {/* Loading indicators */}
-              {(isLoadingFolders || isLoadingVaultData) && (
-                <div className="flex items-center space-x-2 text-sm text-gray-500">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Loading folders...</span>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  {isLoadingVaultData ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Folder type indicator with badge */}
               <div className="flex items-center gap-2">
-                {targetFolder && targetFolder.startsWith('vault:') ? (
+                {targetFolder && targetFolder.startsWith('vault:') && (
                   <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-600 dark:text-purple-300">
                     <Archive className="w-3 h-3" />
                     <span>Vault Storage</span>
                   </div>
-                ) : targetFolder ? (
-                  <div className="flex items-center gap-1.5 rounded-full bg-blue-500/20 px-2.5 py-1 text-[11px] text-blue-600 dark:text-blue-300">
-                    <Folder className="w-3 h-3" />
-                    <span>S3 Storage</span>
-                  </div>
-                ) : null}
-                {targetFolder && (
-                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 flex-1">
-                    {getSelectedFolderDisplay()}
-                  </p>
                 )}
+                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 flex-1">
+                  {getSelectedFolderDisplay()}
+                </p>
               </div>
             </div>
           </div>

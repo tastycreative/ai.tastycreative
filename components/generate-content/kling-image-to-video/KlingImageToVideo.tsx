@@ -29,6 +29,110 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 
+// Image compression utility - optimizes large images while preserving quality for AI generation
+const compressImage = async (
+  file: File,
+  maxSizeMB: number = 3.5,
+  maxWidthOrHeight: number = 2048
+): Promise<{ file: File; compressed: boolean; originalSize: number; newSize: number }> => {
+  return new Promise((resolve, reject) => {
+    const originalSize = file.size;
+    
+    if (file.size <= maxSizeMB * 1024 * 1024) {
+      resolve({ file, compressed: false, originalSize, newSize: originalSize });
+      return;
+    }
+
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    img.onload = () => {
+      let { width, height } = img;
+      
+      if (width > maxWidthOrHeight || height > maxWidthOrHeight) {
+        if (width > height) {
+          height = (height / width) * maxWidthOrHeight;
+          width = maxWidthOrHeight;
+        } else {
+          width = (width / height) * maxWidthOrHeight;
+          height = maxWidthOrHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+      }
+
+      ctx?.drawImage(img, 0, 0, width, height);
+
+      let quality = 0.92;
+      const minQuality = 0.75;
+      
+      const tryCompress = (q: number): Promise<Blob | null> => {
+        return new Promise((res) => {
+          canvas.toBlob((blob) => res(blob), 'image/jpeg', q);
+        });
+      };
+
+      const compressLoop = async () => {
+        let blob = await tryCompress(quality);
+        
+        while (blob && blob.size > maxSizeMB * 1024 * 1024 && quality > minQuality) {
+          quality -= 0.05;
+          blob = await tryCompress(quality);
+        }
+        
+        if (blob && blob.size > maxSizeMB * 1024 * 1024) {
+          const scale = 0.8;
+          canvas.width = Math.round(width * scale);
+          canvas.height = Math.round(height * scale);
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          quality = 0.85;
+          blob = await tryCompress(quality);
+          
+          while (blob && blob.size > maxSizeMB * 1024 * 1024 && quality > minQuality) {
+            quality -= 0.05;
+            blob = await tryCompress(quality);
+          }
+        }
+
+        if (!blob) {
+          reject(new Error('Failed to compress image'));
+          return;
+        }
+
+        const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+
+        resolve({
+          file: compressedFile,
+          compressed: true,
+          originalSize,
+          newSize: blob.size,
+        });
+      };
+
+      compressLoop();
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image for compression'));
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 interface InstagramProfile {
   id: string;
   name: string;
@@ -57,11 +161,16 @@ interface GeneratedVideo {
   imageUrl?: string;
 }
 
-// Kling model options
+// Kling model options with feature support flags
 const MODEL_OPTIONS = [
-  { value: "kling-v1", label: "Kling V1", description: "Standard quality" },
-  { value: "kling-v1-5", label: "Kling V1.5", description: "Enhanced quality" },
-  { value: "kling-v1-6", label: "Kling V1.6", description: "Latest model" },
+  { value: "kling-v1", label: "Kling V1", description: "Standard quality", supportsSound: false, supportsCfgScale: true, supportsCameraControl: false },
+  { value: "kling-v1-5", label: "Kling V1.5", description: "Enhanced quality", supportsSound: false, supportsCfgScale: true, supportsCameraControl: true },
+  { value: "kling-v1-6", label: "Kling V1.6", description: "Enhanced V1", supportsSound: false, supportsCfgScale: true, supportsCameraControl: true },
+  { value: "kling-v2-master", label: "Kling V2 Master", description: "V2 high quality", supportsSound: false, supportsCfgScale: false, supportsCameraControl: true },
+  { value: "kling-v2-1", label: "Kling V2.1", description: "V2.1 standard", supportsSound: false, supportsCfgScale: false, supportsCameraControl: true },
+  { value: "kling-v2-1-master", label: "Kling V2.1 Master", description: "V2.1 improved", supportsSound: false, supportsCfgScale: false, supportsCameraControl: true },
+  { value: "kling-v2-5-turbo", label: "Kling V2.5 Turbo", description: "Fast V2.5", supportsSound: false, supportsCfgScale: false, supportsCameraControl: true },
+  { value: "kling-v2-6", label: "Kling V2.6", description: "Latest with audio", supportsSound: true, supportsCfgScale: false, supportsCameraControl: true },
 ] as const;
 
 // Mode options
@@ -76,14 +185,23 @@ const DURATION_OPTIONS = [
   { value: "10", label: "10 seconds", description: "Extended clip" },
 ] as const;
 
-// Camera control options
-const CAMERA_CONTROL_OPTIONS = [
-  { value: "down_back", label: "Down & Back", description: "Pull back and down" },
-  { value: "forward_up", label: "Forward & Up", description: "Push in and up" },
-  { value: "right_turn_forward", label: "Right Turn Forward", description: "Pan right while moving forward" },
-  { value: "left_turn_forward", label: "Left Turn Forward", description: "Pan left while moving forward" },
-  { value: "zoom_in", label: "Zoom In", description: "Gradual zoom in" },
-  { value: "zoom_out", label: "Zoom Out", description: "Gradual zoom out" },
+// Camera control type options
+const CAMERA_CONTROL_TYPE_OPTIONS = [
+  { value: "simple", label: "Simple (6-axis)", description: "Custom 6-axis control" },
+  { value: "down_back", label: "Down & Back", description: "Pan down and zoom out" },
+  { value: "forward_up", label: "Forward & Up", description: "Zoom in and pan up" },
+  { value: "right_turn_forward", label: "Right Turn Forward", description: "Rotate right and advance" },
+  { value: "left_turn_forward", label: "Left Turn Forward", description: "Rotate left and advance" },
+] as const;
+
+// 6-axis camera config options (for simple type)
+const CAMERA_AXIS_OPTIONS = [
+  { key: "horizontal", label: "Horizontal", description: "Left/Right movement", min: -10, max: 10 },
+  { key: "vertical", label: "Vertical", description: "Up/Down movement", min: -10, max: 10 },
+  { key: "pan", label: "Pan", description: "Up/Down rotation", min: -10, max: 10 },
+  { key: "tilt", label: "Tilt", description: "Left/Right rotation", min: -10, max: 10 },
+  { key: "roll", label: "Roll", description: "Clockwise/Counter rotation", min: -10, max: 10 },
+  { key: "zoom", label: "Zoom", description: "Focal length change", min: -10, max: 10 },
 ] as const;
 
 // Image modes
@@ -105,8 +223,24 @@ export default function KlingImageToVideo() {
   const [mode, setMode] = useState<string>("std");
   const [duration, setDuration] = useState<string>("5");
   const [cfgScale, setCfgScale] = useState<number>(0.5);
+  const [sound, setSound] = useState<"on" | "off">("off");
   const [useCameraControl, setUseCameraControl] = useState(false);
-  const [cameraControl, setCameraControl] = useState<string>("zoom_in");
+  const [cameraControlType, setCameraControlType] = useState<string>("simple");
+  const [cameraConfig, setCameraConfig] = useState<Record<string, number>>({
+    horizontal: 0,
+    vertical: 0,
+    pan: 0,
+    tilt: 0,
+    roll: 0,
+    zoom: 0,
+  });
+  const [selectedCameraAxis, setSelectedCameraAxis] = useState<string>("zoom");
+
+  // Check model feature support
+  const currentModel = MODEL_OPTIONS.find(m => m.value === model);
+  const currentModelSupportsSound = currentModel?.supportsSound ?? false;
+  const currentModelSupportsCfgScale = currentModel?.supportsCfgScale ?? true;
+  const currentModelSupportsCameraControl = currentModel?.supportsCameraControl ?? false;
 
   // Image upload state
   const [uploadedImage, setUploadedImage] = useState<File | null>(null);
@@ -114,6 +248,8 @@ export default function KlingImageToVideo() {
   const [imageMode, setImageMode] = useState<string>("normal");
   const [tailImage, setTailImage] = useState<File | null>(null);
   const [tailImagePreview, setTailImagePreview] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressionInfo, setCompressionInfo] = useState<string | null>(null);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -143,7 +279,7 @@ export default function KlingImageToVideo() {
     });
   };
 
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>, isTailImage: boolean = false) => {
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>, isTailImage: boolean = false) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -152,20 +288,50 @@ export default function KlingImageToVideo() {
       return;
     }
 
-    if (isTailImage) {
-      setTailImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTailImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setUploadedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    // Allow larger initial files since we'll compress them
+    if (file.size > 20 * 1024 * 1024) {
+      setError("Image must be less than 20MB");
+      return;
+    }
+
+    setError(null);
+    setIsCompressing(true);
+    if (!isTailImage) {
+      setCompressionInfo(null);
+    }
+
+    try {
+      // Compress image if needed (target 3MB max for safe upload)
+      const result = await compressImage(file, 3, 2048);
+
+      if (isTailImage) {
+        setTailImage(result.file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setTailImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(result.file);
+      } else {
+        setUploadedImage(result.file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(result.file);
+
+        // Show compression info if image was compressed
+        if (result.compressed) {
+          const savedMB = ((result.originalSize - result.newSize) / (1024 * 1024)).toFixed(1);
+          const newSizeMB = (result.newSize / (1024 * 1024)).toFixed(1);
+          setCompressionInfo(`Image compressed: ${newSizeMB}MB (saved ${savedMB}MB)`);
+          console.log(`[Kling I2V] Image compressed: ${(result.originalSize / (1024 * 1024)).toFixed(1)}MB → ${newSizeMB}MB`);
+        }
+      }
+    } catch (err) {
+      console.error("Image compression failed:", err);
+      setError("Failed to process image. Please try a different file.");
+    } finally {
+      setIsCompressing(false);
     }
   };
 
@@ -176,6 +342,7 @@ export default function KlingImageToVideo() {
     } else {
       setUploadedImage(null);
       setImagePreview(null);
+      setCompressionInfo(null);
     }
   };
 
@@ -401,25 +568,45 @@ export default function KlingImageToVideo() {
       if (negativePrompt.trim()) {
         formData.append("negative_prompt", negativePrompt.trim());
       }
-      formData.append("model", model);
+      formData.append("model_name", model); // API uses model_name, not model
       formData.append("mode", mode);
       formData.append("duration", duration);
-      formData.append("cfg_scale", cfgScale.toString());
+      
+      // Add CFG scale only for V1 models that support it
+      if (currentModelSupportsCfgScale) {
+        formData.append("cfg_scale", cfgScale.toString());
+      }
       formData.append("image_mode", imageMode);
+
+      // Add sound parameter (only for V2.6+ models)
+      if (currentModelSupportsSound) {
+        formData.append("sound", sound);
+      }
 
       // Add tail image if provided (for pro mode)
       if (tailImage && imageMode === "pro") {
-        formData.append("tail_image", tailImage);
+        formData.append("image_tail", tailImage); // API uses image_tail
       }
 
-      // Add camera control if enabled
-      if (useCameraControl) {
-        formData.append("camera_control", JSON.stringify({
-          type: "simple",
-          config: {
-            type: cameraControl,
-          },
-        }));
+      // Add camera control if enabled and model supports it
+      if (useCameraControl && currentModelSupportsCameraControl) {
+        if (cameraControlType === "simple") {
+          // For simple type, build config with the selected axis value
+          const config: Record<string, number> = {};
+          // Only include the selected axis with non-zero value
+          if (cameraConfig[selectedCameraAxis] !== 0) {
+            config[selectedCameraAxis] = cameraConfig[selectedCameraAxis];
+          }
+          formData.append("camera_control", JSON.stringify({
+            type: "simple",
+            config: Object.keys(config).length > 0 ? config : undefined,
+          }));
+        } else {
+          // For predefined types (down_back, forward_up, etc.), config must be empty
+          formData.append("camera_control", JSON.stringify({
+            type: cameraControlType,
+          }));
+        }
       }
 
       // Add folder params based on type
@@ -501,8 +688,18 @@ export default function KlingImageToVideo() {
     setMode("std");
     setDuration("5");
     setCfgScale(0.5);
+    setSound("off");
     setUseCameraControl(false);
-    setCameraControl("zoom_in");
+    setCameraControlType("simple");
+    setCameraConfig({
+      horizontal: 0,
+      vertical: 0,
+      pan: 0,
+      tilt: 0,
+      roll: 0,
+      zoom: 0,
+    });
+    setSelectedCameraAxis("zoom");
     setImageMode("normal");
     setUploadedImage(null);
     setImagePreview(null);
@@ -646,16 +843,29 @@ export default function KlingImageToVideo() {
                   </label>
                   {!imagePreview ? (
                     <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-white/20 rounded-2xl p-8 text-center cursor-pointer hover:border-violet-400/50 hover:bg-white/5 transition-all"
+                      onClick={() => !isCompressing && fileInputRef.current?.click()}
+                      className={`border-2 border-dashed border-white/20 rounded-2xl p-8 text-center cursor-pointer hover:border-violet-400/50 hover:bg-white/5 transition-all ${
+                        isCompressing ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
                     >
-                      <Upload className="h-12 w-12 text-slate-400 mx-auto mb-3" />
-                      <p className="text-sm text-slate-200 mb-1">
-                        Click to upload image
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        PNG, JPG, WEBP up to 10MB
-                      </p>
+                      {isCompressing ? (
+                        <>
+                          <Loader2 className="h-12 w-12 text-violet-400 mx-auto mb-3 animate-spin" />
+                          <p className="text-sm text-slate-200 mb-1">
+                            Compressing image...
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-12 w-12 text-slate-400 mx-auto mb-3" />
+                          <p className="text-sm text-slate-200 mb-1">
+                            Click to upload image
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            PNG, JPG, WEBP up to 20MB · Auto-compressed
+                          </p>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="relative">
@@ -670,6 +880,11 @@ export default function KlingImageToVideo() {
                       >
                         <X className="h-4 w-4" />
                       </button>
+                      {compressionInfo && (
+                        <div className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg bg-emerald-500/80 text-xs text-white text-center">
+                          {compressionInfo}
+                        </div>
+                      )}
                     </div>
                   )}
                   <input
@@ -678,6 +893,7 @@ export default function KlingImageToVideo() {
                     accept="image/*"
                     onChange={(e) => handleImageUpload(e, false)}
                     className="hidden"
+                    disabled={isCompressing}
                   />
                 </div>
 
@@ -793,11 +1009,21 @@ export default function KlingImageToVideo() {
                   <label className="block text-sm font-medium text-slate-200">
                     Model Version
                   </label>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {MODEL_OPTIONS.map((option) => (
                       <button
                         key={option.value}
-                        onClick={() => setModel(option.value)}
+                        onClick={() => {
+                          setModel(option.value);
+                          // Reset sound if switching to a model that doesn't support it
+                          if (!option.supportsSound) {
+                            setSound("off");
+                          }
+                          // Reset camera control if switching to a model that doesn't support it
+                          if (!option.supportsCameraControl) {
+                            setUseCameraControl(false);
+                          }
+                        }}
                         disabled={isGenerating}
                         className={`p-3 rounded-2xl border-2 transition-all text-left ${
                           model === option.value
@@ -805,8 +1031,13 @@ export default function KlingImageToVideo() {
                             : "border-white/10 bg-white/5 hover:border-white/20"
                         } disabled:opacity-50`}
                       >
-                        <div className="font-medium text-sm text-white">
-                          {option.label}
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-sm text-white">
+                            {option.label}
+                          </span>
+                          {option.supportsSound && (
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded">🔊</span>
+                          )}
                         </div>
                         <div className="text-xs text-slate-300 mt-1">
                           {option.description}
@@ -815,6 +1046,41 @@ export default function KlingImageToVideo() {
                     ))}
                   </div>
                 </div>
+
+                {/* Sound Toggle (only for V2.6+) */}
+                {currentModelSupportsSound && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-slate-200">
+                      Audio Generation
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setSound("off")}
+                        disabled={isGenerating}
+                        className={`p-3 rounded-2xl border-2 transition-all ${
+                          sound === "off"
+                            ? "border-violet-400 bg-violet-500/20"
+                            : "border-white/10 bg-white/5 hover:border-white/20"
+                        } disabled:opacity-50`}
+                      >
+                        <div className="font-medium text-sm text-white">🔇 No Audio</div>
+                        <div className="text-xs text-slate-300 mt-1">Video only</div>
+                      </button>
+                      <button
+                        onClick={() => setSound("on")}
+                        disabled={isGenerating}
+                        className={`p-3 rounded-2xl border-2 transition-all ${
+                          sound === "on"
+                            ? "border-emerald-400 bg-emerald-500/20"
+                            : "border-white/10 bg-white/5 hover:border-white/20"
+                        } disabled:opacity-50`}
+                      >
+                        <div className="font-medium text-sm text-white">🔊 With Audio</div>
+                        <div className="text-xs text-slate-300 mt-1">Generate sound</div>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Mode Selection */}
                 <div className="space-y-3">
@@ -872,77 +1138,165 @@ export default function KlingImageToVideo() {
                   </div>
                 </div>
 
-                {/* CFG Scale */}
-                <div className="space-y-3">
-                  <label className="block text-sm font-medium text-slate-200">
-                    CFG Scale: <span className="text-violet-300">{cfgScale.toFixed(1)}</span>
-                  </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={cfgScale}
-                    onChange={(e) => setCfgScale(parseFloat(e.target.value))}
-                    disabled={isGenerating}
-                    className="w-full accent-violet-400"
-                  />
-                  <div className="flex justify-between text-xs text-slate-400">
-                    <span>More Creative</span>
-                    <span>More Accurate</span>
-                  </div>
-                </div>
-
-                {/* Camera Control */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Camera className="h-4 w-4 text-violet-400" />
-                      <label className="text-sm font-medium text-slate-200">
-                        Camera Control
-                      </label>
-                    </div>
-                    <button
-                      onClick={() => setUseCameraControl(!useCameraControl)}
+                {/* CFG Scale - Only for V1 models */}
+                {currentModelSupportsCfgScale && (
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-slate-200">
+                      CFG Scale: <span className="text-violet-300">{cfgScale.toFixed(1)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={cfgScale}
+                      onChange={(e) => setCfgScale(parseFloat(e.target.value))}
                       disabled={isGenerating}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        useCameraControl
-                          ? "bg-violet-500"
-                          : "bg-white/10"
-                      } disabled:opacity-50`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          useCameraControl ? "translate-x-6" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {useCameraControl && (
-                    <div className="space-y-2">
-                      {CAMERA_CONTROL_OPTIONS.map((option) => (
-                        <button
-                          key={option.value}
-                          onClick={() => setCameraControl(option.value)}
-                          disabled={isGenerating}
-                          className={`w-full p-3 rounded-2xl border-2 transition-all text-left ${
-                            cameraControl === option.value
-                              ? "border-violet-400 bg-violet-500/20"
-                              : "border-white/10 bg-white/5 hover:border-white/20"
-                          } disabled:opacity-50`}
-                        >
-                          <div className="font-medium text-sm text-white">
-                            {option.label}
-                          </div>
-                          <div className="text-xs text-slate-300 mt-1">
-                            {option.description}
-                          </div>
-                        </button>
-                      ))}
+                      className="w-full accent-violet-400"
+                    />
+                    <div className="flex justify-between text-xs text-slate-400">
+                      <span>More Creative</span>
+                      <span>More Accurate</span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+
+                {/* Camera Control - Only for V1.5+ models */}
+                {currentModelSupportsCameraControl && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Camera className="h-4 w-4 text-violet-400" />
+                        <label className="text-sm font-medium text-slate-200">
+                          Camera Control
+                        </label>
+                      </div>
+                      <button
+                        onClick={() => setUseCameraControl(!useCameraControl)}
+                        disabled={isGenerating}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          useCameraControl
+                            ? "bg-violet-500"
+                            : "bg-white/10"
+                        } disabled:opacity-50`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            useCameraControl ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {useCameraControl && (
+                      <div className="space-y-4">
+                        {/* Camera Control Type Selection */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-semibold text-slate-300">Movement Type</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {CAMERA_CONTROL_TYPE_OPTIONS.map((option) => (
+                              <button
+                                key={option.value}
+                                onClick={() => setCameraControlType(option.value)}
+                                disabled={isGenerating}
+                                className={`p-2 rounded-xl border-2 transition-all text-left ${
+                                  cameraControlType === option.value
+                                    ? "border-pink-400 bg-pink-500/20"
+                                    : "border-white/10 bg-white/5 hover:border-white/20"
+                                } disabled:opacity-50`}
+                              >
+                                <div className="font-medium text-xs text-white">
+                                  {option.label}
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  {option.description}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 6-Axis Config (only for simple type) */}
+                        {cameraControlType === "simple" && (
+                          <div className="space-y-3 border-t border-white/10 pt-3">
+                            <label className="text-xs font-semibold text-slate-300">6-Axis Configuration</label>
+                            <p className="text-[10px] text-slate-400">Select one axis and set its value. Only one axis can be non-zero.</p>
+                            
+                            {/* Axis Selection */}
+                            <div className="grid grid-cols-3 gap-1">
+                              {CAMERA_AXIS_OPTIONS.map((axis) => (
+                                <button
+                                  key={axis.key}
+                                  onClick={() => {
+                                    setSelectedCameraAxis(axis.key);
+                                    // Reset all other axes to 0
+                                    setCameraConfig({
+                                      horizontal: 0,
+                                      vertical: 0,
+                                      pan: 0,
+                                      tilt: 0,
+                                      roll: 0,
+                                      zoom: 0,
+                                      [axis.key]: cameraConfig[axis.key] || 0,
+                                    });
+                                  }}
+                                  disabled={isGenerating}
+                                  className={`rounded-lg border px-2 py-1.5 text-center transition ${
+                                    selectedCameraAxis === axis.key
+                                      ? "border-pink-400/70 bg-pink-500/10 text-white"
+                                      : "border-white/10 bg-white/5 text-slate-300"
+                                  } disabled:opacity-50`}
+                                >
+                                  <p className="text-[10px] font-semibold">{axis.label}</p>
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Selected Axis Slider */}
+                            {selectedCameraAxis && (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-slate-300">
+                                    {CAMERA_AXIS_OPTIONS.find(a => a.key === selectedCameraAxis)?.description}
+                                  </span>
+                                  <span className="text-xs font-mono text-pink-300">
+                                    {cameraConfig[selectedCameraAxis]?.toFixed(0) || 0}
+                                  </span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={-10}
+                                  max={10}
+                                  step={1}
+                                  value={cameraConfig[selectedCameraAxis] || 0}
+                                  onChange={(e) => {
+                                    const newValue = Number(e.target.value);
+                                    setCameraConfig({
+                                      horizontal: 0,
+                                      vertical: 0,
+                                      pan: 0,
+                                      tilt: 0,
+                                      roll: 0,
+                                      zoom: 0,
+                                      [selectedCameraAxis]: newValue,
+                                    });
+                                  }}
+                                  className="w-full accent-pink-400"
+                                  disabled={isGenerating}
+                                />
+                                <div className="flex justify-between text-[10px] text-slate-500">
+                                  <span>-10</span>
+                                  <span>0</span>
+                                  <span>+10</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Folder Selection */}
@@ -987,13 +1341,18 @@ export default function KlingImageToVideo() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleGenerate}
-                  disabled={isGenerating || !uploadedImage}
+                  disabled={isGenerating || isCompressing || !uploadedImage}
                   className="flex-1 inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-600 to-pink-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-900/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {isGenerating ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
                       <span>Generating...</span>
+                    </>
+                  ) : isCompressing ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Processing Image...</span>
                     </>
                   ) : (
                     <>
@@ -1004,7 +1363,7 @@ export default function KlingImageToVideo() {
                 </button>
                 <button
                   onClick={handleReset}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isCompressing}
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-white hover:bg-white/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <RotateCcw className="h-5 w-5" />
