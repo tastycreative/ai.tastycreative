@@ -308,15 +308,21 @@ export default function KlingMultiImageToVideo() {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
+      console.log("[Kling Multi-I2V Frontend] Loading generation history...");
       const response = await apiClient.get(
         "/api/generate/kling-multi-image-to-video?history=true"
       );
       if (response.ok) {
         const data = await response.json();
-        setGenerationHistory(data.videos || []);
+        const videos = data.videos || [];
+        console.log("[Kling Multi-I2V Frontend] Loaded videos:", videos.length);
+        console.log("[Kling Multi-I2V Frontend] Video URLs present:", videos.filter((v: any) => !!v.videoUrl).length);
+        setGenerationHistory(videos);
+      } else {
+        console.error("[Kling Multi-I2V Frontend] Failed to load history, status:", response.status);
       }
     } catch (err) {
-      console.error("Failed to load generation history:", err);
+      console.error("[Kling Multi-I2V Frontend] Failed to load generation history:", err);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -1175,31 +1181,34 @@ export default function KlingMultiImageToVideo() {
                   <p className="text-sm">No generation history yet.</p>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[280px] overflow-y-auto pr-1">
                   {generationHistory.map((video) => (
                     <div
                       key={video.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => openVideoModal(video)}
-                      className="flex gap-3 p-3 rounded-2xl border border-white/5 bg-white/5 hover:bg-white/10 transition cursor-pointer"
+                      onClick={() => video.videoUrl && openVideoModal(video)}
+                      className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition cursor-pointer overflow-hidden max-w-[160px]"
                     >
-                      <div className="w-20 h-14 rounded-lg overflow-hidden bg-slate-800 flex-shrink-0">
-                        <video
-                          src={video.videoUrl}
-                          className="w-full h-full object-cover"
-                          muted
-                        />
+                      <div className="w-full h-20 bg-slate-800">
+                        {video.videoUrl ? (
+                          <video
+                            src={video.videoUrl}
+                            className="w-full h-full object-cover"
+                            muted
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-800/50">
+                            <Video className="w-5 h-5 text-slate-500 opacity-50" />
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white truncate">
-                          {video.prompt || "Multi-image interpolation"}
+                      <div className="px-2 py-1.5">
+                        <p className="text-[10px] text-white truncate">
+                          {video.prompt || "Multi-image"}
                         </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          {video.imageCount} images · {video.duration}s · {video.model}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {new Date(video.createdAt).toLocaleDateString()}
+                        <p className="text-[9px] text-slate-400 truncate">
+                          {video.imageCount} imgs · {video.duration}s
                         </p>
                       </div>
                     </div>

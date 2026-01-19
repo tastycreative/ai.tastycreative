@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get("profileId");
+    const favoritesOnly = searchParams.get("favoritesOnly") === "true";
+    const sortBy = searchParams.get("sortBy") || "createdAt"; // createdAt, usageCount, lastUsedAt
+    const sortOrder = searchParams.get("sortOrder") || "desc";
 
     if (!profileId) {
       return NextResponse.json(
@@ -39,14 +42,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const where: {
+      profileId: string;
+      clerkId: string;
+      isFavorite?: boolean;
+    } = {
+      profileId,
+      clerkId: userId,
+    };
+
+    if (favoritesOnly) {
+      where.isFavorite = true;
+    }
+
+    // Build orderBy based on sortBy parameter
+    type SortableFields = 'createdAt' | 'usageCount' | 'lastUsedAt' | 'caption';
+    const validSortFields: SortableFields[] = ['createdAt', 'usageCount', 'lastUsedAt', 'caption'];
+    const orderByField = validSortFields.includes(sortBy as SortableFields) ? sortBy as SortableFields : 'createdAt';
+    const orderByDirection = sortOrder === 'asc' ? 'asc' : 'desc';
+
     const captions = await prisma.caption.findMany({
-      where: {
-        profileId,
-        clerkId: userId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      where,
+      orderBy: [
+        { isFavorite: 'desc' }, // Favorites first
+        { [orderByField]: orderByDirection },
+      ],
     });
 
     return NextResponse.json(captions);
@@ -104,6 +124,9 @@ export async function POST(request: NextRequest) {
         captionCategory,
         captionTypes,
         captionBanks,
+        isFavorite: body.isFavorite || false,
+        notes: body.notes || null,
+        tags: body.tags || null,
       },
     });
 
@@ -161,6 +184,9 @@ export async function PUT(request: NextRequest) {
         captionCategory,
         captionTypes,
         captionBanks,
+        isFavorite: body.isFavorite,
+        notes: body.notes,
+        tags: body.tags,
       },
     });
 

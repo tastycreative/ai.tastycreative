@@ -234,15 +234,21 @@ export default function KlingTextToVideo() {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
+      console.log("[Kling T2V Frontend] Loading generation history...");
       const response = await apiClient.get(
         "/api/generate/kling-text-to-video?history=true"
       );
       if (response.ok) {
         const data = await response.json();
-        setGenerationHistory(data.videos || []);
+        const videos = data.videos || [];
+        console.log("[Kling T2V Frontend] Loaded videos:", videos.length);
+        console.log("[Kling T2V Frontend] Video URLs present:", videos.filter((v: any) => !!v.videoUrl).length);
+        setGenerationHistory(videos);
+      } else {
+        console.error("[Kling T2V Frontend] Failed to load history, status:", response.status);
       }
     } catch (err) {
-      console.error("Failed to load generation history:", err);
+      console.error("[Kling T2V Frontend] Failed to load generation history:", err);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -679,8 +685,12 @@ export default function KlingTextToVideo() {
                       key={option.value}
                       onClick={() => {
                         setModel(option.value);
-                        // Reset sound if switching to a model that doesn't support it
-                        if (!option.supportsSound) {
+                        // Auto-enable sound and pro mode for V2.6 (audio only works in pro mode)
+                        if (option.supportsSound) {
+                          setSound("on");
+                          setMode("pro");
+                        } else {
+                          // Reset sound if switching to a model that doesn't support it
                           setSound("off");
                         }
                         // Reset camera control if switching to a model that doesn't support it
@@ -707,7 +717,7 @@ export default function KlingTextToVideo() {
                 </div>
               </div>
 
-              {/* Sound Toggle (only for V2.6+) */}
+              {/* Sound Toggle (only for V2.6+ in Pro mode) */}
               {currentModelSupportsSound && (
                 <div className="space-y-3">
                   <label className="text-sm font-semibold text-slate-100">Audio Generation</label>
@@ -725,7 +735,13 @@ export default function KlingTextToVideo() {
                       <p className="text-xs text-slate-300">Video only</p>
                     </button>
                     <button
-                      onClick={() => setSound("on")}
+                      onClick={() => {
+                        setSound("on");
+                        // Sound only works in Pro mode for V2.6
+                        if (mode === "std") {
+                          setMode("pro");
+                        }
+                      }}
                       className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
                         sound === "on"
                           ? "border-emerald-400/70 bg-emerald-500/10 text-white shadow-emerald-900/30"
@@ -734,7 +750,7 @@ export default function KlingTextToVideo() {
                       disabled={isGenerating}
                     >
                       <p className="text-sm font-semibold">🔊 With Audio</p>
-                      <p className="text-xs text-slate-300">Generate sound</p>
+                      <p className="text-xs text-slate-300">Pro mode only</p>
                     </button>
                   </div>
                 </div>
@@ -744,21 +760,36 @@ export default function KlingTextToVideo() {
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-slate-100">Quality Mode</label>
                 <div className="grid grid-cols-2 gap-3">
-                  {MODE_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setMode(option.value)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
-                        mode === option.value
-                          ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
-                          : "border-white/10 bg-white/5 text-slate-100/90"
-                      } disabled:opacity-50`}
-                      disabled={isGenerating}
-                    >
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <p className="text-xs text-slate-300">{option.description}</p>
-                    </button>
-                  ))}
+                  {MODE_OPTIONS.map((option) => {
+                    // Standard mode is disabled when sound is on (V2.6 constraint)
+                    const isStdDisabledDueToSound = option.value === "std" && sound === "on" && currentModelSupportsSound;
+                    const isDisabled = isGenerating || isStdDisabledDueToSound;
+                    
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => {
+                          setMode(option.value);
+                          // If switching to std mode and sound is on, turn sound off
+                          if (option.value === "std" && sound === "on") {
+                            setSound("off");
+                          }
+                        }}
+                        className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg ${
+                          mode === option.value
+                            ? "border-violet-400/70 bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-pink-500/10 text-white shadow-violet-900/40"
+                            : "border-white/10 bg-white/5 text-slate-100/90"
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        disabled={isDisabled}
+                        title={isStdDisabledDueToSound ? "Standard mode doesn't support audio generation" : undefined}
+                      >
+                        <p className="text-sm font-semibold">{option.label}</p>
+                        <p className="text-xs text-slate-300">
+                          {isStdDisabledDueToSound ? "No audio support" : option.description}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1117,42 +1148,37 @@ export default function KlingTextToVideo() {
                   <p className="text-sm">No history yet.</p>
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[320px] overflow-y-auto pr-1">
                   {generationHistory.map((video) => (
                     <div
                       key={video.id}
                       role="button"
                       aria-label="Open video"
                       tabIndex={0}
-                      onClick={() => openVideoModal(video)}
-                      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer"
+                      onClick={() => video.videoUrl && openVideoModal(video)}
+                      className="group overflow-hidden rounded-xl border border-white/10 bg-white/5 cursor-pointer max-w-[180px]"
                     >
-                      <video
-                        data-role="preview"
-                        preload="metadata"
-                        src={video.videoUrl}
-                        className="w-full h-40 object-cover pointer-events-none"
-                        controlsList="nodownload noplaybackrate noremoteplayback"
-                      />
-                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/0 to-transparent opacity-0 group-hover:opacity-100 transition" />
-                      <div className="px-4 py-3 flex items-center justify-between text-xs text-slate-200">
-                        <div className="flex flex-col gap-1">
-                          <span className="font-semibold text-white truncate">{video.prompt}</span>
-                          <span className="text-slate-400">
-                            {video.duration}s · {video.model}
-                          </span>
+                      {video.videoUrl ? (
+                        <video
+                          data-role="preview"
+                          preload="metadata"
+                          src={video.videoUrl}
+                          className="w-full h-24 object-cover pointer-events-none"
+                          controlsList="nodownload noplaybackrate noremoteplayback"
+                        />
+                      ) : (
+                        <div className="w-full h-24 flex items-center justify-center bg-slate-800/50">
+                          <div className="text-center text-slate-400">
+                            <Video className="w-5 h-5 mx-auto mb-1 opacity-50" />
+                            <span className="text-[10px]">Unavailable</span>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(video.videoUrl, `kling-${video.id}.mp4`);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white transition hover:-translate-y-0.5"
-                        >
-                          <Download className="w-3 h-3" />
-                          Save
-                        </button>
+                      )}
+                      <div className="px-2 py-2 text-[10px] text-slate-200">
+                        <p className="font-medium text-white truncate text-xs">{video.prompt}</p>
+                        <p className="text-slate-400 truncate">
+                          {video.duration}s · {video.model}
+                        </p>
                       </div>
                     </div>
                   ))}

@@ -75,10 +75,14 @@ export async function POST(request: NextRequest) {
     const image = formData.get("image") as File;
     const prompt = formData.get("prompt") as string | null;
     const negative_prompt = formData.get("negative_prompt") as string | null;
-    const model = (formData.get("model") as string) || "kling-v1-6";
+    // Accept both model_name and model for compatibility
+    const model_name = formData.get("model_name") as string | null;
+    const model = formData.get("model") as string | null;
+    const selectedModel = model_name || model || "kling-v1-6";
     const mode = (formData.get("mode") as string) || "std";
     const duration = (formData.get("duration") as string) || "5";
     const cfg_scale = parseFloat((formData.get("cfg_scale") as string) || "0.5");
+    const sound = formData.get("sound") as string | null;
     const image_mode = (formData.get("image_mode") as string) || "normal";
     const tail_image = formData.get("tail_image") as File | null;
     const camera_control_str = formData.get("camera_control") as string | null;
@@ -86,6 +90,8 @@ export async function POST(request: NextRequest) {
     const saveToVault = formData.get("saveToVault") === "true";
     const vaultProfileId = formData.get("vaultProfileId") as string | null;
     const vaultFolderId = formData.get("vaultFolderId") as string | null;
+
+    console.log("[Kling I2V] Request received with model:", selectedModel);
 
     // Validate required fields
     if (!image) {
@@ -99,14 +105,26 @@ export async function POST(request: NextRequest) {
 
     console.log("[Kling I2V] Image uploaded to:", imageUrl);
 
+    // Determine if V1 model (V2+ models don't support cfg_scale)
+    const isV1Model = selectedModel.includes("v1");
+
     // Prepare Kling API request payload
     const payload: any = {
-      model_name: model,
+      model_name: selectedModel,
       image: imageUrl,
-      cfg_scale,
       mode,
       duration,
     };
+
+    // Add cfg_scale only for V1 models
+    if (isV1Model && cfg_scale !== undefined) {
+      payload.cfg_scale = cfg_scale;
+    }
+
+    // Add sound parameter for V2.6+ models
+    if (sound && selectedModel.includes("v2-6")) {
+      payload.sound = sound;
+    }
 
     // Add prompt if provided
     if (prompt) {
@@ -144,10 +162,11 @@ export async function POST(request: NextRequest) {
         params: {
           prompt: prompt || "",
           negative_prompt: negative_prompt || null,
-          model,
+          model: selectedModel,
           mode,
           duration,
-          cfg_scale,
+          cfg_scale: isV1Model ? cfg_scale : null,
+          sound: sound || null,
           image_mode,
           camera_control: camera_control_str ? JSON.parse(camera_control_str) : null,
           source: "kling-i2v",
@@ -271,29 +290,88 @@ export async function GET(request: NextRequest) {
     // Handle history request
     if (isHistoryRequest) {
       try {
-        const videos = await prisma.generatedVideo.findMany({
+        console.log("[Kling I2V] Fetching video history for user:", userId);
+
+        // Step 1: Get generation jobs first, then filter by source in JS for reliability
+        const recentJobs = await prisma.generationJob.findMany({
           where: {
             clerkId: userId,
-            job: {
-              type: "IMAGE_TO_VIDEO",
-              params: {
-                path: ["source"],
-                equals: "kling-i2v",
-              },
-            },
-          },
-          include: {
-            job: true,
+            type: "IMAGE_TO_VIDEO",
+            status: "COMPLETED",
           },
           orderBy: {
             createdAt: "desc",
           },
-          take: 20,
+          take: 50,
+          select: {
+            id: true,
+            params: true,
+          },
         });
 
-        const formattedVideos = videos.map((video) => ({
+        // Filter to only Kling I2V jobs
+        const klingJobIds = recentJobs
+          .filter((job) => {
+            const params = job.params as any;
+            return params?.source === "kling-i2v";
+          })
+          .map((job) => job.id);
+
+        console.log("[Kling I2V] Found Kling job IDs:", klingJobIds.length);
+
+        // Step 2: Fetch videos for these jobs
+        let videos: any[] = [];
+        if (klingJobIds.length > 0) {
+          videos = await prisma.generatedVideo.findMany({
+            where: {
+              clerkId: userId,
+              jobId: {
+                in: klingJobIds,
+              },
+              awsS3Url: {
+                not: null,
+              },
+            },
+            include: {
+              job: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 20,
+          });
+        }
+
+        console.log("[Kling I2V] Found generated videos:", videos.length);
+
+        // Step 3: Also fetch vault items that were created from Kling I2V
+        const allVaultVideos = await prisma.vaultItem.findMany({
+          where: {
+            clerkId: userId,
+            fileType: {
+              startsWith: "video/",
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 100,
+        });
+
+        // Filter to only Kling I2V generated videos
+        const vaultVideos = allVaultVideos
+          .filter((vid) => {
+            const metadata = vid.metadata as any;
+            return metadata?.source === "kling-i2v";
+          })
+          .slice(0, 20);
+
+        console.log("[Kling I2V] Found vault videos:", vaultVideos.length);
+
+        // Map generated videos
+        const mappedGeneratedVideos = videos.map((video) => ({
           id: video.id,
-          videoUrl: video.awsS3Url || video.s3Key,
+          videoUrl: video.awsS3Url || video.s3Key || "",
           prompt: (video.job.params as any)?.prompt || "",
           model: (video.job.params as any)?.model || "kling-v1",
           duration: (video.job.params as any)?.duration || "5",
@@ -301,9 +379,34 @@ export async function GET(request: NextRequest) {
           imageUrl: (video.job.params as any)?.imageUrl || null,
           createdAt: video.createdAt.toISOString(),
           status: "completed" as const,
+          source: "generated" as const,
         }));
 
-        return NextResponse.json({ videos: formattedVideos });
+        // Map vault videos
+        const mappedVaultVideos = vaultVideos.map((vid) => {
+          const metadata = vid.metadata as any;
+          return {
+            id: vid.id,
+            videoUrl: vid.awsS3Url || "",
+            prompt: metadata?.prompt || "",
+            model: metadata?.model || "kling-v1",
+            duration: metadata?.duration || "5",
+            aspectRatio: "auto",
+            imageUrl: metadata?.imageUrl || null,
+            createdAt: vid.createdAt.toISOString(),
+            status: "completed" as const,
+            source: "vault" as const,
+          };
+        });
+
+        // Combine and sort by date
+        const allVideos = [...mappedGeneratedVideos, ...mappedVaultVideos]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 20);
+
+        console.log("[Kling I2V] Returning total videos:", allVideos.length);
+
+        return NextResponse.json({ videos: allVideos });
       } catch (error) {
         console.error("[Kling I2V] Error fetching video history:", error);
         return NextResponse.json({ videos: [] });

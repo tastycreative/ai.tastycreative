@@ -420,15 +420,21 @@ export default function KlingImageToVideo() {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
+      console.log("[Kling I2V Frontend] Loading generation history...");
       const response = await apiClient.get(
         "/api/generate/kling-image-to-video?history=true"
       );
       if (response.ok) {
         const data = await response.json();
-        setGenerationHistory(data.videos || []);
+        const videos = data.videos || [];
+        console.log("[Kling I2V Frontend] Loaded videos:", videos.length);
+        console.log("[Kling I2V Frontend] Video URLs present:", videos.filter((v: any) => !!v.videoUrl).length);
+        setGenerationHistory(videos);
+      } else {
+        console.error("[Kling I2V Frontend] Failed to load history, status:", response.status);
       }
     } catch (err) {
-      console.error("Failed to load generation history:", err);
+      console.error("[Kling I2V Frontend] Failed to load generation history:", err);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -1015,8 +1021,12 @@ export default function KlingImageToVideo() {
                         key={option.value}
                         onClick={() => {
                           setModel(option.value);
-                          // Reset sound if switching to a model that doesn't support it
-                          if (!option.supportsSound) {
+                          // Auto-enable sound and pro mode for V2.6 (audio only works in pro mode)
+                          if (option.supportsSound) {
+                            setSound("on");
+                            setMode("pro");
+                          } else {
+                            // Reset sound if switching to a model that doesn't support it
                             setSound("off");
                           }
                           // Reset camera control if switching to a model that doesn't support it
@@ -1047,7 +1057,7 @@ export default function KlingImageToVideo() {
                   </div>
                 </div>
 
-                {/* Sound Toggle (only for V2.6+) */}
+                {/* Sound Toggle (only for V2.6+ in Pro mode) */}
                 {currentModelSupportsSound && (
                   <div className="space-y-3">
                     <label className="block text-sm font-medium text-slate-200">
@@ -1067,7 +1077,13 @@ export default function KlingImageToVideo() {
                         <div className="text-xs text-slate-300 mt-1">Video only</div>
                       </button>
                       <button
-                        onClick={() => setSound("on")}
+                        onClick={() => {
+                          setSound("on");
+                          // Sound only works in Pro mode for V2.6
+                          if (mode === "std") {
+                            setMode("pro");
+                          }
+                        }}
                         disabled={isGenerating}
                         className={`p-3 rounded-2xl border-2 transition-all ${
                           sound === "on"
@@ -1076,7 +1092,7 @@ export default function KlingImageToVideo() {
                         } disabled:opacity-50`}
                       >
                         <div className="font-medium text-sm text-white">🔊 With Audio</div>
-                        <div className="text-xs text-slate-300 mt-1">Generate sound</div>
+                        <div className="text-xs text-slate-300 mt-1">Pro mode only</div>
                       </button>
                     </div>
                   </div>
@@ -1088,25 +1104,38 @@ export default function KlingImageToVideo() {
                     Quality Mode
                   </label>
                   <div className="grid grid-cols-2 gap-3">
-                    {MODE_OPTIONS.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => setMode(option.value)}
-                        disabled={isGenerating}
-                        className={`p-3 rounded-2xl border-2 transition-all ${
-                          mode === option.value
-                            ? "border-violet-400 bg-violet-500/20"
-                            : "border-white/10 bg-white/5 hover:border-white/20"
-                        } disabled:opacity-50`}
-                      >
-                        <div className="font-medium text-sm text-white">
-                          {option.label}
-                        </div>
-                        <div className="text-xs text-slate-300 mt-1">
-                          {option.description}
-                        </div>
-                      </button>
-                    ))}
+                    {MODE_OPTIONS.map((option) => {
+                      // Standard mode is disabled when sound is on (V2.6 constraint)
+                      const isStdDisabledDueToSound = option.value === "std" && sound === "on" && currentModelSupportsSound;
+                      const isDisabled = isGenerating || isStdDisabledDueToSound;
+                      
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => {
+                            setMode(option.value);
+                            // If switching to std mode and sound is on, turn sound off
+                            if (option.value === "std" && sound === "on") {
+                              setSound("off");
+                            }
+                          }}
+                          disabled={isDisabled}
+                          className={`p-3 rounded-2xl border-2 transition-all ${
+                            mode === option.value
+                              ? "border-violet-400 bg-violet-500/20"
+                              : "border-white/10 bg-white/5 hover:border-white/20"
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                          title={isStdDisabledDueToSound ? "Standard mode doesn't support audio generation" : undefined}
+                        >
+                          <div className="font-medium text-sm text-white">
+                            {option.label}
+                          </div>
+                          <div className="text-xs text-slate-300 mt-1">
+                            {isStdDisabledDueToSound ? "No audio support" : option.description}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1471,57 +1500,56 @@ export default function KlingImageToVideo() {
               </div>
 
               {isLoadingHistory ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 text-violet-400 animate-spin" />
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-6 w-6 text-violet-400 animate-spin" />
                 </div>
               ) : generationHistory.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">
-                  <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <div className="text-center py-6 text-slate-400">
+                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No generation history yet</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-3 max-h-[600px] overflow-y-auto pr-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[320px] overflow-y-auto pr-1">
                   {generationHistory.map((video) => (
                     <div
                       key={video.id}
-                      className="border border-white/10 rounded-2xl overflow-hidden hover:shadow-md hover:border-white/20 transition-all cursor-pointer bg-white/5 backdrop-blur"
+                      className="border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-all cursor-pointer bg-white/5 max-w-[180px]"
                       onClick={() => {
-                        setSelectedVideo(video);
-                        setShowVideoModal(true);
+                        if (video.videoUrl) {
+                          setSelectedVideo(video);
+                          setShowVideoModal(true);
+                        }
                       }}
                     >
-                      <div className="relative aspect-video bg-black">
-                        <video
-                          src={video.videoUrl}
-                          className="w-full h-full object-cover"
-                          data-role="preview"
-                          preload="metadata"
-                        />
+                      <div className="relative h-24 bg-black">
+                        {video.videoUrl ? (
+                          <video
+                            src={video.videoUrl}
+                            className="w-full h-full object-cover"
+                            data-role="preview"
+                            preload="metadata"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-800/50">
+                            <div className="text-center text-slate-400">
+                              <Video className="w-5 h-5 mx-auto mb-1 opacity-50" />
+                              <span className="text-[10px]">Unavailable</span>
+                            </div>
+                          </div>
+                        )}
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
-                          <Play className="h-12 w-12 text-white" />
+                          <Play className="h-8 w-8 text-white" />
                         </div>
                       </div>
-                      <div className="p-3">
-                        {video.imageUrl && (
-                          <p className="text-xs text-slate-400 mb-1">
-                            Source: Image
-                          </p>
-                        )}
+                      <div className="px-2 py-2">
                         {video.prompt && (
-                          <p className="text-sm text-slate-200 mb-2 line-clamp-2">
+                          <p className="text-xs text-slate-200 truncate">
                             {video.prompt}
                           </p>
                         )}
-                        <div className="flex items-center justify-between text-xs text-slate-400">
-                          <div className="flex gap-2">
-                            <span>{video.model}</span>
-                            <span>•</span>
-                            <span>{video.duration}s</span>
-                          </div>
-                          <span>
-                            {new Date(video.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {video.model} · {video.duration}s
+                        </p>
                       </div>
                     </div>
                   ))}

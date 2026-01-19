@@ -364,42 +364,116 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Fetch recent SeeDream Image-to-Image generations from database
-    const recentImages = await prisma.generatedImage.findMany({
+    console.log('📋 Fetching SeeDream I2I history for user:', userId);
+
+    // First get generation jobs that are SeeDream I2I type
+    const recentJobs = await prisma.generationJob.findMany({
       where: {
         clerkId: userId,
-        job: {
-          type: 'IMAGE_TO_IMAGE',
-          params: {
-            path: ['source'],
-            equals: 'seedream-i2i',
-          },
-        },
+        type: 'IMAGE_TO_IMAGE',
+        status: 'COMPLETED',
       },
       orderBy: {
         createdAt: 'desc',
       },
-      take: 20,
-      include: {
-        job: {
-          select: {
-            params: true,
-          },
-        },
+      take: 50,
+      select: {
+        id: true,
+        params: true,
       },
     });
 
-    const images = recentImages.map((img) => ({
-      id: img.id,
-      imageUrl: img.awsS3Url || '',
-      prompt: (img.metadata as any)?.prompt || '',
-      modelVersion: (img.metadata as any)?.model || 'SeeDream 4.5',
-      size: `${img.width}x${img.height}`,
-      createdAt: img.createdAt.toISOString(),
-      status: 'completed' as const,
-    }));
+    // Filter to only SeeDream I2I jobs
+    const seedreamJobIds = recentJobs
+      .filter((job) => {
+        const params = job.params as any;
+        return params?.source === 'seedream-i2i';
+      })
+      .map((job) => job.id);
 
-    return NextResponse.json({ images });
+    console.log('📋 Found SeeDream I2I job IDs:', seedreamJobIds.length);
+
+    // Fetch images from GeneratedImage table
+    let generatedImages: any[] = [];
+    if (seedreamJobIds.length > 0) {
+      generatedImages = await prisma.generatedImage.findMany({
+        where: {
+          clerkId: userId,
+          jobId: {
+            in: seedreamJobIds,
+          },
+          awsS3Url: {
+            not: null,
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 20,
+      });
+    }
+
+    console.log('📋 Found generated images:', generatedImages.length);
+
+    // Also fetch vault items that were created from SeeDream I2I
+    const allVaultImages = await prisma.vaultItem.findMany({
+      where: {
+        clerkId: userId,
+        fileType: 'image/png',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 100,
+    });
+
+    // Filter to only SeeDream I2I generated images
+    const vaultImages = allVaultImages.filter((img) => {
+      const metadata = img.metadata as any;
+      return metadata?.source === 'seedream-i2i';
+    }).slice(0, 20);
+
+    console.log('📋 Found vault images:', vaultImages.length);
+
+    // Map generated images
+    const mappedGeneratedImages = generatedImages.map((img) => {
+      const metadata = img.metadata as any;
+      return {
+        id: img.id,
+        imageUrl: img.awsS3Url || '',
+        prompt: metadata?.prompt || '',
+        modelVersion: metadata?.model || 'SeeDream 4.5',
+        size: img.width && img.height ? `${img.width}x${img.height}` : (metadata?.size || 'Unknown'),
+        createdAt: img.createdAt.toISOString(),
+        status: 'completed' as const,
+        source: 'generated' as const,
+      };
+    });
+
+    // Map vault images
+    const mappedVaultImages = vaultImages.map((img) => {
+      const metadata = img.metadata as any;
+      return {
+        id: img.id,
+        imageUrl: img.awsS3Url || '',
+        prompt: metadata?.prompt || '',
+        modelVersion: metadata?.model || 'SeeDream 4.5',
+        size: metadata?.size || 'Unknown',
+        createdAt: img.createdAt.toISOString(),
+        status: 'completed' as const,
+        source: 'vault' as const,
+      };
+    });
+
+    // Combine and sort by date
+    const allImages = [...mappedGeneratedImages, ...mappedVaultImages]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 20);
+
+    console.log('📋 Returning total images:', allImages.length);
+    console.log('📋 Image URLs present:', allImages.filter(i => !!i.imageUrl).length);
+
+    return NextResponse.json({ images: allImages });
   } catch (error: any) {
     console.error("Error fetching history:", error);
     return NextResponse.json(

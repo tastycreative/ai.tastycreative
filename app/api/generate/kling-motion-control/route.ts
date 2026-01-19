@@ -277,29 +277,88 @@ export async function GET(request: NextRequest) {
     // Handle history request
     if (isHistoryRequest) {
       try {
-        const videos = await prisma.generatedVideo.findMany({
+        console.log("[Kling Motion Control] Fetching video history for user:", userId);
+
+        // Step 1: Get generation jobs first, then filter by source in JS for reliability
+        const recentJobs = await prisma.generationJob.findMany({
           where: {
             clerkId: userId,
-            job: {
-              type: "IMAGE_TO_VIDEO",
-              params: {
-                path: ["source"],
-                equals: "kling-motion-control",
-              },
-            },
-          },
-          include: {
-            job: true,
+            type: "IMAGE_TO_VIDEO",
+            status: "COMPLETED",
           },
           orderBy: {
             createdAt: "desc",
           },
-          take: 20,
+          take: 50,
+          select: {
+            id: true,
+            params: true,
+          },
         });
 
-        const formattedVideos = videos.map((video) => ({
+        // Filter to only Kling Motion Control jobs
+        const klingJobIds = recentJobs
+          .filter((job) => {
+            const params = job.params as any;
+            return params?.source === "kling-motion-control";
+          })
+          .map((job) => job.id);
+
+        console.log("[Kling Motion Control] Found Kling job IDs:", klingJobIds.length);
+
+        // Step 2: Fetch videos for these jobs
+        let videos: any[] = [];
+        if (klingJobIds.length > 0) {
+          videos = await prisma.generatedVideo.findMany({
+            where: {
+              clerkId: userId,
+              jobId: {
+                in: klingJobIds,
+              },
+              awsS3Url: {
+                not: null,
+              },
+            },
+            include: {
+              job: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 20,
+          });
+        }
+
+        console.log("[Kling Motion Control] Found generated videos:", videos.length);
+
+        // Step 3: Also fetch vault items that were created from Kling Motion Control
+        const allVaultVideos = await prisma.vaultItem.findMany({
+          where: {
+            clerkId: userId,
+            fileType: {
+              startsWith: "video/",
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 100,
+        });
+
+        // Filter to only Kling Motion Control generated videos
+        const vaultVideos = allVaultVideos
+          .filter((vid) => {
+            const metadata = vid.metadata as any;
+            return metadata?.source === "kling-motion-control";
+          })
+          .slice(0, 20);
+
+        console.log("[Kling Motion Control] Found vault videos:", vaultVideos.length);
+
+        // Map generated videos
+        const mappedGeneratedVideos = videos.map((video) => ({
           id: video.id,
-          videoUrl: video.awsS3Url || video.s3Key,
+          videoUrl: video.awsS3Url || video.s3Key || "",
           prompt: (video.job.params as any)?.prompt || "",
           mode: (video.job.params as any)?.mode || "std",
           characterOrientation: (video.job.params as any)?.character_orientation || "image",
@@ -307,9 +366,34 @@ export async function GET(request: NextRequest) {
           referenceVideoUrl: (video.job.params as any)?.referenceVideoUrl || null,
           createdAt: video.createdAt.toISOString(),
           status: "completed" as const,
+          source: "generated" as const,
         }));
 
-        return NextResponse.json({ videos: formattedVideos });
+        // Map vault videos
+        const mappedVaultVideos = vaultVideos.map((vid) => {
+          const metadata = vid.metadata as any;
+          return {
+            id: vid.id,
+            videoUrl: vid.awsS3Url || "",
+            prompt: metadata?.prompt || "",
+            mode: metadata?.mode || "std",
+            characterOrientation: metadata?.character_orientation || "image",
+            imageUrl: metadata?.imageUrl || null,
+            referenceVideoUrl: metadata?.referenceVideoUrl || null,
+            createdAt: vid.createdAt.toISOString(),
+            status: "completed" as const,
+            source: "vault" as const,
+          };
+        });
+
+        // Combine and sort by date
+        const allVideos = [...mappedGeneratedVideos, ...mappedVaultVideos]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 20);
+
+        console.log("[Kling Motion Control] Returning total videos:", allVideos.length);
+
+        return NextResponse.json({ videos: allVideos });
       } catch (error) {
         console.error("[Kling Motion Control] Error fetching video history:", error);
         return NextResponse.json({ videos: [] });
@@ -487,6 +571,18 @@ export async function GET(request: NextRequest) {
               awsS3Key: s3Key,
               awsS3Url: awsS3Url,
               fileSize: videoBuffer.length,
+              metadata: {
+                source: "kling-motion-control",
+                prompt: params?.prompt || "",
+                mode: params?.mode || "std",
+                character_orientation: params?.character_orientation || "image",
+                keep_original_sound: params?.keep_original_sound || "no",
+                imageUrl: params?.imageUrl || null,
+                referenceVideoUrl: params?.referenceVideoUrl || null,
+                originalUrl: videoUrl,
+                videoId: videoInfo.id,
+                duration: videoDuration,
+              },
             },
           });
 

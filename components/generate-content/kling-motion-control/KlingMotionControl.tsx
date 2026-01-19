@@ -315,20 +315,26 @@ export default function KlingMotionControl() {
     if (!apiClient || !user) return;
     setIsLoadingHistory(true);
     try {
+      console.log("[Kling Motion Control Frontend] Loading generation history...");
       const response = await apiClient.get("/api/generate/kling-motion-control?history=true");
       if (response.ok) {
         // Safely parse JSON response
         const responseText = await response.text();
         try {
           const data = JSON.parse(responseText);
-          setGenerationHistory(data.videos || []);
+          const videos = data.videos || [];
+          console.log("[Kling Motion Control Frontend] Loaded videos:", videos.length);
+          console.log("[Kling Motion Control Frontend] Video URLs present:", videos.filter((v: any) => !!v.videoUrl).length);
+          setGenerationHistory(videos);
         } catch (parseError) {
-          console.error("Error parsing history response:", responseText.substring(0, 200));
+          console.error("[Kling Motion Control Frontend] Error parsing history response:", responseText.substring(0, 200));
           setGenerationHistory([]);
         }
+      } else {
+        console.error("[Kling Motion Control Frontend] Failed to load history, status:", response.status);
       }
     } catch (err) {
-      console.error("Error loading video history:", err);
+      console.error("[Kling Motion Control Frontend] Error loading video history:", err);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -1187,31 +1193,40 @@ export default function KlingMotionControl() {
                   <p className="text-sm">No previous generations yet.</p>
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[280px] overflow-y-auto pr-1">
                   {generationHistory.map((video) => (
                     <div
                       key={video.id}
                       role="button"
                       aria-label="Open video"
                       tabIndex={0}
-                      onClick={() => openVideoModal(video)}
-                      className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 cursor-pointer"
+                      onClick={() => video.videoUrl && openVideoModal(video)}
+                      className="group relative overflow-hidden rounded-lg border border-white/10 bg-white/5 cursor-pointer max-w-[160px]"
                     >
-                      <video
-                        data-role="preview"
-                        src={video.videoUrl}
-                        muted
-                        playsInline
-                        className="w-full aspect-video object-cover group-hover:scale-105 transition-transform duration-300"
-                        onMouseEnter={(e) => e.currentTarget.play()}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.pause();
-                          e.currentTarget.currentTime = 0;
-                        }}
-                      />
-                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950/90 to-transparent p-2">
-                        <p className="text-[10px] text-slate-300 truncate">
-                          {video.mode === "pro" ? "Pro" : "Std"} · {video.characterOrientation === "image" ? "Image" : "Video"}
+                      {video.videoUrl ? (
+                        <video
+                          data-role="preview"
+                          src={video.videoUrl}
+                          muted
+                          playsInline
+                          className="w-full h-20 object-cover group-hover:scale-105 transition-transform duration-300"
+                          onMouseEnter={(e) => e.currentTarget.play()}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.pause();
+                            e.currentTarget.currentTime = 0;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-20 flex items-center justify-center bg-slate-800/50">
+                          <div className="text-center text-slate-400">
+                            <Video className="w-5 h-5 mx-auto mb-1 opacity-50" />
+                            <span className="text-[9px]">Unavailable</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-slate-950/90 to-transparent px-1.5 py-1">
+                        <p className="text-[9px] text-slate-300 truncate">
+                          {video.mode === "pro" ? "Pro" : "Std"} · {video.characterOrientation === "image" ? "Img" : "Vid"}
                         </p>
                       </div>
                     </div>

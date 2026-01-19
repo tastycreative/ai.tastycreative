@@ -1156,6 +1156,11 @@ model Caption {
   captionTypes    String           // e.g., "Motivational", "Storytelling"
   captionBanks    String           // e.g., "General Collection", "Art & Design"
   usageCount      Int              @default(0)
+  isFavorite      Boolean          @default(false)
+  lastUsedAt      DateTime?        // Track when caption was last copied/used
+  cooldownDays    Int              @default(7)  // Minimum days before reuse warning
+  notes           String?          @db.Text     // Personal notes about the caption
+  tags            String?          // Comma-separated tags for additional filtering
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   profile         InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -1163,5 +1168,7 @@ model Caption {
   @@index([clerkId])
   @@index([profileId])
   @@index([clerkId, profileId])
+  @@index([isFavorite])
+  @@index([lastUsedAt])
   @@map("captions")
 }

@@ -278,26 +278,82 @@ export async function GET(request: NextRequest) {
 
     // If requesting history
     if (history === "true") {
-      const jobs = await prisma.generationJob.findMany({
+      console.log("[Kling Multi-I2V] Fetching video history for user:", userId);
+
+      // Step 1: Get generation jobs first, then filter by source in JS for reliability
+      const recentJobs = await prisma.generationJob.findMany({
         where: {
           clerkId: userId,
           type: "VIDEO_TO_VIDEO",
-          params: {
-            path: ["source"],
-            equals: "kling-multi-i2v",
-          },
+          status: "COMPLETED",
         },
         orderBy: {
           createdAt: "desc",
         },
         take: 50,
-        include: {
-          videos: true,
+        select: {
+          id: true,
+          params: true,
         },
       });
 
-      const videos = jobs
-        .filter(job => job.status === "COMPLETED" && job.videos.length > 0)
+      // Filter to only Kling Multi-I2V jobs
+      const klingJobIds = recentJobs
+        .filter((job) => {
+          const params = job.params as any;
+          return params?.source === "kling-multi-i2v";
+        })
+        .map((job) => job.id);
+
+      console.log("[Kling Multi-I2V] Found Kling job IDs:", klingJobIds.length);
+
+      // Step 2: Fetch jobs with their videos
+      let jobs: any[] = [];
+      if (klingJobIds.length > 0) {
+        jobs = await prisma.generationJob.findMany({
+          where: {
+            id: {
+              in: klingJobIds,
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          include: {
+            videos: true,
+          },
+        });
+      }
+
+      console.log("[Kling Multi-I2V] Found jobs with videos:", jobs.length);
+
+      // Step 3: Also fetch vault items that were created from Kling Multi-I2V
+      const allVaultVideos = await prisma.vaultItem.findMany({
+        where: {
+          clerkId: userId,
+          fileType: {
+            startsWith: "video/",
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 100,
+      });
+
+      // Filter to only Kling Multi-I2V generated videos
+      const vaultVideos = allVaultVideos
+        .filter((vid) => {
+          const metadata = vid.metadata as any;
+          return metadata?.source === "kling-multi-i2v";
+        })
+        .slice(0, 20);
+
+      console.log("[Kling Multi-I2V] Found vault videos:", vaultVideos.length);
+
+      // Map generated videos from jobs
+      const mappedGeneratedVideos = jobs
+        .filter(job => job.videos.length > 0)
         .map(job => ({
           id: job.id,
           videoUrl: job.videos[0]?.awsS3Url || job.videos[0]?.networkVolumePath || "",
@@ -306,12 +362,36 @@ export async function GET(request: NextRequest) {
           duration: (job.params as { duration?: string })?.duration || "5",
           imageCount: (job.params as { image_count?: number })?.image_count || 0,
           createdAt: job.createdAt.toISOString(),
-          status: "completed",
+          status: "completed" as const,
+          source: "generated" as const,
         }));
+
+      // Map vault videos
+      const mappedVaultVideos = vaultVideos.map((vid) => {
+        const metadata = vid.metadata as any;
+        return {
+          id: vid.id,
+          videoUrl: vid.awsS3Url || "",
+          prompt: metadata?.prompt || "",
+          model: metadata?.model || "kling-v1-6",
+          duration: metadata?.duration || "5",
+          imageCount: metadata?.image_count || 0,
+          createdAt: vid.createdAt.toISOString(),
+          status: "completed" as const,
+          source: "vault" as const,
+        };
+      });
+
+      // Combine and sort by date
+      const allVideos = [...mappedGeneratedVideos, ...mappedVaultVideos]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 20);
+
+      console.log("[Kling Multi-I2V] Returning total videos:", allVideos.length);
 
       return NextResponse.json({
         success: true,
-        videos,
+        videos: allVideos,
       });
     }
 

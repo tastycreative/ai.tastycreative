@@ -140,11 +140,15 @@ export default function SeeDreamTextToImage() {
       const response = await apiClient.get("/api/generate/seedream-text-to-image");
       if (response.ok) {
         const data = await response.json();
-        setGenerationHistory(data.images || []);
+        const images = data.images || [];
+        console.log('📋 Loaded generation history:', images.length, 'images');
+        console.log('📋 Image URLs present:', images.filter((i: any) => !!i.imageUrl).length);
+        setGenerationHistory(images);
+      } else {
+        console.error('Failed to load history:', response.status);
       }
     } catch (error) {
-      // Silently fail if endpoint doesn't exist yet
-      // console.log("History endpoint not yet implemented");
+      console.error('Error loading history:', error);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -309,10 +313,23 @@ export default function SeeDreamTextToImage() {
         status: "completed" as const,
       }));
 
+      console.log('📋 Generated images:', images.length);
+      console.log('📋 Image URLs:', images.map(i => ({ id: i.id, hasUrl: !!i.imageUrl, url: i.imageUrl?.slice(0, 50) })));
+
       setGeneratedImages(images);
       
-      // Reload history to include newly generated images
-      loadGenerationHistory();
+      // Also add new images to history immediately for instant feedback
+      setGenerationHistory(prev => {
+        const newHistory = [...images, ...prev];
+        // Remove duplicates by id and limit to 20
+        const uniqueHistory = newHistory.filter((img, index, self) =>
+          index === self.findIndex((i) => i.id === img.id)
+        ).slice(0, 20);
+        return uniqueHistory;
+      });
+
+      // Also reload history from server to ensure sync (with small delay for DB consistency)
+      setTimeout(() => loadGenerationHistory(), 500);
       
     } catch (error: any) {
       console.error("Generation error:", error);
@@ -750,7 +767,7 @@ export default function SeeDreamTextToImage() {
               {/* Generation History */}
               <div className="mt-8 space-y-3">
                 <div className="flex items-center gap-2 text-white">
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
                   <h3 className="text-sm font-semibold">Recent Generations</h3>
                 </div>
                 {generationHistory.length > 0 ? (
@@ -764,11 +781,26 @@ export default function SeeDreamTextToImage() {
                           setShowImageModal(true);
                         }}
                       >
-                        <img
-                          src={image.imageUrl}
-                          alt={image.prompt}
-                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-                        />
+                        {image.imageUrl ? (
+                          <img
+                            src={image.imageUrl}
+                            alt={image.prompt}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                            onError={(e) => {
+                              // Hide broken image and show placeholder
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const placeholder = target.nextElementSibling as HTMLElement;
+                              if (placeholder) placeholder.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-800/50 ${image.imageUrl ? 'hidden' : 'flex'}`}
+                        >
+                          <ImageIcon className="w-8 h-8 text-slate-400 mb-2" />
+                          <span className="text-xs text-slate-400 px-2 text-center line-clamp-2">{image.prompt?.slice(0, 50) || 'Image'}</span>
+                        </div>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 transition group-hover:opacity-100" />
                         <div className="absolute bottom-2 left-2 right-2 text-left text-[11px] text-slate-100 line-clamp-2 opacity-0 transition group-hover:opacity-100">
                           {image.prompt}
@@ -779,7 +811,7 @@ export default function SeeDreamTextToImage() {
                 ) : (
                   <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
                     <span>{isLoadingHistory ? 'Loading history...' : 'No previous generations yet'}</span>
-                    <RefreshCw className="w-4 h-4 animate-spin text-cyan-200" />
+                    {isLoadingHistory && <RefreshCw className="w-4 h-4 animate-spin text-cyan-200" />}
                   </div>
                 )}
               </div>
