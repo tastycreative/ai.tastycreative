@@ -45,11 +45,14 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/auth/google(.*)', // ✅ Add Google OAuth routes as public (needed for authentication flow)
   '/api/feed(.*)', // ✅ Add feed API routes (posts, upload-image)
   '/api/cron(.*)', // ✅ Add cron routes as public (protected by CRON_SECRET)
+  '/api/sexting-sets(.*)', // ✅ Add sexting sets routes (handle their own auth)
+  '/api/sexting-sets/media(.*)', // ✅ Add sexting sets media proxy as public
 ]);
 
 // ✅ Special handling for API routes that need custom auth
 const isCustomAuthApiRoute = createRouteMatcher([
   '/api/user/influencers(.*)', // These routes handle their own authentication
+  '/api/sexting-sets(.*)', // Sexting sets routes handle their own authentication
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

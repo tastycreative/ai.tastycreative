@@ -1172,3 +1172,37 @@ model Caption {
   @@index([lastUsedAt])
   @@map("captions")
 }
+
+model SextingSet {
+  id            String         @id @default(cuid())
+  userId        String
+  name          String
+  category      String
+  s3FolderPath  String         // Path in S3 bucket for this set
+  status        String         @default("draft") // draft, scheduled, published
+  scheduledDate DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  images        SextingImage[]
+
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@map("sexting_sets")
+}
+
+model SextingImage {
+  id         String     @id @default(cuid())
+  setId      String
+  url        String     // S3 URL
+  name       String     // Original filename
+  type       String     // MIME type (image/jpeg, video/mp4, etc.)
+  sequence   Int        // Order in the set (1, 2, 3, etc.)
+  size       Int        // File size in bytes
+  uploadedAt DateTime   @default(now())
+  set        SextingSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@index([setId])
+  @@index([sequence])
+  @@map("sexting_images")
+}

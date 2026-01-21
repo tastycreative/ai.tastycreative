@@ -42,6 +42,7 @@ import {
   Layers,
   Film,
   Move,
+  Flame,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -145,6 +146,11 @@ export default function DashboardLayout({
           name: "Workflow",
           href: "/workspace/content-studio/workflow",
           icon: ListChecks,
+        },
+        {
+          name: "Sexting Set Organizer",
+          href: "/workspace/content-studio/sexting-set-organizer",
+          icon: Flame,
         },
       ],
     },
@@ -648,7 +654,10 @@ export default function DashboardLayout({
     const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
       if (!sidebarOpen) {
         const rect = e.currentTarget.getBoundingClientRect();
-        setTooltipPosition({ x: rect.right + 8, y: rect.top + rect.height / 2 });
+        setTooltipPosition({
+          x: rect.right + 8,
+          y: rect.top + rect.height / 2,
+        });
         setHoveredItem(item.name);
       }
     };
@@ -670,7 +679,7 @@ export default function DashboardLayout({
             : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white hover:scale-[1.02] hover:shadow-md",
           "group flex items-center px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
           isInSection ? "pl-6 xs:pl-7 sm:pl-8" : "",
-          !sidebarOpen ? "justify-center" : ""
+          !sidebarOpen ? "justify-center" : "",
         )}
       >
         <Icon
@@ -680,7 +689,7 @@ export default function DashboardLayout({
               : "text-gray-400 dark:text-gray-400 group-hover:text-gray-300 dark:group-hover:text-white",
             "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300",
             sidebarOpen ? "mr-2 xs:mr-2.5 sm:mr-3" : "",
-            isActive ? "scale-110" : "group-hover:scale-110"
+            isActive ? "scale-110" : "group-hover:scale-110",
           )}
           aria-hidden="true"
         />
@@ -750,7 +759,9 @@ export default function DashboardLayout({
     };
 
     // Check if any item in this section is active
-    const isSectionActive = section.items.some(item => isNavItemActive(item.href));
+    const isSectionActive = section.items.some((item) =>
+      isNavItemActive(item.href),
+    );
 
     return (
       <div key={section.name} className="space-y-1">
@@ -761,14 +772,18 @@ export default function DashboardLayout({
               isSectionActive
                 ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-l-2 border-blue-500"
                 : "",
-              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+              "w-full flex items-center justify-between px-2.5 xs:px-3 py-2 xs:py-2.5 text-xs xs:text-sm font-medium text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white dark:hover:text-white rounded-lg transition-all duration-300 active:scale-95 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900",
             )}
           >
             <span className="flex items-center">
-              <SectionIcon className={classNames(
-                isSectionActive ? "text-blue-400" : "text-gray-400 dark:text-gray-400",
-                "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 transition-transform duration-300 group-hover:scale-110"
-              )} />
+              <SectionIcon
+                className={classNames(
+                  isSectionActive
+                    ? "text-blue-400"
+                    : "text-gray-400 dark:text-gray-400",
+                  "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 mr-2 xs:mr-2.5 sm:mr-3 transition-transform duration-300 group-hover:scale-110",
+                )}
+              />
               <span className="truncate">{section.name}</span>
             </span>
             {isExpanded ? (
@@ -801,85 +816,99 @@ export default function DashboardLayout({
                 isSectionActive || hoveredSection === section.name
                   ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-white"
                   : "text-gray-300 dark:text-gray-300 hover:bg-gradient-to-r hover:from-gray-700 hover:to-gray-600 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:text-white",
-                "w-full flex items-center justify-center px-2.5 py-2 xs:py-2.5 rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                "w-full flex items-center justify-center px-2.5 py-2 xs:py-2.5 rounded-lg transition-all duration-300 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500",
               )}
             >
-              <SectionIcon className={classNames(
-                isSectionActive ? "text-blue-400" : "text-gray-400 dark:text-gray-400",
-                "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300 hover:scale-110"
-              )} />
+              <SectionIcon
+                className={classNames(
+                  isSectionActive
+                    ? "text-blue-400"
+                    : "text-gray-400 dark:text-gray-400",
+                  "h-5 w-5 xs:h-5.5 xs:w-5.5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform duration-300 hover:scale-110",
+                )}
+              />
             </button>
-            
+
             {/* Flyout menu - rendered via portal */}
-            {mounted && hoveredSection === section.name && createPortal(
-              <div 
-                data-flyout
-                className="fixed bg-gray-800 dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-700 dark:border-gray-600 z-[100] animate-fadeIn"
-                style={{
-                  left: `${flyoutPosition.x + 8}px`,
-                  top: `${flyoutPosition.y}px`,
-                  maxHeight: 'calc(100vh - 100px)',
-                  minWidth: '220px',
-                }}
-                onMouseEnter={() => {
-                  // Clear any pending close timeout
-                  if (flyoutTimeoutRef.current) {
-                    clearTimeout(flyoutTimeoutRef.current);
-                    flyoutTimeoutRef.current = null;
-                  }
-                }}
-                onMouseLeave={() => {
-                  setHoveredSection(null);
-                }}
-              >
-                {/* Invisible bridge to connect button to flyout */}
-                <div 
-                  className="absolute right-full top-0 w-3 h-full"
-                  style={{ background: 'transparent' }}
-                />
-                {/* Section header */}
-                <div className="px-3 py-2.5 border-b border-gray-700 dark:border-gray-600 bg-gray-900/50 rounded-t-lg">
-                  <span className="text-sm font-semibold text-white flex items-center gap-2">
-                    <SectionIcon className="h-4 w-4 text-blue-400" />
-                    {section.name}
-                  </span>
-                </div>
-                {/* Section items */}
-                <div className="py-1 max-h-80 overflow-y-auto custom-scrollbar">
-                  {section.items.filter(item => !item.name.startsWith("DIVIDER") && !item.name.endsWith("_GROUP_LABEL")).map((item) => {
-                    const isActive = isNavItemActive(item.href);
-                    const ItemIcon = item.icon;
-                    return (
-                      <Link
-                        key={item.name}
-                        href={item.href}
-                        onClick={() => {
-                          setHoveredSection(null);
-                          if (isMobile) {
-                            setSidebarOpen(false);
-                          }
-                        }}
-                        className={classNames(
-                          isActive
-                            ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white"
-                            : "text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800 hover:text-white",
-                          "flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200"
-                        )}
-                      >
-                        <ItemIcon className={classNames(
-                          isActive ? "text-white" : "text-gray-400",
-                          "h-4 w-4 flex-shrink-0"
-                        )} />
-                        <span className="truncate">{item.name}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-                {/* Arrow pointer */}
-                <div className="absolute left-0 top-3 transform -translate-x-1 w-2 h-2 bg-gray-800 dark:bg-gray-900 rotate-45 border-l border-b border-gray-700 dark:border-gray-600"></div>
-              </div>,
-              document.body
-            )}
+            {mounted &&
+              hoveredSection === section.name &&
+              createPortal(
+                <div
+                  data-flyout
+                  className="fixed bg-gray-800 dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-700 dark:border-gray-600 z-[100] animate-fadeIn"
+                  style={{
+                    left: `${flyoutPosition.x + 8}px`,
+                    top: `${flyoutPosition.y}px`,
+                    maxHeight: "calc(100vh - 100px)",
+                    minWidth: "220px",
+                  }}
+                  onMouseEnter={() => {
+                    // Clear any pending close timeout
+                    if (flyoutTimeoutRef.current) {
+                      clearTimeout(flyoutTimeoutRef.current);
+                      flyoutTimeoutRef.current = null;
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredSection(null);
+                  }}
+                >
+                  {/* Invisible bridge to connect button to flyout */}
+                  <div
+                    className="absolute right-full top-0 w-3 h-full"
+                    style={{ background: "transparent" }}
+                  />
+                  {/* Section header */}
+                  <div className="px-3 py-2.5 border-b border-gray-700 dark:border-gray-600 bg-gray-900/50 rounded-t-lg">
+                    <span className="text-sm font-semibold text-white flex items-center gap-2">
+                      <SectionIcon className="h-4 w-4 text-blue-400" />
+                      {section.name}
+                    </span>
+                  </div>
+                  {/* Section items */}
+                  <div className="py-1 max-h-80 overflow-y-auto custom-scrollbar">
+                    {section.items
+                      .filter(
+                        (item) =>
+                          !item.name.startsWith("DIVIDER") &&
+                          !item.name.endsWith("_GROUP_LABEL"),
+                      )
+                      .map((item) => {
+                        const isActive = isNavItemActive(item.href);
+                        const ItemIcon = item.icon;
+                        return (
+                          <Link
+                            key={item.name}
+                            href={item.href}
+                            onClick={() => {
+                              setHoveredSection(null);
+                              if (isMobile) {
+                                setSidebarOpen(false);
+                              }
+                            }}
+                            className={classNames(
+                              isActive
+                                ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white"
+                                : "text-gray-300 hover:bg-gray-700 dark:hover:bg-gray-800 hover:text-white",
+                              "flex items-center gap-2 px-3 py-2 text-sm transition-all duration-200",
+                            )}
+                          >
+                            <ItemIcon
+                              className={classNames(
+                                isActive ? "text-white" : "text-gray-400",
+                                "h-4 w-4 flex-shrink-0",
+                              )}
+                            />
+                            <span className="truncate">{item.name}</span>
+                          </Link>
+                        );
+                      })}
+                  </div>
+                  {/* Arrow pointer */}
+                  <div className="absolute left-0 top-3 transform -translate-x-1 w-2 h-2 bg-gray-800 dark:bg-gray-900 rotate-45 border-l border-b border-gray-700 dark:border-gray-600"></div>
+                </div>,
+                document.body,
+              )}
           </div>
         ) : (
           sidebarOpen && (
@@ -891,11 +920,11 @@ export default function DashboardLayout({
         {isExpanded && sidebarOpen && (
           <div
             className={classNames(
-              section.collapsible ? "space-y-1 animate-fadeIn" : "space-y-1"
+              section.collapsible ? "space-y-1 animate-fadeIn" : "space-y-1",
             )}
           >
             {section.items.map((item) =>
-              renderNavItem(item, section.collapsible)
+              renderNavItem(item, section.collapsible),
             )}
           </div>
         )}
@@ -909,7 +938,7 @@ export default function DashboardLayout({
       <div
         className={classNames(
           "hidden lg:flex bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 relative",
-          sidebarOpen ? "w-64" : "w-16"
+          sidebarOpen ? "w-64" : "w-16",
         )}
       >
         {/* Animated gradient overlay */}
@@ -959,7 +988,7 @@ export default function DashboardLayout({
       <div
         className={classNames(
           "lg:hidden fixed inset-0 z-50 transition-opacity duration-300",
-          sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
       >
         {/* Backdrop */}
@@ -974,7 +1003,7 @@ export default function DashboardLayout({
             "relative w-64 h-full bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm flex flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 transition-all duration-300 ease-out",
             sidebarOpen
               ? "transform translate-x-0 opacity-100"
-              : "transform -translate-x-full opacity-0"
+              : "transform -translate-x-full opacity-0",
           )}
         >
           {/* Sidebar header */}
@@ -1136,7 +1165,7 @@ export default function DashboardLayout({
           style={{
             left: `${tooltipPosition.x}px`,
             top: `${tooltipPosition.y}px`,
-            transform: 'translateY(-50%)'
+            transform: "translateY(-50%)",
           }}
         >
           {hoveredItem}
