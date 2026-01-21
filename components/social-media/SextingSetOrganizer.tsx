@@ -30,7 +30,13 @@ import {
   Folder,
   CheckCircle2,
   User,
+  FileText,
+  Mic,
+  Volume2,
+  Music,
 } from "lucide-react";
+import KeycardGenerator from "./KeycardGenerator";
+import EmbeddedVoiceGenerator from "./EmbeddedVoiceGenerator";
 
 interface InstagramProfile {
   id: string;
@@ -99,6 +105,18 @@ export default function SextingSetOrganizer({
     folderName: string;
     itemCount: number;
   } | null>(null);
+
+  // Image rename state
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  const [editingImageName, setEditingImageName] = useState("");
+  const [savingImageName, setSavingImageName] = useState(false);
+
+  // Image detail modal state
+  const [showImageDetailModal, setShowImageDetailModal] = useState(false);
+  const [selectedImageForDetail, setSelectedImageForDetail] = useState<SextingImage | null>(null);
+
+  // Tab state: "organizer" | "keycard" | "voice"
+  const [activeTab, setActiveTab] = useState<"organizer" | "keycard" | "voice">("organizer");
 
   // Clear selected set when profile changes
   useEffect(() => {
@@ -283,6 +301,67 @@ export default function SextingSetOrganizer({
     } catch (error) {
       console.error("Error deleting image:", error);
     }
+  };
+
+  // Rename image
+  const renameImage = async (setId: string, imageId: string, newName: string) => {
+    if (!newName.trim()) return;
+    
+    try {
+      setSavingImageName(true);
+      const response = await fetch(`/api/sexting-sets/${setId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageId, newName: newName.trim() }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.image) {
+        // Update local state
+        setSets((prev) =>
+          prev.map((s) => {
+            if (s.id !== setId) return s;
+            return {
+              ...s,
+              images: s.images.map((img) =>
+                img.id === imageId ? { ...img, name: data.image.name } : img
+              ),
+            };
+          })
+        );
+
+        if (selectedSet?.id === setId) {
+          setSelectedSet((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              images: prev.images.map((img) =>
+                img.id === imageId ? { ...img, name: data.image.name } : img
+              ),
+            };
+          });
+        }
+
+        // Update the detail modal if open
+        if (selectedImageForDetail?.id === imageId) {
+          setSelectedImageForDetail((prev) =>
+            prev ? { ...prev, name: data.image.name } : null
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error renaming image:", error);
+    } finally {
+      setSavingImageName(false);
+      setEditingImageId(null);
+      setEditingImageName("");
+    }
+  };
+
+  // Open image detail modal
+  const openImageDetail = (image: SextingImage) => {
+    setSelectedImageForDetail(image);
+    setShowImageDetailModal(true);
   };
 
   // Fetch profiles for export
@@ -474,6 +553,7 @@ export default function SextingSetOrganizer({
   };
 
   const isVideo = (type: string) => type.startsWith("video/");
+  const isAudio = (type: string) => type.startsWith("audio/");
 
   if (loading) {
     return (
@@ -488,7 +568,7 @@ export default function SextingSetOrganizer({
 
   return (
     <div className="space-y-6">
-      {/* Header with gradient */}
+      {/* Header with gradient and tabs */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl shadow-lg shadow-pink-500/25">
@@ -504,16 +584,179 @@ export default function SextingSetOrganizer({
           </div>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-pink-500/25 transition-all duration-200 hover:scale-105"
-        >
-          <FolderPlus className="w-5 h-5" />
-          <span>New Set</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Tab Buttons */}
+          <div className="flex bg-gray-800/50 rounded-xl p-1">
+            <button
+              onClick={() => setActiveTab("organizer")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "organizer"
+                  ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              <Heart className="w-4 h-4" />
+              Sets
+            </button>
+            <button
+              onClick={() => setActiveTab("keycard")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "keycard"
+                  ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              Keycards
+            </button>
+            <button
+              onClick={() => setActiveTab("voice")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                activeTab === "voice"
+                  ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              <Mic className="w-4 h-4" />
+              Voice
+            </button>
+          </div>
+
+          {activeTab === "organizer" && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-pink-500/25 transition-all duration-200 hover:scale-105"
+            >
+              <FolderPlus className="w-5 h-5" />
+              <span>New Set</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Main content area */}
+      {/* Keycard Generator Tab */}
+      {activeTab === "keycard" && (
+        <KeycardGenerator
+          profileId={profileId}
+          hasSelectedSet={!!selectedSet}
+          onSaveToSet={selectedSet ? async (blob, filename) => {
+            // Convert blob to File and upload
+            const file = new File([blob], filename, { type: "image/png" });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            await handleFileUpload(dataTransfer.files);
+          } : undefined}
+          onSaveComplete={() => {
+            // Switch to organizer tab to show the saved keycard
+            setActiveTab("organizer");
+          }}
+        />
+      )}
+
+      {/* Voice Generator Tab */}
+      {activeTab === "voice" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sets sidebar for voice tab */}
+          <div className="lg:col-span-1 space-y-3">
+            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm">
+              <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
+                <Heart className="w-4 h-4 text-pink-500" />
+                Select a Set
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Choose which set to save your voice notes to
+              </p>
+
+              {sets.length === 0 ? (
+                <div className="text-center py-6">
+                  <Sparkles className="w-8 h-8 text-pink-500/50 mx-auto mb-2" />
+                  <p className="text-gray-400 text-sm">No sets yet</p>
+                  <button
+                    onClick={() => {
+                      setActiveTab("organizer");
+                      setShowCreateModal(true);
+                    }}
+                    className="mt-2 text-pink-400 hover:text-pink-300 text-sm font-medium"
+                  >
+                    Create your first set
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                  {sets.map((set) => (
+                    <button
+                      key={set.id}
+                      onClick={() => {
+                        setSelectedSet(set);
+                        setExpandedSets((prev) => new Set([...prev, set.id]));
+                      }}
+                      className={`w-full p-3 rounded-xl text-left transition-all duration-200 ${
+                        selectedSet?.id === set.id
+                          ? "bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 border border-violet-500/40"
+                          : "bg-gray-800/50 hover:bg-gray-800/80 border border-transparent hover:border-gray-700/50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          selectedSet?.id === set.id 
+                            ? "bg-gradient-to-br from-violet-500 to-fuchsia-500" 
+                            : "bg-gray-700/50"
+                        }`}>
+                          <Folder className={`w-5 h-5 ${selectedSet?.id === set.id ? "text-white" : "text-gray-400"}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium truncate ${selectedSet?.id === set.id ? "text-white" : "text-gray-300"}`}>
+                            {set.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {set.images.length} item{set.images.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        {selectedSet?.id === set.id && (
+                          <CheckCircle2 className="w-5 h-5 text-violet-400" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Voice Generator */}
+          <div className="lg:col-span-2">
+            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-5 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="p-2 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-xl">
+                  <Mic className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Voice Generator</h3>
+                  <p className="text-xs text-gray-400">Generate AI voice notes and save to your set</p>
+                </div>
+              </div>
+
+              <EmbeddedVoiceGenerator
+                setId={selectedSet?.id || null}
+                onSaveToSet={selectedSet ? async (audioBlob, filename) => {
+                  const file = new File([audioBlob], filename, { type: audioBlob.type });
+                  const dataTransfer = new DataTransfer();
+                  dataTransfer.items.add(file);
+                  await handleFileUpload(dataTransfer.files, selectedSet.id);
+                } : undefined}
+                onSaveComplete={() => {
+                  // Refresh to show the saved audio and switch to organizer tab
+                  fetchSets();
+                  setActiveTab("organizer");
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main content area - only show when on organizer tab */}
+      {activeTab === "organizer" && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sets sidebar */}
         <div className="lg:col-span-1 space-y-3">
@@ -734,6 +977,7 @@ export default function SextingSetOrganizer({
                         onDragStart={(e) => handleDragStart(e, index)}
                         onDragOver={(e) => handleDragOver(e, index)}
                         onDragEnd={handleDragEnd}
+                        onClick={() => openImageDetail(image)}
                         className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 cursor-grab active:cursor-grabbing ${
                           draggedIndex === index
                             ? "opacity-50 scale-95 border-pink-500"
@@ -756,6 +1000,19 @@ export default function SextingSetOrganizer({
                             className="w-full h-full object-cover"
                             muted
                           />
+                        ) : isAudio(image.type) ? (
+                          <div className="w-full h-full bg-gradient-to-br from-violet-900/50 to-fuchsia-900/50 flex flex-col items-center justify-center p-3">
+                            <Music className="w-10 h-10 text-violet-400 mb-2" />
+                            <audio
+                              src={image.url}
+                              controls
+                              className="w-full h-8"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <span className="text-xs text-gray-400 mt-2 truncate max-w-full">
+                              {image.name}
+                            </span>
+                          </div>
                         ) : (
                           <img
                             src={image.url}
@@ -767,8 +1024,21 @@ export default function SextingSetOrganizer({
                         {/* Overlay */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                           {/* Drag handle */}
-                          <div className="absolute top-2 right-2 p-1.5 bg-black/50 rounded-lg backdrop-blur-sm">
-                            <GripVertical className="w-4 h-4 text-white" />
+                          <div className="absolute top-2 right-2 flex gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingImageId(image.id);
+                                setEditingImageName(image.name.replace(/\.[^/.]+$/, ''));
+                              }}
+                              className="p-1.5 bg-black/50 hover:bg-blue-500/80 rounded-lg backdrop-blur-sm transition-colors"
+                              title="Edit filename"
+                            >
+                              <Edit3 className="w-4 h-4 text-white" />
+                            </button>
+                            <div className="p-1.5 bg-black/50 rounded-lg backdrop-blur-sm">
+                              <GripVertical className="w-4 h-4 text-white" />
+                            </div>
                           </div>
 
                           {/* Actions */}
@@ -776,6 +1046,8 @@ export default function SextingSetOrganizer({
                             <div className="flex items-center gap-1">
                               {isVideo(image.type) ? (
                                 <Video className="w-4 h-4 text-pink-400" />
+                              ) : isAudio(image.type) ? (
+                                <Volume2 className="w-4 h-4 text-violet-400" />
                               ) : (
                                 <ImageIcon className="w-4 h-4 text-pink-400" />
                               )}
@@ -820,6 +1092,7 @@ export default function SextingSetOrganizer({
           )}
         </div>
       </div>
+      )}
 
       {/* Create Modal - React Portal */}
       {showCreateModal &&
@@ -1064,6 +1337,226 @@ export default function SextingSetOrganizer({
                   </button>
                 </div>
               )}
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Image Detail/Rename Modal - React Portal */}
+      {showImageDetailModal &&
+        selectedImageForDetail &&
+        selectedSet &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => {
+              setShowImageDetailModal(false);
+              setSelectedImageForDetail(null);
+              setEditingImageId(null);
+              setEditingImageName("");
+            }}
+          >
+            <div 
+              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-2xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">
+                      {selectedImageForDetail.sequence}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Image Details</h3>
+                    <p className="text-xs text-gray-400">Click on filename to edit</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowImageDetailModal(false);
+                    setSelectedImageForDetail(null);
+                    setEditingImageId(null);
+                    setEditingImageName("");
+                  }}
+                  className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-6">
+                {/* Preview */}
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-black/50">
+                  {isVideo(selectedImageForDetail.type) ? (
+                    <video
+                      src={selectedImageForDetail.url}
+                      className="w-full h-full object-contain"
+                      controls
+                    />
+                  ) : isAudio(selectedImageForDetail.type) ? (
+                    <div className="w-full h-full bg-gradient-to-br from-violet-900/50 to-fuchsia-900/50 flex flex-col items-center justify-center p-6">
+                      <Music className="w-20 h-20 text-violet-400 mb-4" />
+                      <audio
+                        src={selectedImageForDetail.url}
+                        controls
+                        className="w-full max-w-md"
+                      />
+                      <span className="text-sm text-gray-300 mt-4">{selectedImageForDetail.name}</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={selectedImageForDetail.url}
+                      alt={selectedImageForDetail.name}
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+
+                {/* Metadata */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Filename - Editable */}
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                      Filename
+                    </label>
+                    {editingImageId === selectedImageForDetail.id ? (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editingImageName}
+                          onChange={(e) => setEditingImageName(e.target.value)}
+                          className="flex-1 px-4 py-2.5 bg-gray-800 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              renameImage(selectedSet.id, selectedImageForDetail.id, editingImageName);
+                            } else if (e.key === "Escape") {
+                              setEditingImageId(null);
+                              setEditingImageName("");
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => renameImage(selectedSet.id, selectedImageForDetail.id, editingImageName)}
+                          disabled={savingImageName || !editingImageName.trim()}
+                          className="px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {savingImageName ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingImageId(null);
+                            setEditingImageName("");
+                          }}
+                          className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => {
+                          setEditingImageId(selectedImageForDetail.id);
+                          setEditingImageName(selectedImageForDetail.name.replace(/\.[^/.]+$/, ''));
+                        }}
+                        className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white cursor-pointer hover:border-pink-500/50 transition-colors flex items-center justify-between group"
+                      >
+                        <span className="truncate">{selectedImageForDetail.name}</span>
+                        <Edit3 className="w-4 h-4 text-gray-500 group-hover:text-pink-400 transition-colors" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sequence */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                      Sequence
+                    </label>
+                    <div className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white">
+                      #{selectedImageForDetail.sequence}
+                    </div>
+                  </div>
+
+                  {/* Size */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                      File Size
+                    </label>
+                    <div className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white">
+                      {formatFileSize(selectedImageForDetail.size)}
+                    </div>
+                  </div>
+
+                  {/* Type */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                      Type
+                    </label>
+                    <div className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white flex items-center gap-2">
+                      {isVideo(selectedImageForDetail.type) ? (
+                        <>
+                          <Video className="w-4 h-4 text-pink-400" />
+                          Video
+                        </>
+                      ) : isAudio(selectedImageForDetail.type) ? (
+                        <>
+                          <Volume2 className="w-4 h-4 text-violet-400" />
+                          Audio
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="w-4 h-4 text-pink-400" />
+                          Image
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Uploaded Date */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                      Uploaded
+                    </label>
+                    <div className="px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white">
+                      {new Date(selectedImageForDetail.uploadedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="p-4 border-t border-gray-700 flex justify-between">
+                <button
+                  onClick={() => {
+                    if (confirm("Are you sure you want to delete this image?")) {
+                      deleteImage(selectedSet.id, selectedImageForDetail.id);
+                      setShowImageDetailModal(false);
+                      setSelectedImageForDetail(null);
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl font-medium transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+                <a
+                  href={selectedImageForDetail.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Open Original
+                </a>
+              </div>
             </div>
           </div>,
           document.body,

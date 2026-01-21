@@ -1167,6 +1167,16 @@ export function VaultContent() {
 
   // All filtered items (not paginated)
   const allFilteredItems = useMemo(() => {
+    // Helper function to extract sequence number from filename for proper sorting
+    const getSequenceNumber = (fileName: string): number => {
+      // Match patterns like "001_", "01_", "1_" at the start of filename
+      const match = fileName.match(/^(\d+)_/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
+      return Infinity; // Items without sequence prefix go to the end
+    };
+
     if (selectedSharedFolder) {
       return sharedFolderItems
         .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
@@ -1177,6 +1187,13 @@ export function VaultContent() {
           if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
           if (contentFilter === 'gifs') return item.fileType === 'image/gif';
           return true;
+        })
+        .sort((a, b) => {
+          // Sort by sequence number first, then by filename
+          const seqA = getSequenceNumber(a.fileName);
+          const seqB = getSequenceNumber(b.fileName);
+          if (seqA !== seqB) return seqA - seqB;
+          return a.fileName.localeCompare(b.fileName);
         });
     }
 
@@ -1197,6 +1214,13 @@ export function VaultContent() {
         if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
         if (contentFilter === 'gifs') return item.fileType === 'image/gif';
         return true;
+      })
+      .sort((a, b) => {
+        // Sort by sequence number first, then by filename
+        const seqA = getSequenceNumber(a.fileName);
+        const seqB = getSequenceNumber(b.fileName);
+        if (seqA !== seqB) return seqA - seqB;
+        return a.fileName.localeCompare(b.fileName);
       });
   }, [vaultItems, sharedFolderItems, selectedFolderId, selectedProfileId, debouncedSearchQuery, folders, contentFilter, selectedSharedFolder]);
 

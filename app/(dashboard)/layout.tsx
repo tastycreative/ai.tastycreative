@@ -43,6 +43,7 @@ import {
   Film,
   Move,
   Flame,
+  Mic,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -287,6 +288,21 @@ export default function DashboardLayout({
           name: "Kling Motion Control",
           href: "/workspace/generate-content/kling-motion-control",
           icon: Move,
+        },
+        {
+          name: "DIVIDER_5",
+          href: "#",
+          icon: Sparkles,
+        },
+        {
+          name: "AI_VOICE_GROUP_LABEL",
+          href: "#",
+          icon: Mic,
+        },
+        {
+          name: "Voice Generator",
+          href: "/workspace/generate-content/ai-voice",
+          icon: Mic,
         },
       ],
     },
@@ -622,6 +638,39 @@ export default function DashboardLayout({
                   </span>
                 </div>
                 <div className="h-1 w-1 rounded-full bg-violet-400 dark:bg-violet-300 animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null;
+    }
+
+    // Handle AI Voice group label
+    if (item.name === "AI_VOICE_GROUP_LABEL") {
+      return sidebarOpen ? (
+        <div
+          key="ai-voice-group-label"
+          className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
+        >
+          <div className="relative">
+            {/* Background glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 via-orange-500/10 to-yellow-500/10 rounded-lg blur-sm"></div>
+
+            {/* Main label container */}
+            <div className="relative bg-gradient-to-r from-red-500/20 via-orange-500/20 to-yellow-500/20 dark:from-red-500/10 dark:via-orange-500/10 dark:to-yellow-500/10 border border-red-400/30 dark:border-red-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 xs:space-x-2">
+                  <div className="relative">
+                    <Mic className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-red-400 dark:text-red-300 animate-pulse" />
+                    <div className="absolute inset-0 h-3.5 w-3.5 xs:h-4 xs:w-4 text-red-400 dark:text-red-300 opacity-50 blur-sm">
+                      <Mic className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
+                    </div>
+                  </div>
+                  <span className="text-[10px] xs:text-xs font-bold bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 dark:from-red-300 dark:via-orange-300 dark:to-yellow-300 bg-clip-text text-transparent uppercase tracking-wider">
+                    AI Voice
+                  </span>
+                </div>
+                <div className="h-1 w-1 rounded-full bg-red-400 dark:bg-red-300 animate-pulse"></div>
               </div>
             </div>
           </div>

@@ -23,6 +23,8 @@ import {
   TrendingUp,
   FileText,
   Lock,
+  Mic,
+  UserCircle,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -34,6 +36,7 @@ interface NavItem {
 
 interface NavSection {
   name: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   items: NavItem[];
   collapsible?: boolean;
 }
@@ -47,6 +50,7 @@ export default function AdminLayout({
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [expandedSections, setExpandedSections] = useState<string[]>(["AI Voice Note Tracker"]);
   const pathname = usePathname();
   const { signOut } = useClerk();
   const { user } = useUser();
@@ -72,6 +76,18 @@ export default function AdminLayout({
       name: "AI Marketplace",
       href: "/admin/marketplace",
       icon: ShoppingBag,
+    },
+    {
+      name: "AI Voice Note Tracker",
+      icon: Mic,
+      collapsible: true,
+      items: [
+        {
+          name: "AI Voice Accounts",
+          href: "/admin/ai-voice-note-tracker/ai-voice-accounts",
+          icon: UserCircle,
+        },
+      ],
     },
     {
       name: "Analytics",
@@ -141,6 +157,18 @@ export default function AdminLayout({
     return pathname.startsWith(href);
   };
 
+  const toggleSection = (sectionName: string) => {
+    setExpandedSections((prev) =>
+      prev.includes(sectionName)
+        ? prev.filter((name) => name !== sectionName)
+        : [...prev, sectionName]
+    );
+  };
+
+  const isSectionExpanded = (sectionName: string) => {
+    return expandedSections.includes(sectionName);
+  };
+
   const renderNavItem = (item: NavItem) => {
     const isActive = isNavItemActive(item.href);
     const Icon = item.icon;
@@ -194,6 +222,79 @@ export default function AdminLayout({
     );
   };
 
+  const renderNavSection = (section: NavSection) => {
+    const isExpanded = isSectionExpanded(section.name);
+    const hasActiveItem = section.items.some((item) => isNavItemActive(item.href));
+    const Icon = section.icon;
+
+    return (
+      <div key={section.name} className="space-y-1">
+        <button
+          onClick={() => toggleSection(section.name)}
+          className={classNames(
+            hasActiveItem
+              ? "bg-gradient-to-r from-red-900/50 to-orange-900/50 text-white"
+              : "text-gray-300 hover:bg-gradient-to-r hover:from-red-900/30 hover:to-orange-900/30 hover:text-white",
+            "w-full group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-300",
+            !sidebarOpen ? "justify-center" : "justify-between"
+          )}
+        >
+          <div className="flex items-center">
+            <Icon
+              className={classNames(
+                hasActiveItem
+                  ? "text-orange-400"
+                  : "text-gray-400 group-hover:text-gray-300",
+                "h-6 w-6 flex-shrink-0 transition-transform duration-300",
+                sidebarOpen ? "mr-3" : ""
+              )}
+              aria-hidden="true"
+            />
+            {sidebarOpen && <span className="truncate">{section.name}</span>}
+          </div>
+          {sidebarOpen && (
+            <ChevronDown
+              className={classNames(
+                "h-4 w-4 text-gray-400 transition-transform duration-300",
+                isExpanded ? "rotate-180" : ""
+              )}
+            />
+          )}
+        </button>
+        {sidebarOpen && isExpanded && (
+          <div className="ml-4 pl-4 border-l border-red-900/30 space-y-1">
+            {section.items.map((subItem) => {
+              const isActive = isNavItemActive(subItem.href);
+              const SubIcon = subItem.icon;
+              return (
+                <Link
+                  key={subItem.name}
+                  href={subItem.href}
+                  onClick={() => isMobile && setSidebarOpen(false)}
+                  className={classNames(
+                    isActive
+                      ? "bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-md"
+                      : "text-gray-400 hover:bg-red-900/30 hover:text-white",
+                    "group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-300"
+                  )}
+                >
+                  <SubIcon
+                    className={classNames(
+                      isActive ? "text-white" : "text-gray-500 group-hover:text-gray-300",
+                      "h-5 w-5 flex-shrink-0 mr-2"
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate">{subItem.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 relative overflow-hidden">
       {/* Animated Background Effects */}
@@ -242,7 +343,7 @@ export default function AdminLayout({
         <nav className="flex-1 px-2 py-4 space-y-2 overflow-y-auto custom-scrollbar">
           {navigation.map((item) => {
             if ("items" in item) {
-              return null; // No sections for now, can add later
+              return renderNavSection(item);
             } else {
               return renderNavItem(item);
             }
@@ -305,7 +406,7 @@ export default function AdminLayout({
           <nav className="flex-1 px-2 py-4 space-y-2 overflow-y-auto">
             {navigation.map((item) => {
               if ("items" in item) {
-                return null;
+                return renderNavSection(item);
               } else {
                 return renderNavItem(item);
               }

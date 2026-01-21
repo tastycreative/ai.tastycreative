@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { S3Client, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION!,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
 
 // PATCH /api/vault/folders/[id] - Update folder name
 export async function PATCH(
@@ -81,6 +90,35 @@ export async function DELETE(
         { error: "Cannot delete default folder" },
         { status: 400 }
       );
+    }
+
+    // Get all items in the folder to delete from S3
+    const items = await prisma.vaultItem.findMany({
+      where: { folderId: id },
+      select: { awsS3Key: true },
+    });
+
+    // Delete all S3 files in the folder
+    if (items.length > 0) {
+      try {
+        // S3 DeleteObjects can handle up to 1000 objects at a time
+        const batchSize = 1000;
+        for (let i = 0; i < items.length; i += batchSize) {
+          const batch = items.slice(i, i + batchSize);
+          await s3Client.send(
+            new DeleteObjectsCommand({
+              Bucket: process.env.AWS_S3_BUCKET!,
+              Delete: {
+                Objects: batch.map((item) => ({ Key: item.awsS3Key })),
+                Quiet: true,
+              },
+            })
+          );
+        }
+      } catch (s3Error) {
+        console.error("Error deleting S3 files:", s3Error);
+        // Continue with database deletion even if S3 deletion fails
+      }
     }
 
     // Delete folder (items will cascade delete)

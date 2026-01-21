@@ -23,6 +23,7 @@ import {
   Loader2,
   Video as VideoIcon,
   XCircle,
+  FolderOpen,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { createPortal } from "react-dom";
@@ -97,6 +98,9 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
   const [vaultItems, setVaultItems] = useState<any[]>([]);
   const [selectedVaultItems, setSelectedVaultItems] = useState<any[]>([]);
   const [loadingVault, setLoadingVault] = useState(false);
+  const [vaultFolders, setVaultFolders] = useState<any[]>([]);
+  const [selectedVaultFolder, setSelectedVaultFolder] = useState<string>("");
+  const [loadingFolders, setLoadingFolders] = useState(false);
   const [captionMode, setCaptionMode] = useState<"custom" | "bank">("custom");
   const [availableCaptions, setAvailableCaptions] = useState<any[]>([]);
   const [loadingCaptions, setLoadingCaptions] = useState(false);
@@ -177,6 +181,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     clearAllFiles();
     setUploadMode("upload");
     setSelectedVaultItems([]);
+    setSelectedVaultFolder("");
     setCaptionMode("custom");
     setCaptionSearchQuery("");
     setCaptionCategoryFilter("All");
@@ -184,6 +189,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     setCaptionBankFilter("All");
     setShowModal(true);
     if (profileId && profileId !== "all") {
+      fetchVaultFolders();
       fetchVaultItems();
       fetchCaptionsBank();
     }
@@ -242,12 +248,39 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     setUploadPreviewUrls([]);
   };
 
-  const fetchVaultItems = async () => {
+  const fetchVaultFolders = async () => {
+    if (!profileId || profileId === "all") return;
+
+    try {
+      setLoadingFolders(true);
+      const response = await fetch(`/api/vault/folders?profileId=${profileId}`);
+      
+      if (!response.ok) {
+        console.warn("Vault folders not available");
+        setVaultFolders([]);
+        return;
+      }
+
+      const data = await response.json();
+      setVaultFolders(data);
+    } catch (error) {
+      console.error("Error loading vault folders:", error);
+      setVaultFolders([]);
+    } finally {
+      setLoadingFolders(false);
+    }
+  };
+
+  const fetchVaultItems = async (folderId?: string) => {
     if (!profileId || profileId === "all") return;
 
     try {
       setLoadingVault(true);
-      const response = await fetch(`/api/vault/items?profileId=${profileId}`);
+      let url = `/api/vault/items?profileId=${profileId}`;
+      if (folderId) {
+        url += `&folderId=${folderId}`;
+      }
+      const response = await fetch(url);
       
       if (!response.ok) {
         console.warn("Vault items not available");
@@ -342,6 +375,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     setUploadedFiles([]);
     setUploadMode("upload");
     setSelectedVaultItems([]);
+    setSelectedVaultFolder("");
     setCaptionMode("custom");
     setCaptionSearchQuery("");
     setCaptionCategoryFilter("All");
@@ -349,6 +383,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     setCaptionBankFilter("All");
     setShowModal(true);
     if (profileId && profileId !== "all") {
+      fetchVaultFolders();
       fetchVaultItems();
       fetchCaptionsBank();
     }
@@ -927,8 +962,13 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       type="button"
                       onClick={() => {
                         setUploadMode("vault");
-                        if (profileId && profileId !== "all" && vaultItems.length === 0) {
-                          fetchVaultItems();
+                        if (profileId && profileId !== "all") {
+                          if (vaultFolders.length === 0) {
+                            fetchVaultFolders();
+                          }
+                          if (vaultItems.length === 0) {
+                            fetchVaultItems();
+                          }
                         }
                       }}
                       disabled={!profileId || profileId === "all"}
@@ -1017,6 +1057,32 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                   ) : (
                     <>
                       {/* Vault mode */}
+                      {/* Folder Selection Dropdown */}
+                      <div className="mb-4">
+                        <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                          <FolderOpen className="w-4 h-4 text-blue-500" />
+                          Select Folder
+                        </label>
+                        <select
+                          value={selectedVaultFolder}
+                          onChange={(e) => {
+                            setSelectedVaultFolder(e.target.value);
+                            setSelectedVaultItems([]);
+                            fetchVaultItems(e.target.value || undefined);
+                          }}
+                          className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          disabled={loadingFolders}
+                        >
+                          <option value="">All Media</option>
+                          {vaultFolders
+                            .filter((folder) => folder.name.toLowerCase() !== "all media" && folder.name.toLowerCase() !== "all")
+                            .map((folder) => (
+                              <option key={folder.id} value={folder.id}>
+                                {folder.name} ({folder._count?.items || 0} items)
+                              </option>
+                            ))}
+                        </select>
+                      </div>
                       <div className="bg-[#1a1a1a] rounded-xl border-2 border-[#2a2a2a] p-4 max-h-[400px] overflow-y-auto">
                         {loadingVault ? (
                           <div className="flex items-center justify-center py-12">
