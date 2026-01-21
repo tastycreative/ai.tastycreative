@@ -261,7 +261,8 @@ export async function saveImageToDatabase(
         width,
         height,
         format,
-        data: imageData,
+        // Prisma expects a Uint8Array for bytes fields; convert Buffer to Uint8Array if present
+        data: imageData ? new Uint8Array(imageData) : undefined,
         networkVolumePath: options.networkVolumePath,
         s3Key: options.s3Key,
         awsS3Key: options.awsS3Key,
@@ -279,7 +280,8 @@ export async function saveImageToDatabase(
         width,
         height,
         format,
-        data: imageData,
+        // Prisma expects a Uint8Array for bytes fields; convert Buffer to Uint8Array if present
+        data: imageData ? new Uint8Array(imageData) : undefined,
         networkVolumePath: options.networkVolumePath,
         s3Key: options.s3Key,
         awsS3Key: options.awsS3Key,

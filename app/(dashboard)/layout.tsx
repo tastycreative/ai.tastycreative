@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import {
   ChevronLeft,
   ChevronRight,
@@ -47,6 +48,7 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
 import { NotificationBell } from "@/components/NotificationBell";
+import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 
 interface NavItem {
   name: string;
@@ -85,6 +87,7 @@ export default function DashboardLayout({
   const { user } = useUser();
   const { isAdmin } = useIsAdmin();
   const { isContentCreator } = useIsContentCreator();
+  const { permissions, subscriptionInfo, loading: permissionsLoading } = usePermissions();
 
   // Dynamic navigation based on user permissions
   const navigation: (NavItem | NavSection)[] = [
@@ -93,11 +96,14 @@ export default function DashboardLayout({
       href: "/dashboard",
       icon: Home,
     },
-    {
-      name: "Content Studio",
-      collapsible: true,
-      items: [
-        {
+    // Content Studio - check Instagram/Planning tab permissions
+    ...(permissions.hasInstagramTab || permissions.hasPlanningTab
+      ? [
+          {
+            name: "Content Studio",
+            collapsible: true,
+            items: [
+              {
           name: "Staging",
           href: "/workspace/content-studio/staging",
           icon: Layers,
@@ -142,20 +148,25 @@ export default function DashboardLayout({
           href: "/workspace/content-studio/hashtags",
           icon: Hash,
         },
-        {
-          name: "Workflow",
-          href: "/workspace/content-studio/workflow",
-          icon: ListChecks,
-        },
+              {
+                name: "Workflow",
+                href: "/workspace/content-studio/workflow",
+                icon: ListChecks,
+              },
         {
           name: "Sexting Set Organizer",
           href: "/workspace/content-studio/sexting-set-organizer",
           icon: Flame,
         },
-      ],
-    },
-    {
-      name: "Generate Content",
+            ],
+          },
+        ]
+      : []),
+    // Generate Content - check hasGenerateTab permission
+    ...(permissions.hasGenerateTab
+      ? [
+          {
+            name: "Generate Content",
       collapsible: true,
       items: [
         {
@@ -283,15 +294,20 @@ export default function DashboardLayout({
           href: "/workspace/generate-content/kling-multi-image-to-video",
           icon: Film,
         },
-        {
-          name: "Kling Motion Control",
-          href: "/workspace/generate-content/kling-motion-control",
-          icon: Move,
-        },
-      ],
-    },
-    {
-      name: "Workspace",
+              {
+                name: "Kling Motion Control",
+                href: "/workspace/generate-content/kling-motion-control",
+                icon: Move,
+              },
+            ],
+          },
+        ]
+      : []),
+    // Workspace - check hasVaultTab permission
+    ...(permissions.hasVaultTab
+      ? [
+          {
+            name: "Workspace",
       collapsible: true,
       items: [
         {
@@ -299,15 +315,20 @@ export default function DashboardLayout({
           href: "/workspace/my-influencers",
           icon: Users,
         },
-        {
-          name: "Vault",
-          href: "/workspace/vault",
-          icon: Shield,
-        },
-      ],
-    },
-    {
-      name: "Social Media",
+              {
+                name: "Vault",
+                href: "/workspace/vault",
+                icon: Shield,
+              },
+            ],
+          },
+        ]
+      : []),
+    // Social Media - check hasFeedTab permission
+    ...(permissions.hasFeedTab
+      ? [
+          {
+            name: "Social Media",
       collapsible: true,
       items: [
         {
@@ -330,15 +351,20 @@ export default function DashboardLayout({
           href: "/workspace/bookmarks",
           icon: Bookmark,
         },
-        {
-          name: "My Creators",
-          href: "/workspace/creators",
-          icon: Users,
-        },
-      ],
-    },
-    {
-      name: "Train Models",
+              {
+                name: "My Creators",
+                href: "/workspace/creators",
+                icon: Users,
+              },
+            ],
+          },
+        ]
+      : []),
+    // Train Models - check hasTrainingTab permission
+    ...(permissions.hasTrainingTab
+      ? [
+          {
+            name: "Train Models",
       collapsible: true,
       items: [
         {
@@ -346,13 +372,16 @@ export default function DashboardLayout({
           href: "/workspace/train-lora",
           icon: PlusCircle,
         },
-        {
-          name: "Training Jobs",
-          href: "/workspace/training-jobs",
-          icon: BarChart3,
-        },
-      ],
-    },
+              {
+                name: "Training Jobs",
+                href: "/workspace/training-jobs",
+                icon: BarChart3,
+              },
+            ],
+          },
+        ]
+      : []),
+    // AI Tools section - always show for now
     {
       name: "AI Tools",
       collapsible: true,
@@ -379,13 +408,21 @@ export default function DashboardLayout({
         },
       ],
     },
-    {
-      name: "AI Marketplace",
-      href: "/workspace/ai-marketplace",
-      icon: ShoppingBag,
-    },
-    {
-      name: "Caption Banks",
+    // Marketplace - check permission
+    ...(permissions.hasMarketplaceTab
+      ? [
+          {
+            name: "AI Marketplace",
+            href: "/workspace/ai-marketplace",
+            icon: ShoppingBag,
+          },
+        ]
+      : []),
+    // Caption Banks - check canCaptionBank permission
+    ...(permissions.canCaptionBank
+      ? [
+          {
+            name: "Caption Banks",
       collapsible: true,
       items: [
         {
@@ -393,13 +430,15 @@ export default function DashboardLayout({
           href: "/workspace/caption-banks/captions",
           icon: FileText,
         },
-        {
-          name: "Caption Performance Tracker",
-          href: "/workspace/caption-banks/caption-performance-tracker",
-          icon: BarChart3,
-        },
-      ],
-    },
+              {
+                name: "Caption Performance Tracker",
+                href: "/workspace/caption-banks/caption-performance-tracker",
+                icon: BarChart3,
+              },
+            ],
+          },
+        ]
+      : []),
     // Conditionally add content creator link
     ...(isContentCreator
       ? [
@@ -944,23 +983,30 @@ export default function DashboardLayout({
         {/* Animated gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
         {/* Sidebar header */}
-        <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800 relative">
-          {sidebarOpen && (
-            <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient">
-              Creative Ink
-            </h1>
-          )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:rotate-180 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-          >
-            {sidebarOpen ? (
-              <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
-            ) : (
-              <ChevronRight className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
+        <div className="flex flex-col space-y-2 p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800 relative">
+          <div className="flex items-center justify-between">
+            {sidebarOpen && (
+              <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient">
+                Creative Ink
+              </h1>
             )}
-          </button>
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:rotate-180 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {sidebarOpen ? (
+                <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
+              ) : (
+                <ChevronRight className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
+              )}
+            </button>
+          </div>
+          {sidebarOpen && (
+            <div className="pt-1">
+              <OrganizationSwitcher />
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -1007,17 +1053,22 @@ export default function DashboardLayout({
           )}
         >
           {/* Sidebar header */}
-          <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
-            <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Creative Ink
-            </h1>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label="Close sidebar"
-            >
-              <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
-            </button>
+          <div className="flex flex-col space-y-2 p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
+            <div className="flex items-center justify-between">
+              <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                Creative Ink
+              </h1>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Close sidebar"
+              >
+                <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
+              </button>
+            </div>
+            <div className="pt-1">
+              <OrganizationSwitcher />
+            </div>
           </div>
 
           {/* Navigation */}

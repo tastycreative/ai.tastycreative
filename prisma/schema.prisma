@@ -23,6 +23,10 @@ model User {
   instagramAccessToken   String?
   instagramAccountId     String?
   instagramTokenExpiry   DateTime?
+
+  // Organization Context
+  currentOrganizationId  String?           // Active organization context for this user
+
   images                 GeneratedImage[]
   videos                 GeneratedVideo[]
   jobs                   GenerationJob[]
@@ -39,13 +43,17 @@ model User {
   feedPostComments       FeedPostComment[]
   feedPostCommentLikes   FeedPostCommentLike[]
   feedPostBookmarks      FeedPostBookmark[]
+  teamMemberships        TeamMember[]      // Organizations this user belongs to
 
+  @@index([currentOrganizationId])
   @@map("users")
 }
 
 model InfluencerLoRA {
   id                 String            @id @default(cuid())
   clerkId            String
+  organizationId     String?           // Organization that owns this LoRA (null for personal)
+  workspaceId        String?           // Optional workspace association
   name               String
   displayName        String
   fileName           String            @unique
@@ -70,6 +78,8 @@ model InfluencerLoRA {
   shares             LoRAShare[]       // LoRA shares with other users
 
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([fileName])
   @@index([isActive])
   @@index([trainingJobId])
@@ -80,6 +90,8 @@ model InfluencerLoRA {
 model GenerationJob {
   id                     String           @id @default(cuid())
   clerkId                String
+  organizationId         String?          // Organization that owns this job
+  workspaceId            String?          // Optional workspace association
   status                 JobStatus        @default(PENDING)
   progress               Int?             @default(0)
   resultUrls             String[]         @default([])
@@ -99,18 +111,23 @@ model GenerationJob {
   user                   User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([status])
   @@index([type])
   @@index([createdAt])
   @@index([clerkId, createdAt])
   @@index([clerkId, status])
   @@index([clerkId, type])
+  @@index([organizationId, createdAt])
   @@map("generation_jobs")
 }
 
 model GeneratedImage {
   id                String        @id @default(cuid())
   clerkId           String
+  organizationId    String?       // Organization that owns this image
+  workspaceId       String?       // Optional workspace association
   jobId             String
   filename          String
   subfolder         String        @default("")
@@ -137,8 +154,11 @@ model GeneratedImage {
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([jobId])
   @@index([clerkId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([format])
   @@index([filename])
   @@index([networkVolumePath])
@@ -152,6 +172,8 @@ model GeneratedImage {
 model GeneratedVideo {
   id                String        @id @default(cuid())
   clerkId           String
+  organizationId    String?       // Organization that owns this video
+  workspaceId       String?       // Optional workspace association
   jobId             String
   filename          String
   subfolder         String        @default("")
@@ -179,8 +201,11 @@ model GeneratedVideo {
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([jobId])
   @@index([clerkId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([format])
   @@index([filename])
   @@index([duration])
@@ -193,6 +218,8 @@ model GeneratedVideo {
 model TrainingJob {
   id             String           @id @default(cuid())
   clerkId        String
+  organizationId String?          // Organization that owns this training job
+  workspaceId    String?          // Optional workspace association
   name           String
   description    String?
   status         TrainingStatus   @default(PENDING)
@@ -222,8 +249,11 @@ model TrainingJob {
   user           User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([status])
   @@index([clerkId, status])
+  @@index([organizationId, status])
   @@index([createdAt])
   @@index([runpodJobId])
   @@map("training_jobs")
@@ -281,6 +311,8 @@ model ProductionEntry {
 model InstagramPost {
   id              String              @id @default(cuid())
   clerkId         String
+  organizationId  String?             // Organization that owns this post
+  workspaceId     String?             // Optional workspace association
   profileId       String?             // Link to InstagramProfile
   driveFileId     String?             // Made optional for S3 migration
   driveFileUrl    String?             // Made optional for S3 migration
@@ -313,8 +345,11 @@ model InstagramPost {
   storySlots      StoryPlanningSlot[] @relation("StorySlots") // Story planning slots
 
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([profileId])
   @@index([clerkId, profileId])
+  @@index([organizationId, profileId])
   @@index([clerkId, order])
   @@index([status])
   @@index([scheduledDate])
@@ -547,6 +582,8 @@ enum MessageRole {
 model InstagramProfile {
   id                   String            @id @default(cuid())
   clerkId              String
+  organizationId       String?           // Organization that owns this profile
+  workspaceId          String?           // Optional workspace association
   name                 String            // Profile name (e.g., "Personal Brand", "Business Account")
   description          String?           // Optional description
   instagramUsername    String?           // Instagram handle (optional)
@@ -570,7 +607,10 @@ model InstagramProfile {
   captions             Caption[]         // Captions for this profile
 
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([clerkId, isDefault])
+  @@index([organizationId, isDefault])
   @@map("instagram_profiles")
 }
 
@@ -768,6 +808,8 @@ enum WeeklySlotStatus {
 model ContentPipelineItem {
   id              String                @id @default(cuid())
   clerkId         String
+  organizationId  String?               // Organization that owns this content
+  workspaceId     String?               // Optional workspace association
   contentId       String                @unique // Unique identifier for tracking (e.g., "REEL-2025-001")
   title           String                // Content title/description
   contentType     ContentType           // REEL, POST, STORY, etc.
@@ -791,8 +833,11 @@ model ContentPipelineItem {
   feedPostSlot    FeedPostPlanningSlot? @relation("FeedPostPipeline") // Link back to feed post slot if this is a feed post content
 
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([status])
   @@index([clerkId, status])
+  @@index([organizationId, status])
   @@index([contentType])
   @@index([linkedPostId])
   @@map("content_pipeline_items")
@@ -1086,19 +1131,24 @@ model HashtagSet {
 
 // Vault Folder - Organize vault media by profile
 model VaultFolder {
-  id        String      @id @default(cuid())
-  clerkId   String
-  profileId String      // Instagram profile this folder belongs to
-  name      String      // Folder name
-  isDefault Boolean     @default(false) // Default "All Media" folder
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  items     VaultItem[] // Items in this folder
-  shares    VaultFolderShare[] // Shares of this folder with other users
+  id             String      @id @default(cuid())
+  clerkId        String
+  organizationId String?     // Organization that owns this folder
+  workspaceId    String?     // Optional workspace association
+  profileId      String      // Instagram profile this folder belongs to
+  name           String      // Folder name
+  isDefault      Boolean     @default(false) // Default "All Media" folder
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  items          VaultItem[] // Items in this folder
+  shares         VaultFolderShare[] // Shares of this folder with other users
 
   @@index([clerkId])
+  @@index([organizationId])
+  @@index([workspaceId])
   @@index([profileId])
   @@index([clerkId, profileId])
+  @@index([organizationId, profileId])
   @@map("vault_folders")
 }
 
@@ -1205,4 +1255,351 @@ model SextingImage {
   @@index([setId])
   @@index([sequence])
   @@map("sexting_images")
+}
+
+// ==================== TEAM/AGENCY MODELS ====================
+
+// Subscription Plan - Dynamic, configurable plans
+model SubscriptionPlan {
+  id                String              @id @default(cuid())
+  name              String              @unique // e.g., "Free", "Starter", "Pro", "Agency"
+  displayName       String              // User-facing name
+  description       String?             @db.Text
+  price             Float               @default(0) // Monthly price in dollars
+  billingInterval   BillingInterval     @default(MONTHLY)
+
+  // Resource Limits
+  maxMembers        Int                 @default(1)
+  maxProfiles       Int                 @default(1)
+  maxWorkspaces     Int                 @default(0)
+  maxStorageGB      Int                 @default(5)
+  monthlyCredits    Int                 @default(100)
+
+  // Stripe Integration
+  stripePriceId     String?             @unique // Stripe price ID
+  stripeProductId   String?             // Stripe product ID
+
+  // Plan Status
+  isActive          Boolean             @default(true)
+  isPublic          Boolean             @default(true) // Show on pricing page
+  isFeatured        Boolean             @default(false)
+  order             Int                 @default(0) // Display order
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  planFeatures      PlanFeature[]       // Features included in this plan
+  organizations     Organization[]
+
+  @@index([isActive, isPublic])
+  @@index([order])
+  @@map("subscription_plans")
+}
+
+enum BillingInterval {
+  MONTHLY
+  YEARLY
+  LIFETIME
+  CUSTOM
+}
+
+// Plan Feature - Individual features that can be assigned to plans
+model PlanFeature {
+  id             String           @id @default(cuid())
+  planId         String
+  featureKey     String           // e.g., "hasGenerateTab", "canTextToImage"
+  featureValue   String           // "true", "false", or numeric value like "100"
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  plan           SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+  @@index([planId])
+  @@index([featureKey])
+  @@map("plan_features")
+}
+
+// Organization/Agency - Top-level team entity
+model Organization {
+  id                String              @id @default(cuid())
+  name              String
+  slug              String              @unique // URL-friendly identifier
+  description       String?             @db.Text
+  logoUrl           String?
+
+  // Subscription
+  subscriptionPlanId String?
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt       DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean            @default(false)
+
+  // Stripe Integration
+  stripeCustomerId     String?          @unique
+  stripeSubscriptionId String?          @unique
+
+  // Billing
+  billingEmail      String?
+  billingName       String?
+  billingAddress    Json?              // {line1, line2, city, state, zip, country}
+
+  // Custom Overrides (for enterprise/custom deals)
+  customMaxMembers     Int?
+  customMaxProfiles    Int?
+  customMaxWorkspaces  Int?
+  customMaxStorageGB   Int?
+  customMonthlyCredits Int?
+
+  // Usage Tracking
+  currentStorageGB  Float              @default(0)
+  creditsUsedThisMonth Int            @default(0)
+  lastCreditReset   DateTime?
+
+  // Settings
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  subscriptionPlan  SubscriptionPlan?  @relation(fields: [subscriptionPlanId], references: [id], onDelete: SetNull)
+  members           TeamMember[]
+  workspaces        Workspace[]
+  customPermissions CustomOrganizationPermission?
+  usageLogs         UsageLog[]
+  invites           OrganizationInvite[]
+
+  @@index([slug])
+  @@index([subscriptionPlanId])
+  @@index([stripeCustomerId])
+  @@index([isActive])
+  @@map("organizations")
+}
+
+enum SubscriptionStatus {
+  TRIAL             // Free trial period
+  ACTIVE            // Paid and active
+  PAST_DUE          // Payment failed
+  CANCELLED         // Cancelled, active until period end
+  EXPIRED           // Subscription ended
+  PAUSED            // Temporarily paused
+}
+
+// Team Member - Links users to organizations with roles
+model TeamMember {
+  id             String         @id @default(cuid())
+  userId         String         // References User.id
+  organizationId String
+  role           TeamRole       @default(MEMBER)
+
+  // Custom permissions override
+  canInviteMembers Boolean       @default(false)
+  canManageBilling Boolean       @default(false)
+  canManageMembers Boolean       @default(false)
+
+  // Activity tracking
+  lastActiveAt   DateTime?
+  invitedBy      String?        // userId who invited
+  joinedAt       DateTime       @default(now())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([organizationId, role])
+  @@map("team_members")
+}
+
+enum TeamRole {
+  OWNER             // Full control, can delete org
+  ADMIN             // Manage members, billing, all features
+  MANAGER           // Approve content, manage workflows
+  CREATOR           // Create content, limited access
+  VIEWER            // Read-only access
+  MEMBER            // Standard member access
+}
+
+// Organization Invite - Pending invitations to join organization
+model OrganizationInvite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           TeamRole     @default(MEMBER)
+  invitedBy      String       // userId who sent the invite
+  token          String       @unique // Unique token for invite link
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([token])
+  @@index([email])
+  @@map("organization_invites")
+}
+
+// Custom Organization Permission - Override plan features for specific orgs
+model CustomOrganizationPermission {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+
+  // Tab Access - Main Navigation Tabs
+  hasGenerateTab     Boolean?  // null = use plan default
+  hasVaultTab        Boolean?
+  hasTrainingTab     Boolean?
+  hasInstagramTab    Boolean?
+  hasPlanningTab     Boolean?
+  hasPipelineTab     Boolean?
+  hasAnalyticsTab    Boolean?
+  hasFeedTab         Boolean?
+  hasMarketplaceTab  Boolean?
+
+  // Generate Tab Features
+  canTextToImage     Boolean?
+  canImageToVideo    Boolean?
+  canImageToImage    Boolean?
+  canTextToVideo     Boolean?
+  canFaceSwap        Boolean?
+  canFluxKontext     Boolean?
+  canVideoFpsBoost   Boolean?
+  canSkinEnhancement Boolean?
+
+  // Training Tab Features
+  canTrainLoRA       Boolean?
+  canShareLoRA       Boolean?
+  canAccessMarketplace Boolean?
+
+  // Instagram Tab Features
+  canAutoSchedule    Boolean?
+  canBulkUpload      Boolean?
+  canCaptionBank     Boolean?
+  canHashtagBank     Boolean?
+  canStoryPlanner    Boolean?
+  canReelPlanner     Boolean?
+  canFeedPostPlanner Boolean?
+  canContentPipeline Boolean?
+  canPerformanceMetrics Boolean?
+
+  // Vault Features
+  canShareFolders    Boolean?
+  canCreateFolders   Boolean?
+  maxVaultFolders    Int?
+
+  // Collaboration Features
+  canApproveContent  Boolean?
+  canCommentOnContent Boolean?
+  canAssignTasks     Boolean?
+  canMentionTeam     Boolean?
+
+  // Advanced Features
+  canExportData      Boolean?
+  canAccessAPI       Boolean?
+  canWhiteLabel      Boolean?
+  canCustomBranding  Boolean?
+  canWebhooks        Boolean?
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("custom_organization_permissions")
+}
+
+// Workspace - Sub-teams or client accounts within an organization
+model Workspace {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String       // e.g., "Nike Campaign", "Client: Adidas"
+  slug           String       // URL-friendly identifier within org
+  description    String?      @db.Text
+  color          String?      // Hex color for UI
+  icon           String?      // Icon identifier
+
+  // Resource Allocation
+  monthlyCredits Int          @default(0)  // Credits allocated to this workspace
+  maxProfiles    Int          @default(1)
+
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        WorkspaceMember[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("workspaces")
+}
+
+// Workspace Members - Assign team members to specific workspaces/clients
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String        // References User.id
+  role        WorkspaceRole @default(CONTRIBUTOR)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+enum WorkspaceRole {
+  LEAD          // Workspace lead
+  CONTRIBUTOR   // Can contribute content
+  VIEWER        // Read-only
+}
+
+// Usage Log - Track feature usage and credits
+model UsageLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String       // Who used the feature
+  workspaceId    String?      // Which workspace (if applicable)
+
+  featureType    FeatureType
+  creditsUsed    Int          @default(0)
+
+  // Context
+  generationJobId String?     // If related to a generation
+  trainingJobId   String?     // If related to training
+  metadata        Json?        // Additional context
+
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([organizationId, createdAt])
+  @@index([featureType])
+  @@index([workspaceId])
+  @@map("usage_logs")
+}
+
+enum FeatureType {
+  TEXT_TO_IMAGE
+  IMAGE_TO_VIDEO
+  IMAGE_TO_IMAGE
+  TEXT_TO_VIDEO
+  FACE_SWAP
+  VIDEO_FPS_BOOST
+  SKIN_ENHANCEMENT
+  FLUX_KONTEXT
+  LORA_TRAINING
+  STORAGE_UPLOAD
+  API_CALL
+  EXPORT_DATA
+  CAPTION_GENERATION
 }
