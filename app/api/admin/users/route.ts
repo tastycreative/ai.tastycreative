@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     // Check admin access
     await requireAdminAccess();
 
-    // Fetch all users from database with counts
+    // Fetch all users from database with counts and team memberships
     const dbUsers = await prisma.user.findMany({
       include: {
         _count: {
@@ -17,6 +17,20 @@ export async function GET(request: NextRequest) {
             videos: true,
             jobs: true,
             influencers: true,
+            teamMemberships: true,
+          },
+        },
+        teamMemberships: {
+          select: {
+            id: true,
+            role: true,
+            organization: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
           },
         },
       },
@@ -52,7 +66,9 @@ export async function GET(request: NextRequest) {
           videos: 0,
           jobs: 0,
           influencers: 0,
+          teamMemberships: 0,
         },
+        teamMemberships: dbUser?.teamMemberships || [],
       };
     });
 
@@ -74,6 +90,7 @@ export async function GET(request: NextRequest) {
       inDatabase: true,
       isOrphaned: true, // Mark as orphaned (in DB but not in Clerk)
       _count: dbUser._count,
+      teamMemberships: dbUser.teamMemberships || [],
     }));
 
     // Combine all users

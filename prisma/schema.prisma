@@ -9,41 +9,42 @@ datasource db {
 }
 
 model User {
-  id                     String            @id @default(cuid())
-  clerkId                String            @unique
-  email                  String?
-  username               String?
-  firstName              String?
-  lastName               String?
-  imageUrl               String?
-  coverImageUrl          String?
-  createdAt              DateTime          @default(now())
-  updatedAt              DateTime          @updatedAt
-  role                   UserRole          @default(USER)
-  instagramAccessToken   String?
-  instagramAccountId     String?
-  instagramTokenExpiry   DateTime?
-
-  // Organization Context
-  currentOrganizationId  String?           // Active organization context for this user
-
-  images                 GeneratedImage[]
-  videos                 GeneratedVideo[]
-  jobs                   GenerationJob[]
-  influencers            InfluencerLoRA[]
-  productionEntries      ProductionEntry[]
-  trainingImages         TrainingImage[]
-  trainingJobs           TrainingJob[]
-  instagramPosts         InstagramPost[]
-  notifications          Notification[]
+  id                       String                    @id @default(cuid())
+  clerkId                  String                    @unique
+  email                    String?
+  firstName                String?
+  lastName                 String?
+  imageUrl                 String?
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  role                     UserRole                  @default(USER)
+  instagramAccessToken     String?
+  instagramAccountId       String?
+  instagramTokenExpiry     DateTime?
+  username                 String?
+  coverImageUrl            String?
+  currentOrganizationId    String?
+  name                     String?
+  avatarUrl                String?
+  lastLoginAt              DateTime?
+  feedPostBookmarks        FeedPostBookmark[]
+  feedPostCommentLikes     FeedPostCommentLike[]
+  feedPostComments         FeedPostComment[]
+  feedPostLikes            FeedPostLike[]
+  feedPosts                FeedPost[]
   fluxKontextConversations FluxKontextConversation[]
-  instagramProfiles      InstagramProfile[]
-  feedPosts              FeedPost[]
-  feedPostLikes          FeedPostLike[]
-  feedPostComments       FeedPostComment[]
-  feedPostCommentLikes   FeedPostCommentLike[]
-  feedPostBookmarks      FeedPostBookmark[]
-  teamMemberships        TeamMember[]      // Organizations this user belongs to
+  images                   GeneratedImage[]
+  videos                   GeneratedVideo[]
+  jobs                     GenerationJob[]
+  influencers              InfluencerLoRA[]
+  instagramPosts           InstagramPost[]
+  instagramProfiles        InstagramProfile[]
+  notifications            Notification[]
+  productionEntries        ProductionEntry[]
+  teamMemberships          TeamMember[]
+  trainingImages           TrainingImage[]
+  trainingJobs             TrainingJob[]
+  workspace_members        WorkspaceMember[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -52,8 +53,6 @@ model User {
 model InfluencerLoRA {
   id                 String            @id @default(cuid())
   clerkId            String
-  organizationId     String?           // Organization that owns this LoRA (null for personal)
-  workspaceId        String?           // Optional workspace association
   name               String
   displayName        String
   fileName           String            @unique
@@ -71,15 +70,13 @@ model InfluencerLoRA {
   syncStatus         SyncStatus        @default(PENDING)
   lastUsedAt         DateTime?
   trainingJobId      String?
-  profileId          String?           // Link to Instagram profile/creator
+  profileId          String?
   user               User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  profile            InstagramProfile? @relation(fields: [profileId], references: [id])
   trainingJob        TrainingJob?      @relation(fields: [trainingJobId], references: [id])
-  profile            InstagramProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
-  shares             LoRAShare[]       // LoRA shares with other users
+  shares             LoRAShare[]
 
   @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
   @@index([fileName])
   @@index([isActive])
   @@index([trainingJobId])
@@ -90,8 +87,6 @@ model InfluencerLoRA {
 model GenerationJob {
   id                     String           @id @default(cuid())
   clerkId                String
-  organizationId         String?          // Organization that owns this job
-  workspaceId            String?          // Optional workspace association
   status                 JobStatus        @default(PENDING)
   progress               Int?             @default(0)
   resultUrls             String[]         @default([])
@@ -111,101 +106,88 @@ model GenerationJob {
   user                   User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
   @@index([status])
   @@index([type])
   @@index([createdAt])
   @@index([clerkId, createdAt])
   @@index([clerkId, status])
   @@index([clerkId, type])
-  @@index([organizationId, createdAt])
   @@map("generation_jobs")
 }
 
 model GeneratedImage {
-  id                String        @id @default(cuid())
-  clerkId           String
-  organizationId    String?       // Organization that owns this image
-  workspaceId       String?       // Optional workspace association
-  jobId             String
-  filename          String
-  subfolder         String        @default("")
-  type              String        @default("output")
-  fileSize          Int?
-  width             Int?
-  height            Int?
-  format            String?
-  data              Bytes?
-  metadata          Json?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  networkVolumePath String?
-  s3Key             String?
-  awsS3Key          String?
-  awsS3Url          String?
-  googleDriveFileId String?       // Google Drive file ID for sync tracking
-  googleDriveFolderName String?   // Folder name where it was uploaded
-  googleDriveUploadedAt DateTime? // When it was uploaded to Google Drive
-  loraModels        String[]      @default([]) // Array of LoRA model filenames used in generation
-  user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  productionLinks   ProductionEntryImage[]
+  id                    String                 @id @default(cuid())
+  clerkId               String
+  jobId                 String
+  filename              String
+  subfolder             String                 @default("")
+  type                  String                 @default("output")
+  fileSize              Int?
+  width                 Int?
+  height                Int?
+  format                String?
+  data                  Bytes?
+  metadata              Json?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  networkVolumePath     String?
+  s3Key                 String?
+  awsS3Key              String?
+  awsS3Url              String?
+  googleDriveFileId     String?
+  googleDriveFolderName String?
+  googleDriveUploadedAt DateTime?
+  loraModels            String[]               @default([])
+  user                  User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  job                   GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  productionLinks       ProductionEntryImage[]
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
   @@index([jobId])
   @@index([clerkId, createdAt])
-  @@index([organizationId, createdAt])
   @@index([format])
   @@index([filename])
   @@index([networkVolumePath])
   @@index([s3Key])
   @@index([awsS3Key])
   @@index([googleDriveFileId])
-  @@index([loraModels]) // Index for efficient LoRA-based queries
+  @@index([loraModels])
   @@map("generated_images")
 }
 
 model GeneratedVideo {
-  id                String        @id @default(cuid())
-  clerkId           String
-  organizationId    String?       // Organization that owns this video
-  workspaceId       String?       // Optional workspace association
-  jobId             String
-  filename          String
-  subfolder         String        @default("")
-  type              String        @default("output")
-  fileSize          Int?
-  width             Int?
-  height            Int?
-  duration          Float?
-  fps               Float?
-  format            String?
-  data              Bytes?
-  metadata          Json?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  networkVolumePath String?
-  s3Key             String?
-  awsS3Key          String?
-  awsS3Url          String?
-  googleDriveFileId String?       // Google Drive file ID for sync tracking
-  googleDriveFolderName String?   // Folder name where it was uploaded
-  googleDriveUploadedAt DateTime? // When it was uploaded to Google Drive
-  user              User          @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job               GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  productionLinks   ProductionEntryVideo[]
+  id                    String                 @id @default(cuid())
+  clerkId               String
+  jobId                 String
+  filename              String
+  subfolder             String                 @default("")
+  type                  String                 @default("output")
+  fileSize              Int?
+  width                 Int?
+  height                Int?
+  duration              Float?
+  fps                   Float?
+  format                String?
+  data                  Bytes?
+  metadata              Json?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  networkVolumePath     String?
+  s3Key                 String?
+  awsS3Key              String?
+  awsS3Url              String?
+  googleDriveFileId     String?
+  googleDriveFolderName String?
+  googleDriveUploadedAt DateTime?
+  user                  User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  job                   GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  productionLinks       ProductionEntryVideo[]
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
   @@index([jobId])
   @@index([clerkId, createdAt])
-  @@index([organizationId, createdAt])
   @@index([format])
   @@index([filename])
   @@index([duration])
@@ -218,8 +200,6 @@ model GeneratedVideo {
 model TrainingJob {
   id             String           @id @default(cuid())
   clerkId        String
-  organizationId String?          // Organization that owns this training job
-  workspaceId    String?          // Optional workspace association
   name           String
   description    String?
   status         TrainingStatus   @default(PENDING)
@@ -249,11 +229,8 @@ model TrainingJob {
   user           User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
   @@index([status])
   @@index([clerkId, status])
-  @@index([organizationId, status])
   @@index([createdAt])
   @@index([runpodJobId])
   @@map("training_jobs")
@@ -282,22 +259,22 @@ model TrainingImage {
 }
 
 model ProductionEntry {
-  id              String           @id @default(cuid())
+  id              String                 @id @default(cuid())
   clerkId         String
   deadline        DateTime
   assignee        String
   influencer      String
   instagramSource String
   loraModel       String
-  status          ProductionStatus @default(PENDING)
-  imagesTarget    Int              @default(0)
-  imagesGenerated Int              @default(0)
-  videosTarget    Int              @default(0)
-  videosGenerated Int              @default(0)
+  status          ProductionStatus       @default(PENDING)
+  imagesTarget    Int                    @default(0)
+  imagesGenerated Int                    @default(0)
+  videosTarget    Int                    @default(0)
+  videosGenerated Int                    @default(0)
   notes           String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  user            User             @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  user            User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   linkedImages    ProductionEntryImage[]
   linkedVideos    ProductionEntryVideo[]
 
@@ -309,53 +286,982 @@ model ProductionEntry {
 }
 
 model InstagramPost {
-  id              String              @id @default(cuid())
-  clerkId         String
-  organizationId  String?             // Organization that owns this post
-  workspaceId     String?             // Optional workspace association
-  profileId       String?             // Link to InstagramProfile
-  driveFileId     String?             // Made optional for S3 migration
-  driveFileUrl    String?             // Made optional for S3 migration
-  awsS3Key        String?             // S3 object key
-  awsS3Url        String?             // Direct S3 URL
-  fileName        String
-  caption         String              @default("")
-  scheduledDate   DateTime?
-  status          InstagramPostStatus @default(DRAFT)
-  postType        PostType            @default(POST)
-  folder          String              // Current folder (status-based)
-  originalFolder  String?             // Original folder where image came from (IG Posts, IG Reels, Misc)
-  order           Int                 @default(0)
-  mimeType        String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  rejectedAt      DateTime?
-  rejectedBy      String?
-  rejectionReason String?
-  // Published post tracking
-  instagramUrl    String?             // URL to the published Instagram post
-  publishedAt     DateTime?           // When the post was actually published
-  likesCount      Int?                // Manual entry of likes count
-  commentsCount   Int?                // Manual entry of comments count
-  lastMetricsUpdate DateTime?         // Last time metrics were updated
-  user            User                @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  profile         InstagramProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
-  weeklySlots     WeeklyPlanningSlot[] // Slots where this post is assigned
-  pipelineItems   ContentPipelineItem[] // Pipeline tracking items linked to this post
-  storySlots      StoryPlanningSlot[] @relation("StorySlots") // Story planning slots
+  id                String                @id @default(cuid())
+  clerkId           String
+  driveFileId       String?
+  driveFileUrl      String?
+  fileName          String
+  caption           String                @default("")
+  scheduledDate     DateTime?
+  status            InstagramPostStatus   @default(DRAFT)
+  postType          PostType              @default(POST)
+  folder            String
+  order             Int                   @default(0)
+  mimeType          String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  rejectedAt        DateTime?
+  rejectedBy        String?
+  rejectionReason   String?
+  commentsCount     Int?
+  instagramUrl      String?
+  lastMetricsUpdate DateTime?
+  likesCount        Int?
+  publishedAt       DateTime?
+  awsS3Key          String?
+  awsS3Url          String?
+  originalFolder    String?
+  profileId         String?
+  pipelineItems     ContentPipelineItem[]
+  user              User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  profile           InstagramProfile?     @relation(fields: [profileId], references: [id])
+  storySlots        StoryPlanningSlot[]   @relation("StorySlots")
+  weeklySlots       WeeklyPlanningSlot[]
 
   @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
   @@index([profileId])
   @@index([clerkId, profileId])
-  @@index([organizationId, profileId])
   @@index([clerkId, order])
   @@index([status])
   @@index([scheduledDate])
   @@index([driveFileId])
   @@index([awsS3Key])
   @@map("instagram_posts")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  metadata  Json?
+  read      Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model ProductionEntryImage {
+  id                String          @id @default(cuid())
+  productionEntryId String
+  imageId           String
+  createdAt         DateTime        @default(now())
+  image             GeneratedImage  @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  productionEntry   ProductionEntry @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([productionEntryId, imageId])
+  @@index([productionEntryId])
+  @@index([imageId])
+  @@map("production_entry_images")
+}
+
+model ProductionEntryVideo {
+  id                String          @id @default(cuid())
+  productionEntryId String
+  videoId           String
+  createdAt         DateTime        @default(now())
+  productionEntry   ProductionEntry @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
+  video             GeneratedVideo  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([productionEntryId, videoId])
+  @@index([productionEntryId])
+  @@index([videoId])
+  @@map("production_entry_videos")
+}
+
+model MultipartUploadSession {
+  id             String   @id @default(cuid())
+  sessionId      String   @unique
+  clerkId        String
+  uploadId       String
+  s3Key          String
+  uniqueFileName String
+  totalParts     Int
+  uploadedParts  Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  expiresAt      DateTime
+
+  @@index([sessionId])
+  @@index([clerkId])
+  @@index([expiresAt])
+  @@map("multipart_upload_sessions")
+}
+
+model FluxKontextConversation {
+  id        String               @id @default(cuid())
+  clerkId   String
+  title     String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  user      User                 @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  messages  FluxKontextMessage[]
+
+  @@index([clerkId])
+  @@index([clerkId, updatedAt])
+  @@map("flux_kontext_conversations")
+}
+
+model FluxKontextMessage {
+  id             String                  @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String
+  imageData      String?
+  createdAt      DateTime                @default(now())
+  conversation   FluxKontextConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@map("flux_kontext_messages")
+}
+
+model FolderShare {
+  id                String          @id @default(cuid())
+  folderPrefix      String
+  ownerClerkId      String
+  sharedWithClerkId String
+  permission        SharePermission @default(VIEW)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  sharedBy          String?
+  note              String?
+
+  @@unique([folderPrefix, sharedWithClerkId])
+  @@index([ownerClerkId])
+  @@index([sharedWithClerkId])
+  @@index([folderPrefix])
+  @@map("folder_shares")
+}
+
+model LoRAShare {
+  id                String         @id @default(cuid())
+  loraId            String
+  ownerClerkId      String
+  sharedWithClerkId String
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  sharedBy          String?
+  note              String?
+  lora              InfluencerLoRA @relation(fields: [loraId], references: [id], onDelete: Cascade)
+
+  @@unique([loraId, sharedWithClerkId])
+  @@index([ownerClerkId])
+  @@index([sharedWithClerkId])
+  @@index([loraId])
+  @@map("lora_shares")
+}
+
+model InstagramProfile {
+  id                     String                @id @default(cuid())
+  clerkId                String
+  name                   String
+  description            String?
+  instagramUsername      String?
+  instagramAccountId     String?
+  instagramAccessToken   String?
+  instagramTokenExpiry   DateTime?
+  isDefault              Boolean               @default(false)
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  profileImageUrl        String?
+  captions               Caption[]
+  bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
+  commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
+  comments               FeedPostComment[]     @relation("ProfileComments")
+  postLikes              FeedPostLike[]        @relation("ProfilePostLikes")
+  feedPosts              FeedPost[]
+  receivedFriendRequests Friendship[]          @relation("ReceivedFriendRequests")
+  sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
+  linkedLoRAs            InfluencerLoRA[]
+  posts                  InstagramPost[]
+  user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([clerkId, isDefault])
+  @@map("instagram_profiles")
+}
+
+model Friendship {
+  id                String           @id @default(cuid())
+  status            FriendshipStatus @default(PENDING)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  receiverProfileId String
+  senderProfileId   String
+  receiverProfile   InstagramProfile @relation("ReceivedFriendRequests", fields: [receiverProfileId], references: [id], onDelete: Cascade)
+  senderProfile     InstagramProfile @relation("SentFriendRequests", fields: [senderProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([senderProfileId, receiverProfileId])
+  @@index([senderProfileId])
+  @@index([receiverProfileId])
+  @@index([senderProfileId, status])
+  @@index([receiverProfileId, status])
+  @@map("friendships")
+}
+
+model FeedPost {
+  id        String             @id @default(cuid())
+  userId    String
+  caption   String
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  imageUrls String[]
+  mediaType String             @default("image")
+  profileId String?
+  bookmarks FeedPostBookmark[]
+  comments  FeedPostComment[]
+  likes     FeedPostLike[]
+  profile   InstagramProfile?  @relation(fields: [profileId], references: [id])
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([profileId])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([profileId, createdAt])
+  @@map("feed_posts")
+}
+
+model FeedPostLike {
+  id        String           @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime         @default(now())
+  profileId String
+  post      FeedPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile @relation("ProfilePostLikes", fields: [profileId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, profileId])
+  @@index([postId])
+  @@index([userId])
+  @@index([profileId])
+  @@map("feed_post_likes")
+}
+
+model FeedPostComment {
+  id              String                @id @default(cuid())
+  postId          String
+  userId          String
+  content         String
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  parentCommentId String?
+  profileId       String?
+  likes           FeedPostCommentLike[]
+  parentComment   FeedPostComment?      @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         FeedPostComment[]     @relation("CommentReplies")
+  post            FeedPost              @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile         InstagramProfile?     @relation("ProfileComments", fields: [profileId], references: [id])
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+  @@index([profileId])
+  @@index([postId, createdAt])
+  @@index([parentCommentId])
+  @@map("feed_post_comments")
+}
+
+model FeedPostCommentLike {
+  id        String           @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime         @default(now())
+  profileId String
+  comment   FeedPostComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile @relation("ProfileCommentLikes", fields: [profileId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, profileId])
+  @@index([commentId])
+  @@index([userId])
+  @@index([profileId])
+  @@map("feed_post_comment_likes")
+}
+
+model FeedPostBookmark {
+  id        String           @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime         @default(now())
+  profileId String
+  post      FeedPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  profile   InstagramProfile @relation("ProfileBookmarks", fields: [profileId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, profileId])
+  @@index([postId])
+  @@index([userId])
+  @@index([profileId])
+  @@map("feed_post_bookmarks")
+}
+
+model MarketplaceModel {
+  id          String            @id @default(cuid())
+  name        String
+  price       Float
+  status      MarketplaceStatus @default(AVAILABLE)
+  imageUrl    String
+  category    String            @default("Premium")
+  gallery     String[]          @default([])
+  description String
+  included    String[]          @default([])
+  usedFor     String[]          @default([])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("marketplace_models")
+}
+
+model WeeklyPlanningSlot {
+  id            String           @id @default(cuid())
+  clerkId       String
+  profileId     String?
+  date          DateTime
+  slotType      WeeklySlotType
+  slotIndex     Int              @default(0)
+  status        WeeklySlotStatus @default(PLANNING)
+  linkedPostId  String?
+  notes         String?
+  hashtags      String[]         @default([])
+  trendingAudio String?
+  contentIdeas  String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  linkedPost    InstagramPost?   @relation(fields: [linkedPostId], references: [id])
+
+  @@unique([clerkId, date, slotType, slotIndex])
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([date])
+  @@index([clerkId, date])
+  @@index([linkedPostId])
+  @@map("weekly_planning_slots")
+}
+
+model ContentPipelineItem {
+  id            String                @id @default(cuid())
+  clerkId       String
+  contentId     String                @unique
+  title         String
+  contentType   ContentType
+  status        PipelineStatus        @default(IDEA)
+  linkedPostId  String?
+  notes         String?
+  ideaDate      DateTime?
+  filmingDate   DateTime?
+  editingDate   DateTime?
+  reviewDate    DateTime?
+  approvedDate  DateTime?
+  scheduledDate DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  dateCreated   DateTime?
+  datePosted    DateTime?
+  linkedPost    InstagramPost?        @relation(fields: [linkedPostId], references: [id])
+  feedPostSlot  FeedPostPlanningSlot? @relation("FeedPostPipeline")
+  reelSlot      ReelPlanningSlot?     @relation("ReelPipeline")
+  storySlot     StoryPlanningSlot?
+
+  @@index([clerkId])
+  @@index([status])
+  @@index([clerkId, status])
+  @@index([contentType])
+  @@index([linkedPostId])
+  @@map("content_pipeline_items")
+}
+
+model StoryPlanningSlot {
+  id                 String               @id @default(cuid())
+  clerkId            String
+  profileId          String?
+  date               DateTime
+  storyType          StoryType
+  interactiveElement InteractiveElement?
+  linkedPostId       String?
+  notes              String?
+  caption            String?
+  hashtags           String[]             @default([])
+  isPosted           Boolean              @default(false)
+  postedAt           DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  awsS3Key           String?
+  awsS3Url           String?
+  fileName           String?
+  mimeType           String?
+  contentId          String?              @unique
+  pipelineItemId     String?              @unique
+  timeSlot           DateTime?
+  linkedPost         InstagramPost?       @relation("StorySlots", fields: [linkedPostId], references: [id])
+  pipelineItem       ContentPipelineItem? @relation(fields: [pipelineItemId], references: [id])
+
+  @@unique([clerkId, profileId, timeSlot])
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([date])
+  @@index([clerkId, date])
+  @@index([linkedPostId])
+  @@index([pipelineItemId])
+  @@index([contentId])
+  @@map("story_planning_slots")
+}
+
+model ReelPlanningSlot {
+  id             String               @id @default(cuid())
+  clerkId        String
+  profileId      String?
+  contentId      String?              @unique
+  pipelineItemId String?              @unique
+  date           DateTime
+  timeSlot       DateTime?
+  reelType       ReelType
+  hookIdea       String?
+  trendingAudio  String?
+  awsS3Key       String?
+  awsS3Url       String?
+  fileName       String?
+  mimeType       String?
+  notes          String?
+  caption        String?
+  hashtags       String[]             @default([])
+  isPosted       Boolean              @default(false)
+  postedAt       DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  pipelineItem   ContentPipelineItem? @relation("ReelPipeline", fields: [pipelineItemId], references: [id])
+
+  @@unique([clerkId, profileId, timeSlot])
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([date])
+  @@index([clerkId, date])
+  @@index([pipelineItemId])
+  @@index([contentId])
+  @@map("reel_planning_slots")
+}
+
+model FeedPostPlanningSlot {
+  id             String               @id @default(cuid())
+  clerkId        String
+  profileId      String?
+  contentId      String?              @unique
+  pipelineItemId String?              @unique
+  date           DateTime
+  timeSlot       DateTime?
+  postType       FeedPostType
+  caption        String?
+  hashtags       String[]             @default([])
+  location       String?
+  collaborators  String[]             @default([])
+  notes          String?
+  isPosted       Boolean              @default(false)
+  postedAt       DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  files          Json?
+  pipelineItem   ContentPipelineItem? @relation("FeedPostPipeline", fields: [pipelineItemId], references: [id])
+
+  @@unique([clerkId, profileId, timeSlot])
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([date])
+  @@index([clerkId, date])
+  @@index([pipelineItemId])
+  @@index([contentId])
+  @@map("feed_post_planning_slots")
+}
+
+model PerformanceMetric {
+  id              String   @id @default(cuid())
+  clerkId         String
+  profileId       String   @default("")
+  date            DateTime @db.Date
+  reelsPosted     Int      @default(0)
+  storiesPosted   Int      @default(0)
+  feedPostsPosted Int      @default(0)
+  totalViews      Int      @default(0)
+  totalLikes      Int      @default(0)
+  totalComments   Int      @default(0)
+  totalShares     Int      @default(0)
+  totalSaves      Int      @default(0)
+  storyViews      Int      @default(0)
+  storyReplies    Int      @default(0)
+  followersStart  Int      @default(0)
+  followersEnd    Int      @default(0)
+  followersGained Int      @default(0)
+  followersLost   Int      @default(0)
+  engagementRate  Float?
+  averageViews    Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([clerkId, date, profileId])
+  @@index([clerkId, date])
+  @@map("performance_metrics")
+}
+
+model WorkflowPhase {
+  id          String              @id @default(cuid())
+  clerkId     String
+  name        String
+  description String?
+  icon        String              @default("Circle")
+  color       String              @default("blue")
+  order       Int
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  profileId   String              @default("")
+  items       WorkflowCheckItem[]
+
+  @@index([clerkId])
+  @@index([clerkId, profileId])
+  @@index([clerkId, order])
+  @@map("workflow_phases")
+}
+
+model WorkflowCheckItem {
+  id        String        @id @default(cuid())
+  phaseId   String
+  text      String
+  order     Int
+  checked   Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  phase     WorkflowPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+
+  @@index([phaseId])
+  @@index([phaseId, order])
+  @@map("workflow_check_items")
+}
+
+model HashtagSet {
+  id          String   @id @default(cuid())
+  clerkId     String
+  name        String
+  category    String
+  description String?
+  icon        String   @default("Hash")
+  color       String   @default("blue")
+  hashtags    String[]
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clerkId])
+  @@index([clerkId, order])
+  @@map("hashtag_sets")
+}
+
+model VaultFolder {
+  id        String             @id @default(cuid())
+  clerkId   String
+  profileId String
+  name      String
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  isDefault Boolean            @default(false)
+  shares    VaultFolderShare[]
+  items     VaultItem[]
+
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([clerkId, profileId])
+  @@map("vault_folders")
+}
+
+model VaultFolderShare {
+  id                String          @id @default(cuid())
+  vaultFolderId     String
+  ownerClerkId      String
+  sharedWithClerkId String
+  permission        SharePermission @default(VIEW)
+  sharedBy          String?
+  note              String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  folder            VaultFolder     @relation(fields: [vaultFolderId], references: [id], onDelete: Cascade)
+
+  @@unique([vaultFolderId, sharedWithClerkId])
+  @@index([ownerClerkId])
+  @@index([sharedWithClerkId])
+  @@index([vaultFolderId])
+  @@map("vault_folder_shares")
+}
+
+model VaultItem {
+  id        String      @id @default(cuid())
+  clerkId   String
+  profileId String
+  folderId  String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  awsS3Key  String
+  awsS3Url  String
+  fileName  String
+  fileSize  Int
+  fileType  String
+  metadata  Json?
+  folder    VaultFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([folderId])
+  @@index([clerkId, profileId, folderId])
+  @@index([awsS3Key])
+  @@map("vault_items")
+}
+
+model Caption {
+  id              String           @id @default(cuid())
+  clerkId         String
+  profileId       String
+  caption         String
+  captionCategory String
+  captionTypes    String
+  captionBanks    String
+  usageCount      Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  cooldownDays    Int              @default(7)
+  isFavorite      Boolean          @default(false)
+  lastUsedAt      DateTime?
+  notes           String?
+  tags            String?
+  profile         InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([clerkId, profileId])
+  @@index([isFavorite])
+  @@index([lastUsedAt])
+  @@map("captions")
+}
+
+model SextingSet {
+  id            String         @id @default(cuid())
+  userId        String
+  name          String
+  category      String
+  s3FolderPath  String
+  status        String         @default("draft")
+  scheduledDate DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  images        SextingImage[]
+
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@map("sexting_sets")
+}
+
+model SextingImage {
+  id         String     @id @default(cuid())
+  setId      String
+  url        String
+  name       String
+  type       String
+  sequence   Int
+  size       Int
+  uploadedAt DateTime   @default(now())
+  set        SextingSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@index([setId])
+  @@index([sequence])
+  @@map("sexting_images")
+}
+
+model SubscriptionPlan {
+  id              String          @id @default(cuid())
+  name            String          @unique
+  displayName     String
+  description     String?
+  price           Float           @default(0)
+  billingInterval BillingInterval @default(MONTHLY)
+  maxMembers      Int             @default(1)
+  maxProfiles     Int             @default(1)
+  maxWorkspaces   Int             @default(0)
+  maxStorageGB    Int             @default(5)
+  monthlyCredits  Int             @default(100)
+  stripePriceId   String?         @unique
+  stripeProductId String?
+  isActive        Boolean         @default(true)
+  isPublic        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  organizations   Organization[]
+  planFeatures    PlanFeature[]
+
+  @@index([isActive])
+  @@index([isPublic])
+  @@index([name])
+  @@map("subscription_plans")
+}
+
+model PlanFeature {
+  id           String           @id @default(cuid())
+  planId       String
+  featureKey   String
+  featureValue String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @default(now()) @updatedAt
+  plan         SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+  @@index([planId])
+  @@index([featureKey])
+  @@map("plan_features")
+}
+
+model Organization {
+  id                   String                        @id @default(cuid())
+  name                 String
+  slug                 String                        @unique
+  description          String?
+  logoUrl              String?
+  subscriptionPlanId   String?
+  subscriptionStatus   SubscriptionStatus            @default(TRIAL)
+  trialEndsAt          DateTime?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean                       @default(false)
+  stripeCustomerId     String?                       @unique
+  stripeSubscriptionId String?                       @unique
+  billingEmail         String?
+  billingName          String?
+  billingAddress       Json?
+  customMaxMembers     Int?
+  customMaxProfiles    Int?
+  customMaxWorkspaces  Int?
+  customMaxStorageGB   Int?
+  customMonthlyCredits Int?
+  currentStorageGB     Float                         @default(0)
+  creditsUsedThisMonth Int                           @default(0)
+  lastCreditReset      DateTime?
+  isActive             Boolean                       @default(true)
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @default(now()) @updatedAt
+  customPermissions    CustomOrganizationPermission?
+  invites              OrganizationInvite[]
+  subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
+  members              TeamMember[]
+  usageLogs            UsageLog[]
+  workspaces           Workspace[]
+
+  @@index([slug])
+  @@index([subscriptionPlanId])
+  @@index([stripeCustomerId])
+  @@index([isActive])
+  @@map("organizations")
+}
+
+model TeamMember {
+  id               String       @id @default(cuid())
+  userId           String
+  organizationId   String
+  role             TeamRole     @default(MEMBER)
+  canInviteMembers Boolean      @default(false)
+  canManageBilling Boolean      @default(false)
+  canManageMembers Boolean      @default(false)
+  lastActiveAt     DateTime?
+  invitedBy        String?
+  joinedAt         DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @default(now()) @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([organizationId, role])
+  @@map("team_members")
+}
+
+model OrganizationInvite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           TeamRole     @default(MEMBER)
+  invitedBy      String
+  token          String       @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([token])
+  @@index([email])
+  @@map("organization_invites")
+}
+
+model CustomOrganizationPermission {
+  id                    String       @id @default(cuid())
+  organizationId        String       @unique
+  hasGenerateTab        Boolean?
+  hasVaultTab           Boolean?
+  hasTrainingTab        Boolean?
+  hasInstagramTab       Boolean?
+  hasPlanningTab        Boolean?
+  hasPipelineTab        Boolean?
+  hasAnalyticsTab       Boolean?
+  hasFeedTab            Boolean?
+  hasMarketplaceTab     Boolean?
+  canTextToImage        Boolean?
+  canImageToVideo       Boolean?
+  canImageToImage       Boolean?
+  canTextToVideo        Boolean?
+  canFaceSwap           Boolean?
+  canFluxKontext        Boolean?
+  canVideoFpsBoost      Boolean?
+  canSkinEnhancement    Boolean?
+  canTrainLoRA          Boolean?
+  canShareLoRA          Boolean?
+  canAccessMarketplace  Boolean?
+  canAutoSchedule       Boolean?
+  canBulkUpload         Boolean?
+  canCaptionBank        Boolean?
+  canHashtagBank        Boolean?
+  canStoryPlanner       Boolean?
+  canReelPlanner        Boolean?
+  canFeedPostPlanner    Boolean?
+  canContentPipeline    Boolean?
+  canPerformanceMetrics Boolean?
+  canShareFolders       Boolean?
+  canCreateFolders      Boolean?
+  maxVaultFolders       Int?
+  canApproveContent     Boolean?
+  canCommentOnContent   Boolean?
+  canAssignTasks        Boolean?
+  canMentionTeam        Boolean?
+  canExportData         Boolean?
+  canAccessAPI          Boolean?
+  canWhiteLabel         Boolean?
+  canCustomBranding     Boolean?
+  canWebhooks           Boolean?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @default(now()) @updatedAt
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("custom_organization_permissions")
+}
+
+model Workspace {
+  id             String            @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  color          String?
+  icon           String?
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @default(now()) @updatedAt
+  members        WorkspaceMember[]
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        TeamRole  @default(MEMBER)
+  joinedAt    DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  users       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model UsageLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  workspaceId    String?
+  action         String
+  resource       String
+  creditsUsed    Int          @default(0)
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([organizationId, createdAt])
+  @@index([createdAt])
+  @@map("usage_logs")
+}
+
+model ai_voice_accounts {
+  id                   String                 @id
+  name                 String
+  description          String?
+  elevenlabsVoiceId    String                 @unique
+  elevenlabsApiKey     String?
+  previewUrl           String?
+  category             String?
+  gender               String?
+  age                  String?
+  accent               String?
+  language             String?
+  labels               Json?
+  settings             Json?
+  isActive             Boolean                @default(true)
+  usageCount           Int                    @default(0)
+  lastUsedAt           DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime
+  createdBy            String
+  ai_voice_generations ai_voice_generations[]
+
+  @@index([category])
+  @@index([createdBy])
+  @@index([isActive])
+}
+
+model ai_voice_generations {
+  id                String            @id
+  userId            String
+  voiceAccountId    String
+  voiceName         String
+  text              String
+  characterCount    Int
+  modelId           String
+  outputFormat      String
+  audioUrl          String?
+  audioSize         Int?
+  voiceSettings     Json?
+  createdAt         DateTime          @default(now())
+  ai_voice_accounts ai_voice_accounts @relation(fields: [voiceAccountId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([voiceAccountId])
 }
 
 enum SyncStatus {
@@ -417,34 +1323,15 @@ enum InstagramPostStatus {
   REVIEW
   APPROVED
   SCHEDULED
-  PENDING      // Reminder sent, waiting for user to post manually
   PUBLISHED
-}
-
-model Notification {
-  id          String             @id @default(cuid())
-  userId      String
-  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        NotificationType
-  title       String
-  message     String
-  link        String?            // Optional link to related content
-  metadata    Json?              // Additional data (postId, etc.)
-  read        Boolean            @default(false)
-  readAt      DateTime?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-
-  @@index([userId, read])
-  @@index([createdAt])
-  @@map("notifications")
+  PENDING
 }
 
 enum NotificationType {
-  POST_REMINDER      // Instagram post is ready to be published
-  POST_APPROVED      // Post has been approved
-  POST_REJECTED      // Post has been rejected
-  SYSTEM             // System notifications
+  POST_REMINDER
+  POST_APPROVED
+  POST_REJECTED
+  SYSTEM
 }
 
 enum PostType {
@@ -453,183 +1340,15 @@ enum PostType {
   STORY
 }
 
-// Junction table for linking images to production entries
-model ProductionEntryImage {
-  id                String           @id @default(cuid())
-  productionEntryId String
-  imageId           String
-  createdAt         DateTime         @default(now())
-  productionEntry   ProductionEntry  @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
-  image             GeneratedImage   @relation(fields: [imageId], references: [id], onDelete: Cascade)
-
-  @@unique([productionEntryId, imageId])
-  @@index([productionEntryId])
-  @@index([imageId])
-  @@map("production_entry_images")
-}
-
-// Junction table for linking videos to production entries
-model ProductionEntryVideo {
-  id                String           @id @default(cuid())
-  productionEntryId String
-  videoId           String
-  createdAt         DateTime         @default(now())
-  productionEntry   ProductionEntry  @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
-  video             GeneratedVideo   @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  @@unique([productionEntryId, videoId])
-  @@index([productionEntryId])
-  @@index([videoId])
-  @@map("production_entry_videos")
-}
-
-// Multipart upload session storage for large file uploads
-model MultipartUploadSession {
-  id               String   @id @default(cuid())
-  sessionId        String   @unique
-  clerkId          String
-  uploadId         String
-  s3Key            String
-  uniqueFileName   String
-  totalParts       Int
-  uploadedParts    Json     @default("[]") // Array of {ETag: string, PartNumber: number}
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  expiresAt        DateTime // Auto-cleanup old sessions
-
-  @@index([sessionId])
-  @@index([clerkId])
-  @@index([expiresAt])
-  @@map("multipart_upload_sessions")
-}
-
-// Flux Kontext conversation history
-model FluxKontextConversation {
-  id        String                    @id @default(cuid())
-  clerkId   String
-  title     String?                   // Optional title for the conversation
-  createdAt DateTime                  @default(now())
-  updatedAt DateTime                  @updatedAt
-  user      User                      @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  messages  FluxKontextMessage[]
-
-  @@index([clerkId])
-  @@index([clerkId, updatedAt])
-  @@map("flux_kontext_conversations")
-}
-
-model FluxKontextMessage {
-  id             String                  @id @default(cuid())
-  conversationId String
-  role           MessageRole
-  content        String                  @db.Text
-  imageData      String?                 @db.Text // Base64 image data if present
-  createdAt      DateTime                @default(now())
-  conversation   FluxKontextConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId])
-  @@index([conversationId, createdAt])
-  @@map("flux_kontext_messages")
-}
-
-model FolderShare {
-  id            String   @id @default(cuid())
-  folderPrefix  String   // S3 folder prefix (e.g., "outputs/user123/nov-2/")
-  ownerClerkId  String   // Owner of the folder
-  sharedWithClerkId String // User it's shared with
-  permission    SharePermission @default(VIEW) // View or Edit
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  sharedBy      String?  // Name/email of person who shared (for display)
-  note          String?  // Optional note from the person sharing
-
-  @@unique([folderPrefix, sharedWithClerkId])
-  @@index([ownerClerkId])
-  @@index([sharedWithClerkId])
-  @@index([folderPrefix])
-  @@map("folder_shares")
-}
-
-model LoRAShare {
-  id            String   @id @default(cuid())
-  loraId        String   // ID of the InfluencerLoRA being shared
-  ownerClerkId  String   // Owner of the LoRA
-  sharedWithClerkId String // User it's shared with
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  sharedBy      String?  // Name/email of person who shared (for display)
-  note          String?  // Optional note from the person sharing
-  lora          InfluencerLoRA @relation(fields: [loraId], references: [id], onDelete: Cascade)
-
-  @@unique([loraId, sharedWithClerkId])
-  @@index([ownerClerkId])
-  @@index([sharedWithClerkId])
-  @@index([loraId])
-  @@map("lora_shares")
-}
-
 enum SharePermission {
-  VIEW   // Can only view content
-  EDIT   // Can view and upload to folder
+  VIEW
+  EDIT
 }
 
 enum MessageRole {
   USER
   ASSISTANT
   SYSTEM
-}
-
-model InstagramProfile {
-  id                   String            @id @default(cuid())
-  clerkId              String
-  organizationId       String?           // Organization that owns this profile
-  workspaceId          String?           // Optional workspace association
-  name                 String            // Profile name (e.g., "Personal Brand", "Business Account")
-  description          String?           // Optional description
-  instagramUsername    String?           // Instagram handle (optional)
-  instagramAccountId   String?           // Instagram account ID for API
-  instagramAccessToken String?           // Access token for this specific profile
-  instagramTokenExpiry DateTime?         // Token expiry
-  profileImageUrl      String?           // Profile image URL
-  isDefault            Boolean           @default(false) // Mark one profile as default
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  user                 User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  posts                InstagramPost[]
-  feedPosts            FeedPost[]        // Feed posts for this profile
-  linkedLoRAs          InfluencerLoRA[]  // LoRA models linked to this profile/creator
-  sentFriendRequests     Friendship[] @relation("SentFriendRequests")
-  receivedFriendRequests Friendship[] @relation("ReceivedFriendRequests")
-  comments             FeedPostComment[] @relation("ProfileComments") // Comments made by this profile
-  postLikes            FeedPostLike[]    @relation("ProfilePostLikes") // Post likes made by this profile
-  commentLikes         FeedPostCommentLike[] @relation("ProfileCommentLikes") // Comment likes made by this profile
-  bookmarks            FeedPostBookmark[] @relation("ProfileBookmarks") // Bookmarks made by this profile
-  captions             Caption[]         // Captions for this profile
-
-  @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
-  @@index([clerkId, isDefault])
-  @@index([organizationId, isDefault])
-  @@map("instagram_profiles")
-}
-
-model Friendship {
-  id                String           @id @default(cuid())
-  senderProfileId   String           // Profile who sent the request
-  receiverProfileId String           // Profile who received the request
-  status            FriendshipStatus @default(PENDING)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  senderProfile     InstagramProfile @relation("SentFriendRequests", fields: [senderProfileId], references: [id], onDelete: Cascade)
-  receiverProfile   InstagramProfile @relation("ReceivedFriendRequests", fields: [receiverProfileId], references: [id], onDelete: Cascade)
-
-  @@unique([senderProfileId, receiverProfileId])
-  @@index([senderProfileId])
-  @@index([receiverProfileId])
-  @@index([senderProfileId, status])
-  @@index([receiverProfileId, status])
-  @@map("friendships")
 }
 
 enum FriendshipStatus {
@@ -639,208 +1358,25 @@ enum FriendshipStatus {
   BLOCKED
 }
 
-model FeedPost {
-  id        String              @id @default(cuid())
-  userId    String
-  profileId String?             // Instagram profile this post belongs to
-  imageUrls String[]            // Array of S3 or storage URLs for post images/videos
-  mediaType String              @default("image") // 'image' or 'video'
-  caption   String              @db.Text
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
-  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
-  likes     FeedPostLike[]
-  comments  FeedPostComment[]
-  bookmarks FeedPostBookmark[]
-
-  @@index([userId])
-  @@index([profileId])
-  @@index([createdAt])
-  @@index([userId, createdAt])
-  @@index([profileId, createdAt])
-  @@map("feed_posts")
-}
-
-model FeedPostLike {
-  id        String            @id @default(cuid())
-  postId    String
-  userId    String
-  profileId String            // Which profile made this like
-  createdAt DateTime          @default(now())
-  post      FeedPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile  @relation("ProfilePostLikes", fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, profileId])
-  @@index([postId])
-  @@index([userId])
-  @@index([profileId])
-  @@map("feed_post_likes")
-}
-
-model FeedPostComment {
-  id              String                  @id @default(cuid())
-  postId          String
-  userId          String
-  profileId       String?                 // Which profile made this comment
-  content         String                  @db.Text
-  parentCommentId String?                 // For nested replies
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  post            FeedPost                @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user            User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profile         InstagramProfile?       @relation("ProfileComments", fields: [profileId], references: [id], onDelete: SetNull)
-  likes           FeedPostCommentLike[]
-  parentComment   FeedPostComment?        @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
-  replies         FeedPostComment[]       @relation("CommentReplies")
-
-  @@index([postId])
-  @@index([userId])
-  @@index([profileId])
-  @@index([postId, createdAt])
-  @@index([parentCommentId])
-  @@map("feed_post_comments")
-}
-
-model FeedPostCommentLike {
-  id        String            @id @default(cuid())
-  commentId String
-  userId    String
-  profileId String            // Which profile made this like
-  createdAt DateTime          @default(now())
-  comment   FeedPostComment   @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile  @relation("ProfileCommentLikes", fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([commentId, profileId])
-  @@index([commentId])
-  @@index([userId])
-  @@index([profileId])
-  @@map("feed_post_comment_likes")
-}
-
-model FeedPostBookmark {
-  id        String            @id @default(cuid())
-  postId    String
-  userId    String
-  profileId String            // Which profile bookmarked this post
-  createdAt DateTime          @default(now())
-  post      FeedPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile  @relation("ProfileBookmarks", fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, profileId])
-  @@index([postId])
-  @@index([userId])
-  @@index([profileId])
-  @@map("feed_post_bookmarks")
-}
-
-model MarketplaceModel {
-  id          String              @id @default(cuid())
-  name        String
-  price       Float
-  status      MarketplaceStatus   @default(AVAILABLE)
-  imageUrl    String
-  category    String              @default("Premium")
-  gallery     String[]            @default([])
-  description String              @db.Text
-  included    String[]            @default([])
-  usedFor     String[]            @default([])
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-
-  @@index([status])
-  @@index([createdAt])
-  @@map("marketplace_models")
-}
-
 enum MarketplaceStatus {
   AVAILABLE
   SOLD
   RESERVED
 }
 
-// Weekly content planning for Instagram
-model WeeklyPlanningSlot {
-  id              String           @id @default(cuid())
-  clerkId         String
-  profileId       String?          // Link to InstagramProfile
-  date            DateTime         // The day this slot belongs to
-  slotType        WeeklySlotType   // REEL_1, REEL_2, STORY_BATCH, FEED_POST
-  slotIndex       Int              @default(0) // For ordering slots of the same type
-  status          WeeklySlotStatus @default(PLANNING)
-  linkedPostId    String?          // Link to InstagramPost if assigned
-  notes           String?          @db.Text // Notes, ideas, trending audio
-  hashtags        String[]         @default([]) // Suggested hashtags
-  trendingAudio   String?          // Trending audio/music suggestions
-  contentIdeas    String?          @db.Text // Content ideas for this slot
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  linkedPost      InstagramPost?   @relation(fields: [linkedPostId], references: [id], onDelete: SetNull)
-
-  @@unique([clerkId, date, slotType, slotIndex])
-  @@index([clerkId])
-  @@index([profileId])
-  @@index([date])
-  @@index([clerkId, date])
-  @@index([linkedPostId])
-  @@map("weekly_planning_slots")
-}
-
 enum WeeklySlotType {
-  REEL_1          // First reel slot
-  REEL_2          // Second reel slot
-  STORY_BATCH     // Story batch slot
-  FEED_POST       // Feed post slot
+  REEL_1
+  REEL_2
+  STORY_BATCH
+  FEED_POST
 }
 
 enum WeeklySlotStatus {
-  PLANNING        // Just an idea/plan
-  IN_PROGRESS     // Content being created
-  READY           // Content ready to be assigned
-  ASSIGNED        // Post assigned to this slot
-  POSTED          // Successfully posted
-}
-
-// Content Pipeline for tracking all content across workflow stages
-model ContentPipelineItem {
-  id              String                @id @default(cuid())
-  clerkId         String
-  organizationId  String?               // Organization that owns this content
-  workspaceId     String?               // Optional workspace association
-  contentId       String                @unique // Unique identifier for tracking (e.g., "REEL-2025-001")
-  title           String                // Content title/description
-  contentType     ContentType           // REEL, POST, STORY, etc.
-  status          PipelineStatus        @default(IDEA)
-  linkedPostId    String?               // Link to InstagramPost if scheduled
-  notes           String?               @db.Text
-  dateCreated     DateTime?             // When content was created
-  datePosted      DateTime?             // When content was posted
-  // Stage timestamps
-  ideaDate        DateTime?
-  filmingDate     DateTime?
-  editingDate     DateTime?
-  reviewDate      DateTime?
-  approvedDate    DateTime?
-  scheduledDate   DateTime?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  linkedPost      InstagramPost?        @relation(fields: [linkedPostId], references: [id], onDelete: SetNull)
-  storySlot       StoryPlanningSlot?    // Link back to story slot if this is a story content
-  reelSlot        ReelPlanningSlot?     @relation("ReelPipeline") // Link back to reel slot if this is a reel content
-  feedPostSlot    FeedPostPlanningSlot? @relation("FeedPostPipeline") // Link back to feed post slot if this is a feed post content
-
-  @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
-  @@index([status])
-  @@index([clerkId, status])
-  @@index([organizationId, status])
-  @@index([contentType])
-  @@index([linkedPostId])
-  @@map("content_pipeline_items")
+  PLANNING
+  IN_PROGRESS
+  READY
+  ASSIGNED
+  POSTED
 }
 
 enum ContentType {
@@ -852,754 +1388,97 @@ enum ContentType {
 }
 
 enum PipelineStatus {
-  IDEA          // Initial idea stage
-  FILMING       // Currently filming
-  EDITING       // In editing
-  REVIEW        // Under review
-  APPROVED      // Approved for scheduling
-  SCHEDULED     // Scheduled for posting
-  POSTED        // Successfully posted
-  ARCHIVED      // Archived/not used
-}
-
-
-
-// Story Planning for Instagram Stories with time slots
-model StoryPlanningSlot {
-  id                String              @id @default(cuid())
-  clerkId           String
-  profileId         String?             // Link to InstagramProfile
-  contentId         String?             @unique // Unique content ID for pipeline tracking (e.g., "STORY-2025-001")
-  pipelineItemId    String?             @unique // Link to ContentPipelineItem
-  date              DateTime            // The day this slot belongs to
-  timeSlot          DateTime?           // Actual time for this story slot
-  storyType         StoryType           // SELFIE, BEHIND_SCENES, PROMO, etc.
-  interactiveElement InteractiveElement? // POLL, SLIDER, QUESTION, etc.
-  linkedPostId      String?             // Link to InstagramPost if created
-  // Direct file storage for story content (independent of Instagram staging)
-  awsS3Key          String?             // S3 object key for uploaded content
-  awsS3Url          String?             // Direct S3 URL for uploaded content
-  fileName          String?             // Original filename
-  mimeType          String?             // File MIME type
-  notes             String?             @db.Text
-  caption           String?             @db.Text
-  hashtags          String[]            @default([])
-  isPosted          Boolean             @default(false)
-  postedAt          DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  linkedPost        InstagramPost?      @relation("StorySlots", fields: [linkedPostId], references: [id], onDelete: SetNull)
-  pipelineItem      ContentPipelineItem? @relation(fields: [pipelineItemId], references: [id], onDelete: SetNull)
-
-  @@unique([clerkId, profileId, timeSlot])
-  @@index([clerkId])
-  @@index([profileId])
-  @@index([date])
-  @@index([clerkId, date])
-  @@index([linkedPostId])
-  @@index([pipelineItemId])
-  @@index([contentId])
-  @@map("story_planning_slots")
+  IDEA
+  FILMING
+  EDITING
+  REVIEW
+  APPROVED
+  SCHEDULED
+  POSTED
+  ARCHIVED
 }
 
 enum StoryTimeSlot {
-  SLOT_9AM    // 9:00 AM
-  SLOT_11AM   // 11:00 AM
-  SLOT_1PM    // 1:00 PM
-  SLOT_3PM    // 3:00 PM
-  SLOT_5PM    // 5:00 PM
-  SLOT_7PM    // 7:00 PM
-  SLOT_9PM    // 9:00 PM
-  SLOT_OTHER  // Custom time
+  SLOT_9AM
+  SLOT_11AM
+  SLOT_1PM
+  SLOT_3PM
+  SLOT_5PM
+  SLOT_7PM
+  SLOT_9PM
+  SLOT_OTHER
 }
 
 enum StoryType {
-  SELFIE              // Personal selfie
-  BEHIND_SCENES       // Behind the scenes content
-  PROMO               // Promotional content
-  PRODUCT             // Product showcase
-  GRWM                // Get Ready With Me
-  OOTD                // Outfit of the Day
-  QA                  // Q&A session
-  TUTORIAL            // Tutorial/How-to
-  LIFESTYLE           // Daily lifestyle
-  ANNOUNCEMENT        // Announcements
-  USER_CONTENT        // User-generated content
-  OTHER               // Other types
+  SELFIE
+  BEHIND_SCENES
+  PROMO
+  PRODUCT
+  GRWM
+  OOTD
+  QA
+  TUTORIAL
+  LIFESTYLE
+  ANNOUNCEMENT
+  USER_CONTENT
+  OTHER
 }
 
 enum InteractiveElement {
-  POLL                // Yes/No or multiple choice poll
-  SLIDER              // Emoji slider
-  QUESTION            // Question sticker
-  QUIZ                // Quiz sticker
-  COUNTDOWN           // Countdown sticker
-  LINK                // Link sticker
-  MENTION             // @mention
-  HASHTAG             // #hashtag
-  LOCATION            // Location tag
-  MUSIC               // Music sticker
-  NONE                // No interactive element
-}
-
-// Reel Planning for Instagram Reels with time slots
-model ReelPlanningSlot {
-  id                String              @id @default(cuid())
-  clerkId           String
-  profileId         String?             // Link to InstagramProfile
-  contentId         String?             @unique // Unique content ID for pipeline tracking (e.g., "REEL-2025-001")
-  pipelineItemId    String?             @unique // Link to ContentPipelineItem
-  date              DateTime            // The day this slot belongs to
-  timeSlot          DateTime?           // Actual time for this reel slot
-  reelType          ReelType            // TRENDING, TUTORIAL, BEHIND_SCENES, etc.
-  hookIdea          String?             @db.Text // Hook/opening idea
-  trendingAudio     String?             // Trending audio/song name
-  // Direct file storage for reel content
-  awsS3Key          String?             // S3 object key for uploaded content
-  awsS3Url          String?             // Direct S3 URL for uploaded content
-  fileName          String?             // Original filename
-  mimeType          String?             // File MIME type
-  notes             String?             @db.Text
-  caption           String?             @db.Text
-  hashtags          String[]            @default([])
-  isPosted          Boolean             @default(false)
-  postedAt          DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  pipelineItem      ContentPipelineItem? @relation("ReelPipeline", fields: [pipelineItemId], references: [id], onDelete: SetNull)
-
-  @@unique([clerkId, profileId, timeSlot])
-  @@index([clerkId])
-  @@index([profileId])
-  @@index([date])
-  @@index([clerkId, date])
-  @@index([pipelineItemId])
-  @@index([contentId])
-  @@map("reel_planning_slots")
+  POLL
+  SLIDER
+  QUESTION
+  QUIZ
+  COUNTDOWN
+  LINK
+  MENTION
+  HASHTAG
+  LOCATION
+  MUSIC
+  NONE
 }
 
 enum ReelType {
-  TRENDING            // Trending content
-  TUTORIAL            // Tutorial/How-to
-  BEHIND_SCENES       // Behind the scenes
-  PROMO               // Promotional content
-  PRODUCT             // Product showcase
-  LIFESTYLE           // Lifestyle content
-  TRANSITION          // Transition reel
-  DAY_IN_LIFE         // Day in the life
-  CHALLENGE           // Challenge video
-  COMEDY              // Comedy/funny content
-  EDUCATIONAL         // Educational content
-  OTHER               // Other types
-}
-
-// Feed Post Planning for Instagram Feed Posts
-model FeedPostPlanningSlot {
-  id                String              @id @default(cuid())
-  clerkId           String
-  profileId         String?             // Link to InstagramProfile
-  contentId         String?             @unique // Unique content ID for pipeline tracking
-  pipelineItemId    String?             @unique // Link to ContentPipelineItem
-  date              DateTime            // The day this slot belongs to
-  timeSlot          DateTime?           // Scheduled time for this feed post
-  postType          FeedPostType        // SINGLE_IMAGE, CAROUSEL, etc.
-  caption           String?             @db.Text
-  hashtags          String[]            @default([])
-  location          String?             // Location tag
-  collaborators     String[]            @default([]) // Tagged accounts
-  notes             String?             @db.Text
-  // File storage for feed post content (supports multiple files for carousels/albums)
-  files             Json?               // Array of {awsS3Key, awsS3Url, fileName, mimeType}
-  isPosted          Boolean             @default(false)
-  postedAt          DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  pipelineItem      ContentPipelineItem? @relation("FeedPostPipeline", fields: [pipelineItemId], references: [id], onDelete: SetNull)
-
-  @@unique([clerkId, profileId, timeSlot])
-  @@index([clerkId])
-  @@index([profileId])
-  @@index([date])
-  @@index([clerkId, date])
-  @@index([pipelineItemId])
-  @@index([contentId])
-  @@map("feed_post_planning_slots")
+  TRENDING
+  TUTORIAL
+  BEHIND_SCENES
+  PROMO
+  PRODUCT
+  LIFESTYLE
+  TRANSITION
+  DAY_IN_LIFE
+  CHALLENGE
+  COMEDY
+  EDUCATIONAL
+  OTHER
 }
 
 enum FeedPostType {
-  SINGLE_IMAGE        // Single image post
-  CAROUSEL            // Multiple images/videos carousel
-  VIDEO               // Single video post
-  ALBUM               // Photo album
-}
-
-// Performance Metrics Model
-model PerformanceMetric {
-  id                String    @id @default(cuid())
-  clerkId           String
-  profileId         String    @default("") // Default to empty string for single profile tracking
-  date              DateTime  @db.Date
-  
-  // Content metrics
-  reelsPosted       Int       @default(0)
-  storiesPosted     Int       @default(0)
-  feedPostsPosted   Int       @default(0)
-  
-  // Engagement metrics
-  totalViews        Int       @default(0)
-  totalLikes        Int       @default(0)
-  totalComments     Int       @default(0)
-  totalShares       Int       @default(0)
-  totalSaves        Int       @default(0)
-  
-  // Story metrics
-  storyViews        Int       @default(0)
-  storyReplies      Int       @default(0)
-  
-  // Follower metrics
-  followersStart    Int       @default(0)
-  followersEnd      Int       @default(0)
-  followersGained   Int       @default(0)
-  followersLost     Int       @default(0)
-  
-  // Calculated metrics (can be computed)
-  engagementRate    Float?    // (likes + comments + shares) / reach * 100
-  averageViews      Float?    // total views / content posted
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  @@unique([clerkId, date, profileId])
-  @@index([clerkId, date])
-  @@map("performance_metrics")
-}
-
-// Workflow Checklist - User customizable workflow phases
-model WorkflowPhase {
-  id          String              @id @default(cuid())
-  clerkId     String
-  profileId   String              @default("") // Default to empty string for single profile tracking
-  name        String
-  description String?             @db.Text
-  icon        String              @default("Circle") // Icon name as string
-  color       String              @default("blue")
-  order       Int                 // Order of phases
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  items       WorkflowCheckItem[]
-
-  @@index([clerkId])
-  @@index([clerkId, profileId])
-  @@index([clerkId, order])
-  @@map("workflow_phases")
-}
-
-// Workflow Checklist Items
-model WorkflowCheckItem {
-  id          String        @id @default(cuid())
-  phaseId     String
-  text        String        @db.Text
-  order       Int           // Order within the phase
-  checked     Boolean       @default(false)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  phase       WorkflowPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
-
-  @@index([phaseId])
-  @@index([phaseId, order])
-  @@map("workflow_check_items")
-}
-
-// Hashtag Bank - User customizable hashtag sets
-model HashtagSet {
-  id          String   @id @default(cuid())
-  clerkId     String
-  name        String
-  category    String
-  description String?  @db.Text
-  icon        String   @default("Hash") // Icon name as string
-  color       String   @default("blue")
-  hashtags    String[] // Array of hashtag strings
-  order       Int      // Order of hashtag sets
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([clerkId])
-  @@index([clerkId, order])
-  @@map("hashtag_sets")
-}
-
-// Vault Folder - Organize vault media by profile
-model VaultFolder {
-  id             String      @id @default(cuid())
-  clerkId        String
-  organizationId String?     // Organization that owns this folder
-  workspaceId    String?     // Optional workspace association
-  profileId      String      // Instagram profile this folder belongs to
-  name           String      // Folder name
-  isDefault      Boolean     @default(false) // Default "All Media" folder
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
-  items          VaultItem[] // Items in this folder
-  shares         VaultFolderShare[] // Shares of this folder with other users
-
-  @@index([clerkId])
-  @@index([organizationId])
-  @@index([workspaceId])
-  @@index([profileId])
-  @@index([clerkId, profileId])
-  @@index([organizationId, profileId])
-  @@map("vault_folders")
-}
-
-// Vault Folder Share - Share vault folders with other users
-model VaultFolderShare {
-  id                String          @id @default(cuid())
-  vaultFolderId     String          // Vault folder being shared
-  ownerClerkId      String          // Owner of the folder
-  sharedWithClerkId String          // User the folder is shared with
-  permission        SharePermission @default(VIEW) // VIEW or EDIT
-  sharedBy          String?         // Display name of person who shared
-  note              String?         // Optional note from the person sharing
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  folder            VaultFolder     @relation(fields: [vaultFolderId], references: [id], onDelete: Cascade)
-
-  @@unique([vaultFolderId, sharedWithClerkId])
-  @@index([ownerClerkId])
-  @@index([sharedWithClerkId])
-  @@index([vaultFolderId])
-  @@map("vault_folder_shares")
-}
-
-// Vault Item - Media files stored in vault
-model VaultItem {
-  id        String      @id @default(cuid())
-  clerkId   String
-  profileId String      // Instagram profile this item belongs to
-  folderId  String      // Folder containing this item
-  fileName  String      // Original file name
-  fileType  String      // MIME type (image/*, video/*, audio/*)
-  fileSize  Int         // File size in bytes
-  awsS3Key  String      // S3 object key: vault/{clerkId}/{profileId}/{folderId}/{fileName}
-  awsS3Url  String      // Direct S3 URL
-  metadata  Json?       // Optional metadata (generation parameters, prompt, model, etc.)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  folder    VaultFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
-
-  @@index([clerkId])
-  @@index([profileId])
-  @@index([folderId])
-  @@index([clerkId, profileId, folderId])
-  @@index([awsS3Key])
-  @@map("vault_items")
-}
-
-// Caption Bank - Store captions organized by Instagram profile
-model Caption {
-  id              String           @id @default(cuid())
-  clerkId         String
-  profileId       String           // Link to InstagramProfile
-  caption         String           @db.Text
-  captionCategory String           // e.g., "Inspirational", "Artistic", "Process"
-  captionTypes    String           // e.g., "Motivational", "Storytelling"
-  captionBanks    String           // e.g., "General Collection", "Art & Design"
-  usageCount      Int              @default(0)
-  isFavorite      Boolean          @default(false)
-  lastUsedAt      DateTime?        // Track when caption was last copied/used
-  cooldownDays    Int              @default(7)  // Minimum days before reuse warning
-  notes           String?          @db.Text     // Personal notes about the caption
-  tags            String?          // Comma-separated tags for additional filtering
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  profile         InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([clerkId])
-  @@index([profileId])
-  @@index([clerkId, profileId])
-  @@index([isFavorite])
-  @@index([lastUsedAt])
-  @@map("captions")
-}
-
-model SextingSet {
-  id            String         @id @default(cuid())
-  userId        String
-  name          String
-  category      String
-  s3FolderPath  String         // Path in S3 bucket for this set
-  status        String         @default("draft") // draft, scheduled, published
-  scheduledDate DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  images        SextingImage[]
-
-  @@index([userId])
-  @@index([category])
-  @@index([status])
-  @@map("sexting_sets")
-}
-
-model SextingImage {
-  id         String     @id @default(cuid())
-  setId      String
-  url        String     // S3 URL
-  name       String     // Original filename
-  type       String     // MIME type (image/jpeg, video/mp4, etc.)
-  sequence   Int        // Order in the set (1, 2, 3, etc.)
-  size       Int        // File size in bytes
-  uploadedAt DateTime   @default(now())
-  set        SextingSet @relation(fields: [setId], references: [id], onDelete: Cascade)
-
-  @@index([setId])
-  @@index([sequence])
-  @@map("sexting_images")
-}
-
-// ==================== TEAM/AGENCY MODELS ====================
-
-// Subscription Plan - Dynamic, configurable plans
-model SubscriptionPlan {
-  id                String              @id @default(cuid())
-  name              String              @unique // e.g., "Free", "Starter", "Pro", "Agency"
-  displayName       String              // User-facing name
-  description       String?             @db.Text
-  price             Float               @default(0) // Monthly price in dollars
-  billingInterval   BillingInterval     @default(MONTHLY)
-
-  // Resource Limits
-  maxMembers        Int                 @default(1)
-  maxProfiles       Int                 @default(1)
-  maxWorkspaces     Int                 @default(0)
-  maxStorageGB      Int                 @default(5)
-  monthlyCredits    Int                 @default(100)
-
-  // Stripe Integration
-  stripePriceId     String?             @unique // Stripe price ID
-  stripeProductId   String?             // Stripe product ID
-
-  // Plan Status
-  isActive          Boolean             @default(true)
-  isPublic          Boolean             @default(true) // Show on pricing page
-  isFeatured        Boolean             @default(false)
-  order             Int                 @default(0) // Display order
-
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-
-  planFeatures      PlanFeature[]       // Features included in this plan
-  organizations     Organization[]
-
-  @@index([isActive, isPublic])
-  @@index([order])
-  @@map("subscription_plans")
+  SINGLE_IMAGE
+  CAROUSEL
+  VIDEO
+  ALBUM
 }
 
 enum BillingInterval {
   MONTHLY
   YEARLY
-  LIFETIME
-  CUSTOM
-}
-
-// Plan Feature - Individual features that can be assigned to plans
-model PlanFeature {
-  id             String           @id @default(cuid())
-  planId         String
-  featureKey     String           // e.g., "hasGenerateTab", "canTextToImage"
-  featureValue   String           // "true", "false", or numeric value like "100"
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-
-  plan           SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-  @@unique([planId, featureKey])
-  @@index([planId])
-  @@index([featureKey])
-  @@map("plan_features")
-}
-
-// Organization/Agency - Top-level team entity
-model Organization {
-  id                String              @id @default(cuid())
-  name              String
-  slug              String              @unique // URL-friendly identifier
-  description       String?             @db.Text
-  logoUrl           String?
-
-  // Subscription
-  subscriptionPlanId String?
-  subscriptionStatus SubscriptionStatus @default(TRIAL)
-  trialEndsAt       DateTime?
-  currentPeriodStart DateTime?
-  currentPeriodEnd  DateTime?
-  cancelAtPeriodEnd Boolean            @default(false)
-
-  // Stripe Integration
-  stripeCustomerId     String?          @unique
-  stripeSubscriptionId String?          @unique
-
-  // Billing
-  billingEmail      String?
-  billingName       String?
-  billingAddress    Json?              // {line1, line2, city, state, zip, country}
-
-  // Custom Overrides (for enterprise/custom deals)
-  customMaxMembers     Int?
-  customMaxProfiles    Int?
-  customMaxWorkspaces  Int?
-  customMaxStorageGB   Int?
-  customMonthlyCredits Int?
-
-  // Usage Tracking
-  currentStorageGB  Float              @default(0)
-  creditsUsedThisMonth Int            @default(0)
-  lastCreditReset   DateTime?
-
-  // Settings
-  isActive          Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-
-  subscriptionPlan  SubscriptionPlan?  @relation(fields: [subscriptionPlanId], references: [id], onDelete: SetNull)
-  members           TeamMember[]
-  workspaces        Workspace[]
-  customPermissions CustomOrganizationPermission?
-  usageLogs         UsageLog[]
-  invites           OrganizationInvite[]
-
-  @@index([slug])
-  @@index([subscriptionPlanId])
-  @@index([stripeCustomerId])
-  @@index([isActive])
-  @@map("organizations")
 }
 
 enum SubscriptionStatus {
-  TRIAL             // Free trial period
-  ACTIVE            // Paid and active
-  PAST_DUE          // Payment failed
-  CANCELLED         // Cancelled, active until period end
-  EXPIRED           // Subscription ended
-  PAUSED            // Temporarily paused
-}
-
-// Team Member - Links users to organizations with roles
-model TeamMember {
-  id             String         @id @default(cuid())
-  userId         String         // References User.id
-  organizationId String
-  role           TeamRole       @default(MEMBER)
-
-  // Custom permissions override
-  canInviteMembers Boolean       @default(false)
-  canManageBilling Boolean       @default(false)
-  canManageMembers Boolean       @default(false)
-
-  // Activity tracking
-  lastActiveAt   DateTime?
-  invitedBy      String?        // userId who invited
-  joinedAt       DateTime       @default(now())
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, organizationId])
-  @@index([organizationId])
-  @@index([userId])
-  @@index([organizationId, role])
-  @@map("team_members")
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  PAUSED
 }
 
 enum TeamRole {
-  OWNER             // Full control, can delete org
-  ADMIN             // Manage members, billing, all features
-  MANAGER           // Approve content, manage workflows
-  CREATOR           // Create content, limited access
-  VIEWER            // Read-only access
-  MEMBER            // Standard member access
-}
-
-// Organization Invite - Pending invitations to join organization
-model OrganizationInvite {
-  id             String       @id @default(cuid())
-  organizationId String
-  email          String
-  role           TeamRole     @default(MEMBER)
-  invitedBy      String       // userId who sent the invite
-  token          String       @unique // Unique token for invite link
-  expiresAt      DateTime
-  acceptedAt     DateTime?
-  createdAt      DateTime     @default(now())
-
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, email])
-  @@index([organizationId])
-  @@index([token])
-  @@index([email])
-  @@map("organization_invites")
-}
-
-// Custom Organization Permission - Override plan features for specific orgs
-model CustomOrganizationPermission {
-  id             String       @id @default(cuid())
-  organizationId String       @unique
-
-  // Tab Access - Main Navigation Tabs
-  hasGenerateTab     Boolean?  // null = use plan default
-  hasVaultTab        Boolean?
-  hasTrainingTab     Boolean?
-  hasInstagramTab    Boolean?
-  hasPlanningTab     Boolean?
-  hasPipelineTab     Boolean?
-  hasAnalyticsTab    Boolean?
-  hasFeedTab         Boolean?
-  hasMarketplaceTab  Boolean?
-
-  // Generate Tab Features
-  canTextToImage     Boolean?
-  canImageToVideo    Boolean?
-  canImageToImage    Boolean?
-  canTextToVideo     Boolean?
-  canFaceSwap        Boolean?
-  canFluxKontext     Boolean?
-  canVideoFpsBoost   Boolean?
-  canSkinEnhancement Boolean?
-
-  // Training Tab Features
-  canTrainLoRA       Boolean?
-  canShareLoRA       Boolean?
-  canAccessMarketplace Boolean?
-
-  // Instagram Tab Features
-  canAutoSchedule    Boolean?
-  canBulkUpload      Boolean?
-  canCaptionBank     Boolean?
-  canHashtagBank     Boolean?
-  canStoryPlanner    Boolean?
-  canReelPlanner     Boolean?
-  canFeedPostPlanner Boolean?
-  canContentPipeline Boolean?
-  canPerformanceMetrics Boolean?
-
-  // Vault Features
-  canShareFolders    Boolean?
-  canCreateFolders   Boolean?
-  maxVaultFolders    Int?
-
-  // Collaboration Features
-  canApproveContent  Boolean?
-  canCommentOnContent Boolean?
-  canAssignTasks     Boolean?
-  canMentionTeam     Boolean?
-
-  // Advanced Features
-  canExportData      Boolean?
-  canAccessAPI       Boolean?
-  canWhiteLabel      Boolean?
-  canCustomBranding  Boolean?
-  canWebhooks        Boolean?
-
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId])
-  @@map("custom_organization_permissions")
-}
-
-// Workspace - Sub-teams or client accounts within an organization
-model Workspace {
-  id             String       @id @default(cuid())
-  organizationId String
-  name           String       // e.g., "Nike Campaign", "Client: Adidas"
-  slug           String       // URL-friendly identifier within org
-  description    String?      @db.Text
-  color          String?      // Hex color for UI
-  icon           String?      // Icon identifier
-
-  // Resource Allocation
-  monthlyCredits Int          @default(0)  // Credits allocated to this workspace
-  maxProfiles    Int          @default(1)
-
-  isActive       Boolean      @default(true)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  members        WorkspaceMember[]
-
-  @@unique([organizationId, slug])
-  @@index([organizationId])
-  @@index([isActive])
-  @@map("workspaces")
-}
-
-// Workspace Members - Assign team members to specific workspaces/clients
-model WorkspaceMember {
-  id          String        @id @default(cuid())
-  workspaceId String
-  userId      String        // References User.id
-  role        WorkspaceRole @default(CONTRIBUTOR)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@unique([workspaceId, userId])
-  @@index([workspaceId])
-  @@index([userId])
-  @@map("workspace_members")
-}
-
-enum WorkspaceRole {
-  LEAD          // Workspace lead
-  CONTRIBUTOR   // Can contribute content
-  VIEWER        // Read-only
-}
-
-// Usage Log - Track feature usage and credits
-model UsageLog {
-  id             String       @id @default(cuid())
-  organizationId String
-  userId         String       // Who used the feature
-  workspaceId    String?      // Which workspace (if applicable)
-
-  featureType    FeatureType
-  creditsUsed    Int          @default(0)
-
-  // Context
-  generationJobId String?     // If related to a generation
-  trainingJobId   String?     // If related to training
-  metadata        Json?        // Additional context
-
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId])
-  @@index([userId])
-  @@index([organizationId, createdAt])
-  @@index([featureType])
-  @@index([workspaceId])
-  @@map("usage_logs")
-}
-
-enum FeatureType {
-  TEXT_TO_IMAGE
-  IMAGE_TO_VIDEO
-  IMAGE_TO_IMAGE
-  TEXT_TO_VIDEO
-  FACE_SWAP
-  VIDEO_FPS_BOOST
-  SKIN_ENHANCEMENT
-  FLUX_KONTEXT
-  LORA_TRAINING
-  STORAGE_UPLOAD
-  API_CALL
-  EXPORT_DATA
-  CAPTION_GENERATION
+  OWNER
+  ADMIN
+  MANAGER
+  CREATOR
+  VIEWER
+  MEMBER
 }
