@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     // Check if voice exists in our database and get custom API key if available
-    const voiceAccount = await prisma.aIVoiceAccount.findFirst({
+    const voiceAccount = await prisma.ai_voice_accounts.findFirst({
       where: {
         elevenlabsVoiceId: voiceId,
         isActive: true,
@@ -119,17 +119,19 @@ export async function POST(request: Request) {
 
     // Update usage count for the voice
     if (voiceAccount) {
-      await prisma.aIVoiceAccount.update({
+      await prisma.ai_voice_accounts.update({
         where: { id: voiceAccount.id },
         data: {
           usageCount: { increment: 1 },
           lastUsedAt: new Date(),
+          updatedAt: new Date(),
         },
       });
 
       // Save generation to history
-      const generation = await prisma.aIVoiceGeneration.create({
+      const generation = await prisma.ai_voice_generations.create({
         data: {
+          id: crypto.randomUUID(),
           userId,
           voiceAccountId: voiceAccount.id,
           voiceName: voiceAccount.name,

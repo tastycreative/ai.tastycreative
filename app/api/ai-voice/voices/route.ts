@@ -10,7 +10,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const voices = await prisma.aIVoiceAccount.findMany({
+    const voices = await prisma.ai_voice_accounts.findMany({
       where: {
         isActive: true,
       },

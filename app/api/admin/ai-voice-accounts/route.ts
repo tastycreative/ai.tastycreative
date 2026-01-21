@@ -13,7 +13,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const voices = await prisma.aIVoiceAccount.findMany({
+    const voices = await prisma.ai_voice_accounts.findMany({
       orderBy: { createdAt: "desc" },
     });
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     // Check if voice already exists
-    const existingVoice = await prisma.aIVoiceAccount.findUnique({
+    const existingVoice = await prisma.ai_voice_accounts.findUnique({
       where: { elevenlabsVoiceId },
     });
 
@@ -80,8 +80,9 @@ export async function POST(request: Request) {
     const voiceData = await voiceResponse.json();
 
     // Create the voice account
-    const voice = await prisma.aIVoiceAccount.create({
+    const voice = await prisma.ai_voice_accounts.create({
       data: {
+        id: crypto.randomUUID(),
         name: name || voiceData.name || "Unnamed Voice",
         description: description || voiceData.description,
         elevenlabsVoiceId,
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
         labels: voiceData.labels,
         settings: voiceData.settings,
         createdBy: userId,
+        updatedAt: new Date(),
       },
     });
 
@@ -126,7 +128,7 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.aIVoiceAccount.delete({
+    await prisma.ai_voice_accounts.delete({
       where: { id },
     });
 
@@ -164,9 +166,9 @@ export async function PATCH(request: Request) {
     if (isActive !== undefined) updateData.isActive = isActive;
     if (settings !== undefined) updateData.settings = settings;
 
-    const voice = await prisma.aIVoiceAccount.update({
+    const voice = await prisma.ai_voice_accounts.update({
       where: { id },
-      data: updateData,
+      data: { ...updateData, updatedAt: new Date() },
     });
 
     return NextResponse.json({ voice });

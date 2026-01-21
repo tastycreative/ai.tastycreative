@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const cursor = searchParams.get("cursor");
 
-    const generations = await prisma.aIVoiceGeneration.findMany({
+    const generations = await prisma.ai_voice_generations.findMany({
       where: {
         userId,
       },
@@ -83,8 +83,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const generation = await prisma.aIVoiceGeneration.create({
+    const generation = await prisma.ai_voice_generations.create({
       data: {
+        id: crypto.randomUUID(),
         userId,
         voiceAccountId,
         voiceName,
@@ -127,7 +128,7 @@ export async function DELETE(request: Request) {
     }
 
     // Verify ownership before deleting
-    const generation = await prisma.aIVoiceGeneration.findFirst({
+    const generation = await prisma.ai_voice_generations.findFirst({
       where: {
         id: generationId,
         userId,
@@ -141,7 +142,7 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.aIVoiceGeneration.delete({
+    await prisma.ai_voice_generations.delete({
       where: { id: generationId },
     });
 
