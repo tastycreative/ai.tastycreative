@@ -158,12 +158,13 @@ export default function VoiceGeneratorPage() {
           voiceName: string;
           characterCount: number;
           outputFormat: string;
+          audioUrl: string | null;
           createdAt: string;
         }) => ({
           id: gen.id,
           text: gen.text,
           voiceName: gen.voiceName,
-          audioUrl: "",
+          audioUrl: gen.audioUrl || "",
           mimeType: gen.outputFormat.startsWith("mp3") ? "audio/mpeg" : "audio/wav",
           characterCount: gen.characterCount,
           createdAt: new Date(gen.createdAt),
@@ -263,12 +264,35 @@ export default function VoiceGeneratorPage() {
     }
   };
 
-  const handlePlayPause = (audio: GeneratedAudio) => {
+  const handlePlayPause = async (audio: GeneratedAudio) => {
     if (playingAudioId === audio.id) {
       audioRef.current?.pause();
       setPlayingAudioId(null);
     } else {
-      const audioUrl = localAudioUrls.get(audio.id) || audio.audioUrl;
+      // First check if we have a local blob URL
+      let audioUrl = localAudioUrls.get(audio.id);
+      
+      // If no local URL, fetch from ElevenLabs history via our API
+      if (!audioUrl && audio.isFromDb) {
+        try {
+          const response = await fetch(`/api/ai-voice/history-audio?historyItemId=${audio.id}`);
+          if (response.ok) {
+            const blob = await response.blob();
+            audioUrl = URL.createObjectURL(blob);
+            // Cache it for future plays
+            setLocalAudioUrls(prev => new Map(prev).set(audio.id, audioUrl!));
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            setError(errorData.details || "Audio no longer available. ElevenLabs history items expire after 90 days.");
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to fetch audio:", err);
+          setError("Failed to load audio");
+          return;
+        }
+      }
+      
       if (audioRef.current && audioUrl) {
         audioRef.current.src = audioUrl;
         audioRef.current.play();
@@ -294,19 +318,36 @@ export default function VoiceGeneratorPage() {
     }
   };
 
-  const handleDownload = (audio: GeneratedAudio) => {
-    const audioUrl = localAudioUrls.get(audio.id) || audio.audioUrl;
-    if (!audioUrl) {
-      setError("Audio not available for download. Only recently generated audio can be downloaded.");
-      return;
+  const handleDownload = async (audio: GeneratedAudio) => {
+    try {
+      // First check if we have a local blob URL
+      let audioUrl = localAudioUrls.get(audio.id);
+      
+      // If no local URL, fetch from ElevenLabs history via our API
+      if (!audioUrl) {
+        const response = await fetch(`/api/ai-voice/history-audio?historyItemId=${audio.id}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          setError(errorData.details || "Audio no longer available. ElevenLabs history items expire after 90 days.");
+          return;
+        }
+        const blob = await response.blob();
+        audioUrl = URL.createObjectURL(blob);
+        // Cache it
+        setLocalAudioUrls(prev => new Map(prev).set(audio.id, audioUrl!));
+      }
+      
+      const link = document.createElement("a");
+      link.href = audioUrl;
+      const extension = audio.mimeType.includes("mpeg") ? "mp3" : "wav";
+      link.download = `voice-${audio.voiceName.toLowerCase().replace(/\s+/g, "-")}-${audio.id.slice(0, 8)}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Download error:", err);
+      setError("Failed to download audio.");
     }
-    const link = document.createElement("a");
-    link.href = audioUrl;
-    const extension = audio.mimeType.includes("mpeg") ? "mp3" : "wav";
-    link.download = `voice-${audio.voiceName.toLowerCase().replace(/\s+/g, "-")}-${audio.id}.${extension}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const handleDelete = async (audio: GeneratedAudio) => {
@@ -780,28 +821,24 @@ export default function VoiceGeneratorPage() {
                           <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{audio.text}</p>
                           
                           <div className="flex items-center gap-1.5 mt-2.5">
-                            {(localAudioUrls.has(audio.id) || audio.audioUrl) && (
-                              <button
-                                onClick={() => handlePlayPause(audio)}
-                                className="p-1.5 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-colors"
-                                title={playingAudioId === audio.id ? "Pause" : "Play"}
-                              >
-                                {playingAudioId === audio.id ? (
-                                  <Pause className="w-3.5 h-3.5" />
-                                ) : (
-                                  <Play className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            )}
-                            {localAudioUrls.has(audio.id) && (
-                              <button
-                                onClick={() => handleDownload(audio)}
-                                className="p-1.5 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-colors"
-                                title="Download"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handlePlayPause(audio)}
+                              className="p-1.5 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-colors"
+                              title={playingAudioId === audio.id ? "Pause" : "Play"}
+                            >
+                              {playingAudioId === audio.id ? (
+                                <Pause className="w-3.5 h-3.5" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDownload(audio)}
+                              className="p-1.5 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-colors"
+                              title="Download"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               onClick={() => handleCopyText(audio)}
                               className="p-1.5 text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-md transition-colors"

@@ -91,6 +91,13 @@ export default function SextingSetOrganizer({
   const [savingOrder, setSavingOrder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  
+  // Upload progress state for direct S3 uploads
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  
+  // Debounce timer ref for reorder saves
+  const reorderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingReorderRef = useRef<{ setId: string; imageIds: string[] } | null>(null);
 
   // Export to Vault state
   const [showExportModal, setShowExportModal] = useState(false);
@@ -125,7 +132,7 @@ export default function SextingSetOrganizer({
   }, [profileId]);
 
   // Fetch sets
-  const fetchSets = useCallback(async () => {
+  const fetchSets = useCallback(async (autoSelectFirst = false) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -136,8 +143,8 @@ export default function SextingSetOrganizer({
 
       if (data.sets) {
         setSets(data.sets);
-        // Auto-select first set if none selected
-        if (!selectedSet && data.sets.length > 0) {
+        // Auto-select first set only on initial load
+        if (autoSelectFirst && data.sets.length > 0) {
           setSelectedSet(data.sets[0]);
           setExpandedSets(new Set([data.sets[0].id]));
         }
@@ -147,11 +154,12 @@ export default function SextingSetOrganizer({
     } finally {
       setLoading(false);
     }
-  }, [profileId, selectedSet]);
+  }, [profileId]);
 
+  // Initial fetch - only runs when profileId changes
   useEffect(() => {
-    fetchSets();
-  }, [fetchSets]);
+    fetchSets(true); // Auto-select first set on initial load
+  }, [profileId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create new set
   const createSet = async () => {
@@ -224,7 +232,7 @@ export default function SextingSetOrganizer({
     setEditingName(null);
   };
 
-  // Upload images
+  // Upload images - Direct S3 upload to bypass Vercel's 4.5MB limit
   const handleFileUpload = async (
     files: FileList | null,
     targetSetId?: string,
@@ -234,36 +242,85 @@ export default function SextingSetOrganizer({
 
     try {
       setUploading(true);
-      const formData = new FormData();
-      formData.append("setId", setId);
+      setUploadProgress({ current: 0, total: files.length });
 
-      Array.from(files).forEach((file) => {
-        formData.append("files", file);
-      });
-
-      const response = await fetch("/api/sexting-sets/upload", {
+      const fileArray = Array.from(files);
+      
+      // Step 1: Get presigned URLs for all files
+      const urlResponse = await fetch("/api/sexting-sets/get-upload-url", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          setId,
+          files: fileArray.map(f => ({
+            name: f.name,
+            type: f.type,
+            size: f.size,
+          })),
+        }),
       });
 
-      const data = await response.json();
-      if (data.images) {
-        // Refresh the set
-        const setResponse = await fetch(`/api/sexting-sets/${setId}`);
-        const setData = await setResponse.json();
-        if (setData.set) {
-          setSets((prev) =>
-            prev.map((s) => (s.id === setId ? setData.set : s)),
-          );
-          if (selectedSet?.id === setId) {
-            setSelectedSet(setData.set);
+      const urlData = await urlResponse.json();
+      if (!urlData.uploadUrls) {
+        throw new Error("Failed to get upload URLs");
+      }
+
+      // Step 2: Upload each file directly to S3
+      const uploadedFiles = [];
+      for (let i = 0; i < fileArray.length; i++) {
+        const file = fileArray[i];
+        const uploadInfo = urlData.uploadUrls[i];
+
+        // Upload directly to S3 using presigned URL
+        const uploadResponse = await fetch(uploadInfo.uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type,
+          },
+        });
+
+        if (!uploadResponse.ok) {
+          console.error(`Failed to upload ${file.name}`);
+          continue;
+        }
+
+        uploadedFiles.push(uploadInfo);
+        setUploadProgress({ current: i + 1, total: files.length });
+      }
+
+      // Step 3: Confirm uploads and create database records
+      if (uploadedFiles.length > 0) {
+        const confirmResponse = await fetch("/api/sexting-sets/confirm-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            setId,
+            uploadedFiles,
+          }),
+        });
+
+        const confirmData = await confirmResponse.json();
+        if (confirmData.success) {
+          // Refresh the set
+          const setResponse = await fetch(`/api/sexting-sets/${setId}`);
+          const setData = await setResponse.json();
+          if (setData.set) {
+            setSets((prev) =>
+              prev.map((s) => (s.id === setId ? setData.set : s)),
+            );
+            if (selectedSet?.id === setId) {
+              setSelectedSet(setData.set);
+            }
           }
         }
       }
     } catch (error) {
       console.error("Error uploading images:", error);
+      alert("Upload failed. Please try again.");
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -456,7 +513,47 @@ export default function SextingSetOrganizer({
     setDragOverIndex(index);
   };
 
-  const handleDragEnd = async () => {
+  // Debounced save function for reordering
+  const saveReorderDebounced = useCallback((setId: string, imageIds: string[]) => {
+    // Store the pending reorder
+    pendingReorderRef.current = { setId, imageIds };
+    
+    // Clear any existing timeout
+    if (reorderTimeoutRef.current) {
+      clearTimeout(reorderTimeoutRef.current);
+    }
+    
+    // Set a new timeout to save after 1.5 seconds of no activity
+    reorderTimeoutRef.current = setTimeout(async () => {
+      const pending = pendingReorderRef.current;
+      if (!pending) return;
+      
+      try {
+        setSavingOrder(true);
+        await fetch("/api/sexting-sets/reorder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pending),
+        });
+        pendingReorderRef.current = null;
+      } catch (error) {
+        console.error("Error saving order:", error);
+      } finally {
+        setSavingOrder(false);
+      }
+    }, 1500); // 1.5 second debounce
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (reorderTimeoutRef.current) {
+        clearTimeout(reorderTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleDragEnd = () => {
     if (draggedIndex === null || dragOverIndex === null || !selectedSet) {
       setDraggedIndex(null);
       setDragOverIndex(null);
@@ -477,31 +574,15 @@ export default function SextingSetOrganizer({
         sequence: idx + 1,
       }));
 
-      // Optimistic update
+      // Optimistic update - instant UI feedback
       const updatedSet = { ...selectedSet, images: reorderedImages };
       setSelectedSet(updatedSet);
       setSets((prev) =>
         prev.map((s) => (s.id === selectedSet.id ? updatedSet : s)),
       );
 
-      // Save to server
-      try {
-        setSavingOrder(true);
-        await fetch("/api/sexting-sets/reorder", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            setId: selectedSet.id,
-            imageIds: reorderedImages.map((img) => img.id),
-          }),
-        });
-      } catch (error) {
-        console.error("Error saving order:", error);
-        // Revert on error
-        fetchSets();
-      } finally {
-        setSavingOrder(false);
-      }
+      // Debounced save - waits for user to finish reordering
+      saveReorderDebounced(selectedSet.id, reorderedImages.map((img) => img.id));
     }
 
     setDraggedIndex(null);
@@ -916,7 +997,7 @@ export default function SextingSetOrganizer({
                       ref={fileInputRef}
                       onChange={(e) => handleFileUpload(e.target.files)}
                       multiple
-                      accept="image/*,video/*"
+                      accept="image/*,video/*,audio/*"
                       className="hidden"
                     />
                     <button
@@ -925,11 +1006,20 @@ export default function SextingSetOrganizer({
                       className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-pink-500/20 to-rose-500/20 hover:from-pink-500/30 hover:to-rose-500/30 border border-pink-500/30 text-pink-400 rounded-xl font-medium transition-all duration-200"
                     >
                       {uploading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>
+                            {uploadProgress 
+                              ? `${uploadProgress.current}/${uploadProgress.total}` 
+                              : "Uploading..."}
+                          </span>
+                        </>
                       ) : (
-                        <Upload className="w-4 h-4" />
+                        <>
+                          <Upload className="w-4 h-4" />
+                          <span>Upload</span>
+                        </>
                       )}
-                      <span>Upload</span>
                     </button>
                     {selectedSet.images.length > 0 && (
                       <button

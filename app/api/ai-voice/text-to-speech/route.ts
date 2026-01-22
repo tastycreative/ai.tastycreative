@@ -51,6 +51,8 @@ export async function POST(request: Request) {
       },
     });
 
+    console.log("Voice lookup:", { voiceId, found: !!voiceAccount, voiceAccountId: voiceAccount?.id });
+
     // Use custom API key if available, otherwise use default
     const apiKey = voiceAccount?.elevenlabsApiKey || ELEVENLABS_API_KEY;
 
@@ -117,42 +119,86 @@ export async function POST(request: Request) {
       mimeType = "audio/basic";
     }
 
+    // Fetch the most recent history item from ElevenLabs to get the history_item_id
+    let historyItemId: string | null = null;
+    try {
+      const historyResponse = await fetch(
+        `${ELEVENLABS_API_BASE}/v1/history?page_size=1&voice_id=${voiceId}`,
+        {
+          headers: {
+            "xi-api-key": apiKey,
+          },
+        }
+      );
+      
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json();
+        if (historyData.history && historyData.history.length > 0) {
+          historyItemId = historyData.history[0].history_item_id;
+        }
+      }
+    } catch (historyError) {
+      console.error("Error fetching history item ID:", historyError);
+    }
+
     // Update usage count for the voice
     if (voiceAccount) {
-      await prisma.ai_voice_accounts.update({
-        where: { id: voiceAccount.id },
-        data: {
-          usageCount: { increment: 1 },
-          lastUsedAt: new Date(),
-          updatedAt: new Date(),
-        },
-      });
+      try {
+        await prisma.ai_voice_accounts.update({
+          where: { id: voiceAccount.id },
+          data: {
+            usageCount: { increment: 1 },
+            lastUsedAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
 
-      // Save generation to history
-      const generation = await prisma.ai_voice_generations.create({
-        data: {
-          id: crypto.randomUUID(),
-          userId,
-          voiceAccountId: voiceAccount.id,
-          voiceName: voiceAccount.name,
-          text: text.trim(),
+        // Use the ElevenLabs history_item_id as our generation ID for easy retrieval
+        const generationId = historyItemId || crypto.randomUUID();
+
+        // Save generation to history - we'll fetch audio from ElevenLabs history API
+        const generation = await prisma.ai_voice_generations.create({
+          data: {
+            id: generationId,
+            userId,
+            voiceAccountId: voiceAccount.id,
+            voiceName: voiceAccount.name,
+            text: text.trim(),
+            characterCount: text.length,
+            modelId,
+            outputFormat,
+            audioSize: audioBuffer.byteLength,
+            voiceSettings: voiceSettings || null,
+          },
+        });
+
+        console.log("Generation saved successfully:", { generationId: generation.id, userId, voiceName: voiceAccount.name });
+
+        return NextResponse.json({
+          success: true,
+          audio: base64Audio,
+          mimeType,
+          format: outputFormat,
           characterCount: text.length,
-          modelId,
-          outputFormat,
-          audioSize: audioBuffer.byteLength,
-          voiceSettings: voiceSettings || null,
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        audio: base64Audio,
-        mimeType,
-        format: outputFormat,
-        characterCount: text.length,
-        generationId: generation.id,
-      });
+          generationId: generation.id,
+          historyItemId,
+        });
+      } catch (dbError) {
+        console.error("Error saving generation to database:", dbError);
+        // Still return the audio even if DB save failed
+        return NextResponse.json({
+          success: true,
+          audio: base64Audio,
+          mimeType,
+          format: outputFormat,
+          characterCount: text.length,
+          historyItemId,
+          warning: "Audio generated but failed to save to history",
+        });
+      }
     }
+
+    console.log("Voice account not found, generation not tracked:", { voiceId });
 
     return NextResponse.json({
       success: true,
@@ -160,6 +206,7 @@ export async function POST(request: Request) {
       mimeType,
       format: outputFormat,
       characterCount: text.length,
+      historyItemId,
     });
   } catch (error) {
     console.error("Error in text-to-speech:", error);

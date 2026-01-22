@@ -544,6 +544,23 @@ export default function EmbeddedVoiceGenerator({
                 />
               </div>
 
+              {/* Style Exaggeration */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs text-gray-500">Style Exaggeration</label>
+                  <span className="text-xs font-mono text-white bg-gray-900 px-1.5 py-0.5 rounded">{Math.round(voiceSettings.style * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={voiceSettings.style}
+                  onChange={(e) => setVoiceSettings(prev => ({ ...prev, style: parseFloat(e.target.value) }))}
+                  className="w-full h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer accent-violet-500"
+                />
+              </div>
+
               {/* Speaker Boost Toggle */}
               <label className="flex items-center justify-between py-1 cursor-pointer">
                 <div className="flex items-center gap-2">

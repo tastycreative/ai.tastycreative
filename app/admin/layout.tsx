@@ -87,6 +87,11 @@ export default function AdminLayout({
           href: "/admin/ai-voice-note-tracker/ai-voice-accounts",
           icon: UserCircle,
         },
+        {
+          name: "Generation Tracker",
+          href: "/admin/ai-voice-note-tracker/generation-tracker",
+          icon: TrendingUp,
+        },
       ],
     },
     {
