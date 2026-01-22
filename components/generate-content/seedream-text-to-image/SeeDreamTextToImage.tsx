@@ -421,7 +421,7 @@ export default function SeeDreamTextToImage() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Live Studio</p>
-                <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5</h1>
+                <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5 — Text to Image</h1>
               </div>
             </div>
             <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">

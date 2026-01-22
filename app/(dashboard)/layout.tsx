@@ -74,6 +74,12 @@ export default function DashboardLayout({
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [trainModelsOpen, setTrainModelsOpen] = useState(false);
   const [captionBanksOpen, setCaptionBanksOpen] = useState(false);
+  const [fluxGroupOpen, setFluxGroupOpen] = useState(false);
+  const [wan22GroupOpen, setWan22GroupOpen] = useState(false);
+  const [advancedToolsGroupOpen, setAdvancedToolsGroupOpen] = useState(false);
+  const [seedreamGroupOpen, setSeedreamGroupOpen] = useState(false);
+  const [klingAiGroupOpen, setKlingAiGroupOpen] = useState(false);
+  const [aiVoiceGroupOpen, setAiVoiceGroupOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -487,12 +493,15 @@ export default function DashboardLayout({
           key="flux-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setFluxGroupOpen(!fluxGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-blue-400/30 dark:border-blue-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-blue-400/30 dark:border-blue-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-blue-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -505,10 +514,14 @@ export default function DashboardLayout({
                     Flux Models
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-blue-400 dark:bg-blue-300 animate-pulse"></div>
+                {fluxGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-blue-400 dark:text-blue-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-blue-400 dark:text-blue-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -520,12 +533,15 @@ export default function DashboardLayout({
           key="wan-22-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setWan22GroupOpen(!wan22GroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 dark:from-green-500/10 dark:via-emerald-500/10 dark:to-teal-500/10 border border-green-400/30 dark:border-green-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 dark:from-green-500/10 dark:via-emerald-500/10 dark:to-teal-500/10 border border-green-400/30 dark:border-green-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-green-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -538,10 +554,14 @@ export default function DashboardLayout({
                     Wan 2.2 Models
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-green-400 dark:bg-green-300 animate-pulse"></div>
+                {wan22GroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-green-400 dark:text-green-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-green-400 dark:text-green-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -553,12 +573,15 @@ export default function DashboardLayout({
           key="advanced-tools-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setAdvancedToolsGroupOpen(!advancedToolsGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-orange-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-orange-500/20 dark:from-purple-500/10 dark:via-pink-500/10 dark:to-orange-500/10 border border-purple-400/30 dark:border-purple-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-orange-500/20 dark:from-purple-500/10 dark:via-pink-500/10 dark:to-orange-500/10 border border-purple-400/30 dark:border-purple-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-purple-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -571,10 +594,14 @@ export default function DashboardLayout({
                     Advanced Tools
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-purple-400 dark:bg-purple-300 animate-pulse"></div>
+                {advancedToolsGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-purple-400 dark:text-purple-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-purple-400 dark:text-purple-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -586,12 +613,15 @@ export default function DashboardLayout({
           key="seedream-45-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setSeedreamGroupOpen(!seedreamGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-indigo-500/20 dark:from-cyan-500/10 dark:via-blue-500/10 dark:to-indigo-500/10 border border-cyan-400/30 dark:border-cyan-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-indigo-500/20 dark:from-cyan-500/10 dark:via-blue-500/10 dark:to-indigo-500/10 border border-cyan-400/30 dark:border-cyan-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -604,10 +634,14 @@ export default function DashboardLayout({
                     SeeDream 4.5
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-cyan-400 dark:bg-cyan-300 animate-pulse"></div>
+                {seedreamGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-cyan-400 dark:text-cyan-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-cyan-400 dark:text-cyan-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -619,12 +653,15 @@ export default function DashboardLayout({
           key="kling-ai-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setKlingAiGroupOpen(!klingAiGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-pink-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-violet-500/20 via-purple-500/20 to-pink-500/20 dark:from-violet-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-violet-400/30 dark:border-violet-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-violet-500/20 via-purple-500/20 to-pink-500/20 dark:from-violet-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-violet-400/30 dark:border-violet-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-violet-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -637,10 +674,14 @@ export default function DashboardLayout({
                     Kling AI
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-violet-400 dark:bg-violet-300 animate-pulse"></div>
+                {klingAiGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-violet-400 dark:text-violet-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-violet-400 dark:text-violet-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -652,12 +693,15 @@ export default function DashboardLayout({
           key="ai-voice-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setAiVoiceGroupOpen(!aiVoiceGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 via-orange-500/10 to-yellow-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-red-500/20 via-orange-500/20 to-yellow-500/20 dark:from-red-500/10 dark:via-orange-500/10 dark:to-yellow-500/10 border border-red-400/30 dark:border-red-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-red-500/20 via-orange-500/20 to-yellow-500/20 dark:from-red-500/10 dark:via-orange-500/10 dark:to-yellow-500/10 border border-red-400/30 dark:border-red-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-red-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -670,10 +714,14 @@ export default function DashboardLayout({
                     AI Voice
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-red-400 dark:bg-red-300 animate-pulse"></div>
+                {aiVoiceGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-red-400 dark:text-red-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-red-400 dark:text-red-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -688,6 +736,35 @@ export default function DashboardLayout({
           </div>
         </div>
       ) : null;
+    }
+
+    // Helper function to check if item should be hidden based on group state
+    const isItemInCollapsedGroup = () => {
+      // Map of group states to their item names
+      if (!fluxGroupOpen && ["Text to Image", "Style Transfer", "Skin Enhancer", "Flux Kontext"].includes(item.name)) {
+        return true;
+      }
+      if (!wan22GroupOpen && ["Text to Video", "Image to Video"].includes(item.name)) {
+        return true;
+      }
+      if (!advancedToolsGroupOpen && ["Face Swapping", "Image-to-Image Skin Enhancer", "FPS Boost"].includes(item.name)) {
+        return true;
+      }
+      if (!seedreamGroupOpen && ["SeeDream Text to Image", "SeeDream Image to Image", "SeeDream Text to Video", "SeeDream Image to Video"].includes(item.name)) {
+        return true;
+      }
+      if (!klingAiGroupOpen && ["Kling Text to Video", "Kling Image to Video", "Kling Multi-Image to Video", "Kling Motion Control"].includes(item.name)) {
+        return true;
+      }
+      if (!aiVoiceGroupOpen && ["Voice Generator"].includes(item.name)) {
+        return true;
+      }
+      return false;
+    };
+
+    // Don't render item if it's in a collapsed group and sidebar is open
+    if (sidebarOpen && isItemInCollapsedGroup()) {
+      return null;
     }
 
     const isActive = isNavItemActive(item.href);
