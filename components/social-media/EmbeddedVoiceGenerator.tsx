@@ -69,9 +69,143 @@ const DEFAULT_SETTINGS: VoiceSettings = {
 
 interface EmbeddedVoiceGeneratorProps {
   setId: string | null;
-  onSaveToSet?: (audioBlob: Blob, filename: string) => Promise<void>;
+  onSaveToSet?: (audioBlob: Blob, filename: string, thumbnailBlob?: Blob, thumbnailFilename?: string) => Promise<void>;
   onSaveComplete?: () => void;
 }
+
+// Generate a keycard-style thumbnail for audio
+const generateAudioThumbnail = async (ttsText: string): Promise<Blob> => {
+  const width = 500;
+  const height = 500;
+  const scale = 2;
+  const scaledWidth = width * scale;
+  const scaledHeight = height * scale;
+  const padding = 40 * scale;
+  
+  const canvas = document.createElement('canvas');
+  canvas.width = scaledWidth;
+  canvas.height = scaledHeight;
+  const ctx = canvas.getContext('2d');
+  
+  if (!ctx) {
+    throw new Error('Could not get canvas context');
+  }
+  
+  // Draw rounded rectangle background with violet/fuchsia gradient
+  const radius = 32 * scale;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, scaledWidth, scaledHeight, radius);
+  ctx.clip();
+  
+  // Create gradient background (violet to fuchsia)
+  const gradient = ctx.createLinearGradient(0, 0, scaledWidth, scaledHeight);
+  gradient.addColorStop(0, '#1e1b4b'); // violet-950
+  gradient.addColorStop(0.5, '#4c1d95'); // violet-900
+  gradient.addColorStop(1, '#701a75'); // fuchsia-900
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+  
+  // Add subtle overlay
+  const overlay = ctx.createLinearGradient(0, 0, scaledWidth, scaledHeight);
+  overlay.addColorStop(0, 'rgba(139, 92, 246, 0.1)');
+  overlay.addColorStop(1, 'rgba(217, 70, 239, 0.1)');
+  ctx.fillStyle = overlay;
+  ctx.fillRect(0, 0, scaledWidth, scaledHeight);
+  
+  // Draw "AUDIO" label at top
+  ctx.fillStyle = '#a78bfa'; // violet-400
+  ctx.font = `bold ${18 * scale}px Inter, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('🎙️ VOICE NOTE', scaledWidth / 2, padding);
+  
+  // Draw the text content
+  ctx.fillStyle = '#f5f3ff'; // violet-50
+  ctx.font = `${20 * scale}px Inter, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  
+  // Add text shadow
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+  ctx.shadowBlur = 8 * scale;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 4 * scale;
+  
+  // Wrap text
+  const maxWidth = scaledWidth - (padding * 2);
+  const words = ttsText.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+  
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const metrics = ctx.measureText(testLine);
+    
+    if (metrics.width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  // Limit to 8 lines max
+  const displayLines = lines.slice(0, 8);
+  if (lines.length > 8) {
+    displayLines[7] = displayLines[7].substring(0, displayLines[7].length - 3) + '...';
+  }
+  
+  const lineHeight = 24 * scale;
+  const totalTextHeight = displayLines.length * lineHeight;
+  const startY = (scaledHeight - totalTextHeight) / 2 + lineHeight / 2;
+  
+  displayLines.forEach((line, index) => {
+    ctx.fillText(`"${line}"`, scaledWidth / 2, startY + index * lineHeight);
+  });
+  
+  // Reset shadow
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  
+  // Draw right arrow indicator at bottom right to show audio follows
+  const arrowSize = 40 * scale;
+  const arrowX = scaledWidth - padding - arrowSize / 2;
+  const arrowY = scaledHeight - padding - arrowSize / 2;
+  
+  // Arrow background circle
+  ctx.fillStyle = 'rgba(167, 139, 250, 0.4)'; // violet-400 with opacity
+  ctx.beginPath();
+  ctx.arc(arrowX, arrowY, arrowSize, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Draw arrow pointing right (→)
+  ctx.fillStyle = '#ffffff'; // white for better visibility
+  ctx.font = `bold ${48 * scale}px Inter, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('→', arrowX, arrowY);
+  
+  // Add "swipe for audio" hint text
+  ctx.fillStyle = '#e9d5ff'; // violet-200 for better visibility
+  ctx.font = `bold ${16 * scale}px Inter, sans-serif`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('AUDIO →', arrowX - arrowSize - 12 * scale, arrowY);
+  
+  // Convert to blob
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error('Failed to create blob'));
+      }
+    }, 'image/png');
+  });
+};
 
 export default function EmbeddedVoiceGenerator({ 
   setId, 
@@ -208,9 +342,15 @@ export default function EmbeddedVoiceGenerator({
       // Save to set if callback provided and set is selected
       if (onSaveToSet && setId) {
         const extension = data.mimeType.includes("mpeg") ? "mp3" : "wav";
-        const filename = `voice-${selectedVoice.name.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}.${extension}`;
-        await onSaveToSet(audioBlob, filename);
-        setSuccess(`Voice note saved to set!`);
+        const timestamp = Date.now();
+        const filename = `voice-${selectedVoice.name.toLowerCase().replace(/\s+/g, "-")}-${timestamp}.${extension}`;
+        
+        // Generate thumbnail keycard for the audio
+        const thumbnailBlob = await generateAudioThumbnail(text.trim());
+        const thumbnailFilename = `voice-thumbnail-${timestamp}.png`;
+        
+        await onSaveToSet(audioBlob, filename, thumbnailBlob, thumbnailFilename);
+        setSuccess(`Voice note with thumbnail saved to set!`);
         
         if (onSaveComplete) {
           onSaveComplete();

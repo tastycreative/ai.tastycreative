@@ -122,8 +122,9 @@ export default function SextingSetOrganizer({
   const [showImageDetailModal, setShowImageDetailModal] = useState(false);
   const [selectedImageForDetail, setSelectedImageForDetail] = useState<SextingImage | null>(null);
 
-  // Tab state: "organizer" | "keycard" | "voice"
-  const [activeTab, setActiveTab] = useState<"organizer" | "keycard" | "voice">("organizer");
+  // Keycard and Voice modal states
+  const [showKeycardModal, setShowKeycardModal] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
 
   // Clear selected set when profile changes
   useEffect(() => {
@@ -665,179 +666,16 @@ export default function SextingSetOrganizer({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Tab Buttons */}
-          <div className="flex bg-gray-800/50 rounded-xl p-1">
-            <button
-              onClick={() => setActiveTab("organizer")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                activeTab === "organizer"
-                  ? "bg-gradient-to-r from-pink-500 to-rose-500 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              <Heart className="w-4 h-4" />
-              Sets
-            </button>
-            <button
-              onClick={() => setActiveTab("keycard")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                activeTab === "keycard"
-                  ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              Keycards
-            </button>
-            <button
-              onClick={() => setActiveTab("voice")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                activeTab === "voice"
-                  ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-lg"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              <Mic className="w-4 h-4" />
-              Voice
-            </button>
-          </div>
-
-          {activeTab === "organizer" && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-pink-500/25 transition-all duration-200 hover:scale-105"
-            >
-              <FolderPlus className="w-5 h-5" />
-              <span>New Set</span>
-            </button>
-          )}
-        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-pink-500/25 transition-all duration-200 hover:scale-105"
+        >
+          <FolderPlus className="w-5 h-5" />
+          <span>New Set</span>
+        </button>
       </div>
 
-      {/* Keycard Generator Tab */}
-      {activeTab === "keycard" && (
-        <KeycardGenerator
-          profileId={profileId}
-          hasSelectedSet={!!selectedSet}
-          onSaveToSet={selectedSet ? async (blob, filename) => {
-            // Convert blob to File and upload
-            const file = new File([blob], filename, { type: "image/png" });
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            await handleFileUpload(dataTransfer.files);
-          } : undefined}
-          onSaveComplete={() => {
-            // Switch to organizer tab to show the saved keycard
-            setActiveTab("organizer");
-          }}
-        />
-      )}
-
-      {/* Voice Generator Tab */}
-      {activeTab === "voice" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sets sidebar for voice tab */}
-          <div className="lg:col-span-1 space-y-3">
-            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm">
-              <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
-                <Heart className="w-4 h-4 text-pink-500" />
-                Select a Set
-              </h3>
-              <p className="text-xs text-gray-500 mb-3">
-                Choose which set to save your voice notes to
-              </p>
-
-              {sets.length === 0 ? (
-                <div className="text-center py-6">
-                  <Sparkles className="w-8 h-8 text-pink-500/50 mx-auto mb-2" />
-                  <p className="text-gray-400 text-sm">No sets yet</p>
-                  <button
-                    onClick={() => {
-                      setActiveTab("organizer");
-                      setShowCreateModal(true);
-                    }}
-                    className="mt-2 text-pink-400 hover:text-pink-300 text-sm font-medium"
-                  >
-                    Create your first set
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
-                  {sets.map((set) => (
-                    <button
-                      key={set.id}
-                      onClick={() => {
-                        setSelectedSet(set);
-                        setExpandedSets((prev) => new Set([...prev, set.id]));
-                      }}
-                      className={`w-full p-3 rounded-xl text-left transition-all duration-200 ${
-                        selectedSet?.id === set.id
-                          ? "bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 border border-violet-500/40"
-                          : "bg-gray-800/50 hover:bg-gray-800/80 border border-transparent hover:border-gray-700/50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          selectedSet?.id === set.id 
-                            ? "bg-gradient-to-br from-violet-500 to-fuchsia-500" 
-                            : "bg-gray-700/50"
-                        }`}>
-                          <Folder className={`w-5 h-5 ${selectedSet?.id === set.id ? "text-white" : "text-gray-400"}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-medium truncate ${selectedSet?.id === set.id ? "text-white" : "text-gray-300"}`}>
-                            {set.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {set.images.length} item{set.images.length !== 1 ? "s" : ""}
-                          </p>
-                        </div>
-                        {selectedSet?.id === set.id && (
-                          <CheckCircle2 className="w-5 h-5 text-violet-400" />
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Voice Generator */}
-          <div className="lg:col-span-2">
-            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-5 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="p-2 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-xl">
-                  <Mic className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">Voice Generator</h3>
-                  <p className="text-xs text-gray-400">Generate AI voice notes and save to your set</p>
-                </div>
-              </div>
-
-              <EmbeddedVoiceGenerator
-                setId={selectedSet?.id || null}
-                onSaveToSet={selectedSet ? async (audioBlob, filename) => {
-                  const file = new File([audioBlob], filename, { type: audioBlob.type });
-                  const dataTransfer = new DataTransfer();
-                  dataTransfer.items.add(file);
-                  await handleFileUpload(dataTransfer.files, selectedSet.id);
-                } : undefined}
-                onSaveComplete={() => {
-                  // Refresh to show the saved audio and switch to organizer tab
-                  fetchSets();
-                  setActiveTab("organizer");
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main content area - only show when on organizer tab */}
-      {activeTab === "organizer" && (
+      {/* Main content area */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sets sidebar */}
         <div className="lg:col-span-1 space-y-3">
@@ -1021,6 +859,20 @@ export default function SextingSetOrganizer({
                         </>
                       )}
                     </button>
+                    <button
+                      onClick={() => setShowKeycardModal(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/30 hover:to-purple-500/30 border border-indigo-500/30 text-indigo-400 rounded-xl font-medium transition-all duration-200"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Keycard</span>
+                    </button>
+                    <button
+                      onClick={() => setShowVoiceModal(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 hover:from-violet-500/30 hover:to-fuchsia-500/30 border border-violet-500/30 text-violet-400 rounded-xl font-medium transition-all duration-200"
+                    >
+                      <Mic className="w-4 h-4" />
+                      <span>Voice</span>
+                    </button>
                     {selectedSet.images.length > 0 && (
                       <button
                         onClick={openExportModal}
@@ -1182,7 +1034,6 @@ export default function SextingSetOrganizer({
           )}
         </div>
       </div>
-      )}
 
       {/* Create Modal - React Portal */}
       {showCreateModal &&
@@ -1646,6 +1497,123 @@ export default function SextingSetOrganizer({
                   <Download className="w-4 h-4" />
                   Open Original
                 </a>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Keycard Generator Modal - React Portal */}
+      {showKeycardModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowKeycardModal(false)}
+          >
+            <div 
+              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="sticky top-0 z-10 p-4 border-b border-gray-700 bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl">
+                    <FileText className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Keycard Generator</h3>
+                    <p className="text-xs text-gray-400">Create custom keycards for your set</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowKeycardModal(false)}
+                  className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-4">
+                <KeycardGenerator
+                  profileId={profileId}
+                  hasSelectedSet={!!selectedSet}
+                  directSaveMode={true}
+                  onSaveToSet={selectedSet ? async (blob, filename) => {
+                    // Convert blob to File and upload
+                    const file = new File([blob], filename, { type: "image/png" });
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    await handleFileUpload(dataTransfer.files);
+                  } : undefined}
+                  onSaveComplete={() => {
+                    // Close modal after saving
+                    setShowKeycardModal(false);
+                  }}
+                />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Voice Generator Modal - React Portal */}
+      {showVoiceModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div 
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowVoiceModal(false)}
+          >
+            <div 
+              className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="sticky top-0 z-10 p-4 border-b border-gray-700 bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-xl">
+                    <Mic className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Voice Generator</h3>
+                    <p className="text-xs text-gray-400">Generate AI voice notes for your set</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowVoiceModal(false)}
+                  className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-4">
+                <EmbeddedVoiceGenerator
+                  setId={selectedSet?.id || null}
+                  onSaveToSet={selectedSet ? async (audioBlob, filename, thumbnailBlob, thumbnailFilename) => {
+                    // Upload the thumbnail first (it will display as the visual in the grid)
+                    if (thumbnailBlob && thumbnailFilename) {
+                      const thumbnailFile = new File([thumbnailBlob], thumbnailFilename, { type: "image/png" });
+                      const thumbnailTransfer = new DataTransfer();
+                      thumbnailTransfer.items.add(thumbnailFile);
+                      await handleFileUpload(thumbnailTransfer.files, selectedSet.id);
+                    }
+                    
+                    // Then upload the audio file
+                    const audioFile = new File([audioBlob], filename, { type: audioBlob.type });
+                    const audioTransfer = new DataTransfer();
+                    audioTransfer.items.add(audioFile);
+                    await handleFileUpload(audioTransfer.files, selectedSet.id);
+                  } : undefined}
+                  onSaveComplete={() => {
+                    // Refresh to show the saved audio and close modal
+                    fetchSets();
+                    setShowVoiceModal(false);
+                  }}
+                />
               </div>
             </div>
           </div>,

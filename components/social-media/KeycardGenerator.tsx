@@ -131,9 +131,10 @@ interface KeycardGeneratorProps {
   onSaveComplete?: () => void; // Called after successful save to navigate
   profileId?: string | null;
   hasSelectedSet?: boolean; // Whether a set is selected
+  directSaveMode?: boolean; // If true, skip preview modal and save directly
 }
 
-export default function KeycardGenerator({ onSaveToSet, onSaveComplete, profileId, hasSelectedSet = false }: KeycardGeneratorProps) {
+export default function KeycardGenerator({ onSaveToSet, onSaveComplete, profileId, hasSelectedSet = false, directSaveMode = false }: KeycardGeneratorProps) {
   const [text, setText] = useState("");
   const [selectedStyle, setSelectedStyle] = useState<KeycardStyle>(KEYCARD_STYLES[0]);
   const [fontSize, setFontSize] = useState(24);
@@ -295,14 +296,40 @@ export default function KeycardGenerator({ onSaveToSet, onSaveComplete, profileI
       // Convert to image
       const imageUrl = canvas.toDataURL('image/png');
       setGeneratedImage(imageUrl);
-      setShowPreviewModal(true);
+      
+      // If directSaveMode is enabled and we have a set selected, save directly
+      if (directSaveMode && hasSelectedSet && onSaveToSet) {
+        try {
+          setIsSaving(true);
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const filename = `keycard-${Date.now()}.png`;
+          await onSaveToSet(blob, filename);
+          setText(""); // Clear text after successful save
+          setGeneratedImage(null);
+          if (onSaveComplete) {
+            onSaveComplete();
+          }
+        } catch (saveError) {
+          console.error("Error saving keycard:", saveError);
+          alert("Failed to save keycard. Please try again.");
+        } finally {
+          setIsSaving(false);
+        }
+      } else if (directSaveMode && !hasSelectedSet) {
+        alert("Please select a set first before generating a keycard.");
+        setGeneratedImage(null);
+      } else {
+        // Show preview modal for non-direct save mode
+        setShowPreviewModal(true);
+      }
     } catch (error) {
       console.error("Error generating image:", error);
       alert("Failed to generate image. Please try again.");
     } finally {
       setIsGenerating(false);
     }
-  }, [text, selectedStyle, fontSize, cardSize]);
+  }, [text, selectedStyle, fontSize, cardSize, directSaveMode, hasSelectedSet, onSaveToSet, onSaveComplete]);
 
   const downloadImage = () => {
     if (!generatedImage) return;
@@ -481,13 +508,18 @@ export default function KeycardGenerator({ onSaveToSet, onSaveComplete, profileI
           {/* Generate Button */}
           <button
             onClick={generateImage}
-            disabled={!text.trim() || isGenerating}
+            disabled={!text.trim() || isGenerating || isSaving || (directSaveMode && !hasSelectedSet)}
             className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white rounded-xl font-medium shadow-lg shadow-indigo-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {isGenerating ? (
+            {isGenerating || isSaving ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Generating...
+                {isSaving ? "Saving..." : "Generating..."}
+              </>
+            ) : directSaveMode ? (
+              <>
+                <Save className="w-5 h-5" />
+                {hasSelectedSet ? "Generate & Save to Set" : "Select a Set First"}
               </>
             ) : (
               <>

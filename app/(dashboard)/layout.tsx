@@ -101,9 +101,24 @@ export default function DashboardLayout({
       icon: Home,
     },
     {
+      name: "My Influencers",
+      href: "/workspace/my-influencers",
+      icon: Users,
+    },
+    {
+      name: "Vault",
+      href: "/workspace/vault",
+      icon: Shield,
+    },
+    {
       name: "Content Studio",
       collapsible: true,
       items: [
+        {
+          name: "Sexting Set Organizer",
+          href: "/workspace/content-studio/sexting-set-organizer",
+          icon: Flame,
+        },
         {
           name: "Staging",
           href: "/workspace/content-studio/staging",
@@ -153,11 +168,6 @@ export default function DashboardLayout({
           name: "Workflow",
           href: "/workspace/content-studio/workflow",
           icon: ListChecks,
-        },
-        {
-          name: "Sexting Set Organizer",
-          href: "/workspace/content-studio/sexting-set-organizer",
-          icon: Flame,
         },
       ],
     },
@@ -313,18 +323,60 @@ export default function DashboardLayout({
       ],
     },
     {
-      name: "Workspace",
+      name: "AI Tools",
       collapsible: true,
       items: [
         {
-          name: "My Influencers",
-          href: "/workspace/my-influencers",
-          icon: Users,
+          name: "Instagram Extractor",
+          href: "/workspace/ai-tools/instagram-extractor",
+          icon: Instagram,
         },
         {
-          name: "Vault",
-          href: "/workspace/vault",
-          icon: Shield,
+          name: "Style Transfer Prompts",
+          href: "/workspace/ai-tools/style-transfer-prompts",
+          icon: Wand2,
+        },
+        {
+          name: "Video Prompts",
+          href: "/workspace/ai-tools/video-prompts",
+          icon: PlayCircle,
+        },
+        {
+          name: "Flux Kontext Prompts",
+          href: "/workspace/ai-tools/flux-kontext-prompts",
+          icon: Sparkles,
+        },
+      ],
+    },
+    {
+      name: "Caption Banks",
+      collapsible: true,
+      items: [
+        {
+          name: "Captions",
+          href: "/workspace/caption-banks/captions",
+          icon: FileText,
+        },
+        {
+          name: "Caption Performance Tracker",
+          href: "/workspace/caption-banks/caption-performance-tracker",
+          icon: BarChart3,
+        },
+      ],
+    },
+    {
+      name: "Train Models",
+      collapsible: true,
+      items: [
+        {
+          name: "Train LoRA",
+          href: "/workspace/train-lora",
+          icon: PlusCircle,
+        },
+        {
+          name: "Training Jobs",
+          href: "/workspace/training-jobs",
+          icon: BarChart3,
         },
       ],
     },
@@ -360,67 +412,9 @@ export default function DashboardLayout({
       ],
     },
     {
-      name: "Train Models",
-      collapsible: true,
-      items: [
-        {
-          name: "Train LoRA",
-          href: "/workspace/train-lora",
-          icon: PlusCircle,
-        },
-        {
-          name: "Training Jobs",
-          href: "/workspace/training-jobs",
-          icon: BarChart3,
-        },
-      ],
-    },
-    {
-      name: "AI Tools",
-      collapsible: true,
-      items: [
-        {
-          name: "Instagram Extractor",
-          href: "/workspace/ai-tools/instagram-extractor",
-          icon: Instagram,
-        },
-        {
-          name: "Style Transfer Prompts",
-          href: "/workspace/ai-tools/style-transfer-prompts",
-          icon: Wand2,
-        },
-        {
-          name: "Video Prompts",
-          href: "/workspace/ai-tools/video-prompts",
-          icon: PlayCircle,
-        },
-        {
-          name: "Flux Kontext Prompts",
-          href: "/workspace/ai-tools/flux-kontext-prompts",
-          icon: Sparkles,
-        },
-      ],
-    },
-    {
       name: "AI Marketplace",
       href: "/workspace/ai-marketplace",
       icon: ShoppingBag,
-    },
-    {
-      name: "Caption Banks",
-      collapsible: true,
-      items: [
-        {
-          name: "Captions",
-          href: "/workspace/caption-banks/captions",
-          icon: FileText,
-        },
-        {
-          name: "Caption Performance Tracker",
-          href: "/workspace/caption-banks/caption-performance-tracker",
-          icon: BarChart3,
-        },
-      ],
     },
     // Conditionally add content creator link
     ...(isContentCreator
