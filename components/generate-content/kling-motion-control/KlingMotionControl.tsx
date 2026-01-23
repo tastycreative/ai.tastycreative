@@ -187,7 +187,7 @@ export default function KlingMotionControl() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
-  const { globalProfileId, selectedProfile } = useInstagramProfile();
+  const { profileId, selectedProfile } = useInstagramProfile();
 
   // Hydration fix
   const [mounted, setMounted] = useState(false);
@@ -242,14 +242,14 @@ export default function KlingMotionControl() {
 
   // Load vault folders for selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient || !user || !globalProfileId) {
+    if (!apiClient || !user || !profileId) {
       setVaultFolders([]);
       return;
     }
     setIsLoadingVaultData(true);
     try {
       const foldersResponse = await apiClient.get(
-        `/api/vault/folders?profileId=${globalProfileId}`
+        `/api/vault/folders?profileId=${profileId}`
       );
       if (foldersResponse.ok) {
         const foldersData = await foldersResponse.json();
@@ -264,7 +264,7 @@ export default function KlingMotionControl() {
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient, user, globalProfileId]);
+  }, [apiClient, user, profileId]);
 
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
@@ -323,7 +323,7 @@ export default function KlingMotionControl() {
   // Clear target folder when profile changes
   useEffect(() => {
     setTargetFolder("");
-  }, [globalProfileId]);
+  }, [profileId]);
 
   // Click outside handler for folder dropdown
   useEffect(() => {
@@ -576,9 +576,9 @@ export default function KlingMotionControl() {
       }
 
       // Add folder selection data - simplified vault folder approach
-      if (targetFolder && globalProfileId) {
+      if (targetFolder && profileId) {
         formData.append("saveToVault", "true");
-        formData.append("vaultProfileId", globalProfileId);
+        formData.append("vaultProfileId", profileId);
         formData.append("vaultFolderId", targetFolder);
       }
 
@@ -1024,7 +1024,7 @@ export default function KlingMotionControl() {
                     <button
                       type="button"
                       onClick={() => setFolderDropdownOpen(!folderDropdownOpen)}
-                      disabled={isLoadingVaultData || isGenerating || !globalProfileId}
+                      disabled={isLoadingVaultData || isGenerating || !profileId}
                       className="w-full flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-violet-500/50 disabled:opacity-50"
                     >
                       <span className="flex items-center gap-2">
