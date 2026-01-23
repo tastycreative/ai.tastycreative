@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useOrganization } from '@/lib/hooks/useOrganization';
-import { usePermissions } from '@/lib/hooks/usePermissions';
+import { useOrganization } from '@/lib/hooks/useOrganization.query';
+import { usePermissions } from '@/lib/hooks/usePermissions.query';
 import {
   ChevronDown,
   Building2,

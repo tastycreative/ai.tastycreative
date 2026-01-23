@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the user from the database
-    const user = await prisma.user.findUnique({
+    // Get or create the user in the database
+    let user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: {
         id: true,
@@ -20,8 +20,34 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // If user doesn't exist in database, create them (new signup)
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      const clerkUser = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}`,
+        },
+      });
+
+      if (clerkUser.ok) {
+        const clerkData = await clerkUser.json();
+        user = await prisma.user.create({
+          data: {
+            clerkId: userId,
+            email: clerkData.email_addresses?.[0]?.email_address || '',
+            name: `${clerkData.first_name || ''} ${clerkData.last_name || ''}`.trim() || null,
+          },
+          select: {
+            id: true,
+            currentOrganizationId: true,
+          },
+        });
+      } else {
+        // If we can't fetch from Clerk API, return empty organizations
+        return NextResponse.json({
+          organizations: [],
+          currentOrganization: null,
+        });
+      }
     }
 
     // Get all organizations the user is a member of

@@ -13,7 +13,9 @@ import {
   X,
   Check,
   AlertCircle,
+  Settings,
 } from 'lucide-react';
+import OrganizationPermissionsModal from './OrganizationPermissionsModal';
 
 interface Organization {
   id: string;
@@ -81,6 +83,7 @@ export default function OrganizationsTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -373,6 +376,22 @@ export default function OrganizationsTab() {
               </div>
             </div>
 
+            {/* Actions */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setSelectedOrg(org);
+                    setShowPermissionsModal(true);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors border border-blue-200 dark:border-blue-800"
+                >
+                  <Settings className="w-4 h-4" />
+                  Manage Permissions
+                </button>
+              </div>
+            </div>
+
             {/* Members Section */}
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
               <div className="flex items-center justify-between mb-3">
@@ -620,6 +639,22 @@ export default function OrganizationsTab() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Permissions Modal */}
+      {showPermissionsModal && selectedOrg && (
+        <OrganizationPermissionsModal
+          organizationId={selectedOrg.id}
+          organizationName={selectedOrg.name}
+          onClose={() => {
+            setShowPermissionsModal(false);
+            setSelectedOrg(null);
+          }}
+          onSuccess={() => {
+            setSuccess('Permissions updated successfully!');
+            setTimeout(() => setSuccess(null), 3000);
+          }}
+        />
       )}
     </div>
   );

@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
-import { usePermissions } from "@/lib/hooks/usePermissions";
+import { usePermissions } from "@/lib/hooks/usePermissions.query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -49,6 +49,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
 import { NotificationBell } from "@/components/NotificationBell";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
+import { PermissionGuard } from "@/components/PermissionGuard";
 
 interface NavItem {
   name: string;
@@ -90,7 +91,8 @@ export default function DashboardLayout({
   const { permissions, subscriptionInfo, loading: permissionsLoading } = usePermissions();
 
   // Dynamic navigation based on user permissions
-  const navigation: (NavItem | NavSection)[] = [
+  // Don't build navigation until permissions are loaded to prevent showing unauthorized tabs
+  const navigation: (NavItem | NavSection)[] = permissionsLoading ? [] : [
     {
       name: "Dashboard",
       href: "/dashboard",
@@ -381,33 +383,37 @@ export default function DashboardLayout({
           },
         ]
       : []),
-    // AI Tools section - always show for now
-    {
-      name: "AI Tools",
-      collapsible: true,
-      items: [
-        {
-          name: "Instagram Extractor",
-          href: "/workspace/ai-tools/instagram-extractor",
-          icon: Instagram,
-        },
-        {
-          name: "Style Transfer Prompts",
-          href: "/workspace/ai-tools/style-transfer-prompts",
-          icon: Wand2,
-        },
-        {
-          name: "Video Prompts",
-          href: "/workspace/ai-tools/video-prompts",
-          icon: PlayCircle,
-        },
-        {
-          name: "Flux Kontext Prompts",
-          href: "/workspace/ai-tools/flux-kontext-prompts",
-          icon: Sparkles,
-        },
-      ],
-    },
+    // AI Tools - show if user has generation features
+    ...(permissions.hasGenerateTab
+      ? [
+          {
+            name: "AI Tools",
+            collapsible: true,
+            items: [
+              {
+                name: "Instagram Extractor",
+                href: "/workspace/ai-tools/instagram-extractor",
+                icon: Instagram,
+              },
+              {
+                name: "Style Transfer Prompts",
+                href: "/workspace/ai-tools/style-transfer-prompts",
+                icon: Wand2,
+              },
+              {
+                name: "Video Prompts",
+                href: "/workspace/ai-tools/video-prompts",
+                icon: PlayCircle,
+              },
+              {
+                name: "Flux Kontext Prompts",
+                href: "/workspace/ai-tools/flux-kontext-prompts",
+                icon: Sparkles,
+              },
+            ],
+          },
+        ]
+      : []),
     // Marketplace - check permission
     ...(permissions.hasMarketplaceTab
       ? [
@@ -1004,20 +1010,39 @@ export default function DashboardLayout({
           </div>
           {sidebarOpen && (
             <div className="pt-1">
-              <OrganizationSwitcher />
+              {permissionsLoading ? (
+                // Loading skeleton for organization switcher
+                <div className="animate-pulse">
+                  <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
+                </div>
+              ) : (
+                <OrganizationSwitcher />
+              )}
             </div>
           )}
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto custom-scrollbar">
-          {navigation.map((item) => {
-            if ("items" in item) {
-              return renderNavSection(item);
-            } else {
-              return renderNavItem(item);
-            }
-          })}
+          {permissionsLoading ? (
+            // Loading skeleton while permissions are being fetched
+            <div className="space-y-2 animate-pulse">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg"
+                />
+              ))}
+            </div>
+          ) : (
+            navigation.map((item) => {
+              if ("items" in item) {
+                return renderNavSection(item);
+              } else {
+                return renderNavItem(item);
+              }
+            })
+          )}
         </nav>
 
         {/* Theme toggle and footer */}
@@ -1067,19 +1092,38 @@ export default function DashboardLayout({
               </button>
             </div>
             <div className="pt-1">
-              <OrganizationSwitcher />
+              {permissionsLoading ? (
+                // Loading skeleton for organization switcher
+                <div className="animate-pulse">
+                  <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
+                </div>
+              ) : (
+                <OrganizationSwitcher />
+              )}
             </div>
           </div>
 
           {/* Navigation */}
           <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
-            {navigation.map((item) => {
-              if ("items" in item) {
-                return renderNavSection(item);
-              } else {
-                return renderNavItem(item);
-              }
-            })}
+            {permissionsLoading ? (
+              // Loading skeleton while permissions are being fetched
+              <div className="space-y-2 animate-pulse">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg"
+                  />
+                ))}
+              </div>
+            ) : (
+              navigation.map((item) => {
+                if ("items" in item) {
+                  return renderNavSection(item);
+                } else {
+                  return renderNavItem(item);
+                }
+              })
+            )}
           </nav>
 
           {/* Theme toggle and footer */}
@@ -1204,7 +1248,9 @@ export default function DashboardLayout({
 
           {/* Content */}
           <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn">
-            {children}
+            <PermissionGuard>
+              {children}
+            </PermissionGuard>
           </div>
         </main>
       </div>

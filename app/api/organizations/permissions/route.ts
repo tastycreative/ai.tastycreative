@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the user from the database
-    const user = await prisma.user.findUnique({
+    // Get or create the user in the database
+    let user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: {
         id: true,
@@ -48,58 +48,104 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // If user doesn't exist in database, create them (new signup)
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      const clerkUser = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}`,
+        },
+      });
+
+      if (clerkUser.ok) {
+        const clerkData = await clerkUser.json();
+        user = await prisma.user.create({
+          data: {
+            clerkId: userId,
+            email: clerkData.email_addresses?.[0]?.email_address || '',
+            name: `${clerkData.first_name || ''} ${clerkData.last_name || ''}`.trim() || null,
+          },
+          select: {
+            id: true,
+            currentOrganizationId: true,
+          },
+        });
+      } else {
+        // If we can't create user, return Free plan permissions
+        return NextResponse.json({
+          permissions: {
+            // Return the Free plan permissions from below
+          },
+          subscriptionInfo: null,
+        });
+      }
     }
 
-    // If no current organization, return default solo permissions
+    // If no current organization, return minimal permissions
+    // User must create/join an organization to access features
     if (!user.currentOrganizationId) {
       return NextResponse.json({
         permissions: {
-          // All features enabled for solo users
-          hasGenerateTab: true,
-          hasVaultTab: true,
-          hasTrainingTab: true,
-          hasInstagramTab: true,
-          hasPlanningTab: true,
-          hasPipelineTab: true,
-          hasAnalyticsTab: true,
-          hasFeedTab: true,
-          hasMarketplaceTab: true,
-          canTextToImage: true,
-          canImageToVideo: true,
-          canImageToImage: true,
-          canTextToVideo: true,
-          canFaceSwap: true,
-          canFluxKontext: true,
-          canVideoFpsBoost: true,
-          canSkinEnhancement: true,
-          canTrainLoRA: true,
-          canShareLoRA: true,
-          canAccessMarketplace: true,
-          canAutoSchedule: true,
-          canBulkUpload: true,
-          canCaptionBank: true,
-          canHashtagBank: true,
-          canStoryPlanner: true,
-          canReelPlanner: true,
-          canFeedPostPlanner: true,
-          canContentPipeline: true,
-          canPerformanceMetrics: true,
-          canShareFolders: true,
-          canCreateFolders: true,
-          maxVaultFolders: 999,
-          canApproveContent: true,
-          canCommentOnContent: true,
-          canAssignTasks: true,
-          canMentionTeam: true,
-          canExportData: true,
+          // No feature tabs for users without organization
+          hasGenerateTab: false,
+          hasVaultTab: false,
+          hasTrainingTab: false,
+          hasInstagramTab: false,
+          hasPlanningTab: false,
+          hasPipelineTab: false,
+          hasAnalyticsTab: false,
+          hasFeedTab: false,
+          hasMarketplaceTab: false,
+          // No generate features
+          canTextToImage: false,
+          canImageToVideo: false,
+          canImageToImage: false,
+          canTextToVideo: false,
+          canFaceSwap: false,
+          canFluxKontext: false,
+          canVideoFpsBoost: false,
+          canSkinEnhancement: false,
+          // No training features
+          canTrainLoRA: false,
+          canShareLoRA: false,
+          canAccessMarketplace: false,
+          // No Instagram features
+          canAutoSchedule: false,
+          canBulkUpload: false,
+          canCaptionBank: false,
+          canHashtagBank: false,
+          canStoryPlanner: false,
+          canReelPlanner: false,
+          canFeedPostPlanner: false,
+          canContentPipeline: false,
+          canPerformanceMetrics: false,
+          // No vault features
+          canShareFolders: false,
+          canCreateFolders: false,
+          maxVaultFolders: 0,
+          // No collaboration features
+          canApproveContent: false,
+          canCommentOnContent: false,
+          canAssignTasks: false,
+          canMentionTeam: false,
+          // No advanced features
+          canExportData: false,
           canAccessAPI: false,
           canWhiteLabel: false,
           canCustomBranding: false,
           canWebhooks: false,
         },
-        subscriptionInfo: null,
+        subscriptionInfo: {
+          planName: 'none',
+          planDisplayName: 'No Organization',
+          status: 'inactive',
+          maxMembers: 0,
+          maxProfiles: 0,
+          maxWorkspaces: 0,
+          maxStorageGB: 0,
+          monthlyCredits: 0,
+          currentStorageGB: 0,
+          creditsUsedThisMonth: 0,
+        },
       });
     }
 

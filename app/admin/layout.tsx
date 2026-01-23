@@ -70,6 +70,11 @@ export default function AdminLayout({
       icon: Building2,
     },
     {
+      name: "Subscription Plans",
+      href: "/admin/plans",
+      icon: CreditCard,
+    },
+    {
       name: "Production Tracker",
       href: "/admin/production",
       icon: Activity,
