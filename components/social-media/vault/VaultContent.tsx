@@ -53,7 +53,10 @@ import {
   Sparkles,
   Maximize2,
   Wand2,
+  FileOutput,
 } from "lucide-react";
+
+import { PlatformExportModal } from "@/components/export";
 
 interface InstagramProfile {
   id: string;
@@ -517,6 +520,7 @@ export function VaultContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [showPreviewInfo, setShowPreviewInfo] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Debounce search for better performance
@@ -1924,8 +1928,18 @@ export function VaultContent() {
                   <Upload className="w-5 h-5" />
                 </button>
               )}
+              {/* Mobile Export button */}
+              {vaultItems.filter(item => item.fileType.startsWith('image/')).length > 0 && (
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                  title="Platform Export"
+                >
+                  <FileOutput className="w-5 h-5" />
+                </button>
+              )}
             </div>
-            
+
             {/* Desktop header row */}
             <div className="hidden lg:flex items-center justify-between">
               <div>
@@ -1951,9 +1965,19 @@ export function VaultContent() {
                     <Upload className="w-4 h-4" /> Upload
                   </button>
                 )}
+                {/* Desktop Export button */}
+                {vaultItems.filter(item => item.fileType.startsWith('image/')).length > 0 && (
+                  <button
+                    onClick={() => setShowExportModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+                    title="Export for platforms"
+                  >
+                    <FileOutput className="w-4 h-4" /> Export
+                  </button>
+                )}
               </div>
             </div>
-            
+
             {/* Mobile shared folder info */}
             {isViewingShared && selectedSharedFolder && (
               <p className="text-sm text-gray-400 flex items-center gap-1 lg:hidden mb-3">
@@ -2142,8 +2166,8 @@ export function VaultContent() {
                   </button>
                 )}
                 
-                <button 
-                  onClick={handleDownloadZip} 
+                <button
+                  onClick={handleDownloadZip}
                   disabled={isDownloading}
                   className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-emerald-400 hover:bg-emerald-600/20 rounded-lg transition-colors disabled:opacity-50"
                   title="Download"
@@ -2151,7 +2175,16 @@ export function VaultContent() {
                   {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   <span className="hidden md:inline">Download</span>
                 </button>
-                
+
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-purple-400 hover:bg-purple-600/20 rounded-lg transition-colors"
+                  title="Platform Export"
+                >
+                  <FileOutput className="w-4 h-4" />
+                  <span className="hidden md:inline">Export</span>
+                </button>
+
                 {canEdit && (
                   <button 
                     onClick={handleBulkDelete} 
@@ -2180,6 +2213,30 @@ export function VaultContent() {
           )}
         </div>
       </div>
+
+      {/* Platform Export Modal */}
+      <PlatformExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        images={(() => {
+          // If items are selected, use selected images. Otherwise, use all images.
+          const imagesToExport = selectedItems.size > 0
+            ? vaultItems.filter(item => selectedItems.has(item.id))
+            : vaultItems;
+          return imagesToExport
+            .filter(item => item.fileType.startsWith('image/'))
+            .map(item => ({
+              url: item.awsS3Url,
+              filename: item.fileName,
+            }));
+        })()}
+        defaultModelName={selectedProfile?.name || ''}
+        profileId={selectedProfileId || undefined}
+        onExportComplete={(result) => {
+          showToast(`Exported ${result.fileCount} files to ${result.filename}`, 'success');
+          setShowExportModal(false);
+        }}
+      />
     </>
   );
 }

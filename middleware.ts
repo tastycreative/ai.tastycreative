@@ -47,6 +47,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/cron(.*)', // ✅ Add cron routes as public (protected by CRON_SECRET)
   '/api/sexting-sets(.*)', // ✅ Add sexting sets routes (handle their own auth)
   '/api/sexting-sets/media(.*)', // ✅ Add sexting sets media proxy as public
+  '/api/export/platform-ready', // ✅ V1a: Platform specs endpoint (GET only returns public config)
 ]);
 
 // ✅ Special handling for API routes that need custom auth
