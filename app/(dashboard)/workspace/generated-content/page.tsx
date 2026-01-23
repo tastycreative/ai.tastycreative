@@ -68,7 +68,10 @@ import {
   AlertTriangle,
   Folder,
   FolderInput,
+  FileOutput,
 } from "lucide-react";
+
+import { PlatformExportModal } from "@/components/export";
 
 // Types
 interface GeneratedImage {
@@ -440,6 +443,7 @@ export default function GeneratedContentPage() {
 
   // Interaction Improvements State
   const [selectionMode, setSelectionMode] = useState(false); // Show all checkboxes
+  const [showExportModal, setShowExportModal] = useState(false); // Platform export modal
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -3629,6 +3633,13 @@ export default function GeneratedContentPage() {
                     <span>Download</span>
                   </button>
                   <button
+                    onClick={() => setShowExportModal(true)}
+                    className="flex items-center space-x-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
+                  >
+                    <FileOutput className="w-4 h-4" />
+                    <span>Platform Export</span>
+                  </button>
+                  <button
                     onClick={bulkUploadToS3}
                     className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-200"
                   >
@@ -6315,6 +6326,33 @@ export default function GeneratedContentPage() {
           </div>
         </div>
       )}
+
+      {/* Platform Export Modal */}
+      <PlatformExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        images={allContent
+          .filter(item => selectedItems.has(item.id))
+          .filter(item => item.itemType === 'image')
+          .map(item => ({
+            url: getBestMediaUrl({
+              awsS3Key: item.awsS3Key,
+              awsS3Url: item.awsS3Url,
+              s3Key: item.s3Key,
+              networkVolumePath: item.networkVolumePath,
+              dataUrl: item.dataUrl,
+              url: item.url,
+              id: item.id,
+              filename: item.filename,
+              type: 'image'
+            }) || '',
+            filename: item.filename,
+          }))}
+        onExportComplete={(result) => {
+          showToast('success', `Exported ${result.fileCount} files to ${result.filename}`);
+          setShowExportModal(false);
+        }}
+      />
 
     </div>
   );
