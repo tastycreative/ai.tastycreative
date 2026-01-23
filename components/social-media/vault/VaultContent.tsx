@@ -2231,6 +2231,7 @@ export function VaultContent() {
             }));
         })()}
         defaultModelName={selectedProfile?.name || ''}
+        profileId={selectedProfileId || undefined}
         onExportComplete={(result) => {
           showToast(`Exported ${result.fileCount} files to ${result.filename}`, 'success');
           setShowExportModal(false);

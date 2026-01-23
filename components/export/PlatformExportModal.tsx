@@ -12,6 +12,8 @@ import {
   ChevronUp,
   AlertCircle,
   CheckCircle,
+  Star,
+  Library,
 } from 'lucide-react';
 import PlatformSelector, { usePlatformSelection } from './PlatformSelector';
 import ExportPreview from './ExportPreview';
@@ -24,12 +26,21 @@ interface ExportImage {
   caption?: string;
 }
 
+interface Caption {
+  id: string;
+  caption: string;
+  captionCategory: string;
+  captionTypes: string;
+  isFavorite: boolean;
+}
+
 interface PlatformExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   images: ExportImage[];
   defaultModelName?: string;
   defaultCaption?: string;
+  profileId?: string;
   onExportComplete?: (result: { filename: string; fileCount: number }) => void;
 }
 
@@ -55,6 +66,7 @@ export default function PlatformExportModal({
   images,
   defaultModelName = '',
   defaultCaption = '',
+  profileId,
   onExportComplete,
 }: PlatformExportModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -69,6 +81,12 @@ export default function PlatformExportModal({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [imageQuality, setImageQuality] = useState(85);
   const [imageFormat, setImageFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg');
+
+  // Caption Bank state
+  const [captions, setCaptions] = useState<Caption[]>([]);
+  const [loadingCaptions, setLoadingCaptions] = useState(false);
+  const [selectedCaptionId, setSelectedCaptionId] = useState<string>('');
+  const [showCaptionDropdown, setShowCaptionDropdown] = useState(false);
 
   // Variables state
   const [variables, setVariables] = useState<Record<string, string>>({
@@ -95,6 +113,7 @@ export default function PlatformExportModal({
       setExportStatus('idle');
       setExportError(null);
       setExportProgress('');
+      setSelectedCaptionId('');
       if (defaultModelName) {
         setExportName(defaultModelName);
         setModelName(defaultModelName);
@@ -105,6 +124,39 @@ export default function PlatformExportModal({
       }
     }
   }, [isOpen, defaultModelName, defaultCaption]);
+
+  // Fetch captions from Caption Bank
+  useEffect(() => {
+    if (isOpen && profileId) {
+      const fetchCaptions = async () => {
+        setLoadingCaptions(true);
+        try {
+          const response = await fetch(`/api/captions?profileId=${profileId}&sortBy=usageCount&sortOrder=desc`);
+          if (response.ok) {
+            const data = await response.json();
+            setCaptions(data);
+          }
+        } catch (error) {
+          console.error('Failed to fetch captions:', error);
+        } finally {
+          setLoadingCaptions(false);
+        }
+      };
+      fetchCaptions();
+    }
+  }, [isOpen, profileId]);
+
+  // Handle caption selection from dropdown
+  const handleCaptionSelect = useCallback((captionId: string) => {
+    setSelectedCaptionId(captionId);
+    setShowCaptionDropdown(false);
+    if (captionId) {
+      const selected = captions.find(c => c.id === captionId);
+      if (selected) {
+        setCaptionTemplate(selected.caption);
+      }
+    }
+  }, [captions]);
 
   // Update variable
   const handleVariableChange = useCallback((key: string, value: string) => {
@@ -307,9 +359,83 @@ export default function PlatformExportModal({
                 ))}
               </div>
             </div>
+
+            {/* Caption Bank Dropdown */}
+            {profileId && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowCaptionDropdown(!showCaptionDropdown)}
+                  disabled={exportStatus === 'exporting' || loadingCaptions}
+                  className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 transition-colors"
+                >
+                  <span className="flex items-center gap-2 text-sm">
+                    <Library className="w-4 h-4 text-purple-500" />
+                    {loadingCaptions ? (
+                      <span className="text-gray-400">Loading captions...</span>
+                    ) : selectedCaptionId ? (
+                      <span className="truncate max-w-[300px]">
+                        {captions.find(c => c.id === selectedCaptionId)?.caption.slice(0, 50)}...
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">Select from Caption Bank ({captions.length})</span>
+                    )}
+                  </span>
+                  {loadingCaptions ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  ) : (
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showCaptionDropdown ? 'rotate-180' : ''}`} />
+                  )}
+                </button>
+
+                {showCaptionDropdown && captions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCaptionId('');
+                        setCaptionTemplate('');
+                        setShowCaptionDropdown(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700"
+                    >
+                      Clear selection
+                    </button>
+                    {captions.map((caption) => (
+                      <button
+                        key={caption.id}
+                        type="button"
+                        onClick={() => handleCaptionSelect(caption.id)}
+                        className={`w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                          selectedCaptionId === caption.id ? 'bg-purple-50 dark:bg-purple-900/20' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {caption.isFavorite && (
+                            <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500 shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-purple-600 dark:text-purple-400 mb-0.5">
+                              {caption.captionCategory}
+                            </div>
+                            <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                              {caption.caption}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <textarea
               value={captionTemplate}
-              onChange={(e) => setCaptionTemplate(e.target.value)}
+              onChange={(e) => {
+                setCaptionTemplate(e.target.value);
+                setSelectedCaptionId('');
+              }}
               placeholder="Enter caption template with variables like {{model_name}}, {{price}}..."
               rows={3}
               disabled={exportStatus === 'exporting'}
