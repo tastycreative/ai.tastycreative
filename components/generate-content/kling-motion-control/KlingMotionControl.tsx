@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import {
   AlertCircle,
   Archive,
@@ -12,7 +13,7 @@ import {
   Clock,
   Download,
   Film,
-  Folder,
+  FolderOpen,
   Image as ImageIcon,
   Info,
   Loader2,
@@ -27,6 +28,7 @@ import {
   X,
   Zap,
   Wand2,
+  Check,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -148,21 +150,12 @@ const compressImage = async (
   });
 };
 
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername?: string | null;
-  isDefault?: boolean;
-}
-
 interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
   isDefault?: boolean;
 }
-
-type FolderType = "s3" | "vault";
 
 interface GeneratedVideo {
   id: string;
@@ -194,6 +187,10 @@ export default function KlingMotionControl() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { globalProfileId, selectedProfile } = useInstagramProfile();
+
+  // Hydration fix
+  const [mounted, setMounted] = useState(false);
 
   // Form state
   const [prompt, setPrompt] = useState("");
@@ -211,10 +208,11 @@ export default function KlingMotionControl() {
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
 
   // Vault folder state
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   // Generation state
@@ -242,70 +240,40 @@ export default function KlingMotionControl() {
     });
   };
 
-  // Load vault profiles and folders
+  // Load vault folders for selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient || !user) return;
+    if (!apiClient || !user || !globalProfileId) {
+      setVaultFolders([]);
+      return;
+    }
     setIsLoadingVaultData(true);
     try {
-      const profilesResponse = await apiClient.get("/api/instagram/profiles");
-      if (profilesResponse.ok) {
-        const profilesData = await profilesResponse.json();
-        const profiles: InstagramProfile[] = profilesData.profiles || [];
-        setVaultProfiles(profiles);
-
-        const foldersByProfile: Record<string, VaultFolder[]> = {};
-        for (const profile of profiles) {
-          try {
-            const foldersResponse = await apiClient.get(
-              `/api/vault/folders?profileId=${profile.id}`
-            );
-            if (foldersResponse.ok) {
-              const foldersData = await foldersResponse.json();
-              foldersByProfile[profile.id] = Array.isArray(foldersData) ? foldersData : (foldersData.folders || []);
-            }
-          } catch (err) {
-            console.error(`Failed to load folders for profile ${profile.id}:`, err);
-            foldersByProfile[profile.id] = [];
-          }
-        }
-        setVaultFoldersByProfile(foldersByProfile);
+      const foldersResponse = await apiClient.get(
+        `/api/vault/folders?profileId=${globalProfileId}`
+      );
+      if (foldersResponse.ok) {
+        const foldersData = await foldersResponse.json();
+        const folders = Array.isArray(foldersData) ? foldersData : (foldersData.folders || []);
+        setVaultFolders(folders);
+      } else {
+        setVaultFolders([]);
       }
     } catch (err) {
-      console.error("Failed to load vault data:", err);
+      console.error("Failed to load vault folders:", err);
+      setVaultFolders([]);
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient, user]);
-
-  // Parse target folder value
-  const parseTargetFolder = (value: string): { type: FolderType; profileId?: string; folderId?: string; prefix?: string } => {
-    if (value.startsWith("vault:")) {
-      const parts = value.split(":");
-      return {
-        type: "vault",
-        profileId: parts[1],
-        folderId: parts[2],
-      };
-    }
-    return {
-      type: "s3",
-      prefix: value,
-    };
-  };
+  }, [apiClient, user, globalProfileId]);
 
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
     if (!targetFolder) return "Please select a vault folder to save your video";
 
-    const parsed = parseTargetFolder(targetFolder);
-    if (parsed.type === "vault" && parsed.profileId && parsed.folderId) {
-      const profile = vaultProfiles.find((p) => p.id === parsed.profileId);
-      const folders = vaultFoldersByProfile[parsed.profileId] || [];
-      const folder = folders.find((f) => f.id === parsed.folderId);
-      if (profile && folder) {
-        const profileDisplay = profile.instagramUsername ? `@${profile.instagramUsername}` : profile.name;
-        return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
-      }
+    const folder = vaultFolders.find((f) => f.id === targetFolder);
+    if (folder && selectedProfile) {
+      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+      return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
     }
     return "Please select a vault folder";
   };
@@ -342,11 +310,31 @@ export default function KlingMotionControl() {
 
   // Initial data load
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     if (user && apiClient) {
       loadVaultData();
       loadGenerationHistory();
     }
   }, [user, apiClient, loadVaultData, loadGenerationHistory]);
+
+  // Clear target folder when profile changes
+  useEffect(() => {
+    setTargetFolder("");
+  }, [globalProfileId]);
+
+  // Click outside handler for folder dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Handle image file selection with automatic compression
   const handleImageSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -587,14 +575,11 @@ export default function KlingMotionControl() {
         formData.append("prompt", prompt.trim());
       }
 
-      // Add folder selection data
-      const parsedFolder = parseTargetFolder(targetFolder);
-      if (parsedFolder.type === "vault" && parsedFolder.profileId && parsedFolder.folderId) {
+      // Add folder selection data - simplified vault folder approach
+      if (targetFolder && globalProfileId) {
         formData.append("saveToVault", "true");
-        formData.append("vaultProfileId", parsedFolder.profileId);
-        formData.append("vaultFolderId", parsedFolder.folderId);
-      } else if (parsedFolder.prefix) {
-        formData.append("targetFolder", parsedFolder.prefix);
+        formData.append("vaultProfileId", globalProfileId);
+        formData.append("vaultFolderId", targetFolder);
       }
 
       const response = await fetch("/api/generate/kling-motion-control", {
@@ -1028,40 +1013,65 @@ export default function KlingMotionControl() {
               {/* Folder Selection */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-violet-300" />
+                  <FolderOpen className="w-4 h-4 text-violet-300" />
                   <label className="text-sm font-semibold text-slate-100">Save to Vault</label>
                   {isLoadingVaultData && (
                     <Loader2 className="w-3 h-3 animate-spin text-violet-300" />
                   )}
                 </div>
-                <select
-                  value={targetFolder}
-                  onChange={(e) => setTargetFolder(e.target.value)}
-                  disabled={isLoadingVaultData || isGenerating}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-slate-100 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-violet-300 [&>optgroup]:font-semibold"
-                >
-                  <option value="" className="bg-slate-800 text-slate-100">Select a vault folder...</option>
-                  {vaultProfiles.map((profile) => {
-                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                    if (folders.length === 0) return null;
-                    const profileDisplay = profile.instagramUsername
-                      ? `@${profile.instagramUsername}`
-                      : profile.name;
-                    return (
-                      <optgroup key={profile.id} label={`🔒 ${profileDisplay}`} className="bg-slate-900 text-violet-300">
-                        {folders.map((folder) => (
-                          <option
-                            key={`vault:${profile.id}:${folder.id}`}
-                            value={`vault:${profile.id}:${folder.id}`}
-                            className="bg-slate-800 text-slate-100 py-2"
-                          >
-                            {folder.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
+                {mounted && (
+                  <div ref={folderDropdownRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setFolderDropdownOpen(!folderDropdownOpen)}
+                      disabled={isLoadingVaultData || isGenerating || !globalProfileId}
+                      className="w-full flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-violet-500/50 disabled:opacity-50"
+                    >
+                      <span className="flex items-center gap-2">
+                        <FolderOpen className="w-4 h-4 text-violet-300" />
+                        {targetFolder
+                          ? vaultFolders.find((f) => f.id === targetFolder)?.name || "Select folder..."
+                          : "Select a vault folder..."}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${folderDropdownOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {folderDropdownOpen && (
+                      <div className="absolute z-50 bottom-full mb-2 w-full rounded-2xl border border-white/10 bg-slate-800/95 backdrop-blur-xl shadow-xl overflow-hidden">
+                        <div className="max-h-60 overflow-y-auto py-1">
+                          {vaultFolders.filter((f) => !f.isDefault).length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-slate-400">
+                              No folders available for this profile
+                            </div>
+                          ) : (
+                            vaultFolders
+                              .filter((f) => !f.isDefault)
+                              .map((folder) => (
+                                <button
+                                  key={folder.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetFolder(folder.id);
+                                    setFolderDropdownOpen(false);
+                                  }}
+                                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-white/10 ${
+                                    targetFolder === folder.id
+                                      ? "bg-violet-500/20 text-violet-200"
+                                      : "text-slate-200"
+                                  }`}
+                                >
+                                  <FolderOpen className="w-4 h-4 text-violet-300" />
+                                  <span className="flex-1 text-left">{folder.name}</span>
+                                  {targetFolder === folder.id && (
+                                    <Check className="w-4 h-4 text-violet-400" />
+                                  )}
+                                </button>
+                              ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p className="text-xs text-slate-400">
                   {getSelectedFolderDisplay()}
                 </p>

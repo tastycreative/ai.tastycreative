@@ -48,6 +48,7 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
 import { NotificationBell } from "@/components/NotificationBell";
+import { GlobalProfileSelector } from "@/components/GlobalProfileSelector";
 
 interface NavItem {
   name: string;
@@ -1053,53 +1054,103 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:bg-gradient-to-br dark:from-black dark:via-gray-900 dark:to-blue-900/20 relative">
-      {/* Desktop Sidebar */}
+    <div className="flex h-screen bg-[#0a0a0f] relative overflow-hidden">
+      {/* Background ambient effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 rounded-full blur-3xl" />
+      </div>
+
+      {/* Desktop Sidebar - Modern Glass Design */}
       <div
         className={classNames(
-          "hidden lg:flex bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 relative",
-          sidebarOpen ? "w-64" : "w-16",
+          "hidden lg:flex flex-col transition-all duration-300 ease-out relative z-10",
+          sidebarOpen ? "w-80" : "w-24",
         )}
       >
-        {/* Animated gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-        {/* Sidebar header */}
-        <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800 relative">
-          {sidebarOpen && (
-            <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient">
-              Creative Ink
-            </h1>
-          )}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:rotate-180 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-          >
-            {sidebarOpen ? (
-              <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
-            ) : (
-              <ChevronRight className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
-            )}
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto custom-scrollbar">
-          {navigation.map((item) => {
-            if ("items" in item) {
-              return renderNavSection(item);
-            } else {
-              return renderNavItem(item);
-            }
-          })}
-        </nav>
-
-        {/* Theme toggle and footer */}
-        <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4 bg-gradient-to-t from-gray-900/50 to-transparent">
-          <div className="flex items-center justify-end">
-            <div className="transform transition-transform duration-300 hover:scale-110">
-              <ThemeToggle />
+        {/* Sidebar Glass Container */}
+        <div className="flex-1 m-3 rounded-3xl bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08] flex flex-col overflow-hidden shadow-2xl shadow-black/20">
+          {/* Sidebar Header with Logo */}
+          <div className="p-5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              {sidebarOpen ? (
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+                      Creative Ink
+                    </h1>
+                    <p className="text-[11px] text-white/40 font-medium tracking-wide">AI CONTENT STUDIO</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 mx-auto">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+              )}
+              {sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
             </div>
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="w-full mt-4 p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200 flex items-center justify-center"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Profile Selector - Prominent Position */}
+          {sidebarOpen && (
+            <div className="p-5 border-b border-white/[0.06]">
+              <div className="text-[11px] font-semibold text-white/30 uppercase tracking-wider mb-3 px-1">
+                Active Workspace
+              </div>
+              <GlobalProfileSelector />
+            </div>
+          )}
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+            {navigation.map((item) => {
+              if ("items" in item) {
+                return renderNavSection(item);
+              } else {
+                return renderNavItem(item);
+              }
+            })}
+          </nav>
+
+          {/* Sidebar Footer */}
+          <div className="p-5 border-t border-white/[0.06]">
+            {sidebarOpen ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ThemeToggle />
+                </div>
+                <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+                  <CreditCard className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-semibold text-white/80">25 Credits</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <ThemeToggle />
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 border border-white/10">
+                  <CreditCard className="w-5 h-5 text-emerald-400" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1113,35 +1164,45 @@ export default function DashboardLayout({
       >
         {/* Backdrop */}
         <div
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm dark:bg-black/60 transition-all duration-300"
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
 
         {/* Mobile Sidebar */}
         <div
           className={classNames(
-            "relative w-64 h-full bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm flex flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 transition-all duration-300 ease-out",
-            sidebarOpen
-              ? "transform translate-x-0 opacity-100"
-              : "transform -translate-x-full opacity-0",
+            "absolute left-0 top-0 bottom-0 w-80 bg-[#0d0d12] border-r border-white/10 flex flex-col transition-transform duration-300 ease-out",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          {/* Sidebar header */}
-          <div className="flex items-center justify-between p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
-            <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Creative Ink
-            </h1>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label="Close sidebar"
-            >
-              <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
-            </button>
+          {/* Mobile Sidebar Header */}
+          <div className="p-5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <h1 className="text-xl font-bold text-white">Creative Ink</h1>
+              </div>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
+          {/* Mobile Profile Selector */}
+          <div className="p-5 border-b border-white/[0.06]">
+            <div className="text-[11px] font-semibold text-white/30 uppercase tracking-wider mb-3">
+              Active Workspace
+            </div>
+            <GlobalProfileSelector />
+          </div>
+
+          {/* Mobile Navigation */}
+          <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
             {navigation.map((item) => {
               if ("items" in item) {
                 return renderNavSection(item);
@@ -1151,11 +1212,13 @@ export default function DashboardLayout({
             })}
           </nav>
 
-          {/* Theme toggle and footer */}
-          <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4 bg-gradient-to-t from-gray-900/50 to-transparent">
-            <div className="flex items-center justify-end">
-              <div className="transform transition-transform duration-300 hover:scale-110">
-                <ThemeToggle />
+          {/* Mobile Footer */}
+          <div className="p-5 border-t border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <ThemeToggle />
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5">
+                <CreditCard className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm font-semibold text-white/80">25 Credits</span>
               </div>
             </div>
           </div>
@@ -1163,105 +1226,94 @@ export default function DashboardLayout({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile menu button */}
-        <div className="lg:hidden bg-white/90 dark:bg-gray-900/60 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 xs:p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-all duration-300 active:scale-95 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Open menu"
-          >
-            <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2">
-              <ChevronRight className="h-4 w-4 xs:h-5 xs:w-5 sm:h-6 sm:w-6 transition-transform duration-300 group-hover:translate-x-1" />
-              <span className="text-[10px] xs:text-xs sm:text-sm font-medium">
-                Menu
-              </span>
+      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+        {/* Mobile Header Bar */}
+        <div className="lg:hidden bg-[#0d0d12]/90 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">{initials}</span>
+              </div>
             </div>
-          </button>
+          </div>
         </div>
 
         {/* Content area */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-white to-gray-50/50 dark:bg-gradient-to-br dark:from-black dark:to-gray-900/30 custom-scrollbar">
-          {/* Sticky Header with user info and credits */}
-          <div className="sticky top-0 z-20 bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 lg:px-6 xl:px-8 py-2 xs:py-2.5 sm:py-3 shadow-sm transition-all duration-300 hover:shadow-md">
-            <div className="flex items-center justify-between">
-              {/* Left Side - Global Progress Indicator */}
-              <div className="flex items-center">
-                <GlobalProgressIndicator />
-              </div>
-
-              {/* Right Side - Credits and User */}
-              <div className="flex items-center space-x-1.5 xs:space-x-2 sm:space-x-4">
-                {/* Unified Notification Bell (includes both post notifications and production tasks) */}
-                <NotificationBell />
-
-                {/* Theme Toggle */}
-                <ThemeToggle />
-
-                {/* Available Credits */}
-                <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 cursor-pointer group">
-                  <CreditCard className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400 group-hover:animate-pulse" />
-                  <span className="text-[10px] xs:text-xs sm:text-sm font-medium bg-gradient-to-r from-blue-700 to-purple-700 dark:from-blue-300 dark:to-purple-300 bg-clip-text text-transparent">
-                    <span className="hidden xs:inline">25 Credits</span>
-                    <span className="xs:hidden">25</span>
-                  </span>
+        <main className="flex-1 overflow-y-auto bg-transparent custom-scrollbar">
+          {/* Modern Top Header */}
+          <div className="sticky top-0 z-20 backdrop-blur-2xl bg-[#0a0a0f]/80 border-b border-white/[0.04]">
+            <div className="px-6 lg:px-8 py-4">
+              <div className="flex items-center justify-between">
+                {/* Left Side - Progress & Breadcrumb Area */}
+                <div className="flex items-center gap-4">
+                  <GlobalProgressIndicator />
                 </div>
 
-                {/* User Dropdown */}
-                <div className="relative group">
-                  <button className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-700 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-700 dark:hover:to-gray-600 border border-gray-200/50 dark:border-gray-600/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg transition-all duration-300 shadow-sm active:scale-95 hover:shadow-md hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                    <div className="w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-md ring-2 ring-white/20 group-hover:ring-white/40 transition-all duration-300">
-                      <span className="text-white text-[10px] xs:text-xs sm:text-sm font-semibold">
-                        {initials}
-                      </span>
-                    </div>
-                    <span className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
-                      {firstName}
-                    </span>
-                    <ChevronDown className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400 transition-transform duration-300 group-hover:rotate-180" />
-                  </button>
+                {/* Right Side - Compact Controls */}
+                <div className="hidden lg:flex items-center gap-3">
+                  {/* Notification */}
+                  <NotificationBell />
 
-                  {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-44 xs:w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform group-hover:translate-y-0 translate-y-2">
-                    <div className="py-2">
-                      <div className="px-3 xs:px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                        <p className="text-xs xs:text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {firstName}
-                        </p>
-                        <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {email}
-                        </p>
+                  {/* User Menu */}
+                  <div className="relative group">
+                    <button className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200">
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center ring-2 ring-white/10">
+                        <span className="text-white text-xs font-bold">{initials}</span>
                       </div>
-                      <Link
-                        href="/settings"
-                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
-                      >
-                        <Settings className="w-3.5 h-3.5" />
-                        <span>Profile Settings</span>
-                      </Link>
-                      <Link
-                        href="/billing"
-                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        <span>Billing</span>
-                      </Link>
-                      {isAdmin && (
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-white/90">{firstName}</p>
+                        <p className="text-[10px] text-white/40 truncate max-w-[120px]">{email}</p>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
+                    </button>
+
+                    {/* User Dropdown */}
+                    <div className="absolute right-0 mt-2 w-56 py-2 bg-[#16161d] rounded-2xl border border-white/10 shadow-2xl shadow-black/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
+                      <div className="px-4 py-3 border-b border-white/[0.06]">
+                        <p className="text-sm font-semibold text-white">{firstName}</p>
+                        <p className="text-xs text-white/50 truncate">{email}</p>
+                      </div>
+                      <div className="py-1">
                         <Link
-                          href="/admin"
-                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
+                          href="/settings"
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
                         >
-                          <Shield className="w-3.5 h-3.5" />
-                          <span>Admin</span>
+                          <Settings className="w-4 h-4" />
+                          Settings
                         </Link>
-                      )}
-                      <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
+                        <Link
+                          href="/billing"
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          Billing
+                        </Link>
+                        {isAdmin && (
+                          <Link
+                            href="/admin"
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                          >
+                            <Shield className="w-4 h-4" />
+                            Admin Panel
+                          </Link>
+                        )}
+                      </div>
+                      <div className="border-t border-white/[0.06] pt-1 mt-1">
                         <button
                           onClick={() => signOut({ redirectUrl: "/" })}
-                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset rounded"
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all"
                         >
-                          <ChevronRight className="w-3.5 h-3.5" />
-                          <span>Sign Out</span>
+                          <ChevronRight className="w-4 h-4" />
+                          Sign Out
                         </button>
                       </div>
                     </div>
@@ -1272,7 +1324,7 @@ export default function DashboardLayout({
           </div>
 
           {/* Content */}
-          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn">
+          <div className="px-4 py-4 lg:px-8 lg:py-6 animate-fadeIn">
             {children}
           </div>
         </main>
@@ -1281,7 +1333,7 @@ export default function DashboardLayout({
       {/* Tooltip for collapsed sidebar */}
       {!sidebarOpen && hoveredItem && (
         <div
-          className="hidden lg:block fixed z-50 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg shadow-lg border border-gray-700 dark:border-gray-600 pointer-events-none animate-fadeIn"
+          className="hidden lg:block fixed z-50 px-3 py-2 bg-[#1a1a24] text-white text-sm rounded-xl shadow-xl border border-white/10 pointer-events-none animate-fadeIn"
           style={{
             left: `${tooltipPosition.x}px`,
             top: `${tooltipPosition.y}px`,
@@ -1289,7 +1341,7 @@ export default function DashboardLayout({
           }}
         >
           {hoveredItem}
-          <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2 w-2 h-2 bg-gray-900 dark:bg-gray-800 rotate-45 border-l border-b border-gray-700 dark:border-gray-600"></div>
+          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-[#1a1a24] rotate-45 border-l border-b border-white/10" />
         </div>
       )}
     </div>

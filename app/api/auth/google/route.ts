@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     );
 
     const scopes = [
-      'https://www.googleapis.com/auth/drive.file'
+      'https://www.googleapis.com/auth/drive.readonly'  // Read access to all files
     ];
 
     const authUrl = oauth2Client.generateAuthUrl({

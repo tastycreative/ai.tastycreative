@@ -7,6 +7,7 @@ export interface Profile {
   id: string;
   name: string;
   instagramUsername?: string;
+  profileImageUrl?: string;
   isDefault: boolean;
 }
 

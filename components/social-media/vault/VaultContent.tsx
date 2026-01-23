@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, memo } from "react";
 import { createPortal } from "react-dom";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -470,9 +471,17 @@ const VaultListItem = memo(function VaultListItem({
 });
 
 export function VaultContent() {
-  const [profiles, setProfiles] = useState<InstagramProfile[]>([]);
+  // Use global profile selector
+  const { profileId: globalProfileId, profiles: globalProfiles, loadingProfiles } = useInstagramProfile();
+  
+  // Local state derived from global profile
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const profiles = useMemo(() => 
+    [...globalProfiles].sort((a, b) => 
+      (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+    ), 
+    [globalProfiles]
+  );
 
   const [folders, setFolders] = useState<VaultFolder[]>([]);
   const [allFolders, setAllFolders] = useState<VaultFolder[]>([]);
@@ -515,7 +524,6 @@ export function VaultContent() {
   const [shareNote, setShareNote] = useState('');
   const [userSearchQuery, setUserSearchQuery] = useState('');
 
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -677,41 +685,32 @@ export function VaultContent() {
     }
   };
 
+  // Sync with global profile selector
   useEffect(() => {
-    const loadProfiles = async () => {
-      try {
-        setLoadingProfiles(true);
-        const response = await fetch("/api/instagram/profiles");
-        const data = await response.json();
-        const profileList: InstagramProfile[] = Array.isArray(data)
-          ? data
-          : data.profiles || [];
+    if (globalProfileId && globalProfileId !== selectedProfileId) {
+      setSelectedProfileId(globalProfileId);
+      setSelectedSharedFolder(null);
+      setSharedFolderItems([]);
+    }
+  }, [globalProfileId]);
 
-        const sorted = [...profileList].sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
-        );
-
-        setProfiles(sorted);
-
-        const savedProfileId = typeof window !== "undefined" ? localStorage.getItem("vaultSelectedProfileId") : null;
-        const initialProfile = sorted.find((p) => p.id === savedProfileId) || sorted[0];
-        if (initialProfile) {
-          setSelectedProfileId(initialProfile.id);
-          localStorage.setItem("vaultSelectedProfileId", initialProfile.id);
-        }
-      } catch (error) {
-        console.error("Error loading profiles", error);
-      } finally {
-        setLoadingProfiles(false);
+  // Listen for profile changes from global selector
+  useEffect(() => {
+    const handleProfileChange = (event: CustomEvent<{ profileId: string }>) => {
+      const newProfileId = event.detail.profileId;
+      if (newProfileId && newProfileId !== selectedProfileId) {
+        setSelectedProfileId(newProfileId);
+        setSelectedSharedFolder(null);
+        setSharedFolderItems([]);
       }
     };
 
-    loadProfiles();
-  }, []);
+    window.addEventListener('profileChanged', handleProfileChange as EventListener);
+    return () => window.removeEventListener('profileChanged', handleProfileChange as EventListener);
+  }, [selectedProfileId]);
 
   useEffect(() => {
     if (selectedProfileId) {
-      localStorage.setItem("vaultSelectedProfileId", selectedProfileId);
       loadFolders();
     }
   }, [selectedProfileId]);
@@ -957,16 +956,6 @@ export function VaultContent() {
     }
   };
 
-  const handleSelectProfile = (id: string) => {
-    setSelectedProfileId(id);
-    setSelectedSharedFolder(null);
-    setSharedFolderItems([]);
-    setProfileDropdownOpen(false);
-    const profileFolders = folders.filter((f) => f.profileId === id);
-    const nextFolder = profileFolders[0];
-    setSelectedFolderId(nextFolder ? nextFolder.id : null);
-  };
-
   const handleCreateFolder = async () => {
     if (!selectedProfileId || !folderNameInput.trim()) return;
 
@@ -1181,6 +1170,30 @@ export function VaultContent() {
       return Infinity; // Items without sequence prefix go to the end
     };
 
+    // Helper to get export batch identifier (for grouping items from same sexting set export)
+    const getExportBatchKey = (item: VaultItem): string | null => {
+      if (item.metadata?.source === 'sexting-set-export' && item.metadata?.originalSetId) {
+        // Group by original set ID + export timestamp (rounded to minute for same export batch)
+        const exportedAt = item.metadata?.exportedAt;
+        if (exportedAt) {
+          const date = new Date(exportedAt);
+          // Round to the minute to group items exported together
+          date.setSeconds(0, 0);
+          return `${item.metadata.originalSetId}_${date.getTime()}`;
+        }
+        return item.metadata.originalSetId;
+      }
+      return null;
+    };
+
+    // Helper to get sequence within a batch
+    const getBatchSequence = (item: VaultItem): number => {
+      if (item.metadata?.sequence) {
+        return item.metadata.sequence;
+      }
+      return getSequenceNumber(item.fileName);
+    };
+
     if (selectedSharedFolder) {
       return sharedFolderItems
         .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
@@ -1193,7 +1206,20 @@ export function VaultContent() {
           return true;
         })
         .sort((a, b) => {
-          // Sort by sequence number first, then by filename
+          // For shared folders, maintain sequence order within batches, then by date
+          const batchA = getExportBatchKey(a);
+          const batchB = getExportBatchKey(b);
+          
+          // If same batch, sort by sequence
+          if (batchA && batchB && batchA === batchB) {
+            return getBatchSequence(a) - getBatchSequence(b);
+          }
+          
+          // Otherwise sort by createdAt (recent first), then sequence, then filename
+          const dateA = new Date(a.createdAt).getTime();
+          const dateB = new Date(b.createdAt).getTime();
+          if (dateA !== dateB) return dateB - dateA; // Recent first
+          
           const seqA = getSequenceNumber(a.fileName);
           const seqB = getSequenceNumber(b.fileName);
           if (seqA !== seqB) return seqA - seqB;
@@ -1220,7 +1246,23 @@ export function VaultContent() {
         return true;
       })
       .sort((a, b) => {
-        // Sort by sequence number first, then by filename
+        // Primary: Sort by createdAt (recent first)
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        
+        // Check if items are from the same export batch (sexting set)
+        const batchA = getExportBatchKey(a);
+        const batchB = getExportBatchKey(b);
+        
+        // If from the same batch, sort by sequence within the batch
+        if (batchA && batchB && batchA === batchB) {
+          return getBatchSequence(a) - getBatchSequence(b);
+        }
+        
+        // If different batches or not from batches, sort by date (recent first)
+        if (dateA !== dateB) return dateB - dateA;
+        
+        // Fallback: sort by sequence number from filename, then filename
         const seqA = getSequenceNumber(a.fileName);
         const seqB = getSequenceNumber(b.fileName);
         if (seqA !== seqB) return seqA - seqB;
@@ -1790,40 +1832,17 @@ export function VaultContent() {
             </div>
           </div>
 
-          <div className="p-3 border-b border-gray-800">
-            <div className="relative">
-              <button onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-6 h-6 bg-blue-600/30 rounded-full flex items-center justify-center">
-                    <span className="text-xs font-medium text-blue-400">{selectedProfile?.name?.charAt(0) || '?'}</span>
-                  </div>
-                  <span className="text-sm font-medium text-gray-200 truncate">{selectedProfile?.name || 'Select profile'}</span>
+          {/* Current Profile Display (read-only, controlled by global selector) */}
+          {selectedProfile && (
+            <div className="px-3 py-2 border-b border-gray-800">
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 rounded-lg">
+                <div className="w-6 h-6 bg-blue-600/30 rounded-full flex items-center justify-center">
+                  <span className="text-xs font-medium text-blue-400">{selectedProfile?.name?.charAt(0) || '?'}</span>
                 </div>
-                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {profileDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20 overflow-hidden">
-                  {loadingProfiles ? (
-                    <div className="p-4 text-center"><Loader2 className="w-5 h-5 animate-spin text-gray-500 mx-auto" /></div>
-                  ) : profiles.length === 0 ? (
-                    <div className="p-4 text-center text-sm text-gray-500">No profiles</div>
-                  ) : (
-                    <div className="max-h-48 overflow-y-auto vault-scroll">
-                      {profiles.map((profile) => (
-                        <button key={profile.id} onClick={() => handleSelectProfile(profile.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${profile.id === selectedProfileId ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-gray-700 text-gray-300'}`}>
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${profile.id === selectedProfileId ? 'bg-blue-600/30' : 'bg-gray-700'}`}>
-                            <span className="text-xs font-medium">{profile.name?.charAt(0) || '?'}</span>
-                          </div>
-                          <span className="text-sm font-medium truncate">{profile.name}</span>
-                          {profile.id === selectedProfileId && <Check className="w-4 h-4 ml-auto" />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                <span className="text-sm font-medium text-gray-200 truncate">{selectedProfile?.name}</span>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex-1 overflow-y-auto vault-scroll p-3">
             <div className="flex items-center justify-between mb-2">

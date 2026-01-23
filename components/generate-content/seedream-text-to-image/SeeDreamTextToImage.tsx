@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import {
   ImageIcon,
   Wand2,
@@ -23,14 +24,9 @@ import {
   Info,
   Zap,
   Archive,
+  FolderOpen,
+  Check,
 } from "lucide-react";
-
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername?: string | null;
-  isDefault?: boolean;
-}
 
 interface VaultFolder {
   id: string;
@@ -75,9 +71,32 @@ export default function SeeDreamTextToImage() {
   // Folder Selection State
   const [targetFolder, setTargetFolder] = useState<string>("");
 
-  // Vault Integration State
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  // Use global profile from header
+  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+
+  // Hydration fix - track if component is mounted
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Folder dropdown state
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Vault Integration State - only folders for the selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   // Generation State
@@ -154,76 +173,40 @@ export default function SeeDreamTextToImage() {
     }
   };
 
-  // Load vault profiles and their folders
+  // Load vault folders for the selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient) return;
+    if (!apiClient || !globalProfileId) return;
 
     setIsLoadingVaultData(true);
     try {
-      // First, load all Instagram profiles
-      const profilesResponse = await fetch('/api/instagram/profiles');
-      if (!profilesResponse.ok) {
-        throw new Error('Failed to load profiles');
+      const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
+      if (foldersResponse.ok) {
+        const folders = await foldersResponse.json();
+        setVaultFolders(folders);
       }
-
-      const profilesData = await profilesResponse.json();
-      const profileList: InstagramProfile[] = Array.isArray(profilesData)
-        ? profilesData
-        : profilesData.profiles || [];
-
-      // Sort profiles alphabetically
-      const sortedProfiles = [...profileList].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
-      );
-
-      setVaultProfiles(sortedProfiles);
-
-      // Now load vault folders for each profile
-      const foldersByProfile: Record<string, VaultFolder[]> = {};
-
-      await Promise.all(
-        sortedProfiles.map(async (profile) => {
-          try {
-            const foldersResponse = await fetch(`/api/vault/folders?profileId=${profile.id}`);
-            if (foldersResponse.ok) {
-              const folders = await foldersResponse.json();
-              foldersByProfile[profile.id] = folders;
-            }
-          } catch (error) {
-            console.error(`Failed to load folders for profile ${profile.id}:`, error);
-            foldersByProfile[profile.id] = [];
-          }
-        })
-      );
-
-      setVaultFoldersByProfile(foldersByProfile);
     } catch (error) {
-      console.error('Failed to load vault data:', error);
+      console.error('Failed to load vault folders:', error);
+      setVaultFolders([]);
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
-  // Load vault data on mount
+  // Load vault data when profile changes
   useEffect(() => {
     loadVaultData();
+    // Clear selected folder when profile changes
+    setTargetFolder("");
   }, [loadVaultData]);
 
   // Get display text for the selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return 'Select a vault folder to save images';
+    if (!targetFolder || !globalProfileId) return 'Select a vault folder to save images';
     
-    if (targetFolder.startsWith('vault:')) {
-      const parts = targetFolder.split(':');
-      const profileId = parts[1];
-      const folderId = parts[2];
-      const profile = vaultProfiles.find(p => p.id === profileId);
-      const folders = vaultFoldersByProfile[profileId] || [];
-      const folder = folders.find(f => f.id === folderId);
-      if (profile && folder) {
-        const profileDisplay = profile.instagramUsername ? `@${profile.instagramUsername}` : profile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
-      }
+    const folder = vaultFolders.find(f => f.id === targetFolder);
+    if (folder && selectedProfile) {
+      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
     }
     return 'Select a vault folder to save images';
   };
@@ -264,13 +247,7 @@ export default function SeeDreamTextToImage() {
         size: currentSize,
       };
 
-      // Handle vault folder selection
-      if (targetFolder && targetFolder.startsWith('vault:')) {
-        const parts = targetFolder.split(':');
-        payload.saveToVault = true;
-        payload.vaultProfileId = parts[1];
-        payload.vaultFolderId = parts[2];
-      }
+      // Handle vault folder selection\n      if (targetFolder && globalProfileId) {\n        payload.saveToVault = true;\n        payload.vaultProfileId = globalProfileId;\n        payload.vaultFolderId = targetFolder;\n      }
 
       // Add negative prompt if provided
       if (negativePrompt.trim()) {
@@ -567,7 +544,7 @@ export default function SeeDreamTextToImage() {
               </div>
 
               {/* Folder Selection */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Archive className="w-4 h-4 text-purple-300" />
                   <p className="text-sm font-semibold text-white">Save to Vault</p>
@@ -575,52 +552,130 @@ export default function SeeDreamTextToImage() {
                     <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
                   )}
                 </div>
-                <div className="relative">
-                  <select
-                    value={targetFolder}
-                    onChange={(e) => setTargetFolder(e.target.value)}
-                    disabled={isGenerating || isLoadingVaultData}
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-purple-300"
-                  >
-                    <option value="">Select a vault folder...</option>
-                    
-                    {/* Vault Folders by Profile */}
-                    {vaultProfiles.map((profile) => {
-                      const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                      if (folders.length === 0) return null;
-                      
-                      return (
-                        <optgroup 
-                          key={profile.id} 
-                          label={`${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                        >
-                          {folders.map((folder) => (
-                            <option 
-                              key={folder.id} 
-                              value={`vault:${profile.id}:${folder.id}`}
-                            >
-                              {folder.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                </div>
                 
-                {/* Folder indicator */}
-                <div className="flex items-center gap-2">
-                  {targetFolder && (
-                    <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-200">
-                      <Archive className="w-3 h-3" />
-                      <span>Vault Storage</span>
+                {/* Modern Custom Dropdown */}
+                <div ref={folderDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
+                    className={`
+                      w-full flex items-center justify-between gap-3 px-4 py-3.5
+                      rounded-2xl border transition-all duration-200
+                      ${folderDropdownOpen 
+                        ? 'border-purple-400 bg-purple-500/10 ring-2 ring-purple-400/30' 
+                        : 'border-white/10 bg-slate-800/80 hover:border-purple-400/50 hover:bg-slate-800'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    `}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`
+                        flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
+                        ${targetFolder 
+                          ? 'bg-gradient-to-br from-purple-500/30 to-indigo-500/30 border border-purple-400/30' 
+                          : 'bg-slate-700/50 border border-white/5'
+                        }
+                      `}>
+                        <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-purple-300' : 'text-slate-400'}`} />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <p className={`text-sm font-medium truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
+                          {targetFolder 
+                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
+                            : 'Select a folder...'
+                          }
+                        </p>
+                        {targetFolder && selectedProfile && (
+                          <p className="text-[11px] text-purple-300/70 truncate">
+                            {selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {folderDropdownOpen && mounted && (
+                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
+                      {/* Clear Selection Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetFolder('');
+                          setFolderDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                          <X className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <span className="text-sm text-slate-400">No folder selected</span>
+                        {!targetFolder && <Check className="w-4 h-4 text-purple-400 ml-auto" />}
+                      </button>
+
+                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
+                        <div className="my-2 mx-3 h-px bg-white/5" />
+                      )}
+
+                      {/* Folder Options */}
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => {
+                              setTargetFolder(folder.id);
+                              setFolderDropdownOpen(false);
+                            }}
+                            className={`
+                              w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                              ${targetFolder === folder.id 
+                                ? 'bg-purple-500/15' 
+                                : 'hover:bg-white/5'
+                              }
+                            `}
+                          >
+                            <div className={`
+                              w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                              ${targetFolder === folder.id 
+                                ? 'bg-gradient-to-br from-purple-500/40 to-indigo-500/40 border border-purple-400/40' 
+                                : 'bg-slate-700/50 border border-white/5'
+                              }
+                            `}>
+                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-300' : 'text-slate-400'}`} />
+                            </div>
+                            <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                              {folder.name}
+                            </span>
+                            {targetFolder === folder.id && (
+                              <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
+                        <div className="px-4 py-6 text-center">
+                          <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm text-slate-400">No folders available</p>
+                          <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
+                        </div>
+                      )}
                     </div>
                   )}
-                  <p className="text-xs text-slate-300 flex-1">
-                    {getSelectedFolderDisplay()}
-                  </p>
                 </div>
+
+                {/* Status Indicator */}
+                {targetFolder && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                    <p className="text-xs text-purple-200 flex-1 truncate">
+                      {getSelectedFolderDisplay()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Batch Size */}
