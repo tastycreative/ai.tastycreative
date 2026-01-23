@@ -2056,7 +2056,7 @@ export default function TextToImagePage() {
                   
                   {/* Vault Folders by Profile */}
                   {vaultProfiles.map((profile) => {
-                    const folders = vaultFoldersByProfile[profile.id] || [];
+                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
                     if (folders.length === 0) return null;
                     
                     return (
