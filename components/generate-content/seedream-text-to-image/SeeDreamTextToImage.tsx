@@ -43,6 +43,12 @@ interface GeneratedImage {
   size: string;
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  metadata?: {
+    resolution?: string;
+    aspectRatio?: string;
+    negativePrompt?: string;
+    watermark?: boolean;
+  };
 }
 
 interface GenerationJob {
@@ -80,6 +86,44 @@ export default function SeeDreamTextToImage() {
     setMounted(true);
   }, []);
 
+  // Check for reuse data from sessionStorage (from Vault)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const reuseDataStr = sessionStorage.getItem('seedream-t2i-reuse');
+    if (reuseDataStr) {
+      try {
+        const reuseData = JSON.parse(reuseDataStr);
+        
+        // Populate form with reuse data
+        if (reuseData.prompt) {
+          setPrompt(reuseData.prompt);
+        }
+        if (reuseData.resolution) {
+          setSelectedResolution(reuseData.resolution as "2K" | "4K");
+        }
+        if (reuseData.aspectRatio) {
+          const validRatios = ["1:1", "3:4", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9"];
+          if (validRatios.includes(reuseData.aspectRatio)) {
+            setSelectedRatio(reuseData.aspectRatio as typeof selectedRatio);
+          }
+        }
+        if (reuseData.negativePrompt) {
+          setNegativePrompt(reuseData.negativePrompt);
+        }
+        if (reuseData.watermark !== undefined) {
+          setEnableWatermark(reuseData.watermark);
+        }
+        
+        // Clear sessionStorage after use
+        sessionStorage.removeItem('seedream-t2i-reuse');
+      } catch (e) {
+        console.error('Error parsing reuse data:', e);
+        sessionStorage.removeItem('seedream-t2i-reuse');
+      }
+    }
+  }, []);
+
   // Folder dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
   const folderDropdownRef = useRef<HTMLDivElement>(null);
@@ -108,6 +152,7 @@ export default function SeeDreamTextToImage() {
   // History State
   const [generationHistory, setGenerationHistory] = useState<GeneratedImage[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Modal state for viewing images
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
@@ -145,29 +190,33 @@ export default function SeeDreamTextToImage() {
   // Get current size based on resolution and ratio
   const currentSize = resolutionRatios[selectedResolution][selectedRatio];
 
-  // Load generation history on mount and when apiClient becomes available
+  // Load generation history when apiClient is available or profile changes
   useEffect(() => {
     if (apiClient) {
       loadGenerationHistory();
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
   const loadGenerationHistory = async () => {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
-      const response = await apiClient.get("/api/generate/seedream-text-to-image");
+      // Add profileId to filter by selected profile
+      const url = globalProfileId 
+        ? `/api/generate/seedream-text-to-image?profileId=${globalProfileId}`
+        : "/api/generate/seedream-text-to-image";
+      const response = await apiClient.get(url);
       if (response.ok) {
         const data = await response.json();
         const images = data.images || [];
-        console.log('📋 Loaded generation history:', images.length, 'images');
+        console.log('📋 Loaded T2I generation history:', images.length, 'images for profile:', globalProfileId);
         console.log('📋 Image URLs present:', images.filter((i: any) => !!i.imageUrl).length);
         setGenerationHistory(images);
       } else {
-        console.error('Failed to load history:', response.status);
+        console.error('Failed to load T2I history:', response.status);
       }
     } catch (error) {
-      console.error('Error loading history:', error);
+      console.error('Error loading T2I history:', error);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -245,9 +294,18 @@ export default function SeeDreamTextToImage() {
         watermark: enableWatermark,
         sequential_image_generation: maxImages > 1 ? "auto" : "disabled",
         size: currentSize,
+        // Always send the current profile ID so images are associated with the profile
+        vaultProfileId: globalProfileId || null,
+        // Include resolution and aspect ratio for metadata
+        resolution: selectedResolution,
+        aspectRatio: selectedRatio,
       };
 
-      // Handle vault folder selection\n      if (targetFolder && globalProfileId) {\n        payload.saveToVault = true;\n        payload.vaultProfileId = globalProfileId;\n        payload.vaultFolderId = targetFolder;\n      }
+      // Handle vault folder selection - save directly to vault
+      if (targetFolder && globalProfileId) {
+        payload.saveToVault = true;
+        payload.vaultFolderId = targetFolder;
+      }
 
       // Add negative prompt if provided
       if (negativePrompt.trim()) {
@@ -377,6 +435,45 @@ export default function SeeDreamTextToImage() {
     setTargetFolder("");
     setError(null);
     setGeneratedImages([]);
+  };
+
+  // Reuse settings from a generated image
+  const handleReuseSettings = (image: GeneratedImage) => {
+    // Set prompt
+    if (image.prompt) {
+      setPrompt(image.prompt);
+    }
+    
+    // Set resolution from metadata or try to parse from size
+    if (image.metadata?.resolution) {
+      setSelectedResolution(image.metadata.resolution as "2K" | "4K");
+    }
+    
+    // Set aspect ratio from metadata
+    if (image.metadata?.aspectRatio) {
+      const validRatios = ["1:1", "3:4", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9"];
+      if (validRatios.includes(image.metadata.aspectRatio)) {
+        setSelectedRatio(image.metadata.aspectRatio as typeof selectedRatio);
+      }
+    }
+    
+    // Set negative prompt from metadata
+    if (image.metadata?.negativePrompt) {
+      setNegativePrompt(image.metadata.negativePrompt);
+    }
+    
+    // Set watermark from metadata
+    if (image.metadata?.watermark !== undefined) {
+      setEnableWatermark(image.metadata.watermark);
+    }
+    
+    // Close any open modals
+    setShowImageModal(false);
+    setShowHistoryModal(false);
+    setSelectedImage(null);
+    
+    // Scroll to top to show the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -821,9 +918,23 @@ export default function SeeDreamTextToImage() {
 
               {/* Generation History */}
               <div className="mt-8 space-y-3">
-                <div className="flex items-center gap-2 text-white">
-                  <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
-                  <h3 className="text-sm font-semibold">Recent Generations</h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-white">
+                    <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                    <h3 className="text-sm font-semibold">Recent Generations</h3>
+                    {generationHistory.length > 0 && (
+                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                    )}
+                  </div>
+                  {generationHistory.length > 8 && (
+                    <button
+                      onClick={() => setShowHistoryModal(true)}
+                      className="text-xs text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1"
+                    >
+                      View All
+                      <span className="bg-cyan-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                    </button>
+                  )}
                 </div>
                 {generationHistory.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -1108,7 +1219,105 @@ export default function SeeDreamTextToImage() {
                   <Download className="w-4 h-4" />
                   Download image
                 </button>
+
+                {/* Reuse button */}
+                <button
+                  type="button"
+                  onClick={() => handleReuseSettings(selectedImage)}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-white/10 hover:-translate-y-0.5"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reuse settings
+                </button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* View All History Modal */}
+      {showHistoryModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/95 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
+                  <RefreshCw className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
+                  <p className="text-xs text-slate-400">{generationHistory.length} images generated</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid of all history images */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {generationHistory.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {generationHistory.map((image) => (
+                    <button
+                      key={image.id}
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md shadow-cyan-900/20 transition hover:-translate-y-1 hover:border-cyan-200/40"
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        setSelectedImage(image);
+                        setShowImageModal(true);
+                      }}
+                    >
+                      {image.imageUrl ? (
+                        <img
+                          src={image.imageUrl}
+                          alt={image.prompt}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const placeholder = target.nextElementSibling as HTMLElement;
+                            if (placeholder) placeholder.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-800/50 ${image.imageUrl ? 'hidden' : 'flex'}`}
+                      >
+                        <ImageIcon className="w-8 h-8 text-slate-400 mb-2" />
+                        <span className="text-xs text-slate-400 px-2 text-center line-clamp-2">{image.prompt?.slice(0, 30) || 'Image'}</span>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
+                      <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 transition group-hover:opacity-100">
+                        <p className="text-[11px] text-slate-100 line-clamp-2 mb-1">{image.prompt}</p>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                          <span className="bg-white/20 rounded px-1.5 py-0.5">{image.size}</span>
+                        </div>
+                      </div>
+                      {/* Date badge */}
+                      <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
+                        {new Date(image.createdAt).toLocaleDateString()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <ImageIcon className="w-12 h-12 mb-3 opacity-50" />
+                  <p>No generation history yet</p>
+                </div>
+              )}
             </div>
           </div>
         </div>,

@@ -6,6 +6,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
+import { ReferenceItem } from "@/hooks/useReferenceBank";
 import {
   AlertCircle,
   Archive,
@@ -29,6 +31,7 @@ import {
   Upload,
   Image as ImageIcon,
   Check,
+  Library,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -267,6 +270,12 @@ export default function KlingImageToVideo() {
   const [tailImagePreview, setTailImagePreview] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [compressionInfo, setCompressionInfo] = useState<string | null>(null);
+  
+  // Reference Bank state
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
+  const [fromReferenceBank, setFromReferenceBank] = useState(false);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -335,6 +344,10 @@ export default function KlingImageToVideo() {
         };
         reader.readAsDataURL(result.file);
 
+        // Reset reference bank tracking for new uploads
+        setFromReferenceBank(false);
+        setReferenceId(null);
+
         // Show compression info if image was compressed
         if (result.compressed) {
           const savedMB = ((result.originalSize - result.newSize) / (1024 * 1024)).toFixed(1);
@@ -359,7 +372,123 @@ export default function KlingImageToVideo() {
       setUploadedImage(null);
       setImagePreview(null);
       setCompressionInfo(null);
+      setFromReferenceBank(false);
+      setReferenceId(null);
     }
+  };
+
+  // Save image to Reference Bank (for file-based uploads)
+  const saveToReferenceBank = async (file: File, imageBase64: string): Promise<string | null> => {
+    if (!globalProfileId) return null;
+    
+    try {
+      const mimeType = file.type || 'image/jpeg';
+      const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+      const fileName = file.name || `reference-${Date.now()}.${extension}`;
+      
+      // Convert base64 to blob
+      const base64Data = imageBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Get dimensions from image
+      const img = new Image();
+      const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 0, height: 0 });
+        img.src = imageBase64;
+      });
+      const dimensions = await dimensionsPromise;
+
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId: globalProfileId }),
+      });
+
+      if (!presignedResponse.ok) return null;
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) return null;
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: globalProfileId,
+          name: fileName,
+          fileType: 'image',
+          mimeType,
+          fileSize: blob.size,
+          width: dimensions.width,
+          height: dimensions.height,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['kling', 'image-to-video'],
+        }),
+      });
+
+      if (!createResponse.ok) return null;
+
+      const newReference = await createResponse.json();
+      return newReference.id;
+    } catch (err) {
+      console.error('Error saving to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    try {
+      // Fetch image via proxy
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        setError('Failed to load reference image. Please try again.');
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      // Convert blob to File
+      const file = new File([blob], item.name || 'reference.jpg', { type: blob.type || 'image/jpeg' });
+      setUploadedImage(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(blob);
+      
+      setFromReferenceBank(true);
+      setReferenceId(item.id);
+      setCompressionInfo(null);
+      
+      // Track usage
+      fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+    } catch (err) {
+      console.error('Error loading reference image:', err);
+      setError('Failed to load reference image. Please try again.');
+    }
+
+    setShowReferenceBankSelector(false);
   };
 
   // Load vault folders for the selected profile
@@ -529,6 +658,23 @@ export default function KlingImageToVideo() {
     setGeneratedVideos([]);
     setPollingStatus("Submitting task...");
     const localTaskId = `kling-i2v-${Date.now()}`;
+
+    // Save to Reference Bank before generating (only for new uploads, not from Reference Bank)
+    if (globalProfileId && !fromReferenceBank && uploadedImage && imagePreview) {
+      setIsSavingToReferenceBank(true);
+      try {
+        const newReferenceId = await saveToReferenceBank(uploadedImage, imagePreview);
+        if (newReferenceId) {
+          setReferenceId(newReferenceId);
+          setFromReferenceBank(true);
+          console.log('Image saved to Reference Bank:', newReferenceId);
+        }
+      } catch (err) {
+        console.warn('Failed to save image to Reference Bank:', err);
+      } finally {
+        setIsSavingToReferenceBank(false);
+      }
+    }
 
     try {
       updateGlobalProgress({
@@ -810,9 +956,23 @@ export default function KlingImageToVideo() {
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-violet-900/40 backdrop-blur space-y-6">
               {/* Image Upload Section */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5 text-violet-400" />
-                  <h3 className="text-base font-semibold text-white">Upload Image</h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-violet-400" />
+                    <h3 className="text-base font-semibold text-white">Upload Image</h3>
+                  </div>
+                  {/* Reference Bank Button */}
+                  {mounted && globalProfileId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowReferenceBankSelector(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 border border-violet-500/30 transition-all"
+                      disabled={isGenerating}
+                    >
+                      <Library className="w-3.5 h-3.5" />
+                      Reference Bank
+                    </button>
+                  )}
                 </div>
 
                 {/* Main Image Upload */}
@@ -851,7 +1011,9 @@ export default function KlingImageToVideo() {
                       <img
                         src={imagePreview}
                         alt="Uploaded"
-                        className="w-full h-64 object-cover rounded-2xl border border-white/10"
+                        className={`w-full h-64 object-cover rounded-2xl border ${
+                          fromReferenceBank ? 'border-violet-400/50' : 'border-white/10'
+                        }`}
                       />
                       <button
                         onClick={() => removeImage(false)}
@@ -859,7 +1021,13 @@ export default function KlingImageToVideo() {
                       >
                         <X className="h-4 w-4" />
                       </button>
-                      {compressionInfo && (
+                      {fromReferenceBank && (
+                        <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-violet-500/80 text-xs text-white flex items-center gap-1">
+                          <Library className="w-3 h-3" />
+                          From Reference Bank
+                        </div>
+                      )}
+                      {compressionInfo && !fromReferenceBank && (
                         <div className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg bg-emerald-500/80 text-xs text-white text-center">
                           {compressionInfo}
                         </div>
@@ -1786,6 +1954,17 @@ export default function KlingImageToVideo() {
           </div>,
           document.body
         )}
+
+      {/* Reference Bank Selector */}
+      {mounted && globalProfileId && (
+        <ReferenceSelector
+          isOpen={showReferenceBankSelector}
+          onClose={() => setShowReferenceBankSelector(false)}
+          onSelect={handleReferenceBankSelect}
+          filterType="image"
+          profileId={globalProfileId}
+        />
+      )}
     </div>
   );
 }

@@ -43,6 +43,13 @@ interface GeneratedVideo {
   cameraFixed: boolean;
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  metadata?: {
+    resolution?: string;
+    ratio?: string;
+    generateAudio?: boolean;
+    cameraFixed?: boolean;
+    profileId?: string;
+  };
 }
 
 const RESOLUTION_DIMENSIONS = {
@@ -104,6 +111,53 @@ export default function SeeDreamTextToVideo() {
     setMounted(true);
   }, []);
 
+  // Check for reuse data from sessionStorage (from Vault)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const reuseDataStr = sessionStorage.getItem('seedream-t2v-reuse');
+    if (reuseDataStr) {
+      try {
+        const reuseData = JSON.parse(reuseDataStr);
+        
+        // Populate form with reuse data
+        if (reuseData.prompt) {
+          setPrompt(reuseData.prompt);
+        }
+        if (reuseData.resolution) {
+          setResolution(reuseData.resolution as "720p" | "1080p");
+        }
+        if (reuseData.ratio) {
+          const validRatios = ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"];
+          if (validRatios.includes(reuseData.ratio)) {
+            setAspectRatio(reuseData.ratio as typeof aspectRatio);
+          }
+        }
+        if (reuseData.duration !== undefined) {
+          setDuration(reuseData.duration);
+          // Convert duration to slider value (inverse of sliderToDuration)
+          if (reuseData.duration === -1) {
+            setDurationSliderValue(0);
+          } else {
+            setDurationSliderValue(Math.max(0, Math.min(9, reuseData.duration - 3)));
+          }
+        }
+        if (reuseData.cameraFixed !== undefined) {
+          setCameraFixed(reuseData.cameraFixed);
+        }
+        if (reuseData.generateAudio !== undefined) {
+          setGenerateAudio(reuseData.generateAudio);
+        }
+        
+        // Clear sessionStorage after use
+        sessionStorage.removeItem('seedream-t2v-reuse');
+      } catch (e) {
+        console.error('Error parsing reuse data:', e);
+        sessionStorage.removeItem('seedream-t2v-reuse');
+      }
+    }
+  }, []);
+
   // Folder dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
   const folderDropdownRef = useRef<HTMLDivElement>(null);
@@ -128,6 +182,7 @@ export default function SeeDreamTextToVideo() {
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,19 +236,22 @@ export default function SeeDreamTextToVideo() {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
-      const response = await apiClient.get(
-        "/api/generate/seedream-text-to-video?history=true"
-      );
+      // Add profileId to filter by selected profile
+      const url = globalProfileId 
+        ? `/api/generate/seedream-text-to-video?history=true&profileId=${globalProfileId}`
+        : "/api/generate/seedream-text-to-video?history=true";
+      const response = await apiClient.get(url);
       if (response.ok) {
         const data = await response.json();
+        console.log('📋 Loaded T2V generation history:', data.videos?.length || 0, 'videos for profile:', globalProfileId);
         setGenerationHistory(data.videos || []);
       }
     } catch (err) {
-      console.error("Failed to load generation history:", err);
+      console.error("Failed to load T2V generation history:", err);
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
   useEffect(() => {
     if (apiClient) {
@@ -202,7 +260,7 @@ export default function SeeDreamTextToVideo() {
       // Clear selected folder when profile changes
       setTargetFolder("");
     }
-  }, [apiClient, loadVaultData, loadGenerationHistory]);
+  }, [apiClient, loadVaultData, loadGenerationHistory, globalProfileId]);
 
   const pollTaskStatus = (apiTaskId: string, localTaskId: string) => {
     const maxAttempts = 120;
@@ -329,12 +387,13 @@ export default function SeeDreamTextToVideo() {
         cameraFixed,
         watermark: false,
         generateAudio,
+        // Always include profile ID for history filtering
+        vaultProfileId: globalProfileId || null,
       };
 
       // Add vault folder params if selected
       if (targetFolder && globalProfileId) {
         payload.saveToVault = true;
-        payload.vaultProfileId = globalProfileId;
         payload.vaultFolderId = targetFolder;
       }
 
@@ -413,6 +472,61 @@ export default function SeeDreamTextToVideo() {
     setError(null);
     setGeneratedVideos([]);
     setPollingStatus("");
+  };
+
+  // Reuse settings from a generated video
+  const handleReuseSettings = (video: GeneratedVideo) => {
+    // Set prompt
+    if (video.prompt) {
+      setPrompt(video.prompt);
+    }
+    
+    // Set resolution from metadata
+    if (video.metadata?.resolution) {
+      const validResolutions = ["720p", "1080p"];
+      if (validResolutions.includes(video.metadata.resolution)) {
+        setResolution(video.metadata.resolution as "720p" | "1080p");
+      }
+    }
+    
+    // Set aspect ratio from metadata
+    if (video.metadata?.ratio) {
+      const validRatios = ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"];
+      if (validRatios.includes(video.metadata.ratio)) {
+        setAspectRatio(video.metadata.ratio as typeof aspectRatio);
+      }
+    }
+    
+    // Set duration
+    if (video.duration !== undefined) {
+      setDuration(video.duration);
+      // Convert duration to slider value
+      if (video.duration === -1) {
+        setDurationSliderValue(0);
+      } else {
+        setDurationSliderValue(Math.max(0, Math.min(9, video.duration - 3)));
+      }
+    }
+    
+    // Set camera fixed from video or metadata
+    if (video.metadata?.cameraFixed !== undefined) {
+      setCameraFixed(video.metadata.cameraFixed);
+    } else if (video.cameraFixed !== undefined) {
+      setCameraFixed(video.cameraFixed);
+    }
+    
+    // Set generate audio from metadata
+    if (video.metadata?.generateAudio !== undefined) {
+      setGenerateAudio(video.metadata.generateAudio);
+    }
+    
+    // Close any open modals
+    setShowVideoModal(false);
+    setShowHistoryModal(false);
+    setSelectedVideo(null);
+    
+    // Scroll to top to show the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -898,17 +1012,33 @@ export default function SeeDreamTextToVideo() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Library</p>
-                  <h2 className="text-lg font-semibold text-white">Recent generations</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-white">Recent generations</h2>
+                    {generationHistory.length > 0 && (
+                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                    )}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={loadGenerationHistory}
-                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
-                  disabled={isLoadingHistory}
-                >
-                  {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  {generationHistory.length > 4 && (
+                    <button
+                      onClick={() => setShowHistoryModal(true)}
+                      className="text-xs text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1"
+                    >
+                      View All
+                      <span className="bg-cyan-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={loadGenerationHistory}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    disabled={isLoadingHistory}
+                  >
+                    {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {generationHistory.length === 0 ? (
@@ -918,7 +1048,7 @@ export default function SeeDreamTextToVideo() {
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-4">
-                  {generationHistory.map((video) => (
+                  {generationHistory.slice(0, 4).map((video) => (
                     <div
                       key={video.id}
                       role="button"
@@ -988,13 +1118,35 @@ export default function SeeDreamTextToVideo() {
                 autoPlay
                 playsInline
                 src={selectedVideo.videoUrl}
-                className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-3xl"
+                className="w-full h-auto max-h-[60vh] object-contain bg-black rounded-t-3xl"
               />
-              <div className="p-4 text-sm text-slate-200">
-                <p className="font-semibold text-white mb-1">{selectedVideo.prompt}</p>
-                <p className="text-slate-400">
-                  {selectedVideo.duration === -1 ? "Auto" : `${selectedVideo.duration}s`} · {selectedVideo.modelVersion}
-                </p>
+              <div className="p-4 text-sm text-slate-200 space-y-3">
+                <div>
+                  <p className="font-semibold text-white mb-1">{selectedVideo.prompt}</p>
+                  <p className="text-slate-400">
+                    {selectedVideo.duration === -1 ? "Auto" : `${selectedVideo.duration}s`} · {selectedVideo.modelVersion}
+                  </p>
+                </div>
+                
+                {/* Action buttons */}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(selectedVideo.videoUrl, `seedream-t2v-${selectedVideo.id}.mp4`)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/40 transition hover:-translate-y-0.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReuseSettings(selectedVideo)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-white/10 hover:-translate-y-0.5"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reuse settings
+                  </button>
+                </div>
               </div>
             </div>
           </div>,
@@ -1088,6 +1240,93 @@ export default function SeeDreamTextToVideo() {
           </div>,
           document.body
         )}
+
+      {/* View All History Modal */}
+      {showHistoryModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/95 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
+                  <Film className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
+                  <p className="text-xs text-slate-400">{generationHistory.length} videos generated</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid of all history videos */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {generationHistory.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {generationHistory.map((video) => (
+                    <div
+                      key={video.id}
+                      role="button"
+                      aria-label="Open video"
+                      tabIndex={0}
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        openVideoModal(video);
+                      }}
+                      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer transition hover:-translate-y-1 hover:border-cyan-200/40"
+                    >
+                      <div className="relative">
+                        <video
+                          data-role="preview"
+                          preload="metadata"
+                          src={video.videoUrl}
+                          className="w-full h-32 object-cover pointer-events-none"
+                          controlsList="nodownload noplaybackrate noremoteplayback"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition">
+                          <Play className="w-10 h-10 text-white" />
+                        </div>
+                        {/* Date badge */}
+                        <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
+                          {new Date(video.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="px-4 py-3">
+                        <p className="text-sm font-medium text-white line-clamp-2 mb-1">{video.prompt}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                          <span className="bg-white/10 rounded px-1.5 py-0.5">
+                            {video.duration === -1 ? "Auto" : `${video.duration}s`}
+                          </span>
+                          <span className="bg-cyan-500/20 rounded px-1.5 py-0.5 text-cyan-300">
+                            {video.modelVersion}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <Film className="w-12 h-12 mb-3 opacity-50" />
+                  <p>No generation history yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

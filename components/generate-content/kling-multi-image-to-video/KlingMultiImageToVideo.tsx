@@ -6,6 +6,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
+import { ReferenceItem } from "@/hooks/useReferenceBank";
 import {
   AlertCircle,
   Archive,
@@ -28,6 +30,7 @@ import {
   Trash2,
   Images,
   Check,
+  Library,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -156,6 +159,8 @@ interface UploadedImage {
   id: string;
   file: File;
   preview: string;
+  fromReferenceBank?: boolean;
+  referenceId?: string;
 }
 
 // Kling model options - Multi-image only supports V1.6
@@ -224,6 +229,10 @@ export default function KlingMultiImageToVideo() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const MAX_IMAGES = 4;
   const [isCompressing, setIsCompressing] = useState(false);
+  
+  // Reference Bank state
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -372,7 +381,7 @@ export default function KlingMultiImageToVideo() {
   const removeImage = (id: string) => {
     setUploadedImages(prev => {
       const image = prev.find(img => img.id === id);
-      if (image) {
+      if (image && !image.fromReferenceBank) {
         URL.revokeObjectURL(image.preview);
       }
       return prev.filter(img => img.id !== id);
@@ -397,6 +406,138 @@ export default function KlingMultiImageToVideo() {
       [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
       return newImages;
     });
+  };
+
+  // Save image to Reference Bank (for file-based uploads)
+  const saveToReferenceBank = async (file: File, imageBase64: string): Promise<string | null> => {
+    if (!globalProfileId) return null;
+    
+    try {
+      const mimeType = file.type || 'image/jpeg';
+      const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+      const fileName = file.name || `reference-${Date.now()}.${extension}`;
+      
+      // Convert base64 to blob
+      const base64Data = imageBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Get dimensions from image
+      const img = new Image();
+      const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 0, height: 0 });
+        img.src = imageBase64;
+      });
+      const dimensions = await dimensionsPromise;
+
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId: globalProfileId }),
+      });
+
+      if (!presignedResponse.ok) return null;
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) return null;
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: globalProfileId,
+          name: fileName,
+          fileType: 'image',
+          mimeType,
+          fileSize: blob.size,
+          width: dimensions.width,
+          height: dimensions.height,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['kling', 'multi-image-to-video'],
+        }),
+      });
+
+      if (!createResponse.ok) return null;
+
+      const newReference = await createResponse.json();
+      return newReference.id;
+    } catch (err) {
+      console.error('Error saving to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    // Check if max images reached
+    if (uploadedImages.length >= MAX_IMAGES) {
+      setError(`Maximum ${MAX_IMAGES} images allowed`);
+      setShowReferenceBankSelector(false);
+      return;
+    }
+
+    // Check if this reference is already added
+    const alreadyAdded = uploadedImages.some(img => img.referenceId === item.id);
+    if (alreadyAdded) {
+      setError('This reference image is already added');
+      setShowReferenceBankSelector(false);
+      return;
+    }
+
+    try {
+      // Fetch image via proxy
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        setError('Failed to load reference image. Please try again.');
+        setShowReferenceBankSelector(false);
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      // Convert blob to File
+      const file = new File([blob], item.name || 'reference.jpg', { type: blob.type || 'image/jpeg' });
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const newImage: UploadedImage = {
+          id: `ref-${item.id}-${Date.now()}`,
+          file,
+          preview: reader.result as string,
+          fromReferenceBank: true,
+          referenceId: item.id,
+        };
+        setUploadedImages(prev => [...prev, newImage]);
+        
+        // Track usage
+        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      console.error('Error loading reference image:', err);
+      setError('Failed to load reference image. Please try again.');
+    }
+
+    setShowReferenceBankSelector(false);
   };
 
   // Poll for task status
@@ -536,6 +677,24 @@ export default function KlingMultiImageToVideo() {
     const localTaskId = `kling-multi-i2v-${Date.now()}`;
 
     try {
+      // Save new uploads to Reference Bank before generating
+      if (globalProfileId) {
+        setIsSavingToReferenceBank(true);
+        for (let i = 0; i < uploadedImages.length; i++) {
+          const img = uploadedImages[i];
+          if (!img.fromReferenceBank) {
+            const newReferenceId = await saveToReferenceBank(img.file, img.preview);
+            if (newReferenceId) {
+              // Update the image to mark it as saved
+              setUploadedImages(prev => prev.map((item, idx) => 
+                idx === i ? { ...item, fromReferenceBank: true, referenceId: newReferenceId } : item
+              ));
+            }
+          }
+        }
+        setIsSavingToReferenceBank(false);
+      }
+
       updateGlobalProgress({
         isGenerating: true,
         progress: 0,
@@ -785,35 +944,55 @@ export default function KlingMultiImageToVideo() {
                 </div>
                 
                 {uploadedImages.length < MAX_IMAGES && (
-                  <button
-                    onClick={() => !isCompressing && fileInputRef.current?.click()}
-                    disabled={isGenerating || isCompressing}
-                    className="w-full py-6 border-2 border-dashed border-white/20 hover:border-violet-400/50 rounded-2xl bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCompressing ? (
-                      <>
-                        <div className="p-3 bg-violet-500/10 rounded-full">
-                          <Loader2 className="h-6 w-6 text-violet-300 animate-spin" />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => !isCompressing && fileInputRef.current?.click()}
+                      disabled={isGenerating || isCompressing}
+                      className="flex-1 py-6 border-2 border-dashed border-white/20 hover:border-violet-400/50 rounded-2xl bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCompressing ? (
+                        <>
+                          <div className="p-3 bg-violet-500/10 rounded-full">
+                            <Loader2 className="h-6 w-6 text-violet-300 animate-spin" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-white font-medium">Compressing images...</p>
+                            <p className="text-xs text-slate-400 mt-1">Please wait</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="p-3 bg-violet-500/10 rounded-full group-hover:bg-violet-500/20 transition-colors">
+                            <Upload className="h-6 w-6 text-violet-300" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-white font-medium">Click to upload images</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {uploadedImages.length === 0 ? "Upload 2-4 images · Auto-compressed" : `Add ${MAX_IMAGES - uploadedImages.length} more`}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </button>
+                    
+                    {/* Reference Bank Button */}
+                    {mounted && globalProfileId && (
+                      <button
+                        onClick={() => setShowReferenceBankSelector(true)}
+                        disabled={isGenerating || isCompressing}
+                        className="px-4 py-6 border-2 border-dashed border-cyan-500/30 hover:border-cyan-400/50 rounded-2xl bg-cyan-500/5 hover:bg-cyan-500/10 transition-all flex flex-col items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Select from Reference Bank"
+                      >
+                        <div className="p-3 bg-cyan-500/10 rounded-full group-hover:bg-cyan-500/20 transition-colors">
+                          <Library className="h-6 w-6 text-cyan-300" />
                         </div>
                         <div className="text-center">
-                          <p className="text-sm text-white font-medium">Compressing images...</p>
-                          <p className="text-xs text-slate-400 mt-1">Please wait</p>
+                          <p className="text-sm text-white font-medium">Reference Bank</p>
+                          <p className="text-xs text-slate-400 mt-1">Select saved</p>
                         </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="p-3 bg-violet-500/10 rounded-full group-hover:bg-violet-500/20 transition-colors">
-                          <Upload className="h-6 w-6 text-violet-300" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-white font-medium">Click to upload images</p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {uploadedImages.length === 0 ? "Upload 2-4 images · Auto-compressed" : `Add ${MAX_IMAGES - uploadedImages.length} more`}
-                          </p>
-                        </div>
-                      </>
+                      </button>
                     )}
-                  </button>
+                  </div>
                 )}
 
                 <input
@@ -1417,6 +1596,17 @@ export default function KlingMultiImageToVideo() {
           </div>,
           document.body
         )}
+
+      {/* Reference Bank Selector */}
+      {mounted && globalProfileId && (
+        <ReferenceSelector
+          isOpen={showReferenceBankSelector}
+          onClose={() => setShowReferenceBankSelector(false)}
+          onSelect={handleReferenceBankSelect}
+          filterType="image"
+          profileId={globalProfileId}
+        />
+      )}
     </div>
   );
 }

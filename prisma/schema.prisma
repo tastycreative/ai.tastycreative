@@ -483,6 +483,7 @@ model InstagramProfile {
   sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
+  referenceItems         ReferenceItem[]
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
@@ -1473,4 +1474,42 @@ enum TeamRole {
   CREATOR
   VIEWER
   MEMBER
+}
+
+// Reference Bank for storing reusable reference images/videos
+model ReferenceItem {
+  id          String         @id @default(cuid())
+  clerkId     String
+  profileId   String
+  name        String
+  description String?
+  fileType    String         // 'image' or 'video'
+  mimeType    String
+  fileSize    Int
+  width       Int?
+  height      Int?
+  duration    Float?         // For videos
+  awsS3Key    String
+  awsS3Url    String
+  thumbnailUrl String?
+  tags        String[]       @default([])
+  usageCount  Int            @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  profile     InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([profileId])
+  @@index([clerkId, profileId])
+  @@index([fileType])
+  @@index([tags])
+  @@index([usageCount])
+  @@index([lastUsedAt])
+  @@map("reference_items")
+}
+
+enum ReferenceType {
+  IMAGE
+  VIDEO
 }

@@ -6,6 +6,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
+import { ReferenceItem } from "@/hooks/useReferenceBank";
 import {
   AlertCircle,
   Archive,
@@ -29,6 +31,7 @@ import {
   Zap,
   Wand2,
   Check,
+  Library,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -205,6 +208,17 @@ export default function KlingMotionControl() {
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [compressionInfo, setCompressionInfo] = useState<string | null>(null);
+  
+  // Reference Bank state (for image)
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
+  const [fromReferenceBank, setFromReferenceBank] = useState(false);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+  
+  // Reference Bank state (for video)
+  const [showVideoReferenceBankSelector, setShowVideoReferenceBankSelector] = useState(false);
+  const [videoFromReferenceBank, setVideoFromReferenceBank] = useState(false);
+  const [videoReferenceId, setVideoReferenceId] = useState<string | null>(null);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -355,6 +369,10 @@ export default function KlingMotionControl() {
     setError(null);
     setCompressionInfo(null);
     setIsCompressing(true);
+    
+    // Reset reference bank tracking for new uploads
+    setFromReferenceBank(false);
+    setReferenceId(null);
 
     try {
       // Compress image if needed (target 3MB max for safe upload)
@@ -405,6 +423,10 @@ export default function KlingMotionControl() {
     setVideoFile(file);
     const url = URL.createObjectURL(file);
     setVideoPreview(url);
+    
+    // Reset reference bank tracking for new uploads
+    setVideoFromReferenceBank(false);
+    setVideoReferenceId(null);
   }, []);
 
   // Clear image
@@ -412,6 +434,8 @@ export default function KlingMotionControl() {
     setImageFile(null);
     setImagePreview(null);
     setCompressionInfo(null);
+    setFromReferenceBank(false);
+    setReferenceId(null);
     if (imageInputRef.current) {
       imageInputRef.current.value = "";
     }
@@ -420,14 +444,219 @@ export default function KlingMotionControl() {
   // Clear video
   const clearVideo = useCallback(() => {
     setVideoFile(null);
-    if (videoPreview) {
+    if (videoPreview && !videoFromReferenceBank) {
       URL.revokeObjectURL(videoPreview);
     }
     setVideoPreview(null);
+    setVideoFromReferenceBank(false);
+    setVideoReferenceId(null);
     if (videoInputRef.current) {
       videoInputRef.current.value = "";
     }
-  }, [videoPreview]);
+  }, [videoPreview, videoFromReferenceBank]);
+
+  // Save image to Reference Bank (for file-based uploads)
+  const saveToReferenceBank = async (file: File, imageBase64: string): Promise<string | null> => {
+    if (!profileId) return null;
+    
+    try {
+      const mimeType = file.type || 'image/jpeg';
+      const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+      const fileName = file.name || `reference-${Date.now()}.${extension}`;
+      
+      // Convert base64 to blob
+      const base64Data = imageBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Get dimensions from image
+      const img = new Image();
+      const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 0, height: 0 });
+        img.src = imageBase64;
+      });
+      const dimensions = await dimensionsPromise;
+
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId }),
+      });
+
+      if (!presignedResponse.ok) return null;
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) return null;
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId,
+          name: fileName,
+          fileType: 'image',
+          mimeType,
+          fileSize: blob.size,
+          width: dimensions.width,
+          height: dimensions.height,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['kling', 'motion-control'],
+        }),
+      });
+
+      if (!createResponse.ok) return null;
+
+      const newReference = await createResponse.json();
+      return newReference.id;
+    } catch (err) {
+      console.error('Error saving to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Save video to Reference Bank
+  const saveVideoToReferenceBank = async (file: File): Promise<string | null> => {
+    if (!profileId) return null;
+    
+    try {
+      const mimeType = file.type || 'video/mp4';
+      const extension = mimeType.includes('webm') ? 'webm' : mimeType.includes('quicktime') ? 'mov' : 'mp4';
+      const fileName = file.name || `reference-video-${Date.now()}.${extension}`;
+      
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId }),
+      });
+
+      if (!presignedResponse.ok) return null;
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: file,
+      });
+
+      if (!uploadResponse.ok) return null;
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId,
+          name: fileName,
+          fileType: 'video',
+          mimeType,
+          fileSize: file.size,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['kling', 'motion-control', 'reference-video'],
+        }),
+      });
+
+      if (!createResponse.ok) return null;
+
+      const newReference = await createResponse.json();
+      return newReference.id;
+    } catch (err) {
+      console.error('Error saving video to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    try {
+      // Fetch image via proxy
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        setError('Failed to load reference image. Please try again.');
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      // Convert blob to File
+      const file = new File([blob], item.name || 'reference.jpg', { type: blob.type || 'image/jpeg' });
+      setImageFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(blob);
+      
+      setFromReferenceBank(true);
+      setReferenceId(item.id);
+      setCompressionInfo(null);
+      
+      // Track usage
+      fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+    } catch (err) {
+      console.error('Error loading reference image:', err);
+      setError('Failed to load reference image. Please try again.');
+    }
+
+    setShowReferenceBankSelector(false);
+  };
+
+  // Handle video selection from Reference Bank
+  const handleVideoReferenceBankSelect = async (item: ReferenceItem) => {
+    try {
+      // Fetch video via proxy
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        setError('Failed to load reference video. Please try again.');
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      // Convert blob to File
+      const file = new File([blob], item.name || 'reference.mp4', { type: blob.type || 'video/mp4' });
+      setVideoFile(file);
+      
+      // Create preview URL
+      const url = URL.createObjectURL(blob);
+      setVideoPreview(url);
+      
+      setVideoFromReferenceBank(true);
+      setVideoReferenceId(item.id);
+      
+      // Track usage
+      fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+    } catch (err) {
+      console.error('Error loading reference video:', err);
+      setError('Failed to load reference video. Please try again.');
+    }
+
+    setShowVideoReferenceBankSelector(false);
+  };
 
   // Poll for task status
   const pollTaskStatus = useCallback((taskId: string, localTaskId: string) => {
@@ -553,6 +782,37 @@ export default function KlingMotionControl() {
     setGeneratedVideos([]);
     setPollingStatus("Submitting task...");
     const localTaskId = `kling-mc-${Date.now()}`;
+
+    // Save to Reference Bank before generating (only for new uploads, not from Reference Bank)
+    if (profileId && !fromReferenceBank && imageFile && imagePreview) {
+      setIsSavingToReferenceBank(true);
+      try {
+        const newReferenceId = await saveToReferenceBank(imageFile, imagePreview);
+        if (newReferenceId) {
+          setReferenceId(newReferenceId);
+          setFromReferenceBank(true);
+          console.log('Image saved to Reference Bank:', newReferenceId);
+        }
+      } catch (err) {
+        console.warn('Failed to save image to Reference Bank:', err);
+      } finally {
+        setIsSavingToReferenceBank(false);
+      }
+    }
+
+    // Save video to Reference Bank before generating (only for new uploads)
+    if (profileId && !videoFromReferenceBank && videoFile) {
+      try {
+        const newVideoReferenceId = await saveVideoToReferenceBank(videoFile);
+        if (newVideoReferenceId) {
+          setVideoReferenceId(newVideoReferenceId);
+          setVideoFromReferenceBank(true);
+          console.log('Video saved to Reference Bank:', newVideoReferenceId);
+        }
+      } catch (err) {
+        console.warn('Failed to save video to Reference Bank:', err);
+      }
+    }
 
     try {
       updateGlobalProgress({
@@ -807,13 +1067,29 @@ export default function KlingMotionControl() {
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-violet-900/40 backdrop-blur space-y-6">
               {/* Reference Image Upload */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-violet-300" />
-                  <label className="text-sm font-semibold text-slate-100">Reference Image (Character) *</label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-violet-300" />
+                    <label className="text-sm font-semibold text-slate-100">Reference Image (Character) *</label>
+                  </div>
+                  {/* Reference Bank Button */}
+                  {mounted && profileId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowReferenceBankSelector(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 border border-violet-500/30 transition-all"
+                      disabled={isGenerating}
+                    >
+                      <Library className="w-3.5 h-3.5" />
+                      Reference Bank
+                    </button>
+                  )}
                 </div>
 
                 {imagePreview ? (
-                  <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border border-white/10">
+                  <div className={`relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border ${
+                    fromReferenceBank ? 'border-violet-400/50' : 'border-white/10'
+                  }`}>
                     <img
                       src={imagePreview}
                       alt="Reference character"
@@ -826,7 +1102,13 @@ export default function KlingMotionControl() {
                     >
                       <X className="w-4 h-4" />
                     </button>
-                    {compressionInfo && (
+                    {fromReferenceBank && (
+                      <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-violet-500/80 text-xs text-white flex items-center gap-1">
+                        <Library className="w-3 h-3" />
+                        From Reference Bank
+                      </div>
+                    )}
+                    {compressionInfo && !fromReferenceBank && (
                       <div className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg bg-emerald-500/80 text-xs text-white text-center">
                         {compressionInfo}
                       </div>
@@ -867,13 +1149,27 @@ export default function KlingMotionControl() {
 
               {/* Reference Video Upload */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Video className="w-4 h-4 text-pink-300" />
-                  <label className="text-sm font-semibold text-slate-100">Reference Video (Motion) *</label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-4 h-4 text-pink-300" />
+                    <label className="text-sm font-semibold text-slate-100">Reference Video (Motion) *</label>
+                  </div>
+                  {/* Reference Bank Button for Video */}
+                  {mounted && profileId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoReferenceBankSelector(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/30 transition-all"
+                      disabled={isGenerating}
+                    >
+                      <Library className="w-3.5 h-3.5" />
+                      Reference Bank
+                    </button>
+                  )}
                 </div>
 
                 {videoPreview ? (
-                  <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border border-white/10">
+                  <div className={`relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border ${videoFromReferenceBank ? 'border-pink-400/50' : 'border-white/10'}`}>
                     <video
                       src={videoPreview}
                       controls
@@ -886,6 +1182,12 @@ export default function KlingMotionControl() {
                     >
                       <X className="w-4 h-4" />
                     </button>
+                    {videoFromReferenceBank && (
+                      <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-pink-500/80 text-xs text-white flex items-center gap-1">
+                        <Library className="w-3 h-3" />
+                        From Reference Bank
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div
@@ -1372,6 +1674,28 @@ export default function KlingMotionControl() {
           </div>,
           document.body
         )}
+
+      {/* Reference Bank Selector for Images */}
+      {mounted && profileId && (
+        <ReferenceSelector
+          isOpen={showReferenceBankSelector}
+          onClose={() => setShowReferenceBankSelector(false)}
+          onSelect={handleReferenceBankSelect}
+          filterType="image"
+          profileId={profileId}
+        />
+      )}
+
+      {/* Reference Bank Selector for Videos */}
+      {mounted && profileId && (
+        <ReferenceSelector
+          isOpen={showVideoReferenceBankSelector}
+          onClose={() => setShowVideoReferenceBankSelector(false)}
+          onSelect={handleVideoReferenceBankSelect}
+          filterType="video"
+          profileId={profileId}
+        />
+      )}
     </div>
   );
 }

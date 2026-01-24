@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from "react";import { create
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
+import { ReferenceItem } from "@/hooks/useReferenceBank";
 import {
   ImageIcon,
   Download,
@@ -23,6 +25,7 @@ import {
   Archive,
   FolderOpen,
   Check,
+  Library,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -154,6 +157,17 @@ interface GeneratedImage {
   size: string;
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  source?: "generated" | "vault";
+  profileId?: string;
+  // Metadata for reuse functionality
+  metadata?: {
+    resolution?: "2K" | "4K";
+    aspectRatio?: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9";
+    watermark?: boolean;
+    numReferenceImages?: number;
+    referenceImageUrls?: string[];
+    profileId?: string;
+  };
 }
 
 export default function SeeDreamImageToImage() {
@@ -165,10 +179,18 @@ export default function SeeDreamImageToImage() {
   const [prompt, setPrompt] = useState("");
   const [selectedResolution, setSelectedResolution] = useState<"2K" | "4K">("2K");
   const [selectedRatio, setSelectedRatio] = useState<"1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9">("1:1");
-  const [uploadedImages, setUploadedImages] = useState<Array<{ id: string; base64: string; file: File; wasCompressed?: boolean }>>([
-  ]);
+  const [uploadedImages, setUploadedImages] = useState<Array<{ 
+    id: string; 
+    base64: string; 
+    file?: File; 
+    wasCompressed?: boolean;
+    fromReferenceBank?: boolean;
+    referenceId?: string;
+    url?: string;
+  }>>([]);
   const [maxImages, setMaxImages] = useState(1);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
 
   // Generation State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -186,6 +208,12 @@ export default function SeeDreamImageToImage() {
   // Help modal state
   const [showHelpModal, setShowHelpModal] = useState(false);
 
+  // View All History modal state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Reference Bank Selector State
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+
   // Folder Selection State
   const [targetFolder, setTargetFolder] = useState<string>("");
 
@@ -196,6 +224,79 @@ export default function SeeDreamImageToImage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+    
+    // Check for reuse data from Vault or other sources
+    const checkForReuseData = async () => {
+      try {
+        const reuseDataStr = sessionStorage.getItem('seedream-i2i-reuse');
+        if (reuseDataStr) {
+          const reuseData = JSON.parse(reuseDataStr);
+          
+          // Clear the sessionStorage immediately to prevent re-applying
+          sessionStorage.removeItem('seedream-i2i-reuse');
+          
+          // Apply the reuse data
+          if (reuseData.prompt) {
+            setPrompt(reuseData.prompt);
+          }
+          if (reuseData.resolution) {
+            setSelectedResolution(reuseData.resolution as "2K" | "4K");
+          }
+          if (reuseData.aspectRatio) {
+            setSelectedRatio(reuseData.aspectRatio as typeof selectedRatio);
+          }
+          
+          // Load reference images if available
+          if (reuseData.referenceImageUrls && reuseData.referenceImageUrls.length > 0) {
+            setIsCompressing(true);
+            const loadedImages: Array<{
+              id: string;
+              base64: string;
+              wasCompressed: boolean;
+              fromReferenceBank: boolean;
+              url: string;
+            }> = [];
+
+            for (const url of reuseData.referenceImageUrls) {
+              try {
+                const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+                if (proxyResponse.ok) {
+                  const blob = await proxyResponse.blob();
+                  const reader = new FileReader();
+                  const base64Promise = new Promise<string>((resolve, reject) => {
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                  });
+                  const base64 = await base64Promise;
+
+                  loadedImages.push({
+                    id: `reuse-${Date.now()}-${loadedImages.length}`,
+                    base64,
+                    wasCompressed: false,
+                    fromReferenceBank: true,
+                    url,
+                  });
+                }
+              } catch (err) {
+                console.warn('Failed to load reference image:', url, err);
+              }
+            }
+
+            if (loadedImages.length > 0) {
+              setUploadedImages(loadedImages);
+            }
+            setIsCompressing(false);
+          }
+          
+          console.log('Applied reuse data from Vault');
+        }
+      } catch (err) {
+        console.error('Error loading reuse data:', err);
+      }
+    };
+    
+    checkForReuseData();
   }, []);
 
   // Folder dropdown state
@@ -246,22 +347,26 @@ export default function SeeDreamImageToImage() {
   // Get current size based on resolution and ratio
   const currentSize = resolutionRatios[selectedResolution][selectedRatio];
 
-  // Load generation history when apiClient is available
+  // Load generation history when apiClient is available or profile changes
   useEffect(() => {
     if (apiClient) {
       loadGenerationHistory();
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
   const loadGenerationHistory = async () => {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
-      const response = await apiClient.get("/api/generate/seedream-image-to-image");
+      // Add profileId to filter by selected profile
+      const url = globalProfileId 
+        ? `/api/generate/seedream-image-to-image?profileId=${globalProfileId}`
+        : "/api/generate/seedream-image-to-image";
+      const response = await apiClient.get(url);
       if (response.ok) {
         const data = await response.json();
         const images = data.images || [];
-        console.log('📋 Loaded I2I generation history:', images.length, 'images');
+        console.log('📋 Loaded I2I generation history:', images.length, 'images for profile:', globalProfileId);
         console.log('📋 Image URLs present:', images.filter((i: any) => !!i.imageUrl).length);
         setGenerationHistory(images);
       } else {
@@ -312,6 +417,164 @@ export default function SeeDreamImageToImage() {
     return 'Please select a vault folder';
   };
 
+  // Save uploaded image to Reference Bank
+  const saveToReferenceBank = async (imageBase64: string, fileName: string, file?: File): Promise<{ id: string; url: string } | null> => {
+    if (!globalProfileId) return null;
+    
+    try {
+      // Get file info
+      const mimeType = file?.type || (imageBase64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg');
+      const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+      const finalFileName = fileName || `reference-${Date.now()}.${extension}`;
+      
+      // Convert base64 to blob for upload
+      const base64Data = imageBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Get dimensions from the image
+      const img = new Image();
+      const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 0, height: 0 });
+        img.src = imageBase64;
+      });
+      const dimensions = await dimensionsPromise;
+
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: finalFileName,
+          fileType: mimeType,
+          profileId: globalProfileId,
+        }),
+      });
+
+      if (!presignedResponse.ok) {
+        const errorText = await presignedResponse.text();
+        console.error('Failed to get presigned URL:', presignedResponse.status, errorText);
+        return null;
+      }
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('Failed to upload to S3:', uploadResponse.status, errorText);
+        return null;
+      }
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: globalProfileId,
+          name: finalFileName,
+          fileType: 'image',
+          mimeType,
+          fileSize: blob.size,
+          width: dimensions.width,
+          height: dimensions.height,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['seedream', 'reference'],
+        }),
+      });
+
+      if (!createResponse.ok) {
+        console.error('Failed to create reference item');
+        return null;
+      }
+
+      const newReference = await createResponse.json();
+      return { id: newReference.id, url: newReference.awsS3Url || url };
+    } catch (err) {
+      console.error('Error saving to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    if (uploadedImages.length >= maxImages) {
+      setError(`Maximum of ${maxImages} reference image${maxImages > 1 ? 's' : ''} allowed`);
+      return;
+    }
+
+    // Check if this reference is already added
+    const alreadyAdded = uploadedImages.some(img => img.referenceId === item.id);
+    if (alreadyAdded) {
+      setError('This reference image is already added');
+      return;
+    }
+
+    try {
+      // Use a proxy to fetch the image to avoid CORS issues
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        // Fallback: use the URL directly without base64 conversion
+        const newImage = {
+          id: `ref-${item.id}-${Date.now()}`,
+          base64: item.awsS3Url, // Use URL as fallback
+          wasCompressed: false,
+          fromReferenceBank: true,
+          referenceId: item.id,
+          url: item.awsS3Url,
+        };
+        
+        setUploadedImages((prev) => [...prev, newImage]);
+        
+        // Track usage
+        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+        setShowReferenceBankSelector(false);
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        
+        const newImage = {
+          id: `ref-${item.id}-${Date.now()}`,
+          base64,
+          wasCompressed: false,
+          fromReferenceBank: true,
+          referenceId: item.id,
+          url: item.awsS3Url,
+        };
+        
+        setUploadedImages((prev) => [...prev, newImage]);
+        
+        // Track usage
+        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      console.error('Error loading reference image:', err);
+      setError('Failed to load reference image. Please try again.');
+    }
+
+    setShowReferenceBankSelector(false);
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -327,6 +590,7 @@ export default function SeeDreamImageToImage() {
           base64: result.base64,
           file,
           wasCompressed: result.compressed,
+          fromReferenceBank: false,
         };
         
         setUploadedImages((prev) => [...prev, newImage]);
@@ -336,6 +600,8 @@ export default function SeeDreamImageToImage() {
           const savedMB = ((result.originalSize - result.newSize) / (1024 * 1024)).toFixed(1);
           console.log(`Image compressed: ${(result.originalSize / (1024 * 1024)).toFixed(1)}MB → ${(result.newSize / (1024 * 1024)).toFixed(1)}MB (saved ${savedMB}MB)`);
         }
+
+        // Note: Images will be saved to Reference Bank when Generate is clicked
       } catch (err) {
         console.error('Image compression failed:', err);
         setError('Failed to process image. Please try a different file.');
@@ -388,6 +654,53 @@ export default function SeeDreamImageToImage() {
     
     const taskId = `seedream-i2i-${Date.now()}`;
     
+    // Track reference image URLs locally (for use in payload)
+    // Start with URLs from images already in reference bank
+    const savedReferenceUrls: Map<string, string> = new Map();
+    uploadedImages.forEach(img => {
+      if (img.url) {
+        savedReferenceUrls.set(img.id, img.url);
+      }
+    });
+    
+    // Save new uploads to Reference Bank before generating (only those not already saved)
+    if (globalProfileId) {
+      const unsavedImages = uploadedImages.filter(img => !img.fromReferenceBank && img.file);
+      if (unsavedImages.length > 0) {
+        setIsSavingToReferenceBank(true);
+        for (const img of unsavedImages) {
+          try {
+            const saveResult = await saveToReferenceBank(img.base64, img.file?.name || 'reference.jpg', img.file);
+            if (saveResult) {
+              // Track the URL locally for use in payload
+              savedReferenceUrls.set(img.id, saveResult.url);
+              
+              // Update the uploaded image with the reference ID and URL
+              setUploadedImages((prev) => 
+                prev.map(existingImg => 
+                  existingImg.id === img.id 
+                    ? { ...existingImg, referenceId: saveResult.id, url: saveResult.url, fromReferenceBank: true }
+                    : existingImg
+                )
+              );
+              console.log('Image saved to Reference Bank:', saveResult.id, 'URL:', saveResult.url);
+            }
+          } catch (err) {
+            console.warn('Failed to save image to Reference Bank:', err);
+            // Continue with generation even if save fails
+          }
+        }
+        setIsSavingToReferenceBank(false);
+      }
+    }
+    
+    // Build the reference URLs array using our local tracking (to avoid state timing issues)
+    const referenceImageUrls = uploadedImages
+      .map(img => savedReferenceUrls.get(img.id))
+      .filter((url): url is string => !!url);
+    
+    console.log('Reference image URLs to save:', referenceImageUrls);
+    
     try {
       updateGlobalProgress({
         isGenerating: true,
@@ -409,6 +722,11 @@ export default function SeeDreamImageToImage() {
         watermark: false,
         sequential_image_generation: maxImages > 1 ? "auto" : "disabled",
         size: currentSize,
+        // Include resolution and aspectRatio for metadata storage
+        resolution: selectedResolution,
+        aspectRatio: selectedRatio,
+        // Store reference image URLs for reuse functionality (using locally tracked URLs)
+        referenceImageUrls: referenceImageUrls,
       };
 
       // Handle folder selection
@@ -416,6 +734,11 @@ export default function SeeDreamImageToImage() {
         payload.saveToVault = true;
         payload.vaultProfileId = globalProfileId;
         payload.vaultFolderId = targetFolder;
+      }
+      
+      // Also include profileId even if not saving to vault (for filtering history)
+      if (globalProfileId) {
+        payload.vaultProfileId = globalProfileId;
       }
 
       // Add batch generation config
@@ -582,6 +905,73 @@ export default function SeeDreamImageToImage() {
     setUploadedImages([]);
   };
 
+  // Handle reusing generation parameters from a previous generation
+  const handleReuseGeneration = async (image: GeneratedImage) => {
+    // Set the prompt
+    if (image.prompt) {
+      setPrompt(image.prompt);
+    }
+
+    // Set resolution and aspect ratio from metadata
+    if (image.metadata?.resolution) {
+      setSelectedResolution(image.metadata.resolution);
+    }
+    if (image.metadata?.aspectRatio) {
+      setSelectedRatio(image.metadata.aspectRatio);
+    }
+
+    // Load reference images from URLs if available
+    if (image.metadata?.referenceImageUrls && image.metadata.referenceImageUrls.length > 0) {
+      setIsCompressing(true);
+      const loadedImages: Array<{
+        id: string;
+        base64: string;
+        wasCompressed: boolean;
+        fromReferenceBank: boolean;
+        url: string;
+      }> = [];
+
+      for (const url of image.metadata.referenceImageUrls) {
+        try {
+          // Fetch image via proxy to avoid CORS issues
+          const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+          if (proxyResponse.ok) {
+            const blob = await proxyResponse.blob();
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve, reject) => {
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            const base64 = await base64Promise;
+
+            loadedImages.push({
+              id: `reuse-${Date.now()}-${loadedImages.length}`,
+              base64,
+              wasCompressed: false,
+              fromReferenceBank: true,
+              url,
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to load reference image:', url, err);
+        }
+      }
+
+      if (loadedImages.length > 0) {
+        setUploadedImages(loadedImages);
+      }
+      setIsCompressing(false);
+    }
+
+    // Close the modal
+    setShowImageModal(false);
+    setSelectedImage(null);
+
+    // Scroll to the top of the page to show the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="relative min-h-screen bg-slate-950 text-slate-50">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -678,7 +1068,7 @@ export default function SeeDreamImageToImage() {
                   <div className="grid grid-cols-2 gap-3">
                     {uploadedImages.map((img, index) => (
                       <div key={img.id} className="relative group">
-                        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-lg shadow-cyan-900/30 transition hover:-translate-y-1 hover:shadow-2xl">
+                        <div className={`relative overflow-hidden rounded-xl border ${img.fromReferenceBank ? 'border-violet-500/30' : 'border-white/10'} bg-white/5 shadow-lg shadow-cyan-900/30 transition hover:-translate-y-1 hover:shadow-2xl`}>
                           <img
                             src={img.base64}
                             alt={`Reference ${index + 1}`}
@@ -692,11 +1082,19 @@ export default function SeeDreamImageToImage() {
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
+                          {/* Reference Bank indicator */}
+                          {img.fromReferenceBank && (
+                            <div className="absolute top-2 left-2">
+                              <span className="rounded-full bg-violet-500/90 p-1.5 shadow" title="From Reference Bank">
+                                <Library className="w-3 h-3 text-white" />
+                              </span>
+                            </div>
+                          )}
                           <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
                             <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-900 shadow">
                               {index === 0 ? 'Primary' : `Ref ${index + 1}`}
                             </span>
-                            {img.wasCompressed && (
+                            {img.wasCompressed && !img.fromReferenceBank && (
                               <span className="rounded-full bg-emerald-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow" title="Image was automatically optimized">
                                 ✓ Optimized
                               </span>
@@ -744,6 +1142,30 @@ export default function SeeDreamImageToImage() {
                 {uploadedImages.length > 0 && (
                   <p className="text-xs text-slate-300">
                     First image is primary; additional images provide style/composition cues.
+                  </p>
+                )}
+
+                {/* Reference Bank Button - only show after mount to avoid hydration mismatch */}
+                {mounted && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowReferenceBankSelector(true)}
+                      disabled={isGenerating || !globalProfileId}
+                      className="group flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-violet-500/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:border-violet-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Library className="w-4 h-4" />
+                      <span className="text-sm font-medium">Select from Reference Bank</span>
+                    </button>
+                    {!globalProfileId && (
+                      <p className="text-xs text-amber-400/80">Select a profile to use Reference Bank</p>
+                    )}
+                  </>
+                )}
+                {isSavingToReferenceBank && (
+                  <p className="text-xs text-cyan-400 flex items-center gap-1.5">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Saving to Reference Bank...
                   </p>
                 )}
               </div>
@@ -1102,9 +1524,23 @@ export default function SeeDreamImageToImage() {
 
               {/* Generation History */}
               <div className="mt-8 space-y-3">
-                <div className="flex items-center gap-2 text-white">
-                  <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
-                  <h3 className="text-sm font-semibold">Recent Generations</h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-white">
+                    <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                    <h3 className="text-sm font-semibold">Recent Generations</h3>
+                    {generationHistory.length > 0 && (
+                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                    )}
+                  </div>
+                  {generationHistory.length > 8 && (
+                    <button
+                      onClick={() => setShowHistoryModal(true)}
+                      className="text-xs text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1"
+                    >
+                      View All
+                      <span className="bg-cyan-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                    </button>
+                  )}
                 </div>
                 {generationHistory.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -1317,11 +1753,11 @@ export default function SeeDreamImageToImage() {
 
             {/* Image container */}
             <div className="p-6 space-y-4 text-slate-100">
-              <div className="rounded-2xl border border-white/10 bg-slate-900 overflow-hidden max-h-[60vh] flex items-center justify-center">
+              <div className="rounded-2xl border border-white/10 bg-slate-900 overflow-hidden max-h-[50vh] flex items-center justify-center">
                 <img
                   src={selectedImage.imageUrl}
                   alt={selectedImage.prompt}
-                  className="w-full h-auto max-h-[60vh] object-contain"
+                  className="w-full h-auto max-h-[50vh] object-contain"
                 />
               </div>
 
@@ -1331,69 +1767,232 @@ export default function SeeDreamImageToImage() {
                   <Info className="w-4 h-4" />
                   <h3 className="text-base font-semibold">Image details</h3>
                 </div>
-                <div className="space-y-2 rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Prompt</p>
-                  <p className="text-sm text-slate-100 leading-relaxed">{selectedImage.prompt}</p>
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-300 mb-1">Prompt</p>
+                    <p className="text-sm text-slate-100 leading-relaxed">{selectedImage.prompt}</p>
+                  </div>
+                  
+                  {/* Generation Parameters */}
                   <div className="flex flex-wrap gap-2 text-[11px] text-slate-200/80">
                     <span className="rounded-full bg-white/10 px-3 py-1">Size: {selectedImage.size}</span>
                     <span className="rounded-full bg-white/10 px-3 py-1">Model: {selectedImage.modelVersion}</span>
+                    {selectedImage.metadata?.resolution && (
+                      <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-cyan-200">
+                        Resolution: {selectedImage.metadata.resolution}
+                      </span>
+                    )}
+                    {selectedImage.metadata?.aspectRatio && (
+                      <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-cyan-200">
+                        Aspect: {selectedImage.metadata.aspectRatio}
+                      </span>
+                    )}
+                    {selectedImage.metadata?.numReferenceImages && (
+                      <span className="rounded-full bg-indigo-500/20 px-3 py-1 text-indigo-200">
+                        {selectedImage.metadata.numReferenceImages} Reference{selectedImage.metadata.numReferenceImages > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Reference Image Thumbnails */}
+                  {selectedImage.metadata?.referenceImageUrls && selectedImage.metadata.referenceImageUrls.length > 0 && (
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-300 mb-2">Reference Images</p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedImage.metadata.referenceImageUrls.map((url, idx) => (
+                          <div 
+                            key={idx} 
+                            className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 bg-slate-800"
+                          >
+                            <img 
+                              src={url} 
+                              alt={`Reference ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="gray"><rect width="24" height="24"/></svg>';
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Created date */}
+                  <div className="text-[11px] text-slate-400">
+                    Created: {new Date(selectedImage.createdAt).toLocaleString()}
                   </div>
                 </div>
 
-                {/* Download button */}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const imageUrl = selectedImage.imageUrl;
-                      let blobUrl: string;
-                      
-                      if (imageUrl.startsWith('data:')) {
-                        // Data URLs can be used directly
-                        blobUrl = imageUrl;
-                      } else {
-                        // Use proxy endpoint to avoid CORS issues
-                        const proxyUrl = `/api/download/image?url=${encodeURIComponent(imageUrl)}`;
-                        const response = await fetch(proxyUrl);
+                {/* Action buttons */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Reuse button */}
+                  <button
+                    type="button"
+                    onClick={() => handleReuseGeneration(selectedImage)}
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/20 hover:-translate-y-0.5"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reuse Settings
+                  </button>
+                  
+                  {/* Download button */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const imageUrl = selectedImage.imageUrl;
+                        let blobUrl: string;
                         
-                        if (!response.ok) {
-                          throw new Error(`Failed to download image: ${response.status}`);
+                        if (imageUrl.startsWith('data:')) {
+                          // Data URLs can be used directly
+                          blobUrl = imageUrl;
+                        } else {
+                          // Use proxy endpoint to avoid CORS issues
+                          const proxyUrl = `/api/download/image?url=${encodeURIComponent(imageUrl)}`;
+                          const response = await fetch(proxyUrl);
+                          
+                          if (!response.ok) {
+                            throw new Error(`Failed to download image: ${response.status}`);
+                          }
+                          
+                          const blob = await response.blob();
+                          blobUrl = window.URL.createObjectURL(blob);
                         }
                         
-                        const blob = await response.blob();
-                        blobUrl = window.URL.createObjectURL(blob);
+                        // Trigger download
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = blobUrl;
+                        a.download = `seedream-i2i-${selectedImage.id}.jpg`;
+                        document.body.appendChild(a);
+                        a.click();
+                        
+                        // Cleanup
+                        setTimeout(() => {
+                          document.body.removeChild(a);
+                          if (!imageUrl.startsWith('data:')) {
+                            window.URL.revokeObjectURL(blobUrl);
+                          }
+                        }, 100);
+                      } catch (error) {
+                        console.error("Download failed:", error);
+                        alert('Download failed. Please try again or contact support if the issue persists.');
                       }
-                      
-                      // Trigger download
-                      const a = document.createElement('a');
-                      a.style.display = 'none';
-                      a.href = blobUrl;
-                      a.download = `seedream-i2i-${selectedImage.id}.jpg`;
-                      document.body.appendChild(a);
-                      a.click();
-                      
-                      // Cleanup
-                      setTimeout(() => {
-                        document.body.removeChild(a);
-                        if (!imageUrl.startsWith('data:')) {
-                          window.URL.revokeObjectURL(blobUrl);
-                        }
-                      }, 100);
-                    } catch (error) {
-                      console.error("Download failed:", error);
-                      alert('Download failed. Please try again or contact support if the issue persists.');
-                    }
-                  }}
-                  className="w-full mt-2 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/40 transition hover:-translate-y-0.5"
-                >
-                  <Download className="w-4 h-4" />
-                  Download image
-                </button>
+                    }}
+                    className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/40 transition hover:-translate-y-0.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>,
         document.body
+      )}
+
+      {/* View All History Modal */}
+      {showHistoryModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/95 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
+                  <RefreshCw className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
+                  <p className="text-xs text-slate-400">{generationHistory.length} images generated</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid of all history images */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {generationHistory.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {generationHistory.map((image) => (
+                    <button
+                      key={image.id}
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md shadow-cyan-900/20 transition hover:-translate-y-1 hover:border-cyan-200/40"
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        setSelectedImage(image);
+                        setShowImageModal(true);
+                      }}
+                    >
+                      {image.imageUrl ? (
+                        <img
+                          src={image.imageUrl}
+                          alt={image.prompt}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const placeholder = target.nextElementSibling as HTMLElement;
+                            if (placeholder) placeholder.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-800/50 ${image.imageUrl ? 'hidden' : 'flex'}`}
+                      >
+                        <ImageIcon className="w-8 h-8 text-slate-400 mb-2" />
+                        <span className="text-xs text-slate-400 px-2 text-center line-clamp-2">{image.prompt?.slice(0, 30) || 'Image'}</span>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
+                      <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 transition group-hover:opacity-100">
+                        <p className="text-[11px] text-slate-100 line-clamp-2 mb-1">{image.prompt}</p>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                          <span className="bg-white/20 rounded px-1.5 py-0.5">{image.size}</span>
+                          {image.metadata?.resolution && (
+                            <span className="bg-cyan-500/30 rounded px-1.5 py-0.5">{image.metadata.resolution}</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Date badge */}
+                      <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
+                        {new Date(image.createdAt).toLocaleDateString()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <ImageIcon className="w-12 h-12 mb-3 opacity-50" />
+                  <p>No generation history yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reference Bank Selector */}
+      {showReferenceBankSelector && globalProfileId && (
+        <ReferenceSelector
+          profileId={globalProfileId}
+          onSelect={handleReferenceBankSelect}
+          onClose={() => setShowReferenceBankSelector(false)}
+          filterType="image"
+          isOpen={true}
+        />
       )}
     </div>
   );

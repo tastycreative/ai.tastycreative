@@ -44,6 +44,7 @@ import {
   Move,
   Flame,
   Mic,
+  Library,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -110,6 +111,11 @@ export default function DashboardLayout({
       name: "Vault",
       href: "/workspace/vault",
       icon: Shield,
+    },
+    {
+      name: "Reference Bank",
+      href: "/workspace/reference-bank",
+      icon: Library,
     },
     {
       name: "Content Studio",

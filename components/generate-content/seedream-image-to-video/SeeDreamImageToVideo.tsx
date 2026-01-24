@@ -6,6 +6,8 @@ import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
+import { ReferenceItem } from "@/hooks/useReferenceBank";
 import {
   Video,
   Download,
@@ -26,6 +28,8 @@ import {
   Archive,
   FolderOpen,
   Check,
+  Library,
+  Film,
 } from "lucide-react";
 
 interface VaultFolder {
@@ -44,6 +48,15 @@ interface GeneratedVideo {
   cameraFixed: boolean;
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  referenceImageUrl?: string | null;
+  metadata?: {
+    resolution?: string;
+    ratio?: string;
+    generateAudio?: boolean;
+    cameraFixed?: boolean;
+    referenceImageUrl?: string | null;
+    profileId?: string | null;
+  };
 }
 
 const RESOLUTION_DIMENSIONS = {
@@ -87,6 +100,13 @@ export default function SeeDreamImageToVideo() {
   const [prompt, setPrompt] = useState("");
   const [uploadedImage, setUploadedImage] = useState<string>("");
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
+  
+  // Reference Bank state
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
+  const [fromReferenceBank, setFromReferenceBank] = useState(false);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+  const [referenceUrl, setReferenceUrl] = useState<string | null>(null);
   const [resolution, setResolution] = useState<"720p" | "1080p">("720p");
   const [aspectRatio, setAspectRatio] =
     useState<(typeof ASPECT_RATIOS)[number]>("16:9");
@@ -104,6 +124,72 @@ export default function SeeDreamImageToVideo() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+    
+    // Check for reuse data from Vault
+    const reuseData = sessionStorage.getItem('seedream-i2v-reuse');
+    if (reuseData) {
+      try {
+        const data = JSON.parse(reuseData);
+        console.log('Restoring I2V settings from Vault:', data);
+        
+        // Set prompt
+        if (data.prompt) setPrompt(data.prompt);
+        
+        // Set resolution
+        if (data.resolution === '720p' || data.resolution === '1080p') {
+          setResolution(data.resolution);
+        }
+        
+        // Set aspect ratio
+        if (data.ratio && ASPECT_RATIOS.includes(data.ratio)) {
+          setAspectRatio(data.ratio);
+        }
+        
+        // Set duration
+        if (data.duration && data.duration !== -1) {
+          setDuration(data.duration);
+          const sliderVal = data.duration - 3;
+          if (sliderVal >= 0 && sliderVal <= 9) {
+            setDurationSliderValue(sliderVal);
+          }
+        } else if (data.duration === -1) {
+          setDurationSliderValue(0); // Auto
+        }
+        
+        // Set toggles
+        if (typeof data.cameraFixed === 'boolean') setCameraFixed(data.cameraFixed);
+        if (typeof data.generateAudio === 'boolean') setGenerateAudio(data.generateAudio);
+        
+        // Load reference image if available
+        if (data.referenceImageUrl) {
+          fetch(`/api/proxy-image?url=${encodeURIComponent(data.referenceImageUrl)}`)
+            .then(res => res.ok ? res.blob() : Promise.reject('Failed to load'))
+            .then(blob => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                setUploadedImage(reader.result as string);
+                setUploadedImageFile(null);
+                setFromReferenceBank(true);
+                setReferenceUrl(data.referenceImageUrl);
+              };
+              reader.readAsDataURL(blob);
+            })
+            .catch(() => {
+              // Fallback: use URL directly
+              setUploadedImage(data.referenceImageUrl);
+              setUploadedImageFile(null);
+              setFromReferenceBank(true);
+              setReferenceUrl(data.referenceImageUrl);
+            });
+        }
+        
+        // Clear the sessionStorage after reading
+        sessionStorage.removeItem('seedream-i2v-reuse');
+      } catch (err) {
+        console.error('Error parsing I2V reuse data:', err);
+        sessionStorage.removeItem('seedream-i2v-reuse');
+      }
+    }
   }, []);
 
   // Folder dropdown state
@@ -134,6 +220,7 @@ export default function SeeDreamImageToVideo() {
   );
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,19 +276,22 @@ export default function SeeDreamImageToVideo() {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
-      const response = await apiClient.get(
-        "/api/generate/seedream-image-to-video?history=true"
-      );
+      // Add profileId to filter by selected profile
+      const url = globalProfileId 
+        ? `/api/generate/seedream-image-to-video?history=true&profileId=${globalProfileId}`
+        : "/api/generate/seedream-image-to-video?history=true";
+      const response = await apiClient.get(url);
       if (response.ok) {
         const data = await response.json();
+        console.log('📋 Loaded I2V generation history:', data.videos?.length || 0, 'videos for profile:', globalProfileId);
         setGenerationHistory(data.videos || []);
       }
     } catch (err) {
-      console.error("Failed to load generation history:", err);
+      console.error("Failed to load I2V generation history:", err);
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
   useEffect(() => {
     if (apiClient) {
@@ -210,7 +300,7 @@ export default function SeeDreamImageToVideo() {
       // Clear selected folder when profile changes
       setTargetFolder("");
     }
-  }, [apiClient, loadVaultData, loadGenerationHistory]);
+  }, [apiClient, loadVaultData, loadGenerationHistory, globalProfileId]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -226,6 +316,9 @@ export default function SeeDreamImageToVideo() {
       const base64 = e.target?.result as string;
       setUploadedImage(base64);
       setUploadedImageFile(file);
+      // Reset reference bank tracking for new uploads
+      setFromReferenceBank(false);
+      setReferenceId(null);
     };
     reader.readAsDataURL(file);
   };
@@ -233,6 +326,142 @@ export default function SeeDreamImageToVideo() {
   const handleRemoveImage = () => {
     setUploadedImage("");
     setUploadedImageFile(null);
+    setFromReferenceBank(false);
+    setReferenceId(null);
+    setReferenceUrl(null);
+  };
+
+  // Save image to Reference Bank
+  const saveToReferenceBank = async (imageBase64: string, fileName: string, file?: File): Promise<{ id: string; url: string } | null> => {
+    if (!globalProfileId) return null;
+    
+    try {
+      // Get file info
+      const mimeType = file?.type || (imageBase64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg');
+      const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+      const finalFileName = fileName || `reference-${Date.now()}.${extension}`;
+      
+      // Convert base64 to blob for upload
+      const base64Data = imageBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Get dimensions from the image
+      const img = new Image();
+      const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 0, height: 0 });
+        img.src = imageBase64;
+      });
+      const dimensions = await dimensionsPromise;
+
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: finalFileName,
+          fileType: mimeType,
+          profileId: globalProfileId,
+        }),
+      });
+
+      if (!presignedResponse.ok) {
+        console.error('Failed to get presigned URL:', presignedResponse.status);
+        return null;
+      }
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) {
+        console.error('Failed to upload to S3:', uploadResponse.status);
+        return null;
+      }
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: globalProfileId,
+          name: finalFileName,
+          fileType: 'image',
+          mimeType,
+          fileSize: blob.size,
+          width: dimensions.width,
+          height: dimensions.height,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['seedream', 'image-to-video'],
+        }),
+      });
+
+      if (!createResponse.ok) {
+        console.error('Failed to create reference item');
+        return null;
+      }
+
+      const newReference = await createResponse.json();
+      return { id: newReference.id, url: newReference.awsS3Url || url };
+    } catch (err) {
+      console.error('Error saving to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    try {
+      // Use a proxy to fetch the image to avoid CORS issues
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        // Fallback: use the URL directly
+        setUploadedImage(item.awsS3Url);
+        setUploadedImageFile(null);
+        setFromReferenceBank(true);
+        setReferenceId(item.id);
+        setReferenceUrl(item.awsS3Url);
+        
+        // Track usage
+        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+        setShowReferenceBankSelector(false);
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setUploadedImage(base64);
+        setUploadedImageFile(null);
+        setFromReferenceBank(true);
+        setReferenceId(item.id);
+        setReferenceUrl(item.awsS3Url);
+        
+        // Track usage
+        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      console.error('Error loading reference image:', err);
+      setError('Failed to load reference image. Please try again.');
+    }
+
+    setShowReferenceBankSelector(false);
   };
 
   const pollTaskStatus = (apiTaskId: string, localTaskId: string) => {
@@ -348,6 +577,29 @@ export default function SeeDreamImageToVideo() {
     setPollingStatus("Submitting task...");
     const localTaskId = `seedream-i2v-${Date.now()}`;
 
+    // Track the reference URL locally (for use in payload)
+    let savedReferenceUrl = referenceUrl;
+
+    // Save to Reference Bank before generating (only for new uploads, not from Reference Bank)
+    if (globalProfileId && !fromReferenceBank && uploadedImage && uploadedImageFile) {
+      setIsSavingToReferenceBank(true);
+      try {
+        const saveResult = await saveToReferenceBank(uploadedImage, uploadedImageFile.name || 'reference.jpg', uploadedImageFile);
+        if (saveResult) {
+          savedReferenceUrl = saveResult.url;
+          setReferenceId(saveResult.id);
+          setReferenceUrl(saveResult.url);
+          setFromReferenceBank(true);
+          console.log('Image saved to Reference Bank:', saveResult.id, 'URL:', saveResult.url);
+        }
+      } catch (err) {
+        console.warn('Failed to save image to Reference Bank:', err);
+        // Continue with generation even if save fails
+      } finally {
+        setIsSavingToReferenceBank(false);
+      }
+    }
+
     try {
       updateGlobalProgress({
         isGenerating: true,
@@ -369,12 +621,15 @@ export default function SeeDreamImageToVideo() {
         cameraFixed,
         watermark: false,
         generateAudio,
+        // Store reference image URL for reuse functionality
+        referenceImageUrl: savedReferenceUrl || null,
+        // Always include profile ID for history filtering
+        vaultProfileId: globalProfileId || null,
       };
 
       // Add vault folder params if selected
       if (targetFolder && globalProfileId) {
         payload.saveToVault = true;
-        payload.vaultProfileId = globalProfileId;
         payload.vaultFolderId = targetFolder;
       }
 
@@ -457,6 +712,81 @@ export default function SeeDreamImageToVideo() {
     setError(null);
     setGeneratedVideos([]);
     setPollingStatus("");
+    setFromReferenceBank(false);
+    setReferenceId(null);
+    setReferenceUrl(null);
+  };
+
+  // Handle reuse settings from a selected video
+  const handleReuseSettings = async (video: GeneratedVideo) => {
+    // Set prompt
+    setPrompt(video.prompt || '');
+    
+    // Set parameters from metadata
+    if (video.metadata) {
+      const res = video.metadata.resolution as "720p" | "1080p";
+      if (res === "720p" || res === "1080p") {
+        setResolution(res);
+      }
+      
+      const ratio = video.metadata.ratio as (typeof ASPECT_RATIOS)[number];
+      if (ASPECT_RATIOS.includes(ratio)) {
+        setAspectRatio(ratio);
+      }
+      
+      setCameraFixed(video.metadata.cameraFixed || false);
+      setGenerateAudio(video.metadata.generateAudio ?? true);
+    }
+    
+    // Set duration
+    if (video.duration && video.duration !== -1) {
+      setDuration(video.duration);
+      // Convert duration to slider value (duration = sliderValue + 3, or -1 for auto)
+      const sliderVal = video.duration - 3;
+      if (sliderVal >= 0 && sliderVal <= 9) {
+        setDurationSliderValue(sliderVal);
+      }
+    } else {
+      setDurationSliderValue(0); // Auto
+    }
+    
+    // Load reference image if available
+    const refUrl = video.referenceImageUrl || video.metadata?.referenceImageUrl;
+    if (refUrl) {
+      try {
+        // Use proxy to fetch the image to avoid CORS issues
+        const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(refUrl)}`);
+        
+        if (proxyResponse.ok) {
+          const blob = await proxyResponse.blob();
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            setUploadedImage(base64);
+            setUploadedImageFile(null);
+            setFromReferenceBank(true);
+            setReferenceUrl(refUrl);
+          };
+          reader.readAsDataURL(blob);
+        } else {
+          // Fallback: use URL directly
+          setUploadedImage(refUrl);
+          setUploadedImageFile(null);
+          setFromReferenceBank(true);
+          setReferenceUrl(refUrl);
+        }
+      } catch (err) {
+        console.error('Error loading reference image for reuse:', err);
+        // Fallback: use URL directly
+        setUploadedImage(refUrl);
+        setUploadedImageFile(null);
+        setFromReferenceBank(true);
+        setReferenceUrl(refUrl);
+      }
+    }
+    
+    // Close modal
+    setShowVideoModal(false);
   };
 
   useEffect(() => {
@@ -606,9 +936,23 @@ export default function SeeDreamImageToVideo() {
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-cyan-900/40 backdrop-blur space-y-6">
               {/* Image Upload */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-100">
-                  Starting Image *
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-slate-100">
+                    Starting Image *
+                  </label>
+                  {/* Reference Bank Button */}
+                  {mounted && globalProfileId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowReferenceBankSelector(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 transition-all"
+                      disabled={isGenerating}
+                    >
+                      <Library className="w-3.5 h-3.5" />
+                      Reference Bank
+                    </button>
+                  )}
+                </div>
                 {!uploadedImage ? (
                   <div className="relative">
                     <input
@@ -637,8 +981,16 @@ export default function SeeDreamImageToVideo() {
                     <img
                       src={uploadedImage}
                       alt="Uploaded"
-                      className="w-full h-48 object-contain rounded-2xl border-2 border-white/10 bg-black/30"
+                      className={`w-full h-48 object-contain rounded-2xl border-2 bg-black/30 ${
+                        fromReferenceBank ? 'border-cyan-400/50' : 'border-white/10'
+                      }`}
                     />
+                    {fromReferenceBank && (
+                      <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-cyan-500/80 text-xs text-white flex items-center gap-1">
+                        <Library className="w-3 h-3" />
+                        From Reference Bank
+                      </div>
+                    )}
                     <button
                       onClick={handleRemoveImage}
                       className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
@@ -1051,20 +1403,36 @@ export default function SeeDreamImageToVideo() {
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Recent Generations</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-white">Recent Generations</h2>
+                    {generationHistory.length > 0 && (
+                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-400">History</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={loadGenerationHistory}
-                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
-                  disabled={isLoadingHistory}
-                >
-                  <RefreshCw
-                    className={`w-3 h-3 ${isLoadingHistory ? "animate-spin" : ""}`}
-                  />
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  {generationHistory.length > 4 && (
+                    <button
+                      onClick={() => setShowHistoryModal(true)}
+                      className="text-xs text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1"
+                    >
+                      View All
+                      <span className="bg-cyan-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={loadGenerationHistory}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    disabled={isLoadingHistory}
+                  >
+                    <RefreshCw
+                      className={`w-3 h-3 ${isLoadingHistory ? "animate-spin" : ""}`}
+                    />
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {generationHistory.length === 0 ? (
@@ -1074,7 +1442,7 @@ export default function SeeDreamImageToVideo() {
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-4">
-                  {generationHistory.map((video) => (
+                  {generationHistory.slice(0, 4).map((video) => (
                     <div
                       key={video.id}
                       className="group relative rounded-2xl border border-white/10 bg-white/5 overflow-hidden hover:border-cyan-400/50 transition-all cursor-pointer"
@@ -1160,12 +1528,33 @@ export default function SeeDreamImageToVideo() {
                 <p className="font-semibold text-white mb-1">
                   {selectedVideo.prompt}
                 </p>
-                <p className="text-slate-400">
+                <p className="text-slate-400 mb-3">
                   {selectedVideo.duration === -1
                     ? "Auto"
                     : `${selectedVideo.duration}s`}{" "}
                   · {selectedVideo.modelVersion}
                 </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleReuseSettings(selectedVideo)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/30 px-4 py-2 text-sm font-medium text-cyan-300 transition"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reuse Settings
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleDownload(
+                        selectedVideo.videoUrl,
+                        `seedream-i2v-${selectedVideo.id}.mp4`
+                      )
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-2 text-sm font-medium text-white transition"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
               </div>
             </div>
           </div>,
@@ -1279,6 +1668,104 @@ export default function SeeDreamImageToVideo() {
           </div>,
           document.body
         )}
+
+      {/* View All History Modal */}
+      {showHistoryModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/95 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
+                  <Film className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
+                  <p className="text-xs text-slate-400">{generationHistory.length} videos generated</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid of all history videos */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {generationHistory.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {generationHistory.map((video) => (
+                    <div
+                      key={video.id}
+                      role="button"
+                      aria-label="Open video"
+                      tabIndex={0}
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        openVideoModal(video);
+                      }}
+                      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer transition hover:-translate-y-1 hover:border-cyan-200/40"
+                    >
+                      <div className="relative">
+                        <video
+                          data-role="preview"
+                          preload="metadata"
+                          src={video.videoUrl}
+                          className="w-full h-32 object-cover pointer-events-none"
+                          controlsList="nodownload noplaybackrate noremoteplayback"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition">
+                          <Play className="w-10 h-10 text-white" />
+                        </div>
+                        {/* Date badge */}
+                        <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
+                          {new Date(video.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="px-4 py-3">
+                        <p className="text-sm font-medium text-white line-clamp-2 mb-1">{video.prompt}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                          <span className="bg-white/10 rounded px-1.5 py-0.5">
+                            {video.duration === -1 ? "Auto" : `${video.duration}s`}
+                          </span>
+                          <span className="bg-cyan-500/20 rounded px-1.5 py-0.5 text-cyan-300">
+                            {video.modelVersion}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <Film className="w-12 h-12 mb-3 opacity-50" />
+                  <p>No generation history yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reference Bank Selector */}
+      {mounted && globalProfileId && (
+        <ReferenceSelector
+          isOpen={showReferenceBankSelector}
+          onClose={() => setShowReferenceBankSelector(false)}
+          onSelect={handleReferenceBankSelect}
+          filterType="image"
+          profileId={globalProfileId}
+        />
+      )}
     </div>
   );
 }

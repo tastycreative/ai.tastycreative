@@ -25,15 +25,52 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Validate that it's an Instagram image URL
-    if (!url.includes("cdninstagram.com") && !url.includes("fbcdn.net")) {
+    // Validate allowed domains (Instagram CDN and S3 buckets)
+    const isInstagram = url.includes("cdninstagram.com") || url.includes("fbcdn.net");
+    const isS3 = url.includes("s3.amazonaws.com") || 
+                 url.includes(".s3.") || 
+                 url.includes("s3-") ||
+                 url.includes("amazonaws.com");
+    
+    if (!isInstagram && !isS3) {
       return NextResponse.json(
-        { error: "Only Instagram image URLs are allowed" },
+        { error: "Only Instagram and S3 image URLs are allowed" },
         { status: 403 }
       );
     }
 
-    console.log(`Proxying image with bypass strategy: ${bypass}`);
+    // For S3 URLs, use simple fetch
+    if (isS3) {
+      try {
+        const s3Response = await fetch(url);
+        if (!s3Response.ok) {
+          return NextResponse.json(
+            { error: `Failed to fetch from S3: ${s3Response.status}` },
+            { status: s3Response.status }
+          );
+        }
+        
+        const contentType = s3Response.headers.get("content-type") || "image/jpeg";
+        const buffer = await s3Response.arrayBuffer();
+        
+        return new NextResponse(buffer, {
+          status: 200,
+          headers: {
+            "Content-Type": contentType,
+            "Cache-Control": "public, max-age=3600",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      } catch (error) {
+        console.error("S3 proxy error:", error);
+        return NextResponse.json(
+          { error: "Failed to proxy S3 image" },
+          { status: 500 }
+        );
+      }
+    }
+
+    console.log(`Proxying Instagram image with bypass strategy: ${bypass}`);
 
     // Try multiple fetch strategies with different bypass techniques
     let response;
