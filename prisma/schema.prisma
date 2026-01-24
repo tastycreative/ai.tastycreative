@@ -27,6 +27,7 @@ model User {
   name                     String?
   avatarUrl                String?
   lastLoginAt              DateTime?
+  isAdmin                  Boolean                   @default(false)
   feedPostBookmarks        FeedPostBookmark[]
   feedPostCommentLikes     FeedPostCommentLike[]
   feedPostComments         FeedPostComment[]
@@ -483,6 +484,7 @@ model InstagramProfile {
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  reference_items        reference_items[]
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
@@ -1128,10 +1130,21 @@ model CustomOrganizationPermission {
   canFaceSwap           Boolean?
   canFluxKontext        Boolean?
   canVideoFpsBoost      Boolean?
-  canSkinEnhancement    Boolean?
-  canTrainLoRA          Boolean?
-  canShareLoRA          Boolean?
-  canAccessMarketplace  Boolean?
+  canSkinEnhancement           Boolean?
+  canStyleTransfer             Boolean?
+  canSkinEnhancer              Boolean?
+  canImageToImageSkinEnhancer  Boolean?
+  canSeeDreamTextToImage       Boolean?
+  canSeeDreamImageToImage      Boolean?
+  canSeeDreamTextToVideo       Boolean?
+  canSeeDreamImageToVideo      Boolean?
+  canKlingTextToVideo          Boolean?
+  canKlingImageToVideo         Boolean?
+  canKlingMultiImageToVideo    Boolean?
+  canKlingMotionControl        Boolean?
+  canTrainLoRA                 Boolean?
+  canShareLoRA                 Boolean?
+  canAccessMarketplace         Boolean?
   canAutoSchedule       Boolean?
   canBulkUpload         Boolean?
   canCaptionBank        Boolean?
@@ -1262,6 +1275,37 @@ model ai_voice_generations {
   @@index([createdAt])
   @@index([userId])
   @@index([voiceAccountId])
+}
+
+model reference_items {
+  id                 String           @id
+  clerkId            String
+  profileId          String
+  name               String
+  description        String?
+  fileType           String
+  mimeType           String
+  fileSize           Int
+  width              Int?
+  height             Int?
+  duration           Float?
+  awsS3Key           String
+  awsS3Url           String
+  thumbnailUrl       String?
+  tags               String[]         @default([])
+  usageCount         Int              @default(0)
+  lastUsedAt         DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime
+  instagram_profiles InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([clerkId])
+  @@index([clerkId, profileId])
+  @@index([fileType])
+  @@index([lastUsedAt])
+  @@index([profileId])
+  @@index([tags])
+  @@index([usageCount])
 }
 
 enum SyncStatus {
@@ -1481,4 +1525,9 @@ enum TeamRole {
   CREATOR
   VIEWER
   MEMBER
+}
+
+enum ReferenceType {
+  IMAGE
+  VIDEO
 }

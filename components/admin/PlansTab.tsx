@@ -457,7 +457,7 @@ export default function PlansTab() {
         >
           <div className="flex min-h-screen items-center justify-center p-4">
             <div
-              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-2xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
+              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-4xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">
@@ -660,7 +660,7 @@ export default function PlansTab() {
         >
           <div className="flex min-h-screen items-center justify-center p-4">
             <div
-              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-2xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
+              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-4xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-6">

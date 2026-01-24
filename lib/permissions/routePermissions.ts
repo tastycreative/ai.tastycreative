@@ -17,7 +17,59 @@ export function getRequiredPermission(pathname: string): keyof Permissions | nul
     return null;
   }
 
-  // Generate Content routes
+  // Generate Content routes - check specific feature permissions
+  if (pathname === '/workspace/generate-content/text-to-image') {
+    return 'canTextToImage';
+  }
+  if (pathname === '/workspace/generate-content/style-transfer') {
+    return 'canStyleTransfer';
+  }
+  if (pathname === '/workspace/generate-content/skin-enhancer') {
+    return 'canSkinEnhancer';
+  }
+  if (pathname === '/workspace/generate-content/flux-kontext') {
+    return 'canFluxKontext';
+  }
+  if (pathname === '/workspace/generate-content/text-to-video') {
+    return 'canTextToVideo';
+  }
+  if (pathname === '/workspace/generate-content/image-to-video') {
+    return 'canImageToVideo';
+  }
+  if (pathname === '/workspace/generate-content/face-swapping') {
+    return 'canFaceSwap';
+  }
+  if (pathname === '/workspace/generate-content/image-to-image-skin-enhancer') {
+    return 'canImageToImageSkinEnhancer';
+  }
+  if (pathname === '/workspace/generate-content/fps-boost') {
+    return 'canVideoFpsBoost';
+  }
+  if (pathname === '/workspace/generate-content/seedream-text-to-image') {
+    return 'canSeeDreamTextToImage';
+  }
+  if (pathname === '/workspace/generate-content/seedream-image-to-image') {
+    return 'canSeeDreamImageToImage';
+  }
+  if (pathname === '/workspace/generate-content/seedream-text-to-video') {
+    return 'canSeeDreamTextToVideo';
+  }
+  if (pathname === '/workspace/generate-content/seedream-image-to-video') {
+    return 'canSeeDreamImageToVideo';
+  }
+  if (pathname === '/workspace/generate-content/kling-text-to-video') {
+    return 'canKlingTextToVideo';
+  }
+  if (pathname === '/workspace/generate-content/kling-image-to-video') {
+    return 'canKlingImageToVideo';
+  }
+  if (pathname === '/workspace/generate-content/kling-multi-image-to-video') {
+    return 'canKlingMultiImageToVideo';
+  }
+  if (pathname === '/workspace/generate-content/kling-motion-control') {
+    return 'canKlingMotionControl';
+  }
+  // Fallback for any other generate-content routes
   if (pathname.startsWith('/workspace/generate-content')) {
     return 'hasGenerateTab';
   }

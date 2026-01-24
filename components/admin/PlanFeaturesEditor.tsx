@@ -76,6 +76,40 @@ export default function PlanFeaturesEditor({ features, onChange }: PlanFeaturesE
     );
   };
 
+  // Toggle all features in a category
+  const toggleAllInCategory = (category: FeatureDefinition['category']) => {
+    const categoryFeatures = getFeaturesByCategory(category);
+    const allEnabled = categoryFeatures.every(f => features[f.key]);
+
+    const updates: Record<string, boolean | number | null> = {};
+    categoryFeatures.forEach(feature => {
+      // Only toggle boolean features, not numeric ones
+      if (feature.type === 'boolean') {
+        updates[feature.key] = !allEnabled;
+      }
+    });
+
+    onChange({
+      ...features,
+      ...updates,
+    });
+  };
+
+  // Check if all features in a category are enabled
+  const areCategoryFeaturesEnabled = (category: FeatureDefinition['category']) => {
+    const categoryFeatures = getFeaturesByCategory(category).filter(f => f.type === 'boolean');
+    if (categoryFeatures.length === 0) return false;
+    return categoryFeatures.every(f => features[f.key]);
+  };
+
+  // Check if some (but not all) features in a category are enabled
+  const areCategoryFeaturesIndeterminate = (category: FeatureDefinition['category']) => {
+    const categoryFeatures = getFeaturesByCategory(category).filter(f => f.type === 'boolean');
+    if (categoryFeatures.length === 0) return false;
+    const enabledCount = categoryFeatures.filter(f => features[f.key]).length;
+    return enabledCount > 0 && enabledCount < categoryFeatures.length;
+  };
+
   const FeatureSection = ({
     category,
   }: {
@@ -86,14 +120,25 @@ export default function PlanFeaturesEditor({ features, onChange }: PlanFeaturesE
 
     const Icon = getIconComponent(getCategoryIcon(category));
     const title = getCategoryTitle(category);
+    const allEnabled = areCategoryFeaturesEnabled(category);
+    const indeterminate = areCategoryFeaturesIndeterminate(category);
 
     return (
       <div>
-        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2 mb-3">
+        <label className="flex items-center gap-2 mb-3 cursor-pointer group hover:bg-gray-50 dark:hover:bg-gray-800/50 p-2 rounded-lg transition-colors">
+          <input
+            type="checkbox"
+            checked={allEnabled}
+            ref={(el) => {
+              if (el) el.indeterminate = indeterminate;
+            }}
+            onChange={() => toggleAllInCategory(category)}
+            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+          />
           <Icon className="w-4 h-4 text-blue-600" />
-          {title}
-        </h4>
-        <div className="grid gap-2 grid-cols-2">
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</h4>
+        </label>
+        <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
           {categoryFeatures.map((feature) => (
             <FeatureToggle key={feature.key} feature={feature} />
           ))}

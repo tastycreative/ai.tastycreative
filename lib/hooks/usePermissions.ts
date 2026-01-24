@@ -25,6 +25,21 @@ export interface Permissions {
   canFluxKontext: boolean;
   canVideoFpsBoost: boolean;
   canSkinEnhancement: boolean;
+  canStyleTransfer: boolean;
+  canSkinEnhancer: boolean;
+  canImageToImageSkinEnhancer: boolean;
+
+  // SeeDream 4.5 Features
+  canSeeDreamTextToImage: boolean;
+  canSeeDreamImageToImage: boolean;
+  canSeeDreamTextToVideo: boolean;
+  canSeeDreamImageToVideo: boolean;
+
+  // Kling AI Features
+  canKlingTextToVideo: boolean;
+  canKlingImageToVideo: boolean;
+  canKlingMultiImageToVideo: boolean;
+  canKlingMotionControl: boolean;
 
   // Training Features
   canTrainLoRA: boolean;
@@ -106,6 +121,17 @@ const LOADING_PERMISSIONS: Permissions = {
   canFluxKontext: false,
   canVideoFpsBoost: false,
   canSkinEnhancement: false,
+  canStyleTransfer: false,
+  canSkinEnhancer: false,
+  canImageToImageSkinEnhancer: false,
+  canSeeDreamTextToImage: false,
+  canSeeDreamImageToImage: false,
+  canSeeDreamTextToVideo: false,
+  canSeeDreamImageToVideo: false,
+  canKlingTextToVideo: false,
+  canKlingImageToVideo: false,
+  canKlingMultiImageToVideo: false,
+  canKlingMotionControl: false,
 
   // Training features
   canTrainLoRA: false,

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Save, Shield, Loader2, Layers, Sparkles, Star, Zap, Users as UsersIcon, Settings } from 'lucide-react';
-import { PLAN_FEATURES, getFeaturesByCategory, getCategoryIcon, getCategoryTitle, FeatureDefinition } from '@/lib/planFeatures';
+import { X, Save, Shield, Loader2 } from 'lucide-react';
+import PlanFeaturesEditor from './PlanFeaturesEditor';
 
 interface CustomOrganizationPermission {
   id: string;
@@ -24,6 +24,17 @@ interface CustomOrganizationPermission {
   canFluxKontext: boolean | null;
   canVideoFpsBoost: boolean | null;
   canSkinEnhancement: boolean | null;
+  canStyleTransfer: boolean | null;
+  canSkinEnhancer: boolean | null;
+  canImageToImageSkinEnhancer: boolean | null;
+  canSeeDreamTextToImage: boolean | null;
+  canSeeDreamImageToImage: boolean | null;
+  canSeeDreamTextToVideo: boolean | null;
+  canSeeDreamImageToVideo: boolean | null;
+  canKlingTextToVideo: boolean | null;
+  canKlingImageToVideo: boolean | null;
+  canKlingMultiImageToVideo: boolean | null;
+  canKlingMotionControl: boolean | null;
   canTrainLoRA: boolean | null;
   canShareLoRA: boolean | null;
   canAccessMarketplace: boolean | null;
@@ -118,105 +129,8 @@ export default function OrganizationPermissionsModal({
     }
   };
 
-  const togglePermission = (key: keyof CustomOrganizationPermission) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  };
-
-  const setNumericValue = (key: string, value: number) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
-
-  // Get icon component from icon name string
-  const getIconComponent = (iconName: string) => {
-    const icons: Record<string, any> = {
-      Layers,
-      Sparkles,
-      Star,
-      Zap,
-      Users: UsersIcon,
-      Shield,
-      Settings,
-    };
-    return icons[iconName] || Shield;
-  };
-
-  const PermissionToggle = ({
-    feature,
-  }: {
-    feature: FeatureDefinition;
-  }) => {
-    if (feature.type === 'number') {
-      const numValue = typeof permissions[feature.key] === 'number' ? permissions[feature.key] as number : feature.defaultValue as number;
-      return (
-        <div className="col-span-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-          <label className="flex items-center gap-2">
-            <span className="text-sm text-gray-900 dark:text-white">{feature.label}:</span>
-            <input
-              type="number"
-              value={numValue}
-              onChange={(e) => setNumericValue(feature.key, parseInt(e.target.value) || 0)}
-              min="0"
-              className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded focus:ring-2 focus:ring-blue-500"
-            />
-            {feature.description && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">({feature.description})</span>
-            )}
-          </label>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
-        <div className="flex-1">
-          <label htmlFor={feature.key} className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer">
-            {feature.label}
-          </label>
-          {feature.description && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{feature.description}</p>
-          )}
-        </div>
-        <input
-          type="checkbox"
-          id={feature.key}
-          checked={!!permissions[feature.key]}
-          onChange={() => togglePermission(feature.key as keyof CustomOrganizationPermission)}
-          className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
-        />
-      </div>
-    );
-  };
-
-  const PermissionSection = ({
-    category,
-  }: {
-    category: FeatureDefinition['category'];
-  }) => {
-    const categoryFeatures = getFeaturesByCategory(category);
-    if (categoryFeatures.length === 0) return null;
-
-    const Icon = getIconComponent(getCategoryIcon(category));
-    const title = getCategoryTitle(category);
-
-    return (
-      <div>
-        <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-          <Icon className="w-4 h-4" />
-          {title}
-        </h4>
-        <div className="space-y-2">
-          {categoryFeatures.map((feature) => (
-            <PermissionToggle key={feature.key} feature={feature} />
-          ))}
-        </div>
-      </div>
-    );
+  const handlePermissionsChange = (newPermissions: Record<string, boolean | number | null>) => {
+    setPermissions(newPermissions);
   };
 
   if (loading) {
@@ -240,7 +154,7 @@ export default function OrganizationPermissionsModal({
     >
       <div className="flex min-h-screen items-center justify-center p-4">
         <div
-          className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-4xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
+          className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-6xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -279,15 +193,12 @@ export default function OrganizationPermissionsModal({
             </div>
           )}
 
-          {/* Permissions Grid - Dynamically render all categories */}
-          <div className="space-y-6">
-            <PermissionSection category="tab" />
-            <PermissionSection category="generation" />
-            <PermissionSection category="training" />
-            <PermissionSection category="content" />
-            <PermissionSection category="collaboration" />
-            <PermissionSection category="limit" />
-            <PermissionSection category="advanced" />
+          {/* Permissions Grid - Use the same editor as Plans */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <PlanFeaturesEditor
+              features={permissions as Record<string, boolean | number | null>}
+              onChange={handlePermissionsChange}
+            />
           </div>
 
           {/* Footer */}

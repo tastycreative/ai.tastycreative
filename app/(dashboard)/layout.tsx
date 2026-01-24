@@ -98,210 +98,248 @@ export default function DashboardLayout({
       href: "/dashboard",
       icon: Home,
     },
-    // Content Studio - check Instagram/Planning tab permissions
+    // Content Studio - check Instagram/Planning tab permissions and individual features
     ...(permissions.hasInstagramTab || permissions.hasPlanningTab
       ? [
           {
             name: "Content Studio",
             collapsible: true,
             items: [
+              // Always show these core features if user has the tab
               {
-          name: "Staging",
-          href: "/workspace/content-studio/staging",
-          icon: Layers,
-        },
-        {
-          name: "Calendar",
-          href: "/workspace/content-studio/calendar",
-          icon: Calendar,
-        },
-        {
-          name: "Pipeline",
-          href: "/workspace/content-studio/pipeline",
-          icon: GitBranch,
-        },
-        {
-          name: "Stories",
-          href: "/workspace/content-studio/stories",
-          icon: Clock,
-        },
-        {
-          name: "Reels",
-          href: "/workspace/content-studio/reels",
-          icon: Sparkles,
-        },
-        {
-          name: "Feed Posts",
-          href: "/workspace/content-studio/feed-posts",
-          icon: ImageIcon,
-        },
-        {
-          name: "Performance",
-          href: "/workspace/content-studio/performance",
-          icon: Activity,
-        },
-        {
-          name: "Formulas",
-          href: "/workspace/content-studio/formulas",
-          icon: Sparkles,
-        },
-        {
-          name: "Hashtags",
-          href: "/workspace/content-studio/hashtags",
-          icon: Hash,
-        },
+                name: "Staging",
+                href: "/workspace/content-studio/staging",
+                icon: Layers,
+              },
+              {
+                name: "Calendar",
+                href: "/workspace/content-studio/calendar",
+                icon: Calendar,
+              },
+              // Pipeline - check canContentPipeline permission
+              ...(permissions.canContentPipeline ? [{
+                name: "Pipeline",
+                href: "/workspace/content-studio/pipeline",
+                icon: GitBranch,
+              }] : []),
+              // Stories - check canStoryPlanner permission
+              ...(permissions.canStoryPlanner ? [{
+                name: "Stories",
+                href: "/workspace/content-studio/stories",
+                icon: Clock,
+              }] : []),
+              // Reels - check canReelPlanner permission
+              ...(permissions.canReelPlanner ? [{
+                name: "Reels",
+                href: "/workspace/content-studio/reels",
+                icon: Sparkles,
+              }] : []),
+              // Feed Posts - check canFeedPostPlanner permission
+              ...(permissions.canFeedPostPlanner ? [{
+                name: "Feed Posts",
+                href: "/workspace/content-studio/feed-posts",
+                icon: ImageIcon,
+              }] : []),
+              // Performance - check canPerformanceMetrics permission
+              ...(permissions.canPerformanceMetrics ? [{
+                name: "Performance",
+                href: "/workspace/content-studio/performance",
+                icon: Activity,
+              }] : []),
+              // Formulas - always show if user has the tab (utility feature)
+              {
+                name: "Formulas",
+                href: "/workspace/content-studio/formulas",
+                icon: Sparkles,
+              },
+              // Hashtags - check canHashtagBank permission
+              ...(permissions.canHashtagBank ? [{
+                name: "Hashtags",
+                href: "/workspace/content-studio/hashtags",
+                icon: Hash,
+              }] : []),
+              // Workflow - always show if user has the tab (utility feature)
               {
                 name: "Workflow",
                 href: "/workspace/content-studio/workflow",
                 icon: ListChecks,
               },
-        {
-          name: "Sexting Set Organizer",
-          href: "/workspace/content-studio/sexting-set-organizer",
-          icon: Flame,
-        },
+              // Sexting Set Organizer - always show if user has the tab
+              {
+                name: "Sexting Set Organizer",
+                href: "/workspace/content-studio/sexting-set-organizer",
+                icon: Flame,
+              },
             ],
           },
         ]
       : []),
-    // Generate Content - check hasGenerateTab permission
+    // Generate Content - check hasGenerateTab permission and individual feature permissions
     ...(permissions.hasGenerateTab
       ? [
           {
             name: "Generate Content",
       collapsible: true,
       items: [
-        {
-          name: "FLUX_GROUP_LABEL",
-          href: "#",
-          icon: Sparkles,
-        },
-        {
-          name: "Text to Image",
-          href: "/workspace/generate-content/text-to-image",
-          icon: ImageIcon,
-        },
-        {
-          name: "Style Transfer",
-          href: "/workspace/generate-content/style-transfer",
-          icon: Palette,
-        },
-        {
-          name: "Skin Enhancer",
-          href: "/workspace/generate-content/skin-enhancer",
-          icon: Sparkles,
-        },
-        {
-          name: "Flux Kontext",
-          href: "/workspace/generate-content/flux-kontext",
-          icon: Wand2,
-        },
-        {
+        // Flux Models section - only show if user has at least one Flux feature
+        ...(permissions.canTextToImage || permissions.canStyleTransfer || permissions.canSkinEnhancer || permissions.canFluxKontext ? [
+          {
+            name: "FLUX_GROUP_LABEL",
+            href: "#",
+            icon: Sparkles,
+          },
+          ...(permissions.canTextToImage ? [{
+            name: "Text to Image",
+            href: "/workspace/generate-content/text-to-image",
+            icon: ImageIcon,
+          }] : []),
+          ...(permissions.canStyleTransfer ? [{
+            name: "Style Transfer",
+            href: "/workspace/generate-content/style-transfer",
+            icon: Palette,
+          }] : []),
+          ...(permissions.canSkinEnhancer ? [{
+            name: "Skin Enhancer",
+            href: "/workspace/generate-content/skin-enhancer",
+            icon: Sparkles,
+          }] : []),
+          ...(permissions.canFluxKontext ? [{
+            name: "Flux Kontext",
+            href: "/workspace/generate-content/flux-kontext",
+            icon: Wand2,
+          }] : []),
+        ] : []),
+        // Divider only if we have Flux features AND other features below
+        ...((permissions.canTextToImage || permissions.canStyleTransfer || permissions.canSkinEnhancer || permissions.canFluxKontext) &&
+            (permissions.canTextToVideo || permissions.canImageToVideo || permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ||
+             permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
+             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
           name: "DIVIDER_1",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "WAN_22_GROUP_LABEL",
-          href: "#",
-          icon: Video,
-        },
-        {
-          name: "Text to Video",
-          href: "/workspace/generate-content/text-to-video",
-          icon: PlayCircle,
-        },
-        {
-          name: "Image to Video",
-          href: "/workspace/generate-content/image-to-video",
-          icon: Video,
-        },
-        {
+        }] : []),
+        // Wan 2.2 Models section - only show if user has Wan features
+        ...(permissions.canTextToVideo || permissions.canImageToVideo ? [
+          {
+            name: "WAN_22_GROUP_LABEL",
+            href: "#",
+            icon: Video,
+          },
+          ...(permissions.canTextToVideo ? [{
+            name: "Text to Video",
+            href: "/workspace/generate-content/text-to-video",
+            icon: PlayCircle,
+          }] : []),
+          ...(permissions.canImageToVideo ? [{
+            name: "Image to Video",
+            href: "/workspace/generate-content/image-to-video",
+            icon: Video,
+          }] : []),
+        ] : []),
+        // Divider only if we have Wan features AND other features below
+        ...((permissions.canTextToVideo || permissions.canImageToVideo) &&
+            (permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ||
+             permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
+             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
           name: "DIVIDER_2",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "ADVANCED_TOOLS_GROUP_LABEL",
-          href: "#",
-          icon: Wand2,
-        },
-        {
-          name: "Face Swapping",
-          href: "/workspace/generate-content/face-swapping",
-          icon: Shuffle,
-        },
-        {
-          name: "Image-to-Image Skin Enhancer",
-          href: "/workspace/generate-content/image-to-image-skin-enhancer",
-          icon: Palette,
-        },
-        {
-          name: "FPS Boost",
-          href: "/workspace/generate-content/fps-boost",
-          icon: PlayCircle,
-        },
-        {
+        }] : []),
+        // Advanced Tools section - only show if user has advanced features
+        ...(permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ? [
+          {
+            name: "ADVANCED_TOOLS_GROUP_LABEL",
+            href: "#",
+            icon: Wand2,
+          },
+          ...(permissions.canFaceSwap ? [{
+            name: "Face Swapping",
+            href: "/workspace/generate-content/face-swapping",
+            icon: Shuffle,
+          }] : []),
+          ...(permissions.canImageToImageSkinEnhancer ? [{
+            name: "Image-to-Image Skin Enhancer",
+            href: "/workspace/generate-content/image-to-image-skin-enhancer",
+            icon: Palette,
+          }] : []),
+          ...(permissions.canVideoFpsBoost ? [{
+            name: "FPS Boost",
+            href: "/workspace/generate-content/fps-boost",
+            icon: PlayCircle,
+          }] : []),
+        ] : []),
+        // Divider only if we have Advanced features AND other features below
+        ...((permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost) &&
+            (permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
+             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
           name: "DIVIDER_3",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "SEEDREAM_45_GROUP_LABEL",
-          href: "#",
-          icon: Sparkles,
-        },
-        {
-          name: "SeeDream Text to Image",
-          href: "/workspace/generate-content/seedream-text-to-image",
-          icon: ImageIcon,
-        },
-        {
-          name: "SeeDream Image to Image",
-          href: "/workspace/generate-content/seedream-image-to-image",
-          icon: Palette,
-        },
-        {
-          name: "SeeDream Text to Video",
-          href: "/workspace/generate-content/seedream-text-to-video",
-          icon: Video,
-        },
-        {
-          name: "SeeDream Image to Video",
-          href: "/workspace/generate-content/seedream-image-to-video",
-          icon: PlayCircle,
-        },
-        {
+        }] : []),
+        // SeeDream 4.5 section - only show if user has SeeDream features
+        ...(permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ? [
+          {
+            name: "SEEDREAM_45_GROUP_LABEL",
+            href: "#",
+            icon: Sparkles,
+          },
+          ...(permissions.canSeeDreamTextToImage ? [{
+            name: "SeeDream Text to Image",
+            href: "/workspace/generate-content/seedream-text-to-image",
+            icon: ImageIcon,
+          }] : []),
+          ...(permissions.canSeeDreamImageToImage ? [{
+            name: "SeeDream Image to Image",
+            href: "/workspace/generate-content/seedream-image-to-image",
+            icon: Palette,
+          }] : []),
+          ...(permissions.canSeeDreamTextToVideo ? [{
+            name: "SeeDream Text to Video",
+            href: "/workspace/generate-content/seedream-text-to-video",
+            icon: Video,
+          }] : []),
+          ...(permissions.canSeeDreamImageToVideo ? [{
+            name: "SeeDream Image to Video",
+            href: "/workspace/generate-content/seedream-image-to-video",
+            icon: PlayCircle,
+          }] : []),
+        ] : []),
+        // Divider only if we have SeeDream features AND Kling features below
+        ...((permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo) &&
+            (permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
           name: "DIVIDER_4",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "KLING_AI_GROUP_LABEL",
-          href: "#",
-          icon: Film,
-        },
-        {
-          name: "Kling Text to Video",
-          href: "/workspace/generate-content/kling-text-to-video",
-          icon: PlayCircle,
-        },
-        {
-          name: "Kling Image to Video",
-          href: "/workspace/generate-content/kling-image-to-video",
-          icon: Video,
-        },
-        {
-          name: "Kling Multi-Image to Video",
-          href: "/workspace/generate-content/kling-multi-image-to-video",
-          icon: Film,
-        },
-              {
-                name: "Kling Motion Control",
-                href: "/workspace/generate-content/kling-motion-control",
-                icon: Move,
-              },
-            ],
+        }] : []),
+        // Kling AI section - only show if user has Kling features
+        ...(permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl ? [
+          {
+            name: "KLING_AI_GROUP_LABEL",
+            href: "#",
+            icon: Film,
+          },
+          ...(permissions.canKlingTextToVideo ? [{
+            name: "Kling Text to Video",
+            href: "/workspace/generate-content/kling-text-to-video",
+            icon: PlayCircle,
+          }] : []),
+          ...(permissions.canKlingImageToVideo ? [{
+            name: "Kling Image to Video",
+            href: "/workspace/generate-content/kling-image-to-video",
+            icon: Video,
+          }] : []),
+          ...(permissions.canKlingMultiImageToVideo ? [{
+            name: "Kling Multi-Image to Video",
+            href: "/workspace/generate-content/kling-multi-image-to-video",
+            icon: Film,
+          }] : []),
+          ...(permissions.canKlingMotionControl ? [{
+            name: "Kling Motion Control",
+            href: "/workspace/generate-content/kling-motion-control",
+            icon: Move,
+          }] : []),
+        ] : []),
+      ].flat(), // Flatten to remove nested arrays
           },
         ]
       : []),
