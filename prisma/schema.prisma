@@ -1035,6 +1035,7 @@ model ai_voice_generations {
 model custom_organization_permissions {
   id                    String        @id
   organizationId        String        @unique
+  permissions           Json          @default("{}")
   hasGenerateTab        Boolean?
   hasVaultTab           Boolean?
   hasTrainingTab        Boolean?
@@ -1174,6 +1175,7 @@ model subscription_plans {
   isPublic        Boolean         @default(true)
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @default(now())
+  features        Json            @default("{}")
   organizations   organizations[]
   plan_features   plan_features[]
 
@@ -1255,6 +1257,177 @@ model workspaces {
   @@unique([organizationId, slug])
   @@index([isActive])
   @@index([organizationId])
+}
+
+// ============================================
+// OF MODELS (Creator Management)
+// ============================================
+
+model OfModel {
+  id                String                   @id @default(cuid())
+  name              String
+  displayName       String
+  slug              String                   @unique
+  status            OfModelStatus            @default(ACTIVE)
+
+  // Profile
+  profileImageUrl   String?
+  bio               String?
+  personalityType   String?
+  commonTerms       String[]                 @default([])
+  commonEmojis      String[]                 @default([])
+  restrictedTerms   String[]                 @default([])
+  notes             String?
+
+  // Financial
+  percentageTaken   Float?
+  guaranteedAmount  Float?
+
+  // Dates
+  launchDate        DateTime?
+
+  // Social Links
+  instagramUrl      String?
+  twitterUrl        String?
+  tiktokUrl         String?
+  websiteUrl        String?
+  profileLinkUrl    String?
+
+  // Referral
+  referrerName      String?
+
+  // Managers (Clerk user IDs)
+  chattingManagers  String[]                 @default([])
+
+  // Tracking (optional - who created/modified)
+  createdBy         String?
+
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  // Relations
+  details           OfModelDetails?
+  assets            OfModelAsset[]
+  pricingCategories OfModelPricingCategory[]
+
+  @@index([status])
+  @@index([slug])
+  @@map("of_models")
+}
+
+model OfModelDetails {
+  id                   String   @id @default(cuid())
+  creatorId            String   @unique
+
+  // Personal Information
+  fullName             String?
+  age                  Int?
+  birthday             DateTime?
+  height               String?
+  weight               String?
+  ethnicity            String?
+  timezone             String?
+  currentCity          String?
+
+  // Preferences
+  interests            String[] @default([])
+  favoriteColors       String[] @default([])
+  favoriteEmojis       String[] @default([])
+
+  // Content
+  contentOffered       String[] @default([])
+  customMinPrice       Float?
+  videoCallMinPrice    Float?
+  limitations          String[] @default([])
+  verbiageRestrictions String[] @default([])
+
+  // External
+  amazonWishlist       String?
+
+  // Status
+  onboardingCompleted  Boolean  @default(false)
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  creator              OfModel  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@map("of_model_details")
+}
+
+model OfModelAsset {
+  id           String           @id @default(cuid())
+  creatorId    String
+  type         OfModelAssetType
+  name         String
+  url          String
+  thumbnailUrl String?
+  fileSize     Int?
+  mimeType     String?
+  metadata     Json?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  creator      OfModel          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([type])
+  @@map("of_model_assets")
+}
+
+model OfModelPricingCategory {
+  id          String               @id @default(cuid())
+  creatorId   String
+  name        String
+  slug        String
+  description String?
+  order       Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  creator     OfModel              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  items       OfModelPricingItem[]
+
+  @@unique([creatorId, slug])
+  @@index([creatorId])
+  @@map("of_model_pricing_categories")
+}
+
+model OfModelPricingItem {
+  id          String                 @id @default(cuid())
+  categoryId  String
+  name        String
+  price       Float
+  description String?
+  order       Int                    @default(0)
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  category    OfModelPricingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@map("of_model_pricing_items")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum OfModelStatus {
+  ACTIVE
+  INACTIVE
+  DROPPED
+  PENDING
+}
+
+enum OfModelAssetType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  AUDIO
+  OTHER
 }
 
 enum SyncStatus {
