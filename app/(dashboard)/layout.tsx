@@ -8,6 +8,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
 import { usePermissions } from "@/lib/hooks/usePermissions.query";
+import { useOrganization } from "@/lib/hooks/useOrganization.query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -46,6 +47,7 @@ import {
   Flame,
   Mic,
   Library,
+  Building2,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -98,6 +100,7 @@ export default function DashboardLayout({
   const { isAdmin } = useIsAdmin();
   const { isContentCreator } = useIsContentCreator();
   const { permissions, subscriptionInfo, loading: permissionsLoading } = usePermissions();
+  const { currentOrganization } = useOrganization();
 
   // Dynamic navigation based on user permissions
   // Don't build navigation until permissions are loaded to prevent showing unauthorized tabs
@@ -1157,44 +1160,72 @@ export default function DashboardLayout({
       >
         {/* Sidebar Glass Container */}
         <div className="flex-1 m-3 rounded-3xl bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08] flex flex-col overflow-hidden shadow-2xl shadow-black/20">
-          {/* Sidebar Header with Organization & Profile Selectors */}
+          {/* Sidebar Header with Logo */}
           <div className="p-5 border-b border-white/[0.06]">
-            <div className="flex items-center justify-between mb-3">
-              {sidebarOpen && (
-                <div className="text-[10px] font-semibold text-white/20 uppercase tracking-wider">
-                  Workspace
+            <div className="flex items-center justify-between">
+              {sidebarOpen ? (
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h1 className="text-xl font-bold bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
+                      Creative Ink
+                    </h1>
+                    {!permissionsLoading && currentOrganization ? (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {currentOrganization.logoUrl ? (
+                          <img
+                            src={currentOrganization.logoUrl}
+                            alt={currentOrganization.name}
+                            className="w-3 h-3 rounded object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <Building2 className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                        )}
+                        <p className="text-[10px] text-white/50 font-medium tracking-wide truncate">
+                          {currentOrganization.name}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-white/40 font-medium tracking-wide">AI CONTENT STUDIO</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 mx-auto">
+                  <Sparkles className="w-6 h-6 text-white" />
                 </div>
               )}
+              {sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200 flex-shrink-0"
+                  title="Collapse sidebar"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+            {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all duration-200 ml-auto"
-                title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+                className="w-full mt-4 p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200 flex items-center justify-center"
+                title="Expand sidebar"
               >
-                {sidebarOpen ? (
-                  <ChevronLeft className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
+                <ChevronRight className="w-5 h-5" />
               </button>
-            </div>
+            )}
 
+            {/* Profile Selector Section */}
             {sidebarOpen && (
-              <div className="space-y-3 w-full">
+              <div className="w-full mt-4">
                 {permissionsLoading ? (
-                  <div className="animate-pulse space-y-3">
-                    <div className="h-12 bg-white/5 rounded-lg" />
+                  <div className="animate-pulse">
                     <div className="h-12 bg-white/5 rounded-lg" />
                   </div>
                 ) : (
                   <>
-                    {/* Organization Switcher - for managing organizations and subscriptions */}
-                    <div className="w-full">
-                      <div className="text-[10px] font-semibold text-white/30 uppercase tracking-wider mb-2 px-1">
-                        Organization
-                      </div>
-                      <OrganizationSwitcher />
-                    </div>
-
                     {/* Profile Selector - for switching between Instagram profiles */}
                     <div className="w-full">
                       <div className="text-[10px] font-semibold text-white/30 uppercase tracking-wider mb-2 px-1">
@@ -1407,11 +1438,24 @@ export default function DashboardLayout({
                     </button>
 
                     {/* User Dropdown */}
-                    <div className="absolute right-0 mt-2 w-56 py-2 bg-[#16161d] rounded-2xl border border-white/10 shadow-2xl shadow-black/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
+                    <div className="absolute right-0 mt-2 w-72 py-2 bg-[#16161d] rounded-2xl border border-white/10 shadow-2xl shadow-black/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
                       <div className="px-4 py-3 border-b border-white/[0.06]">
                         <p className="text-sm font-semibold text-white">{firstName}</p>
                         <p className="text-xs text-white/50 truncate">{email}</p>
                       </div>
+
+                      {/* Organization Switcher Section */}
+                      {!permissionsLoading && (
+                        <div className="px-3 py-3 border-b border-white/[0.06]">
+                          <div className="mb-2">
+                            <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider px-1">
+                              Organization
+                            </p>
+                          </div>
+                          <OrganizationSwitcher />
+                        </div>
+                      )}
+
                       <div className="py-1">
                         <Link
                           href="/settings"
