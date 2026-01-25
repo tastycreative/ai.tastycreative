@@ -72,12 +72,9 @@ model InfluencerLoRA {
   lastUsedAt         DateTime?
   trainingJobId      String?
   profileId          String?
-  profileId          String?
   user               User              @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   profile            InstagramProfile? @relation(fields: [profileId], references: [id])
-  profile            InstagramProfile? @relation(fields: [profileId], references: [id])
   trainingJob        TrainingJob?      @relation(fields: [trainingJobId], references: [id])
-  shares             LoRAShare[]
   shares             LoRAShare[]
 
   @@index([clerkId])
@@ -145,31 +142,6 @@ model GeneratedImage {
   user                  User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   job                   GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
   productionLinks       ProductionEntryImage[]
-  id                    String                 @id @default(cuid())
-  clerkId               String
-  jobId                 String
-  filename              String
-  subfolder             String                 @default("")
-  type                  String                 @default("output")
-  fileSize              Int?
-  width                 Int?
-  height                Int?
-  format                String?
-  data                  Bytes?
-  metadata              Json?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  networkVolumePath     String?
-  s3Key                 String?
-  awsS3Key              String?
-  awsS3Url              String?
-  googleDriveFileId     String?
-  googleDriveFolderName String?
-  googleDriveUploadedAt DateTime?
-  loraModels            String[]               @default([])
-  user                  User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job                   GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  productionLinks       ProductionEntryImage[]
 
   @@unique([jobId, filename, subfolder, type])
   @@index([clerkId])
@@ -182,37 +154,10 @@ model GeneratedImage {
   @@index([awsS3Key])
   @@index([googleDriveFileId])
   @@index([loraModels])
-  @@index([loraModels])
   @@map("generated_images")
 }
 
 model GeneratedVideo {
-  id                    String                 @id @default(cuid())
-  clerkId               String
-  jobId                 String
-  filename              String
-  subfolder             String                 @default("")
-  type                  String                 @default("output")
-  fileSize              Int?
-  width                 Int?
-  height                Int?
-  duration              Float?
-  fps                   Float?
-  format                String?
-  data                  Bytes?
-  metadata              Json?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  networkVolumePath     String?
-  s3Key                 String?
-  awsS3Key              String?
-  awsS3Url              String?
-  googleDriveFileId     String?
-  googleDriveFolderName String?
-  googleDriveUploadedAt DateTime?
-  user                  User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  job                   GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  productionLinks       ProductionEntryVideo[]
   id                    String                 @id @default(cuid())
   clerkId               String
   jobId                 String
@@ -316,7 +261,6 @@ model TrainingImage {
 
 model ProductionEntry {
   id              String                 @id @default(cuid())
-  id              String                 @id @default(cuid())
   clerkId         String
   deadline        DateTime
   assignee        String
@@ -328,15 +272,7 @@ model ProductionEntry {
   imagesGenerated Int                    @default(0)
   videosTarget    Int                    @default(0)
   videosGenerated Int                    @default(0)
-  status          ProductionStatus       @default(PENDING)
-  imagesTarget    Int                    @default(0)
-  imagesGenerated Int                    @default(0)
-  videosTarget    Int                    @default(0)
-  videosGenerated Int                    @default(0)
   notes           String?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  user            User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
   user            User                   @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
@@ -351,37 +287,6 @@ model ProductionEntry {
 }
 
 model InstagramPost {
-  id                String                @id @default(cuid())
-  clerkId           String
-  driveFileId       String?
-  driveFileUrl      String?
-  fileName          String
-  caption           String                @default("")
-  scheduledDate     DateTime?
-  status            InstagramPostStatus   @default(DRAFT)
-  postType          PostType              @default(POST)
-  folder            String
-  order             Int                   @default(0)
-  mimeType          String?
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
-  rejectedAt        DateTime?
-  rejectedBy        String?
-  rejectionReason   String?
-  commentsCount     Int?
-  instagramUrl      String?
-  lastMetricsUpdate DateTime?
-  likesCount        Int?
-  publishedAt       DateTime?
-  awsS3Key          String?
-  awsS3Url          String?
-  originalFolder    String?
-  profileId         String?
-  pipelineItems     ContentPipelineItem[]
-  user              User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  profile           InstagramProfile?     @relation(fields: [profileId], references: [id])
-  storySlots        StoryPlanningSlot[]   @relation("StorySlots")
-  weeklySlots       WeeklyPlanningSlot[]
   id                String                @id @default(cuid())
   clerkId           String
   driveFileId       String?
@@ -438,18 +343,6 @@ model Notification {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  id        String           @id @default(cuid())
-  userId    String
-  type      NotificationType
-  title     String
-  message   String
-  link      String?
-  metadata  Json?
-  read      Boolean          @default(false)
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
   @@index([createdAt])
@@ -458,12 +351,8 @@ model Notification {
 
 model ProductionEntryImage {
   id                String          @id @default(cuid())
-  id                String          @id @default(cuid())
   productionEntryId String
   imageId           String
-  createdAt         DateTime        @default(now())
-  image             GeneratedImage  @relation(fields: [imageId], references: [id], onDelete: Cascade)
-  productionEntry   ProductionEntry @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
   createdAt         DateTime        @default(now())
   image             GeneratedImage  @relation(fields: [imageId], references: [id], onDelete: Cascade)
   productionEntry   ProductionEntry @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
@@ -476,12 +365,8 @@ model ProductionEntryImage {
 
 model ProductionEntryVideo {
   id                String          @id @default(cuid())
-  id                String          @id @default(cuid())
   productionEntryId String
   videoId           String
-  createdAt         DateTime        @default(now())
-  productionEntry   ProductionEntry @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
-  video             GeneratedVideo  @relation(fields: [videoId], references: [id], onDelete: Cascade)
   createdAt         DateTime        @default(now())
   productionEntry   ProductionEntry @relation(fields: [productionEntryId], references: [id], onDelete: Cascade)
   video             GeneratedVideo  @relation(fields: [videoId], references: [id], onDelete: Cascade)
@@ -504,17 +389,6 @@ model MultipartUploadSession {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   expiresAt      DateTime
-  id             String   @id @default(cuid())
-  sessionId      String   @unique
-  clerkId        String
-  uploadId       String
-  s3Key          String
-  uniqueFileName String
-  totalParts     Int
-  uploadedParts  Json     @default("[]")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  expiresAt      DateTime
 
   @@index([sessionId])
   @@index([clerkId])
@@ -524,12 +398,7 @@ model MultipartUploadSession {
 
 model FluxKontextConversation {
   id        String               @id @default(cuid())
-  id        String               @id @default(cuid())
   clerkId   String
-  title     String?
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
-  user      User                 @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   title     String?
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
@@ -545,8 +414,6 @@ model FluxKontextMessage {
   id             String                  @id @default(cuid())
   conversationId String
   role           MessageRole
-  content        String
-  imageData      String?
   content        String
   imageData      String?
   createdAt      DateTime                @default(now())
@@ -567,15 +434,6 @@ model FolderShare {
   updatedAt         DateTime        @updatedAt
   sharedBy          String?
   note              String?
-  id                String          @id @default(cuid())
-  folderPrefix      String
-  ownerClerkId      String
-  sharedWithClerkId String
-  permission        SharePermission @default(VIEW)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  sharedBy          String?
-  note              String?
 
   @@unique([folderPrefix, sharedWithClerkId])
   @@index([ownerClerkId])
@@ -585,15 +443,6 @@ model FolderShare {
 }
 
 model LoRAShare {
-  id                String         @id @default(cuid())
-  loraId            String
-  ownerClerkId      String
-  sharedWithClerkId String
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  sharedBy          String?
-  note              String?
-  lora              InfluencerLoRA @relation(fields: [loraId], references: [id], onDelete: Cascade)
   id                String         @id @default(cuid())
   loraId            String
   ownerClerkId      String
@@ -649,10 +498,7 @@ model Friendship {
   updatedAt         DateTime         @updatedAt
   receiverProfileId String
   senderProfileId   String
-  receiverProfileId String
-  senderProfileId   String
   receiverProfile   InstagramProfile @relation("ReceivedFriendRequests", fields: [receiverProfileId], references: [id], onDelete: Cascade)
-  senderProfile     InstagramProfile @relation("SentFriendRequests", fields: [senderProfileId], references: [id], onDelete: Cascade)
   senderProfile     InstagramProfile @relation("SentFriendRequests", fields: [senderProfileId], references: [id], onDelete: Cascade)
 
   @@unique([senderProfileId, receiverProfileId])
@@ -665,7 +511,6 @@ model Friendship {
 
 model FeedPost {
   id        String             @id @default(cuid())
-  id        String             @id @default(cuid())
   userId    String
   caption   String
   createdAt DateTime           @default(now())
@@ -673,17 +518,7 @@ model FeedPost {
   imageUrls String[]
   mediaType String             @default("image")
   profileId String?
-  caption   String
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  imageUrls String[]
-  mediaType String             @default("image")
-  profileId String?
   bookmarks FeedPostBookmark[]
-  comments  FeedPostComment[]
-  likes     FeedPostLike[]
-  profile   InstagramProfile?  @relation(fields: [profileId], references: [id])
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   comments  FeedPostComment[]
   likes     FeedPostLike[]
   profile   InstagramProfile?  @relation(fields: [profileId], references: [id])
@@ -699,14 +534,8 @@ model FeedPost {
 
 model FeedPostLike {
   id        String           @id @default(cuid())
-  id        String           @id @default(cuid())
   postId    String
   userId    String
-  createdAt DateTime         @default(now())
-  profileId String
-  post      FeedPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile @relation("ProfilePostLikes", fields: [profileId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime         @default(now())
   profileId String
   post      FeedPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -722,7 +551,6 @@ model FeedPostLike {
 
 model FeedPostComment {
   id              String                @id @default(cuid())
-  id              String                @id @default(cuid())
   postId          String
   userId          String
   content         String
@@ -730,17 +558,7 @@ model FeedPostComment {
   updatedAt       DateTime              @updatedAt
   parentCommentId String?
   profileId       String?
-  content         String
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
-  parentCommentId String?
-  profileId       String?
   likes           FeedPostCommentLike[]
-  parentComment   FeedPostComment?      @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
-  replies         FeedPostComment[]     @relation("CommentReplies")
-  post            FeedPost              @relation(fields: [postId], references: [id], onDelete: Cascade)
-  profile         InstagramProfile?     @relation("ProfileComments", fields: [profileId], references: [id])
-  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   parentComment   FeedPostComment?      @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
   replies         FeedPostComment[]     @relation("CommentReplies")
   post            FeedPost              @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -757,14 +575,8 @@ model FeedPostComment {
 
 model FeedPostCommentLike {
   id        String           @id @default(cuid())
-  id        String           @id @default(cuid())
   commentId String
   userId    String
-  createdAt DateTime         @default(now())
-  profileId String
-  comment   FeedPostComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile @relation("ProfileCommentLikes", fields: [profileId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime         @default(now())
   profileId String
   comment   FeedPostComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
@@ -780,14 +592,8 @@ model FeedPostCommentLike {
 
 model FeedPostBookmark {
   id        String           @id @default(cuid())
-  id        String           @id @default(cuid())
   postId    String
   userId    String
-  createdAt DateTime         @default(now())
-  profileId String
-  post      FeedPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  profile   InstagramProfile @relation("ProfileBookmarks", fields: [profileId], references: [id], onDelete: Cascade)
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime         @default(now())
   profileId String
   post      FeedPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -803,19 +609,10 @@ model FeedPostBookmark {
 
 model MarketplaceModel {
   id          String            @id @default(cuid())
-  id          String            @id @default(cuid())
   name        String
   price       Float
   status      MarketplaceStatus @default(AVAILABLE)
-  status      MarketplaceStatus @default(AVAILABLE)
   imageUrl    String
-  category    String            @default("Premium")
-  gallery     String[]          @default([])
-  description String
-  included    String[]          @default([])
-  usedFor     String[]          @default([])
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
   category    String            @default("Premium")
   gallery     String[]          @default([])
   description String
@@ -830,21 +627,6 @@ model MarketplaceModel {
 }
 
 model WeeklyPlanningSlot {
-  id            String           @id @default(cuid())
-  clerkId       String
-  profileId     String?
-  date          DateTime
-  slotType      WeeklySlotType
-  slotIndex     Int              @default(0)
-  status        WeeklySlotStatus @default(PLANNING)
-  linkedPostId  String?
-  notes         String?
-  hashtags      String[]         @default([])
-  trendingAudio String?
-  contentIdeas  String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  linkedPost    InstagramPost?   @relation(fields: [linkedPostId], references: [id])
   id            String           @id @default(cuid())
   clerkId       String
   profileId     String?
@@ -893,28 +675,6 @@ model ContentPipelineItem {
   feedPostSlot  FeedPostPlanningSlot? @relation("FeedPostPipeline")
   reelSlot      ReelPlanningSlot?     @relation("ReelPipeline")
   storySlot     StoryPlanningSlot?
-  id            String                @id @default(cuid())
-  clerkId       String
-  contentId     String                @unique
-  title         String
-  contentType   ContentType
-  status        PipelineStatus        @default(IDEA)
-  linkedPostId  String?
-  notes         String?
-  ideaDate      DateTime?
-  filmingDate   DateTime?
-  editingDate   DateTime?
-  reviewDate    DateTime?
-  approvedDate  DateTime?
-  scheduledDate DateTime?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-  dateCreated   DateTime?
-  datePosted    DateTime?
-  linkedPost    InstagramPost?        @relation(fields: [linkedPostId], references: [id])
-  feedPostSlot  FeedPostPlanningSlot? @relation("FeedPostPipeline")
-  reelSlot      ReelPlanningSlot?     @relation("ReelPipeline")
-  storySlot     StoryPlanningSlot?
 
   @@index([clerkId])
   @@index([status])
@@ -925,29 +685,6 @@ model ContentPipelineItem {
 }
 
 model StoryPlanningSlot {
-  id                 String               @id @default(cuid())
-  clerkId            String
-  profileId          String?
-  date               DateTime
-  storyType          StoryType
-  interactiveElement InteractiveElement?
-  linkedPostId       String?
-  notes              String?
-  caption            String?
-  hashtags           String[]             @default([])
-  isPosted           Boolean              @default(false)
-  postedAt           DateTime?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  awsS3Key           String?
-  awsS3Url           String?
-  fileName           String?
-  mimeType           String?
-  contentId          String?              @unique
-  pipelineItemId     String?              @unique
-  timeSlot           DateTime?
-  linkedPost         InstagramPost?       @relation("StorySlots", fields: [linkedPostId], references: [id])
-  pipelineItem       ContentPipelineItem? @relation(fields: [pipelineItemId], references: [id])
   id                 String               @id @default(cuid())
   clerkId            String
   profileId          String?
@@ -1006,28 +743,6 @@ model ReelPlanningSlot {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   pipelineItem   ContentPipelineItem? @relation("ReelPipeline", fields: [pipelineItemId], references: [id])
-  id             String               @id @default(cuid())
-  clerkId        String
-  profileId      String?
-  contentId      String?              @unique
-  pipelineItemId String?              @unique
-  date           DateTime
-  timeSlot       DateTime?
-  reelType       ReelType
-  hookIdea       String?
-  trendingAudio  String?
-  awsS3Key       String?
-  awsS3Url       String?
-  fileName       String?
-  mimeType       String?
-  notes          String?
-  caption        String?
-  hashtags       String[]             @default([])
-  isPosted       Boolean              @default(false)
-  postedAt       DateTime?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  pipelineItem   ContentPipelineItem? @relation("ReelPipeline", fields: [pipelineItemId], references: [id])
 
   @@unique([clerkId, profileId, timeSlot])
   @@index([clerkId])
@@ -1040,25 +755,6 @@ model ReelPlanningSlot {
 }
 
 model FeedPostPlanningSlot {
-  id             String               @id @default(cuid())
-  clerkId        String
-  profileId      String?
-  contentId      String?              @unique
-  pipelineItemId String?              @unique
-  date           DateTime
-  timeSlot       DateTime?
-  postType       FeedPostType
-  caption        String?
-  hashtags       String[]             @default([])
-  location       String?
-  collaborators  String[]             @default([])
-  notes          String?
-  isPosted       Boolean              @default(false)
-  postedAt       DateTime?
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  files          Json?
-  pipelineItem   ContentPipelineItem? @relation("FeedPostPipeline", fields: [pipelineItemId], references: [id])
   id             String               @id @default(cuid())
   clerkId        String
   profileId      String?
@@ -1112,28 +808,6 @@ model PerformanceMetric {
   averageViews    Float?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  id              String   @id @default(cuid())
-  clerkId         String
-  profileId       String   @default("")
-  date            DateTime @db.Date
-  reelsPosted     Int      @default(0)
-  storiesPosted   Int      @default(0)
-  feedPostsPosted Int      @default(0)
-  totalViews      Int      @default(0)
-  totalLikes      Int      @default(0)
-  totalComments   Int      @default(0)
-  totalShares     Int      @default(0)
-  totalSaves      Int      @default(0)
-  storyViews      Int      @default(0)
-  storyReplies    Int      @default(0)
-  followersStart  Int      @default(0)
-  followersEnd    Int      @default(0)
-  followersGained Int      @default(0)
-  followersLost   Int      @default(0)
-  engagementRate  Float?
-  averageViews    Float?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
 
   @@unique([clerkId, date, profileId])
   @@index([clerkId, date])
@@ -1146,14 +820,10 @@ model WorkflowPhase {
   name        String
   description String?
   icon        String              @default("Circle")
-  description String?
-  icon        String              @default("Circle")
   color       String              @default("blue")
-  order       Int
   order       Int
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
-  profileId   String              @default("")
   profileId   String              @default("")
   items       WorkflowCheckItem[]
 
@@ -1164,14 +834,6 @@ model WorkflowPhase {
 }
 
 model WorkflowCheckItem {
-  id        String        @id @default(cuid())
-  phaseId   String
-  text      String
-  order     Int
-  checked   Boolean       @default(false)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  phase     WorkflowPhase @relation(fields: [phaseId], references: [id], onDelete: Cascade)
   id        String        @id @default(cuid())
   phaseId   String
   text      String
@@ -1193,11 +855,7 @@ model HashtagSet {
   category    String
   description String?
   icon        String   @default("Hash")
-  description String?
-  icon        String   @default("Hash")
   color       String   @default("blue")
-  hashtags    String[]
-  order       Int
   hashtags    String[]
   order       Int
   createdAt   DateTime @default(now())
@@ -1210,15 +868,7 @@ model HashtagSet {
 
 model VaultFolder {
   id        String             @id @default(cuid())
-  id        String             @id @default(cuid())
   clerkId   String
-  profileId String
-  name      String
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  isDefault Boolean            @default(false)
-  shares    VaultFolderShare[]
-  items     VaultItem[]
   profileId String
   name      String
   createdAt DateTime           @default(now())
@@ -1241,12 +891,6 @@ model VaultFolderShare {
   permission        SharePermission @default(VIEW)
   sharedBy          String?
   note              String?
-  vaultFolderId     String
-  ownerClerkId      String
-  sharedWithClerkId String
-  permission        SharePermission @default(VIEW)
-  sharedBy          String?
-  note              String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   folder            VaultFolder     @relation(fields: [vaultFolderId], references: [id], onDelete: Cascade)
@@ -1263,16 +907,8 @@ model VaultItem {
   clerkId   String
   profileId String
   folderId  String
-  profileId String
-  folderId  String
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
-  awsS3Key  String
-  awsS3Url  String
-  fileName  String
-  fileSize  Int
-  fileType  String
-  metadata  Json?
   awsS3Key  String
   awsS3Url  String
   fileName  String
@@ -1297,19 +933,9 @@ model Caption {
   captionCategory String
   captionTypes    String
   captionBanks    String
-  profileId       String
-  caption         String
-  captionCategory String
-  captionTypes    String
-  captionBanks    String
   usageCount      Int              @default(0)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
-  cooldownDays    Int              @default(7)
-  isFavorite      Boolean          @default(false)
-  lastUsedAt      DateTime?
-  notes           String?
-  tags            String?
   cooldownDays    Int              @default(7)
   isFavorite      Boolean          @default(false)
   lastUsedAt      DateTime?
@@ -1332,8 +958,6 @@ model SextingSet {
   category      String
   s3FolderPath  String
   status        String         @default("draft")
-  s3FolderPath  String
-  status        String         @default("draft")
   scheduledDate DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -1348,11 +972,6 @@ model SextingSet {
 model SextingImage {
   id         String     @id @default(cuid())
   setId      String
-  url        String
-  name       String
-  type       String
-  sequence   Int
-  size       Int
   url        String
   name       String
   type       String
