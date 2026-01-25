@@ -24,7 +24,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const item = await prisma.referenceItem.findFirst({
+    const item = await prisma.reference_items.findFirst({
       where: {
         id,
         clerkId: userId,
@@ -64,7 +64,7 @@ export async function PATCH(
     const { name, description, tags } = body;
 
     // Verify the item belongs to the user
-    const existingItem = await prisma.referenceItem.findFirst({
+    const existingItem = await prisma.reference_items.findFirst({
       where: {
         id,
         clerkId: userId,
@@ -78,7 +78,7 @@ export async function PATCH(
       );
     }
 
-    const updatedItem = await prisma.referenceItem.update({
+    const updatedItem = await prisma.reference_items.update({
       where: { id },
       data: {
         name: name !== undefined ? name : existingItem.name,
@@ -112,7 +112,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Verify the item belongs to the user and get the S3 key
-    const item = await prisma.referenceItem.findFirst({
+    const item = await prisma.reference_items.findFirst({
       where: {
         id,
         clerkId: userId,
@@ -139,7 +139,7 @@ export async function DELETE(
     }
 
     // Delete from database
-    await prisma.referenceItem.delete({
+    await prisma.reference_items.delete({
       where: { id },
     });
 

@@ -16,7 +16,7 @@ export async function POST(
     const { id } = await params;
 
     // Verify the item belongs to the user
-    const item = await prisma.referenceItem.findFirst({
+    const item = await prisma.reference_items.findFirst({
       where: {
         id,
         clerkId: userId,
@@ -31,7 +31,7 @@ export async function POST(
     }
 
     // Increment usage count and update lastUsedAt
-    const updatedItem = await prisma.referenceItem.update({
+    const updatedItem = await prisma.reference_items.update({
       where: { id },
       data: {
         usageCount: { increment: 1 },

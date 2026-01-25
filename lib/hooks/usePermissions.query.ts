@@ -28,6 +28,7 @@ export interface Permissions {
   canStyleTransfer: boolean;
   canSkinEnhancer: boolean;
   canImageToImageSkinEnhancer: boolean;
+  canAIVoice: boolean;
 
   // SeeDream 4.5 Features
   canSeeDreamTextToImage: boolean;
@@ -158,6 +159,7 @@ const LOADING_PERMISSIONS: Permissions = {
   canWhiteLabel: false,
   canCustomBranding: false,
   canWebhooks: false,
+  canAIVoice: false,
 };
 
 export function usePermissions() {

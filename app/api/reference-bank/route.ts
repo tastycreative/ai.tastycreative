@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const items = await prisma.referenceItem.findMany({
+    const items = await prisma.reference_items.findMany({
       where: {
         clerkId: userId,
         profileId,
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     const region = process.env.AWS_REGION || "us-east-1";
     const awsS3Url = `https://${bucket}.s3.${region}.amazonaws.com/${awsS3Key}`;
 
-    const item = await prisma.referenceItem.create({
+    const item = await prisma.reference_items.create({
       data: {
         clerkId: userId,
         profileId,
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         width: width || null,
         height: height || null,
         duration: duration || null,
-      },
+      } as any,
     });
 
     return NextResponse.json(item, { status: 201 });

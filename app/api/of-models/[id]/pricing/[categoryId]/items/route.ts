@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { id, categoryId } = await params;
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify category exists
-    const category = await prisma.ofModelPricingCategory.findFirst({
+    const category = await prisma.of_model_pricing_categories.findFirst({
       where: {
         id: categoryId,
         creatorId: id,
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const items = await prisma.ofModelPricingItem.findMany({
+    const items = await prisma.of_model_pricing_items.findMany({
       where: { categoryId },
       orderBy: { order: "asc" },
     });
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify category exists
-    const category = await prisma.ofModelPricingCategory.findFirst({
+    const category = await prisma.of_model_pricing_categories.findFirst({
       where: {
         id: categoryId,
         creatorId: id,
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const item = await prisma.ofModelPricingItem.create({
+    const item = await prisma.of_model_pricing_items.create({
       data: {
         categoryId,
         name,
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         description,
         order,
         isActive,
-      },
+      } as any,
     });
 
     return NextResponse.json({ data: item }, { status: 201 });
@@ -137,7 +137,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -149,7 +149,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify category exists
-    const category = await prisma.ofModelPricingCategory.findFirst({
+    const category = await prisma.of_model_pricing_categories.findFirst({
       where: {
         id: categoryId,
         creatorId: id,
@@ -167,7 +167,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (body.itemId) {
       const { itemId, ...updateData } = body;
 
-      const existingItem = await prisma.ofModelPricingItem.findFirst({
+      const existingItem = await prisma.of_model_pricing_items.findFirst({
         where: {
           id: itemId,
           categoryId,
@@ -188,7 +188,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       if (updateData.order !== undefined) data.order = updateData.order;
       if (updateData.isActive !== undefined) data.isActive = updateData.isActive;
 
-      const item = await prisma.ofModelPricingItem.update({
+      const item = await prisma.of_model_pricing_items.update({
         where: { id: itemId },
         data,
       });
@@ -199,7 +199,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     // Handle bulk order update
     if (body.items && Array.isArray(body.items)) {
       const updates = body.items.map((item: { id: string; order: number }) =>
-        prisma.ofModelPricingItem.update({
+        prisma.of_model_pricing_items.update({
           where: { id: item.id },
           data: { order: item.order },
         })
@@ -207,7 +207,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
       await Promise.all(updates);
 
-      const items = await prisma.ofModelPricingItem.findMany({
+      const items = await prisma.of_model_pricing_items.findMany({
         where: { categoryId },
         orderBy: { order: "asc" },
       });
@@ -248,7 +248,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -260,7 +260,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify item exists and belongs to category
-    const existingItem = await prisma.ofModelPricingItem.findFirst({
+    const existingItem = await prisma.of_model_pricing_items.findFirst({
       where: {
         id: itemId,
         categoryId,
@@ -274,7 +274,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    await prisma.ofModelPricingItem.delete({
+    await prisma.of_model_pricing_items.delete({
       where: { id: itemId },
     });
 
