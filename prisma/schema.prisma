@@ -27,6 +27,7 @@ model User {
   name                     String?
   avatarUrl                String?
   lastLoginAt              DateTime?
+  isAdmin                  Boolean                   @default(false)
   feedPostBookmarks        FeedPostBookmark[]
   feedPostCommentLikes     FeedPostCommentLike[]
   feedPostComments         FeedPostComment[]
@@ -1000,13 +1001,11 @@ model SubscriptionPlan {
   stripeProductId String?
   isActive        Boolean         @default(true)
   isPublic        Boolean         @default(true)
-
-  // Store all plan features as JSON - flexible and scalable
-  features        Json            @default("{}")
-
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @default(now()) @updatedAt
+  features        Json            @default("{}")
   organizations   Organization[]
+  plan_features   plan_features[]
 
   @@index([isActive])
   @@index([isPublic])
@@ -1099,15 +1098,13 @@ model OrganizationInvite {
 }
 
 model CustomOrganizationPermission {
-  id             String       @id @default(cuid())
-  organizationId String       @unique
-
-  // Store all permissions as JSON - flexible and scalable
-  permissions    Json         @default("{}")
-
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @default(now()) @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                    String       @id @default(cuid())
+  organizationId        String       @unique
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @default(now()) @updatedAt
+  permissions           Json         @default("{}")
+  maxVaultFolders       Int?
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@map("custom_organization_permissions")
@@ -1245,6 +1242,131 @@ model reference_items {
   @@index([profileId])
   @@index([tags])
   @@index([usageCount])
+}
+
+model of_model_assets {
+  id           String           @id
+  creatorId    String
+  type         OfModelAssetType
+  name         String
+  url          String
+  thumbnailUrl String?
+  fileSize     Int?
+  mimeType     String?
+  metadata     Json?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime
+  of_models    of_models        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([type])
+}
+
+model of_model_details {
+  id                   String    @id
+  creatorId            String    @unique
+  fullName             String?
+  age                  Int?
+  birthday             DateTime?
+  height               String?
+  weight               String?
+  ethnicity            String?
+  timezone             String?
+  currentCity          String?
+  interests            String[]  @default([])
+  favoriteColors       String[]  @default([])
+  favoriteEmojis       String[]  @default([])
+  contentOffered       String[]  @default([])
+  customMinPrice       Float?
+  videoCallMinPrice    Float?
+  limitations          String[]  @default([])
+  verbiageRestrictions String[]  @default([])
+  amazonWishlist       String?
+  onboardingCompleted  Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime
+  of_models            of_models @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+}
+
+model of_model_pricing_categories {
+  id                     String                   @id
+  creatorId              String
+  name                   String
+  slug                   String
+  description            String?
+  order                  Int                      @default(0)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  of_models              of_models                @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  of_model_pricing_items of_model_pricing_items[]
+
+  @@unique([creatorId, slug])
+  @@index([creatorId])
+}
+
+model of_model_pricing_items {
+  id                          String                      @id
+  categoryId                  String
+  name                        String
+  price                       Float
+  description                 String?
+  order                       Int                         @default(0)
+  isActive                    Boolean                     @default(true)
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime
+  of_model_pricing_categories of_model_pricing_categories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+}
+
+model of_models {
+  id                          String                        @id
+  name                        String
+  displayName                 String
+  slug                        String                        @unique
+  status                      OfModelStatus                 @default(ACTIVE)
+  profileImageUrl             String?
+  bio                         String?
+  personalityType             String?
+  commonTerms                 String[]                      @default([])
+  commonEmojis                String[]                      @default([])
+  restrictedTerms             String[]                      @default([])
+  notes                       String?
+  percentageTaken             Float?
+  guaranteedAmount            Float?
+  launchDate                  DateTime?
+  instagramUrl                String?
+  twitterUrl                  String?
+  tiktokUrl                   String?
+  websiteUrl                  String?
+  profileLinkUrl              String?
+  referrerName                String?
+  chattingManagers            String[]                      @default([])
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime
+  createdBy                   String?
+  of_model_assets             of_model_assets[]
+  of_model_details            of_model_details?
+  of_model_pricing_categories of_model_pricing_categories[]
+
+  @@index([slug])
+  @@index([status])
+}
+
+model plan_features {
+  id                 String           @id
+  planId             String
+  featureKey         String
+  featureValue       String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @default(now())
+  subscription_plans SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+  @@index([featureKey])
+  @@index([planId])
 }
 
 enum SyncStatus {
@@ -1469,4 +1591,19 @@ enum TeamRole {
 enum ReferenceType {
   IMAGE
   VIDEO
+}
+
+enum OfModelAssetType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  AUDIO
+  OTHER
+}
+
+enum OfModelStatus {
+  ACTIVE
+  INACTIVE
+  DROPPED
+  PENDING
 }
