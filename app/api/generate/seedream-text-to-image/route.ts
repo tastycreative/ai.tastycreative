@@ -38,10 +38,14 @@ interface SeeDreamRequest {
   response_format?: 'url' | 'b64_json';
   stream?: boolean;
   targetFolder?: string;
-  // Vault folder support
-  saveToVault?: boolean;
+  // Profile association (always sent for history filtering)
   vaultProfileId?: string;
+  // Vault folder support (only when saving directly to vault)
+  saveToVault?: boolean;
   vaultFolderId?: string;
+  // Additional metadata fields
+  resolution?: string;
+  aspectRatio?: string;
 }
 
 interface SeeDreamResponse {
@@ -322,7 +326,8 @@ export async function POST(request: NextRequest) {
                 prompt: body.prompt,
                 negativePrompt: body.negative_prompt || null,
                 size: item.size || body.size,
-                resolution: body.size?.includes('4096') || body.size?.includes('4704') || body.size?.includes('5504') || body.size?.includes('6240') ? '4K' : '2K',
+                resolution: body.resolution || '2K',
+                aspectRatio: body.aspectRatio || null,
                 watermark: body.watermark,
                 generatedAt: new Date().toISOString(),
               },
@@ -361,7 +366,10 @@ export async function POST(request: NextRequest) {
                 prompt: body.prompt,
                 negative_prompt: body.negative_prompt,
                 size: body.size,
+                resolution: body.resolution || '2K',
+                aspectRatio: body.aspectRatio || null,
                 watermark: body.watermark,
+                vaultProfileId: body.vaultProfileId || null,
                 generatedAt: new Date(data.created * 1000).toISOString(),
               },
             },
@@ -424,7 +432,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('📋 Fetching SeeDream history for user:', userId);
+    // Get profileId from query params to filter by profile
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('profileId');
+
+    console.log('📋 Fetching SeeDream T2I history for user:', userId, 'profileId:', profileId);
 
     // Fetch recent SeeDream generations from database
     // First get generation jobs that are SeeDream type
@@ -444,11 +456,22 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Filter to only SeeDream jobs
+    // Filter to only SeeDream jobs (and optionally by profileId)
     const seedreamJobIds = recentJobs
       .filter((job) => {
         const params = job.params as any;
-        return params?.source === 'seedream';
+        const isSeeDream = params?.source === 'seedream';
+        if (!isSeeDream) return false;
+        
+        // If profileId filter is provided, include jobs that:
+        // 1. Match the profileId exactly, OR
+        // 2. Have no profileId set (legacy/unassociated images)
+        if (profileId) {
+          const jobProfileId = params?.vaultProfileId;
+          // Include if matches profile OR if no profile was set (show in all profiles)
+          return jobProfileId === profileId || !jobProfileId;
+        }
+        return true;
       })
       .map((job) => job.id);
 
@@ -470,19 +493,36 @@ export async function GET(request: NextRequest) {
         orderBy: {
           createdAt: 'desc',
         },
-        take: 20,
+        take: 50,
       });
+      
+      // Filter by profileId from metadata if provided
+      if (profileId) {
+        generatedImages = generatedImages.filter((img) => {
+          const metadata = img.metadata as any;
+          const imgProfileId = metadata?.vaultProfileId;
+          // Include if matches profile OR if no profile was set (show in all profiles)
+          return imgProfileId === profileId || !imgProfileId;
+        });
+      }
     }
 
     console.log('📋 Found generated images:', generatedImages.length);
 
     // Also fetch vault items that were created from SeeDream
     // Fetch recent image vault items and filter by source in JS for reliability
+    const vaultWhere: any = {
+      clerkId: userId,
+      fileType: 'image/png',
+    };
+    
+    // Filter by profileId if provided
+    if (profileId) {
+      vaultWhere.profileId = profileId;
+    }
+    
     const allVaultImages = await prisma.vaultItem.findMany({
-      where: {
-        clerkId: userId,
-        fileType: 'image/png',
-      },
+      where: vaultWhere,
       orderBy: {
         createdAt: 'desc',
       },
@@ -497,7 +537,7 @@ export async function GET(request: NextRequest) {
 
     console.log('📋 Found vault images:', vaultImages.length);
 
-    // Map generated images
+    // Map generated images with full metadata for reuse
     const mappedGeneratedImages = generatedImages.map((img) => {
       const metadata = img.metadata as any;
       return {
@@ -509,6 +549,14 @@ export async function GET(request: NextRequest) {
         createdAt: img.createdAt.toISOString(),
         status: 'completed' as const,
         source: 'generated' as const,
+        // Include full metadata for reuse functionality
+        metadata: {
+          resolution: metadata?.resolution || '2K',
+          aspectRatio: metadata?.aspectRatio || null,
+          watermark: metadata?.watermark || false,
+          negativePrompt: metadata?.negative_prompt || '',
+          profileId: metadata?.vaultProfileId || null,
+        },
       };
     });
 
@@ -524,6 +572,15 @@ export async function GET(request: NextRequest) {
         createdAt: img.createdAt.toISOString(),
         status: 'completed' as const,
         source: 'vault' as const,
+        profileId: img.profileId,
+        // Include full metadata for reuse functionality
+        metadata: {
+          resolution: metadata?.resolution || '2K',
+          aspectRatio: metadata?.aspectRatio || null,
+          watermark: metadata?.watermark || false,
+          negativePrompt: metadata?.negative_prompt || '',
+          profileId: img.profileId,
+        },
       };
     });
 

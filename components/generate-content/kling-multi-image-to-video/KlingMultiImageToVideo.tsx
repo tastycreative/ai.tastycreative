@@ -5,13 +5,16 @@ import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
+import { ReferenceItem } from "@/hooks/useReferenceBank";
 import {
   AlertCircle,
   Archive,
   ChevronDown,
   Clock,
   Download,
-  Folder,
+  FolderOpen,
   Info,
   Loader2,
   Play,
@@ -26,6 +29,8 @@ import {
   Image as ImageIcon,
   Trash2,
   Images,
+  Check,
+  Library,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -132,21 +137,12 @@ const compressImage = async (
   });
 };
 
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername?: string | null;
-  isDefault?: boolean;
-}
-
 interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
   isDefault?: boolean;
 }
-
-type FolderType = "s3" | "vault";
 
 interface GeneratedVideo {
   id: string;
@@ -163,6 +159,8 @@ interface UploadedImage {
   id: string;
   file: File;
   preview: string;
+  fromReferenceBank?: boolean;
+  referenceId?: string;
 }
 
 // Kling model options - Multi-image only supports V1.6
@@ -194,6 +192,30 @@ export default function KlingMultiImageToVideo() {
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
 
+  // Use global profile from header
+  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+
+  // Hydration fix - track if component is mounted
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Folder dropdown state
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Form state
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
@@ -207,13 +229,16 @@ export default function KlingMultiImageToVideo() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const MAX_IMAGES = 4;
   const [isCompressing, setIsCompressing] = useState(false);
+  
+  // Reference Bank state
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
 
-  // Vault folder state
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  // Vault folder state - only for the selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   // Generation state
@@ -236,72 +261,34 @@ export default function KlingMultiImageToVideo() {
     });
   };
 
-  // Load vault profiles and folders
+  // Load vault folders for the selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient || !user) return;
+    if (!apiClient || !globalProfileId) return;
     setIsLoadingVaultData(true);
     try {
-      const profilesResponse = await apiClient.get("/api/instagram/profiles");
-      if (profilesResponse.ok) {
-        const profilesData = await profilesResponse.json();
-        const profiles: InstagramProfile[] = profilesData.profiles || [];
-        setVaultProfiles(profiles);
-
-        const foldersByProfile: Record<string, VaultFolder[]> = {};
-        for (const profile of profiles) {
-          try {
-            const foldersResponse = await apiClient.get(
-              `/api/vault/folders?profileId=${profile.id}`
-            );
-            if (foldersResponse.ok) {
-              const foldersData = await foldersResponse.json();
-              foldersByProfile[profile.id] = Array.isArray(foldersData) ? foldersData : (foldersData.folders || []);
-            }
-          } catch (err) {
-            console.error(`Failed to load folders for profile ${profile.id}:`, err);
-            foldersByProfile[profile.id] = [];
-          }
-        }
-        setVaultFoldersByProfile(foldersByProfile);
+      const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
+      if (foldersResponse.ok) {
+        const folders = await foldersResponse.json();
+        setVaultFolders(Array.isArray(folders) ? folders : (folders.folders || []));
       }
     } catch (err) {
-      console.error("Failed to load vault data:", err);
+      console.error("Failed to load vault folders:", err);
+      setVaultFolders([]);
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient, user]);
-
-  // Parse the target folder value to determine type and IDs
-  const parseTargetFolder = (value: string): { type: FolderType; profileId?: string; folderId?: string; prefix?: string } => {
-    if (value.startsWith("vault:")) {
-      const parts = value.split(":");
-      return {
-        type: "vault",
-        profileId: parts[1],
-        folderId: parts[2],
-      };
-    }
-    return {
-      type: "s3",
-      prefix: value,
-    };
-  };
+  }, [apiClient, globalProfileId]);
 
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return "Please select a vault folder to save your video";
+    if (!targetFolder || !globalProfileId) return "Select a vault folder to save videos";
     
-    const parsed = parseTargetFolder(targetFolder);
-    if (parsed.type === "vault" && parsed.profileId && parsed.folderId) {
-      const profile = vaultProfiles.find((p) => p.id === parsed.profileId);
-      const folders = vaultFoldersByProfile[parsed.profileId] || [];
-      const folder = folders.find((f) => f.id === parsed.folderId);
-      if (profile && folder) {
-        const profileDisplay = profile.instagramUsername ? `@${profile.instagramUsername}` : profile.name;
-        return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
-      }
+    const folder = vaultFolders.find((f) => f.id === targetFolder);
+    if (folder && selectedProfile) {
+      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
     }
-    return "Please select a vault folder";
+    return "Select a vault folder to save videos";
   };
 
   const loadGenerationHistory = useCallback(async () => {
@@ -332,6 +319,8 @@ export default function KlingMultiImageToVideo() {
     if (apiClient) {
       loadVaultData();
       loadGenerationHistory();
+      // Clear selected folder when profile changes
+      setTargetFolder("");
     }
   }, [apiClient, loadVaultData, loadGenerationHistory]);
 
@@ -392,7 +381,7 @@ export default function KlingMultiImageToVideo() {
   const removeImage = (id: string) => {
     setUploadedImages(prev => {
       const image = prev.find(img => img.id === id);
-      if (image) {
+      if (image && !image.fromReferenceBank) {
         URL.revokeObjectURL(image.preview);
       }
       return prev.filter(img => img.id !== id);
@@ -417,6 +406,138 @@ export default function KlingMultiImageToVideo() {
       [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
       return newImages;
     });
+  };
+
+  // Save image to Reference Bank (for file-based uploads)
+  const saveToReferenceBank = async (file: File, imageBase64: string): Promise<string | null> => {
+    if (!globalProfileId) return null;
+    
+    try {
+      const mimeType = file.type || 'image/jpeg';
+      const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+      const fileName = file.name || `reference-${Date.now()}.${extension}`;
+      
+      // Convert base64 to blob
+      const base64Data = imageBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Get dimensions from image
+      const img = new Image();
+      const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 0, height: 0 });
+        img.src = imageBase64;
+      });
+      const dimensions = await dimensionsPromise;
+
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId: globalProfileId }),
+      });
+
+      if (!presignedResponse.ok) return null;
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) return null;
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: globalProfileId,
+          name: fileName,
+          fileType: 'image',
+          mimeType,
+          fileSize: blob.size,
+          width: dimensions.width,
+          height: dimensions.height,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['kling', 'multi-image-to-video'],
+        }),
+      });
+
+      if (!createResponse.ok) return null;
+
+      const newReference = await createResponse.json();
+      return newReference.id;
+    } catch (err) {
+      console.error('Error saving to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    // Check if max images reached
+    if (uploadedImages.length >= MAX_IMAGES) {
+      setError(`Maximum ${MAX_IMAGES} images allowed`);
+      setShowReferenceBankSelector(false);
+      return;
+    }
+
+    // Check if this reference is already added
+    const alreadyAdded = uploadedImages.some(img => img.referenceId === item.id);
+    if (alreadyAdded) {
+      setError('This reference image is already added');
+      setShowReferenceBankSelector(false);
+      return;
+    }
+
+    try {
+      // Fetch image via proxy
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        setError('Failed to load reference image. Please try again.');
+        setShowReferenceBankSelector(false);
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      // Convert blob to File
+      const file = new File([blob], item.name || 'reference.jpg', { type: blob.type || 'image/jpeg' });
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const newImage: UploadedImage = {
+          id: `ref-${item.id}-${Date.now()}`,
+          file,
+          preview: reader.result as string,
+          fromReferenceBank: true,
+          referenceId: item.id,
+        };
+        setUploadedImages(prev => [...prev, newImage]);
+        
+        // Track usage
+        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      console.error('Error loading reference image:', err);
+      setError('Failed to load reference image. Please try again.');
+    }
+
+    setShowReferenceBankSelector(false);
   };
 
   // Poll for task status
@@ -556,6 +677,24 @@ export default function KlingMultiImageToVideo() {
     const localTaskId = `kling-multi-i2v-${Date.now()}`;
 
     try {
+      // Save new uploads to Reference Bank before generating
+      if (globalProfileId) {
+        setIsSavingToReferenceBank(true);
+        for (let i = 0; i < uploadedImages.length; i++) {
+          const img = uploadedImages[i];
+          if (!img.fromReferenceBank) {
+            const newReferenceId = await saveToReferenceBank(img.file, img.preview);
+            if (newReferenceId) {
+              // Update the image to mark it as saved
+              setUploadedImages(prev => prev.map((item, idx) => 
+                idx === i ? { ...item, fromReferenceBank: true, referenceId: newReferenceId } : item
+              ));
+            }
+          }
+        }
+        setIsSavingToReferenceBank(false);
+      }
+
       updateGlobalProgress({
         isGenerating: true,
         progress: 0,
@@ -583,16 +722,11 @@ export default function KlingMultiImageToVideo() {
       formData.append("duration", duration);
       formData.append("aspect_ratio", aspectRatio); // Add aspect ratio
 
-      // Parse target folder for vault vs S3
-      const parsedFolder = parseTargetFolder(targetFolder);
-      
-      // Add folder params based on type
-      if (parsedFolder.type === "vault" && parsedFolder.profileId && parsedFolder.folderId) {
+      // Add vault folder params if selected
+      if (targetFolder && globalProfileId) {
         formData.append("saveToVault", "true");
-        formData.append("vaultProfileId", parsedFolder.profileId);
-        formData.append("vaultFolderId", parsedFolder.folderId);
-      } else if (parsedFolder.prefix) {
-        formData.append("targetFolder", parsedFolder.prefix);
+        formData.append("vaultProfileId", globalProfileId);
+        formData.append("vaultFolderId", targetFolder);
       }
 
       const response = await apiClient.post(
@@ -810,35 +944,55 @@ export default function KlingMultiImageToVideo() {
                 </div>
                 
                 {uploadedImages.length < MAX_IMAGES && (
-                  <button
-                    onClick={() => !isCompressing && fileInputRef.current?.click()}
-                    disabled={isGenerating || isCompressing}
-                    className="w-full py-6 border-2 border-dashed border-white/20 hover:border-violet-400/50 rounded-2xl bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isCompressing ? (
-                      <>
-                        <div className="p-3 bg-violet-500/10 rounded-full">
-                          <Loader2 className="h-6 w-6 text-violet-300 animate-spin" />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => !isCompressing && fileInputRef.current?.click()}
+                      disabled={isGenerating || isCompressing}
+                      className="flex-1 py-6 border-2 border-dashed border-white/20 hover:border-violet-400/50 rounded-2xl bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCompressing ? (
+                        <>
+                          <div className="p-3 bg-violet-500/10 rounded-full">
+                            <Loader2 className="h-6 w-6 text-violet-300 animate-spin" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-white font-medium">Compressing images...</p>
+                            <p className="text-xs text-slate-400 mt-1">Please wait</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="p-3 bg-violet-500/10 rounded-full group-hover:bg-violet-500/20 transition-colors">
+                            <Upload className="h-6 w-6 text-violet-300" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm text-white font-medium">Click to upload images</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {uploadedImages.length === 0 ? "Upload 2-4 images · Auto-compressed" : `Add ${MAX_IMAGES - uploadedImages.length} more`}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </button>
+                    
+                    {/* Reference Bank Button */}
+                    {mounted && globalProfileId && (
+                      <button
+                        onClick={() => setShowReferenceBankSelector(true)}
+                        disabled={isGenerating || isCompressing}
+                        className="px-4 py-6 border-2 border-dashed border-cyan-500/30 hover:border-cyan-400/50 rounded-2xl bg-cyan-500/5 hover:bg-cyan-500/10 transition-all flex flex-col items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Select from Reference Bank"
+                      >
+                        <div className="p-3 bg-cyan-500/10 rounded-full group-hover:bg-cyan-500/20 transition-colors">
+                          <Library className="h-6 w-6 text-cyan-300" />
                         </div>
                         <div className="text-center">
-                          <p className="text-sm text-white font-medium">Compressing images...</p>
-                          <p className="text-xs text-slate-400 mt-1">Please wait</p>
+                          <p className="text-sm text-white font-medium">Reference Bank</p>
+                          <p className="text-xs text-slate-400 mt-1">Select saved</p>
                         </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="p-3 bg-violet-500/10 rounded-full group-hover:bg-violet-500/20 transition-colors">
-                          <Upload className="h-6 w-6 text-violet-300" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-white font-medium">Click to upload images</p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {uploadedImages.length === 0 ? "Upload 2-4 images · Auto-compressed" : `Add ${MAX_IMAGES - uploadedImages.length} more`}
-                          </p>
-                        </div>
-                      </>
+                      </button>
                     )}
-                  </button>
+                  </div>
                 )}
 
                 <input
@@ -1019,45 +1173,138 @@ export default function KlingMultiImageToVideo() {
               </div>
 
               {/* Folder Selection */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-violet-300" />
+                  <Archive className="w-4 h-4 text-violet-300" />
                   <p className="text-sm font-semibold text-white">Save to Vault</p>
                   {isLoadingVaultData && (
                     <Loader2 className="w-3 h-3 animate-spin text-violet-300" />
                   )}
                 </div>
-                <select
-                  value={targetFolder}
-                  onChange={(e) => setTargetFolder(e.target.value)}
-                  disabled={isLoadingVaultData || isGenerating}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-slate-100 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-violet-300 [&>optgroup]:font-semibold"
-                >
-                  <option value="" className="bg-slate-800 text-slate-100">Select a vault folder...</option>
-                  {vaultProfiles.map((profile) => {
-                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                    if (folders.length === 0) return null;
-                    const profileDisplay = profile.instagramUsername
-                      ? `@${profile.instagramUsername}`
-                      : profile.name;
-                    return (
-                      <optgroup key={profile.id} label={`🔒 ${profileDisplay}`} className="bg-slate-900 text-violet-300">
-                        {folders.map((folder) => (
-                          <option
-                            key={`vault:${profile.id}:${folder.id}`}
-                            value={`vault:${profile.id}:${folder.id}`}
-                            className="bg-slate-800 text-slate-100 py-2"
+                
+                {/* Modern Custom Dropdown */}
+                <div ref={folderDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
+                    className={`
+                      w-full flex items-center justify-between gap-3 px-4 py-3.5
+                      rounded-2xl border transition-all duration-200
+                      ${folderDropdownOpen 
+                        ? 'border-violet-400 bg-violet-500/10 ring-2 ring-violet-400/30' 
+                        : 'border-white/10 bg-slate-800/80 hover:border-violet-400/50 hover:bg-slate-800'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    `}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`
+                        flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
+                        ${targetFolder 
+                          ? 'bg-gradient-to-br from-violet-500/30 to-purple-500/30 border border-violet-400/30' 
+                          : 'bg-slate-700/50 border border-white/5'
+                        }
+                      `}>
+                        <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-violet-300' : 'text-slate-400'}`} />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <p className={`text-sm font-medium truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
+                          {targetFolder 
+                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
+                            : 'Select a folder...'
+                          }
+                        </p>
+                        {targetFolder && selectedProfile && (
+                          <p className="text-[11px] text-violet-300/70 truncate">
+                            {selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {folderDropdownOpen && mounted && (
+                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
+                      {/* Clear Selection Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetFolder('');
+                          setFolderDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                          <X className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <span className="text-sm text-slate-400">No folder selected</span>
+                        {!targetFolder && <Check className="w-4 h-4 text-violet-400 ml-auto" />}
+                      </button>
+
+                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
+                        <div className="my-2 mx-3 h-px bg-white/5" />
+                      )}
+
+                      {/* Folder Options */}
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => {
+                              setTargetFolder(folder.id);
+                              setFolderDropdownOpen(false);
+                            }}
+                            className={`
+                              w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                              ${targetFolder === folder.id 
+                                ? 'bg-violet-500/15' 
+                                : 'hover:bg-white/5'
+                              }
+                            `}
                           >
-                            {folder.name}
-                          </option>
+                            <div className={`
+                              w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                              ${targetFolder === folder.id 
+                                ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                : 'bg-slate-700/50 border border-white/5'
+                              }
+                            `}>
+                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                            </div>
+                            <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                              {folder.name}
+                            </span>
+                            {targetFolder === folder.id && (
+                              <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                            )}
+                          </button>
                         ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-                <p className="text-xs text-slate-400">
-                  {getSelectedFolderDisplay()}
-                </p>
+                      </div>
+
+                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
+                        <div className="px-4 py-6 text-center">
+                          <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm text-slate-400">No folders available</p>
+                          <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Indicator */}
+                {targetFolder && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                    <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+                    <p className="text-xs text-violet-200 flex-1 truncate">
+                      {getSelectedFolderDisplay()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Error Display */}
@@ -1349,6 +1596,17 @@ export default function KlingMultiImageToVideo() {
           </div>,
           document.body
         )}
+
+      {/* Reference Bank Selector */}
+      {mounted && globalProfileId && (
+        <ReferenceSelector
+          isOpen={showReferenceBankSelector}
+          onClose={() => setShowReferenceBankSelector(false)}
+          onSelect={handleReferenceBankSelect}
+          filterType="image"
+          profileId={globalProfileId}
+        />
+      )}
     </div>
   );
 }

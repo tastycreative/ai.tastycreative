@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import {
   Search,
   Plus,
@@ -72,9 +73,17 @@ interface InstagramProfile {
 }
 
 export function Captions() {
+  // Use global profile selector
+  const { profileId: globalProfileId, profiles: globalProfiles, loadingProfiles } = useInstagramProfile();
+  
   const [captions, setCaptions] = useState<Caption[]>([]);
-  const [profiles, setProfiles] = useState<InstagramProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+  const profiles = useMemo(() => 
+    [...globalProfiles].sort((a, b) => 
+      (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+    ), 
+    [globalProfiles]
+  );
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -154,10 +163,25 @@ export function Captions() {
   const types = captionTypes;
   const banks = captionBanks;
 
-  // Fetch profiles on mount
+  // Sync with global profile selector
   useEffect(() => {
-    fetchProfiles();
-  }, []);
+    if (globalProfileId && globalProfileId !== selectedProfileId) {
+      setSelectedProfileId(globalProfileId);
+    }
+  }, [globalProfileId]);
+
+  // Listen for profile changes from global selector
+  useEffect(() => {
+    const handleProfileChange = (event: CustomEvent<{ profileId: string }>) => {
+      const newProfileId = event.detail.profileId;
+      if (newProfileId && newProfileId !== selectedProfileId) {
+        setSelectedProfileId(newProfileId);
+      }
+    };
+
+    window.addEventListener('profileChanged', handleProfileChange as EventListener);
+    return () => window.removeEventListener('profileChanged', handleProfileChange as EventListener);
+  }, [selectedProfileId]);
 
   // Fetch captions when profile changes
   useEffect(() => {
@@ -186,24 +210,6 @@ export function Captions() {
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
   }, []);
-
-  const fetchProfiles = async () => {
-    try {
-      const response = await fetch("/api/instagram-profiles");
-      if (response.ok) {
-        const data = await response.json();
-        setProfiles(data);
-        const defaultProfile = data.find((p: InstagramProfile) => p.isDefault) || data[0];
-        if (defaultProfile) {
-          setSelectedProfileId(defaultProfile.id);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch profiles:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchCaptions = async () => {
     if (!selectedProfileId) return;
@@ -729,7 +735,7 @@ export function Captions() {
 
   const selectedProfile = profiles.find(p => p.id === selectedProfileId);
 
-  if (loading && profiles.length === 0) {
+  if (loadingProfiles && profiles.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="flex flex-col items-center gap-4">
@@ -790,18 +796,6 @@ export function Captions() {
 
             {/* Profile Selector & Actions */}
             <div className="flex flex-wrap items-center gap-3">
-              <select
-                value={selectedProfileId}
-                onChange={(e) => setSelectedProfileId(e.target.value)}
-                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500"
-              >
-                {profiles.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.name} {profile.isDefault ? "⭐" : ""}
-                  </option>
-                ))}
-              </select>
-
               <button
                 onClick={() => { fetchStats(); setShowStatsModal(true); }}
                 className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"

@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import {
   AlertCircle,
   Archive,
@@ -22,14 +23,9 @@ import {
   Video,
   Zap,
   X,
+  FolderOpen,
+  Check,
 } from "lucide-react";
-
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername?: string | null;
-  isDefault?: boolean;
-}
 
 interface VaultFolder {
   id: string;
@@ -47,6 +43,13 @@ interface GeneratedVideo {
   cameraFixed: boolean;
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  metadata?: {
+    resolution?: string;
+    ratio?: string;
+    generateAudio?: boolean;
+    cameraFixed?: boolean;
+    profileId?: string;
+  };
 }
 
 const RESOLUTION_DIMENSIONS = {
@@ -99,9 +102,79 @@ export default function SeeDreamTextToVideo() {
 
   const [targetFolder, setTargetFolder] = useState<string>("");
 
-  // Vault folder state
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  // Use global profile from header
+  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+
+  // Hydration fix - track if component is mounted
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Check for reuse data from sessionStorage (from Vault)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const reuseDataStr = sessionStorage.getItem('seedream-t2v-reuse');
+    if (reuseDataStr) {
+      try {
+        const reuseData = JSON.parse(reuseDataStr);
+        
+        // Populate form with reuse data
+        if (reuseData.prompt) {
+          setPrompt(reuseData.prompt);
+        }
+        if (reuseData.resolution) {
+          setResolution(reuseData.resolution as "720p" | "1080p");
+        }
+        if (reuseData.ratio) {
+          const validRatios = ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"];
+          if (validRatios.includes(reuseData.ratio)) {
+            setAspectRatio(reuseData.ratio as typeof aspectRatio);
+          }
+        }
+        if (reuseData.duration !== undefined) {
+          setDuration(reuseData.duration);
+          // Convert duration to slider value (inverse of sliderToDuration)
+          if (reuseData.duration === -1) {
+            setDurationSliderValue(0);
+          } else {
+            setDurationSliderValue(Math.max(0, Math.min(9, reuseData.duration - 3)));
+          }
+        }
+        if (reuseData.cameraFixed !== undefined) {
+          setCameraFixed(reuseData.cameraFixed);
+        }
+        if (reuseData.generateAudio !== undefined) {
+          setGenerateAudio(reuseData.generateAudio);
+        }
+        
+        // Clear sessionStorage after use
+        sessionStorage.removeItem('seedream-t2v-reuse');
+      } catch (e) {
+        console.error('Error parsing reuse data:', e);
+        sessionStorage.removeItem('seedream-t2v-reuse');
+      }
+    }
+  }, []);
+
+  // Folder dropdown state
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Vault folder state - only for the selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
@@ -109,6 +182,7 @@ export default function SeeDreamTextToVideo() {
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,59 +202,32 @@ export default function SeeDreamTextToVideo() {
     [resolution, aspectRatio]
   );
 
-  // Load vault profiles and folders
+  // Load vault folders for the selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient || !user) return;
+    if (!apiClient || !globalProfileId) return;
     setIsLoadingVaultData(true);
     try {
-      // Load profiles
-      const profilesResponse = await apiClient.get("/api/instagram/profiles");
-      if (profilesResponse.ok) {
-        const profilesData = await profilesResponse.json();
-        const profiles: InstagramProfile[] = profilesData.profiles || [];
-        setVaultProfiles(profiles);
-
-        // Load folders for each profile
-        const foldersByProfile: Record<string, VaultFolder[]> = {};
-        for (const profile of profiles) {
-          try {
-            const foldersResponse = await apiClient.get(
-              `/api/vault/folders?profileId=${profile.id}`
-            );
-            if (foldersResponse.ok) {
-              const foldersData = await foldersResponse.json();
-              // API returns folders array directly, not wrapped in { folders: [...] }
-              foldersByProfile[profile.id] = Array.isArray(foldersData) ? foldersData : (foldersData.folders || []);
-            }
-          } catch (err) {
-            console.error(`Failed to load folders for profile ${profile.id}:`, err);
-            foldersByProfile[profile.id] = [];
-          }
-        }
-        setVaultFoldersByProfile(foldersByProfile);
+      const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
+      if (foldersResponse.ok) {
+        const folders = await foldersResponse.json();
+        setVaultFolders(Array.isArray(folders) ? folders : (folders.folders || []));
       }
     } catch (err) {
-      console.error("Failed to load vault data:", err);
+      console.error("Failed to load vault folders:", err);
+      setVaultFolders([]);
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient, user]);
+  }, [apiClient, globalProfileId]);
 
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return "Select a vault folder to save videos";
+    if (!targetFolder || !globalProfileId) return "Select a vault folder to save videos";
     
-    if (targetFolder.startsWith("vault:")) {
-      const parts = targetFolder.split(":");
-      const profileId = parts[1];
-      const folderId = parts[2];
-      const profile = vaultProfiles.find((p) => p.id === profileId);
-      const folders = vaultFoldersByProfile[profileId] || [];
-      const folder = folders.find((f) => f.id === folderId);
-      if (profile && folder) {
-        const profileDisplay = profile.instagramUsername ? `@${profile.instagramUsername}` : profile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
-      }
+    const folder = vaultFolders.find((f) => f.id === targetFolder);
+    if (folder && selectedProfile) {
+      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
     }
     return "Select a vault folder to save videos";
   };
@@ -189,26 +236,31 @@ export default function SeeDreamTextToVideo() {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
-      const response = await apiClient.get(
-        "/api/generate/seedream-text-to-video?history=true"
-      );
+      // Add profileId to filter by selected profile
+      const url = globalProfileId 
+        ? `/api/generate/seedream-text-to-video?history=true&profileId=${globalProfileId}`
+        : "/api/generate/seedream-text-to-video?history=true";
+      const response = await apiClient.get(url);
       if (response.ok) {
         const data = await response.json();
+        console.log('📋 Loaded T2V generation history:', data.videos?.length || 0, 'videos for profile:', globalProfileId);
         setGenerationHistory(data.videos || []);
       }
     } catch (err) {
-      console.error("Failed to load generation history:", err);
+      console.error("Failed to load T2V generation history:", err);
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
   useEffect(() => {
     if (apiClient) {
       loadVaultData();
       loadGenerationHistory();
+      // Clear selected folder when profile changes
+      setTargetFolder("");
     }
-  }, [apiClient, loadVaultData, loadGenerationHistory]);
+  }, [apiClient, loadVaultData, loadGenerationHistory, globalProfileId]);
 
   const pollTaskStatus = (apiTaskId: string, localTaskId: string) => {
     const maxAttempts = 120;
@@ -335,14 +387,14 @@ export default function SeeDreamTextToVideo() {
         cameraFixed,
         watermark: false,
         generateAudio,
+        // Always include profile ID for history filtering
+        vaultProfileId: globalProfileId || null,
       };
 
       // Add vault folder params if selected
-      if (targetFolder.startsWith("vault:")) {
-        const parts = targetFolder.split(":");
+      if (targetFolder && globalProfileId) {
         payload.saveToVault = true;
-        payload.vaultProfileId = parts[1];
-        payload.vaultFolderId = parts[2];
+        payload.vaultFolderId = targetFolder;
       }
 
       const response = await apiClient.post(
@@ -420,6 +472,61 @@ export default function SeeDreamTextToVideo() {
     setError(null);
     setGeneratedVideos([]);
     setPollingStatus("");
+  };
+
+  // Reuse settings from a generated video
+  const handleReuseSettings = (video: GeneratedVideo) => {
+    // Set prompt
+    if (video.prompt) {
+      setPrompt(video.prompt);
+    }
+    
+    // Set resolution from metadata
+    if (video.metadata?.resolution) {
+      const validResolutions = ["720p", "1080p"];
+      if (validResolutions.includes(video.metadata.resolution)) {
+        setResolution(video.metadata.resolution as "720p" | "1080p");
+      }
+    }
+    
+    // Set aspect ratio from metadata
+    if (video.metadata?.ratio) {
+      const validRatios = ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9", "adaptive"];
+      if (validRatios.includes(video.metadata.ratio)) {
+        setAspectRatio(video.metadata.ratio as typeof aspectRatio);
+      }
+    }
+    
+    // Set duration
+    if (video.duration !== undefined) {
+      setDuration(video.duration);
+      // Convert duration to slider value
+      if (video.duration === -1) {
+        setDurationSliderValue(0);
+      } else {
+        setDurationSliderValue(Math.max(0, Math.min(9, video.duration - 3)));
+      }
+    }
+    
+    // Set camera fixed from video or metadata
+    if (video.metadata?.cameraFixed !== undefined) {
+      setCameraFixed(video.metadata.cameraFixed);
+    } else if (video.cameraFixed !== undefined) {
+      setCameraFixed(video.cameraFixed);
+    }
+    
+    // Set generate audio from metadata
+    if (video.metadata?.generateAudio !== undefined) {
+      setGenerateAudio(video.metadata.generateAudio);
+    }
+    
+    // Close any open modals
+    setShowVideoModal(false);
+    setShowHistoryModal(false);
+    setSelectedVideo(null);
+    
+    // Scroll to top to show the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -680,7 +787,7 @@ export default function SeeDreamTextToVideo() {
               </div>
 
               {/* Folder Selection */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Archive className="w-4 h-4 text-purple-300" />
                   <p className="text-sm font-semibold text-white">Save to Vault</p>
@@ -688,52 +795,130 @@ export default function SeeDreamTextToVideo() {
                     <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
                   )}
                 </div>
-                <div className="relative">
-                  <select
-                    value={targetFolder}
-                    onChange={(e) => setTargetFolder(e.target.value)}
-                    disabled={isGenerating || isLoadingVaultData}
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-purple-300"
-                  >
-                    <option value="">Select a vault folder...</option>
-                    
-                    {/* Vault Folders by Profile */}
-                    {vaultProfiles.map((profile) => {
-                      const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                      if (folders.length === 0) return null;
-                      
-                      return (
-                        <optgroup 
-                          key={profile.id} 
-                          label={`${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                        >
-                          {folders.map((folder) => (
-                            <option 
-                              key={folder.id} 
-                              value={`vault:${profile.id}:${folder.id}`}
-                            >
-                              {folder.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                </div>
                 
-                {/* Folder indicator */}
-                <div className="flex items-center gap-2">
-                  {targetFolder && (
-                    <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-200">
-                      <Archive className="w-3 h-3" />
-                      <span>Vault Storage</span>
+                {/* Modern Custom Dropdown */}
+                <div ref={folderDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
+                    className={`
+                      w-full flex items-center justify-between gap-3 px-4 py-3.5
+                      rounded-2xl border transition-all duration-200
+                      ${folderDropdownOpen 
+                        ? 'border-purple-400 bg-purple-500/10 ring-2 ring-purple-400/30' 
+                        : 'border-white/10 bg-slate-800/80 hover:border-purple-400/50 hover:bg-slate-800'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    `}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`
+                        flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
+                        ${targetFolder 
+                          ? 'bg-gradient-to-br from-purple-500/30 to-indigo-500/30 border border-purple-400/30' 
+                          : 'bg-slate-700/50 border border-white/5'
+                        }
+                      `}>
+                        <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-purple-300' : 'text-slate-400'}`} />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <p className={`text-sm font-medium truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
+                          {targetFolder 
+                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
+                            : 'Select a folder...'
+                          }
+                        </p>
+                        {targetFolder && selectedProfile && (
+                          <p className="text-[11px] text-purple-300/70 truncate">
+                            {selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {folderDropdownOpen && mounted && (
+                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
+                      {/* Clear Selection Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetFolder('');
+                          setFolderDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                          <X className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <span className="text-sm text-slate-400">No folder selected</span>
+                        {!targetFolder && <Check className="w-4 h-4 text-purple-400 ml-auto" />}
+                      </button>
+
+                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
+                        <div className="my-2 mx-3 h-px bg-white/5" />
+                      )}
+
+                      {/* Folder Options */}
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => {
+                              setTargetFolder(folder.id);
+                              setFolderDropdownOpen(false);
+                            }}
+                            className={`
+                              w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                              ${targetFolder === folder.id 
+                                ? 'bg-purple-500/15' 
+                                : 'hover:bg-white/5'
+                              }
+                            `}
+                          >
+                            <div className={`
+                              w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                              ${targetFolder === folder.id 
+                                ? 'bg-gradient-to-br from-purple-500/40 to-indigo-500/40 border border-purple-400/40' 
+                                : 'bg-slate-700/50 border border-white/5'
+                              }
+                            `}>
+                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-300' : 'text-slate-400'}`} />
+                            </div>
+                            <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                              {folder.name}
+                            </span>
+                            {targetFolder === folder.id && (
+                              <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
+                        <div className="px-4 py-6 text-center">
+                          <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm text-slate-400">No folders available</p>
+                          <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
+                        </div>
+                      )}
                     </div>
                   )}
-                  <p className="text-xs text-slate-300 flex-1">
-                    {getSelectedFolderDisplay()}
-                  </p>
                 </div>
+
+                {/* Status Indicator */}
+                {targetFolder && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                    <p className="text-xs text-purple-200 flex-1 truncate">
+                      {getSelectedFolderDisplay()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {error && (
@@ -827,17 +1012,33 @@ export default function SeeDreamTextToVideo() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Library</p>
-                  <h2 className="text-lg font-semibold text-white">Recent generations</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-white">Recent generations</h2>
+                    {generationHistory.length > 0 && (
+                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                    )}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={loadGenerationHistory}
-                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
-                  disabled={isLoadingHistory}
-                >
-                  {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  {generationHistory.length > 4 && (
+                    <button
+                      onClick={() => setShowHistoryModal(true)}
+                      className="text-xs text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1"
+                    >
+                      View All
+                      <span className="bg-cyan-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={loadGenerationHistory}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    disabled={isLoadingHistory}
+                  >
+                    {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {generationHistory.length === 0 ? (
@@ -847,7 +1048,7 @@ export default function SeeDreamTextToVideo() {
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 gap-4">
-                  {generationHistory.map((video) => (
+                  {generationHistory.slice(0, 4).map((video) => (
                     <div
                       key={video.id}
                       role="button"
@@ -917,13 +1118,35 @@ export default function SeeDreamTextToVideo() {
                 autoPlay
                 playsInline
                 src={selectedVideo.videoUrl}
-                className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-3xl"
+                className="w-full h-auto max-h-[60vh] object-contain bg-black rounded-t-3xl"
               />
-              <div className="p-4 text-sm text-slate-200">
-                <p className="font-semibold text-white mb-1">{selectedVideo.prompt}</p>
-                <p className="text-slate-400">
-                  {selectedVideo.duration === -1 ? "Auto" : `${selectedVideo.duration}s`} · {selectedVideo.modelVersion}
-                </p>
+              <div className="p-4 text-sm text-slate-200 space-y-3">
+                <div>
+                  <p className="font-semibold text-white mb-1">{selectedVideo.prompt}</p>
+                  <p className="text-slate-400">
+                    {selectedVideo.duration === -1 ? "Auto" : `${selectedVideo.duration}s`} · {selectedVideo.modelVersion}
+                  </p>
+                </div>
+                
+                {/* Action buttons */}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(selectedVideo.videoUrl, `seedream-t2v-${selectedVideo.id}.mp4`)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-900/40 transition hover:-translate-y-0.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReuseSettings(selectedVideo)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-white/10 hover:-translate-y-0.5"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reuse settings
+                  </button>
+                </div>
               </div>
             </div>
           </div>,
@@ -1017,6 +1240,93 @@ export default function SeeDreamTextToVideo() {
           </div>,
           document.body
         )}
+
+      {/* View All History Modal */}
+      {showHistoryModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/95 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
+                  <Film className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
+                  <p className="text-xs text-slate-400">{generationHistory.length} videos generated</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid of all history videos */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {generationHistory.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {generationHistory.map((video) => (
+                    <div
+                      key={video.id}
+                      role="button"
+                      aria-label="Open video"
+                      tabIndex={0}
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        openVideoModal(video);
+                      }}
+                      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer transition hover:-translate-y-1 hover:border-cyan-200/40"
+                    >
+                      <div className="relative">
+                        <video
+                          data-role="preview"
+                          preload="metadata"
+                          src={video.videoUrl}
+                          className="w-full h-32 object-cover pointer-events-none"
+                          controlsList="nodownload noplaybackrate noremoteplayback"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition">
+                          <Play className="w-10 h-10 text-white" />
+                        </div>
+                        {/* Date badge */}
+                        <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
+                          {new Date(video.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="px-4 py-3">
+                        <p className="text-sm font-medium text-white line-clamp-2 mb-1">{video.prompt}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                          <span className="bg-white/10 rounded px-1.5 py-0.5">
+                            {video.duration === -1 ? "Auto" : `${video.duration}s`}
+                          </span>
+                          <span className="bg-cyan-500/20 rounded px-1.5 py-0.5 text-cyan-300">
+                            {video.modelVersion}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <Film className="w-12 h-12 mb-3 opacity-50" />
+                  <p>No generation history yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

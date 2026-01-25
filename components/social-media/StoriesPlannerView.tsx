@@ -23,6 +23,7 @@ import {
   ChevronDown,
   Loader2,
   Video as VideoIcon,
+  FolderOpen,
 } from "lucide-react";
 import { format, addDays, startOfWeek } from "date-fns";
 
@@ -128,8 +129,11 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
   const [uploading, setUploading] = useState(false);
   const [uploadMode, setUploadMode] = useState<"upload" | "vault">("upload");
   const [vaultItems, setVaultItems] = useState<any[]>([]);
+  const [vaultFolders, setVaultFolders] = useState<any[]>([]);
+  const [selectedVaultFolder, setSelectedVaultFolder] = useState<string>("all");
   const [selectedVaultItem, setSelectedVaultItem] = useState<any | null>(null);
   const [loadingVault, setLoadingVault] = useState(false);
+  const [loadingFolders, setLoadingFolders] = useState(false);
   const [captionMode, setCaptionMode] = useState<"custom" | "bank">("custom");
   const [availableCaptions, setAvailableCaptions] = useState<any[]>([]);
   const [loadingCaptions, setLoadingCaptions] = useState(false);
@@ -208,6 +212,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
     setUploadPreviewUrl(null);
     setUploadMode("upload");
     setSelectedVaultItem(null);
+    setSelectedVaultFolder("all");
     setCaptionMode("custom");
     setCaptionSearchQuery("");
     setCaptionCategoryFilter("All");
@@ -215,6 +220,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
     setCaptionBankFilter("All");
     setShowModal(true);
     if (profileId && profileId !== "all") {
+      fetchVaultFolders();
       fetchVaultItems();
       fetchCaptionsBank();
     }
@@ -254,12 +260,39 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
     setSelectedVaultItem(null);
   };
 
-  const fetchVaultItems = async () => {
+  const fetchVaultFolders = async () => {
+    if (!profileId || profileId === "all") return;
+
+    try {
+      setLoadingFolders(true);
+      const response = await fetch(`/api/vault/folders?profileId=${profileId}`);
+      
+      if (!response.ok) {
+        console.warn("Vault folders not available");
+        setVaultFolders([]);
+        return;
+      }
+
+      const data = await response.json();
+      setVaultFolders(data);
+    } catch (error) {
+      console.error("Error loading vault folders:", error);
+      setVaultFolders([]);
+    } finally {
+      setLoadingFolders(false);
+    }
+  };
+
+  const fetchVaultItems = async (folderId?: string) => {
     if (!profileId || profileId === "all") return;
 
     try {
       setLoadingVault(true);
-      const response = await fetch(`/api/vault/items?profileId=${profileId}`);
+      const params = new URLSearchParams({ profileId });
+      if (folderId && folderId !== "all") {
+        params.append("folderId", folderId);
+      }
+      const response = await fetch(`/api/vault/items?${params}`);
       
       if (!response.ok) {
         console.warn("Vault items not available");
@@ -894,8 +927,13 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     type="button"
                     onClick={() => {
                       setUploadMode("vault");
-                      if (profileId && profileId !== "all" && vaultItems.length === 0) {
-                        fetchVaultItems();
+                      if (profileId && profileId !== "all") {
+                        if (vaultFolders.length === 0) {
+                          fetchVaultFolders();
+                        }
+                        if (vaultItems.length === 0) {
+                          fetchVaultItems();
+                        }
                       }
                     }}
                     disabled={!profileId || profileId === "all"}
@@ -967,9 +1005,38 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                   </>
                 ) : (
                   <>
-                    {/* Vault mode - show vault items */}
+                    {/* Vault mode - show folder selector and vault items */}
+                    {/* Folder Selector */}
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FolderOpen className="w-4 h-4 text-purple-400" />
+                        <span className="text-sm font-medium text-gray-300">Select Folder</span>
+                      </div>
+                      <select
+                        value={selectedVaultFolder}
+                        onChange={(e) => {
+                          setSelectedVaultFolder(e.target.value);
+                          setSelectedVaultItem(null);
+                          setUploadPreviewUrl(null);
+                          fetchVaultItems(e.target.value);
+                        }}
+                        disabled={loadingFolders}
+                        className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                      >
+                        <option value="all">📁 All Media</option>
+                        {vaultFolders
+                          .filter((folder) => folder.name.toLowerCase() !== "all media" && folder.name.toLowerCase() !== "all")
+                          .map((folder) => (
+                          <option key={folder.id} value={folder.id}>
+                            📂 {folder.name} ({folder._count?.items || 0} items)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Vault Items Grid */}
                     <div className="bg-[#1a1a1a] rounded-xl border-2 border-[#3a3a3a] p-4 max-h-[400px] overflow-y-auto">
-                      {loadingVault ? (
+                      {loadingVault || loadingFolders ? (
                         <div className="flex items-center justify-center py-12">
                           <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
                         </div>

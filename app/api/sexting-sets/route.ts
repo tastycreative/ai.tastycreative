@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
+import { S3Client, DeleteObjectsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION!,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
 
 // GET - Fetch all sexting sets for the user (optionally filtered by profileId)
 export async function GET(request: NextRequest) {
@@ -153,9 +162,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Verify ownership
+    // Verify ownership and get images
     const existingSet = await prisma.sextingSet.findFirst({
       where: { id, userId },
+      include: { images: true },
     });
 
     if (!existingSet) {
@@ -163,6 +173,35 @@ export async function DELETE(request: NextRequest) {
         { error: "Set not found or unauthorized" },
         { status: 404 }
       );
+    }
+
+    // Delete files from S3
+    const bucket = process.env.AWS_S3_BUCKET!;
+    
+    try {
+      // First, list all objects in the set's S3 folder
+      const listCommand = new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: existingSet.s3FolderPath,
+      });
+      
+      const listedObjects = await s3Client.send(listCommand);
+      
+      if (listedObjects.Contents && listedObjects.Contents.length > 0) {
+        // Delete all objects in the folder
+        const deleteCommand = new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: {
+            Objects: listedObjects.Contents.map((obj) => ({ Key: obj.Key })),
+            Quiet: true,
+          },
+        });
+        
+        await s3Client.send(deleteCommand);
+      }
+    } catch (s3Error) {
+      console.error("Error deleting S3 files:", s3Error);
+      // Continue with database deletion even if S3 deletion fails
     }
 
     // Delete will cascade to images due to schema relation

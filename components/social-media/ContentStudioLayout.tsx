@@ -1,7 +1,6 @@
 'use client';
 
 import { ReactNode } from 'react';
-import InstagramProfileSelector from '@/components/social-media/InstagramProfileSelector';
 import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 
 interface ContentStudioLayoutProps {
@@ -11,7 +10,7 @@ interface ContentStudioLayoutProps {
 }
 
 export default function ContentStudioLayout({ children, title, description }: ContentStudioLayoutProps) {
-  const { profileId } = useInstagramProfile();
+  const { selectedProfile } = useInstagramProfile();
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -19,9 +18,15 @@ export default function ContentStudioLayout({ children, title, description }: Co
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">{title}</h1>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">{description}</p>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+              {description}
+              {selectedProfile && (
+                <span className="ml-2 text-violet-600 dark:text-violet-400">
+                  • {selectedProfile.name}
+                </span>
+              )}
+            </p>
           </div>
-          <InstagramProfileSelector />
         </div>
       </div>
 

@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
+import { ReferenceItem } from "@/hooks/useReferenceBank";
 import {
   AlertCircle,
   Archive,
@@ -12,7 +15,7 @@ import {
   Clock,
   Download,
   Film,
-  Folder,
+  FolderOpen,
   Image as ImageIcon,
   Info,
   Loader2,
@@ -27,6 +30,8 @@ import {
   X,
   Zap,
   Wand2,
+  Check,
+  Library,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -148,21 +153,12 @@ const compressImage = async (
   });
 };
 
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername?: string | null;
-  isDefault?: boolean;
-}
-
 interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
   isDefault?: boolean;
 }
-
-type FolderType = "s3" | "vault";
 
 interface GeneratedVideo {
   id: string;
@@ -194,6 +190,10 @@ export default function KlingMotionControl() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  const { profileId, selectedProfile } = useInstagramProfile();
+
+  // Hydration fix
+  const [mounted, setMounted] = useState(false);
 
   // Form state
   const [prompt, setPrompt] = useState("");
@@ -208,13 +208,25 @@ export default function KlingMotionControl() {
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [compressionInfo, setCompressionInfo] = useState<string | null>(null);
+  
+  // Reference Bank state (for image)
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
+  const [fromReferenceBank, setFromReferenceBank] = useState(false);
+  const [referenceId, setReferenceId] = useState<string | null>(null);
+  
+  // Reference Bank state (for video)
+  const [showVideoReferenceBankSelector, setShowVideoReferenceBankSelector] = useState(false);
+  const [videoFromReferenceBank, setVideoFromReferenceBank] = useState(false);
+  const [videoReferenceId, setVideoReferenceId] = useState<string | null>(null);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
 
   // Vault folder state
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   // Generation state
@@ -242,70 +254,40 @@ export default function KlingMotionControl() {
     });
   };
 
-  // Load vault profiles and folders
+  // Load vault folders for selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient || !user) return;
+    if (!apiClient || !user || !profileId) {
+      setVaultFolders([]);
+      return;
+    }
     setIsLoadingVaultData(true);
     try {
-      const profilesResponse = await apiClient.get("/api/instagram/profiles");
-      if (profilesResponse.ok) {
-        const profilesData = await profilesResponse.json();
-        const profiles: InstagramProfile[] = profilesData.profiles || [];
-        setVaultProfiles(profiles);
-
-        const foldersByProfile: Record<string, VaultFolder[]> = {};
-        for (const profile of profiles) {
-          try {
-            const foldersResponse = await apiClient.get(
-              `/api/vault/folders?profileId=${profile.id}`
-            );
-            if (foldersResponse.ok) {
-              const foldersData = await foldersResponse.json();
-              foldersByProfile[profile.id] = Array.isArray(foldersData) ? foldersData : (foldersData.folders || []);
-            }
-          } catch (err) {
-            console.error(`Failed to load folders for profile ${profile.id}:`, err);
-            foldersByProfile[profile.id] = [];
-          }
-        }
-        setVaultFoldersByProfile(foldersByProfile);
+      const foldersResponse = await apiClient.get(
+        `/api/vault/folders?profileId=${profileId}`
+      );
+      if (foldersResponse.ok) {
+        const foldersData = await foldersResponse.json();
+        const folders = Array.isArray(foldersData) ? foldersData : (foldersData.folders || []);
+        setVaultFolders(folders);
+      } else {
+        setVaultFolders([]);
       }
     } catch (err) {
-      console.error("Failed to load vault data:", err);
+      console.error("Failed to load vault folders:", err);
+      setVaultFolders([]);
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient, user]);
-
-  // Parse target folder value
-  const parseTargetFolder = (value: string): { type: FolderType; profileId?: string; folderId?: string; prefix?: string } => {
-    if (value.startsWith("vault:")) {
-      const parts = value.split(":");
-      return {
-        type: "vault",
-        profileId: parts[1],
-        folderId: parts[2],
-      };
-    }
-    return {
-      type: "s3",
-      prefix: value,
-    };
-  };
+  }, [apiClient, user, profileId]);
 
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
     if (!targetFolder) return "Please select a vault folder to save your video";
 
-    const parsed = parseTargetFolder(targetFolder);
-    if (parsed.type === "vault" && parsed.profileId && parsed.folderId) {
-      const profile = vaultProfiles.find((p) => p.id === parsed.profileId);
-      const folders = vaultFoldersByProfile[parsed.profileId] || [];
-      const folder = folders.find((f) => f.id === parsed.folderId);
-      if (profile && folder) {
-        const profileDisplay = profile.instagramUsername ? `@${profile.instagramUsername}` : profile.name;
-        return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
-      }
+    const folder = vaultFolders.find((f) => f.id === targetFolder);
+    if (folder && selectedProfile) {
+      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+      return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
     }
     return "Please select a vault folder";
   };
@@ -342,11 +324,31 @@ export default function KlingMotionControl() {
 
   // Initial data load
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     if (user && apiClient) {
       loadVaultData();
       loadGenerationHistory();
     }
   }, [user, apiClient, loadVaultData, loadGenerationHistory]);
+
+  // Clear target folder when profile changes
+  useEffect(() => {
+    setTargetFolder("");
+  }, [profileId]);
+
+  // Click outside handler for folder dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Handle image file selection with automatic compression
   const handleImageSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -367,6 +369,10 @@ export default function KlingMotionControl() {
     setError(null);
     setCompressionInfo(null);
     setIsCompressing(true);
+    
+    // Reset reference bank tracking for new uploads
+    setFromReferenceBank(false);
+    setReferenceId(null);
 
     try {
       // Compress image if needed (target 3MB max for safe upload)
@@ -417,6 +423,10 @@ export default function KlingMotionControl() {
     setVideoFile(file);
     const url = URL.createObjectURL(file);
     setVideoPreview(url);
+    
+    // Reset reference bank tracking for new uploads
+    setVideoFromReferenceBank(false);
+    setVideoReferenceId(null);
   }, []);
 
   // Clear image
@@ -424,6 +434,8 @@ export default function KlingMotionControl() {
     setImageFile(null);
     setImagePreview(null);
     setCompressionInfo(null);
+    setFromReferenceBank(false);
+    setReferenceId(null);
     if (imageInputRef.current) {
       imageInputRef.current.value = "";
     }
@@ -432,14 +444,219 @@ export default function KlingMotionControl() {
   // Clear video
   const clearVideo = useCallback(() => {
     setVideoFile(null);
-    if (videoPreview) {
+    if (videoPreview && !videoFromReferenceBank) {
       URL.revokeObjectURL(videoPreview);
     }
     setVideoPreview(null);
+    setVideoFromReferenceBank(false);
+    setVideoReferenceId(null);
     if (videoInputRef.current) {
       videoInputRef.current.value = "";
     }
-  }, [videoPreview]);
+  }, [videoPreview, videoFromReferenceBank]);
+
+  // Save image to Reference Bank (for file-based uploads)
+  const saveToReferenceBank = async (file: File, imageBase64: string): Promise<string | null> => {
+    if (!profileId) return null;
+    
+    try {
+      const mimeType = file.type || 'image/jpeg';
+      const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+      const fileName = file.name || `reference-${Date.now()}.${extension}`;
+      
+      // Convert base64 to blob
+      const base64Data = imageBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Get dimensions from image
+      const img = new Image();
+      const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 0, height: 0 });
+        img.src = imageBase64;
+      });
+      const dimensions = await dimensionsPromise;
+
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId }),
+      });
+
+      if (!presignedResponse.ok) return null;
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) return null;
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId,
+          name: fileName,
+          fileType: 'image',
+          mimeType,
+          fileSize: blob.size,
+          width: dimensions.width,
+          height: dimensions.height,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['kling', 'motion-control'],
+        }),
+      });
+
+      if (!createResponse.ok) return null;
+
+      const newReference = await createResponse.json();
+      return newReference.id;
+    } catch (err) {
+      console.error('Error saving to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Save video to Reference Bank
+  const saveVideoToReferenceBank = async (file: File): Promise<string | null> => {
+    if (!profileId) return null;
+    
+    try {
+      const mimeType = file.type || 'video/mp4';
+      const extension = mimeType.includes('webm') ? 'webm' : mimeType.includes('quicktime') ? 'mov' : 'mp4';
+      const fileName = file.name || `reference-video-${Date.now()}.${extension}`;
+      
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId }),
+      });
+
+      if (!presignedResponse.ok) return null;
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: file,
+      });
+
+      if (!uploadResponse.ok) return null;
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId,
+          name: fileName,
+          fileType: 'video',
+          mimeType,
+          fileSize: file.size,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['kling', 'motion-control', 'reference-video'],
+        }),
+      });
+
+      if (!createResponse.ok) return null;
+
+      const newReference = await createResponse.json();
+      return newReference.id;
+    } catch (err) {
+      console.error('Error saving video to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    try {
+      // Fetch image via proxy
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        setError('Failed to load reference image. Please try again.');
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      // Convert blob to File
+      const file = new File([blob], item.name || 'reference.jpg', { type: blob.type || 'image/jpeg' });
+      setImageFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(blob);
+      
+      setFromReferenceBank(true);
+      setReferenceId(item.id);
+      setCompressionInfo(null);
+      
+      // Track usage
+      fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+    } catch (err) {
+      console.error('Error loading reference image:', err);
+      setError('Failed to load reference image. Please try again.');
+    }
+
+    setShowReferenceBankSelector(false);
+  };
+
+  // Handle video selection from Reference Bank
+  const handleVideoReferenceBankSelect = async (item: ReferenceItem) => {
+    try {
+      // Fetch video via proxy
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        setError('Failed to load reference video. Please try again.');
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      // Convert blob to File
+      const file = new File([blob], item.name || 'reference.mp4', { type: blob.type || 'video/mp4' });
+      setVideoFile(file);
+      
+      // Create preview URL
+      const url = URL.createObjectURL(blob);
+      setVideoPreview(url);
+      
+      setVideoFromReferenceBank(true);
+      setVideoReferenceId(item.id);
+      
+      // Track usage
+      fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+    } catch (err) {
+      console.error('Error loading reference video:', err);
+      setError('Failed to load reference video. Please try again.');
+    }
+
+    setShowVideoReferenceBankSelector(false);
+  };
 
   // Poll for task status
   const pollTaskStatus = useCallback((taskId: string, localTaskId: string) => {
@@ -566,6 +783,37 @@ export default function KlingMotionControl() {
     setPollingStatus("Submitting task...");
     const localTaskId = `kling-mc-${Date.now()}`;
 
+    // Save to Reference Bank before generating (only for new uploads, not from Reference Bank)
+    if (profileId && !fromReferenceBank && imageFile && imagePreview) {
+      setIsSavingToReferenceBank(true);
+      try {
+        const newReferenceId = await saveToReferenceBank(imageFile, imagePreview);
+        if (newReferenceId) {
+          setReferenceId(newReferenceId);
+          setFromReferenceBank(true);
+          console.log('Image saved to Reference Bank:', newReferenceId);
+        }
+      } catch (err) {
+        console.warn('Failed to save image to Reference Bank:', err);
+      } finally {
+        setIsSavingToReferenceBank(false);
+      }
+    }
+
+    // Save video to Reference Bank before generating (only for new uploads)
+    if (profileId && !videoFromReferenceBank && videoFile) {
+      try {
+        const newVideoReferenceId = await saveVideoToReferenceBank(videoFile);
+        if (newVideoReferenceId) {
+          setVideoReferenceId(newVideoReferenceId);
+          setVideoFromReferenceBank(true);
+          console.log('Video saved to Reference Bank:', newVideoReferenceId);
+        }
+      } catch (err) {
+        console.warn('Failed to save video to Reference Bank:', err);
+      }
+    }
+
     try {
       updateGlobalProgress({
         isGenerating: true,
@@ -587,14 +835,11 @@ export default function KlingMotionControl() {
         formData.append("prompt", prompt.trim());
       }
 
-      // Add folder selection data
-      const parsedFolder = parseTargetFolder(targetFolder);
-      if (parsedFolder.type === "vault" && parsedFolder.profileId && parsedFolder.folderId) {
+      // Add folder selection data - simplified vault folder approach
+      if (targetFolder && profileId) {
         formData.append("saveToVault", "true");
-        formData.append("vaultProfileId", parsedFolder.profileId);
-        formData.append("vaultFolderId", parsedFolder.folderId);
-      } else if (parsedFolder.prefix) {
-        formData.append("targetFolder", parsedFolder.prefix);
+        formData.append("vaultProfileId", profileId);
+        formData.append("vaultFolderId", targetFolder);
       }
 
       const response = await fetch("/api/generate/kling-motion-control", {
@@ -822,13 +1067,29 @@ export default function KlingMotionControl() {
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-violet-900/40 backdrop-blur space-y-6">
               {/* Reference Image Upload */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4 text-violet-300" />
-                  <label className="text-sm font-semibold text-slate-100">Reference Image (Character) *</label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-violet-300" />
+                    <label className="text-sm font-semibold text-slate-100">Reference Image (Character) *</label>
+                  </div>
+                  {/* Reference Bank Button */}
+                  {mounted && profileId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowReferenceBankSelector(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 border border-violet-500/30 transition-all"
+                      disabled={isGenerating}
+                    >
+                      <Library className="w-3.5 h-3.5" />
+                      Reference Bank
+                    </button>
+                  )}
                 </div>
 
                 {imagePreview ? (
-                  <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border border-white/10">
+                  <div className={`relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border ${
+                    fromReferenceBank ? 'border-violet-400/50' : 'border-white/10'
+                  }`}>
                     <img
                       src={imagePreview}
                       alt="Reference character"
@@ -841,7 +1102,13 @@ export default function KlingMotionControl() {
                     >
                       <X className="w-4 h-4" />
                     </button>
-                    {compressionInfo && (
+                    {fromReferenceBank && (
+                      <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-violet-500/80 text-xs text-white flex items-center gap-1">
+                        <Library className="w-3 h-3" />
+                        From Reference Bank
+                      </div>
+                    )}
+                    {compressionInfo && !fromReferenceBank && (
                       <div className="absolute bottom-2 left-2 right-2 px-2 py-1 rounded-lg bg-emerald-500/80 text-xs text-white text-center">
                         {compressionInfo}
                       </div>
@@ -882,13 +1149,27 @@ export default function KlingMotionControl() {
 
               {/* Reference Video Upload */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Video className="w-4 h-4 text-pink-300" />
-                  <label className="text-sm font-semibold text-slate-100">Reference Video (Motion) *</label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Video className="w-4 h-4 text-pink-300" />
+                    <label className="text-sm font-semibold text-slate-100">Reference Video (Motion) *</label>
+                  </div>
+                  {/* Reference Bank Button for Video */}
+                  {mounted && profileId && (
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoReferenceBankSelector(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/30 transition-all"
+                      disabled={isGenerating}
+                    >
+                      <Library className="w-3.5 h-3.5" />
+                      Reference Bank
+                    </button>
+                  )}
                 </div>
 
                 {videoPreview ? (
-                  <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border border-white/10">
+                  <div className={`relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border ${videoFromReferenceBank ? 'border-pink-400/50' : 'border-white/10'}`}>
                     <video
                       src={videoPreview}
                       controls
@@ -901,6 +1182,12 @@ export default function KlingMotionControl() {
                     >
                       <X className="w-4 h-4" />
                     </button>
+                    {videoFromReferenceBank && (
+                      <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-pink-500/80 text-xs text-white flex items-center gap-1">
+                        <Library className="w-3 h-3" />
+                        From Reference Bank
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div
@@ -1028,40 +1315,65 @@ export default function KlingMotionControl() {
               {/* Folder Selection */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Folder className="w-4 h-4 text-violet-300" />
+                  <FolderOpen className="w-4 h-4 text-violet-300" />
                   <label className="text-sm font-semibold text-slate-100">Save to Vault</label>
                   {isLoadingVaultData && (
                     <Loader2 className="w-3 h-3 animate-spin text-violet-300" />
                   )}
                 </div>
-                <select
-                  value={targetFolder}
-                  onChange={(e) => setTargetFolder(e.target.value)}
-                  disabled={isLoadingVaultData || isGenerating}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-slate-100 transition focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-transparent disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-violet-300 [&>optgroup]:font-semibold"
-                >
-                  <option value="" className="bg-slate-800 text-slate-100">Select a vault folder...</option>
-                  {vaultProfiles.map((profile) => {
-                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                    if (folders.length === 0) return null;
-                    const profileDisplay = profile.instagramUsername
-                      ? `@${profile.instagramUsername}`
-                      : profile.name;
-                    return (
-                      <optgroup key={profile.id} label={`🔒 ${profileDisplay}`} className="bg-slate-900 text-violet-300">
-                        {folders.map((folder) => (
-                          <option
-                            key={`vault:${profile.id}:${folder.id}`}
-                            value={`vault:${profile.id}:${folder.id}`}
-                            className="bg-slate-800 text-slate-100 py-2"
-                          >
-                            {folder.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
+                {mounted && (
+                  <div ref={folderDropdownRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setFolderDropdownOpen(!folderDropdownOpen)}
+                      disabled={isLoadingVaultData || isGenerating || !profileId}
+                      className="w-full flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-violet-500/50 disabled:opacity-50"
+                    >
+                      <span className="flex items-center gap-2">
+                        <FolderOpen className="w-4 h-4 text-violet-300" />
+                        {targetFolder
+                          ? vaultFolders.find((f) => f.id === targetFolder)?.name || "Select folder..."
+                          : "Select a vault folder..."}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${folderDropdownOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {folderDropdownOpen && (
+                      <div className="absolute z-50 bottom-full mb-2 w-full rounded-2xl border border-white/10 bg-slate-800/95 backdrop-blur-xl shadow-xl overflow-hidden">
+                        <div className="max-h-60 overflow-y-auto py-1">
+                          {vaultFolders.filter((f) => !f.isDefault).length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-slate-400">
+                              No folders available for this profile
+                            </div>
+                          ) : (
+                            vaultFolders
+                              .filter((f) => !f.isDefault)
+                              .map((folder) => (
+                                <button
+                                  key={folder.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetFolder(folder.id);
+                                    setFolderDropdownOpen(false);
+                                  }}
+                                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-white/10 ${
+                                    targetFolder === folder.id
+                                      ? "bg-violet-500/20 text-violet-200"
+                                      : "text-slate-200"
+                                  }`}
+                                >
+                                  <FolderOpen className="w-4 h-4 text-violet-300" />
+                                  <span className="flex-1 text-left">{folder.name}</span>
+                                  {targetFolder === folder.id && (
+                                    <Check className="w-4 h-4 text-violet-400" />
+                                  )}
+                                </button>
+                              ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <p className="text-xs text-slate-400">
                   {getSelectedFolderDisplay()}
                 </p>
@@ -1362,6 +1674,28 @@ export default function KlingMotionControl() {
           </div>,
           document.body
         )}
+
+      {/* Reference Bank Selector for Images */}
+      {mounted && profileId && (
+        <ReferenceSelector
+          isOpen={showReferenceBankSelector}
+          onClose={() => setShowReferenceBankSelector(false)}
+          onSelect={handleReferenceBankSelect}
+          filterType="image"
+          profileId={profileId}
+        />
+      )}
+
+      {/* Reference Bank Selector for Videos */}
+      {mounted && profileId && (
+        <ReferenceSelector
+          isOpen={showVideoReferenceBankSelector}
+          onClose={() => setShowVideoReferenceBankSelector(false)}
+          onSelect={handleVideoReferenceBankSelect}
+          filterType="video"
+          profileId={profileId}
+        />
+      )}
     </div>
   );
 }

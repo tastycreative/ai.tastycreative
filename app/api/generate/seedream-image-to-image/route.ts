@@ -47,6 +47,10 @@ export async function POST(request: NextRequest) {
       saveToVault,
       vaultProfileId,
       vaultFolderId,
+      // Generation parameters for reuse
+      resolution,
+      aspectRatio,
+      referenceImageUrls, // Array of reference image URLs for reuse
     } = body;
 
     // Validate required fields
@@ -264,9 +268,11 @@ export async function POST(request: NextRequest) {
                 model: data.model || model,
                 prompt: body.prompt,
                 size: item.size || body.size,
-                resolution: body.size?.includes('4096') || body.size?.includes('4704') || body.size?.includes('5504') || body.size?.includes('6240') ? '4K' : '2K',
+                resolution: body.resolution || (body.size?.includes('4096') || body.size?.includes('4704') || body.size?.includes('5504') || body.size?.includes('6240') ? '4K' : '2K'),
+                aspectRatio: body.aspectRatio || null,
                 watermark: body.watermark,
                 numReferenceImages: Array.isArray(image) ? image.length : 1,
+                referenceImageUrls: body.referenceImageUrls || [],
                 generatedAt: new Date().toISOString(),
               },
             },
@@ -303,9 +309,13 @@ export async function POST(request: NextRequest) {
                 model: data.model,
                 prompt: body.prompt,
                 size: body.size,
+                resolution: body.resolution || (body.size?.includes('4096') || body.size?.includes('4704') || body.size?.includes('5504') || body.size?.includes('6240') ? '4K' : '2K'),
+                aspectRatio: body.aspectRatio || null,
                 watermark: body.watermark,
                 numReferenceImages: Array.isArray(image) ? image.length : 1,
+                referenceImageUrls: body.referenceImageUrls || [],
                 generatedAt: new Date().toISOString(),
+                vaultProfileId: body.vaultProfileId || null,
               },
             },
           });
@@ -357,14 +367,18 @@ export async function POST(request: NextRequest) {
 }
 
 // GET endpoint for fetching generation history
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log('📋 Fetching SeeDream I2I history for user:', userId);
+    // Get profileId from query params to filter by profile
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('profileId');
+
+    console.log('📋 Fetching SeeDream I2I history for user:', userId, 'profileId:', profileId);
 
     // First get generation jobs that are SeeDream I2I type
     const recentJobs = await prisma.generationJob.findMany({
@@ -383,11 +397,16 @@ export async function GET() {
       },
     });
 
-    // Filter to only SeeDream I2I jobs
+    // Filter to only SeeDream I2I jobs (and optionally by profileId)
     const seedreamJobIds = recentJobs
       .filter((job) => {
         const params = job.params as any;
-        return params?.source === 'seedream-i2i';
+        const isSeeDreamI2I = params?.source === 'seedream-i2i';
+        // If profileId is provided, filter to only jobs for that profile
+        if (profileId && params?.vaultProfileId) {
+          return isSeeDreamI2I && params.vaultProfileId === profileId;
+        }
+        return isSeeDreamI2I;
       })
       .map((job) => job.id);
 
@@ -409,18 +428,33 @@ export async function GET() {
         orderBy: {
           createdAt: 'desc',
         },
-        take: 20,
+        take: 50,
       });
+      
+      // Filter by profileId from metadata if provided
+      if (profileId) {
+        generatedImages = generatedImages.filter((img) => {
+          const metadata = img.metadata as any;
+          return metadata?.vaultProfileId === profileId;
+        });
+      }
     }
 
     console.log('📋 Found generated images:', generatedImages.length);
 
     // Also fetch vault items that were created from SeeDream I2I
+    const vaultWhere: any = {
+      clerkId: userId,
+      fileType: 'image/png',
+    };
+    
+    // Filter by profileId if provided
+    if (profileId) {
+      vaultWhere.profileId = profileId;
+    }
+    
     const allVaultImages = await prisma.vaultItem.findMany({
-      where: {
-        clerkId: userId,
-        fileType: 'image/png',
-      },
+      where: vaultWhere,
       orderBy: {
         createdAt: 'desc',
       },
@@ -435,7 +469,7 @@ export async function GET() {
 
     console.log('📋 Found vault images:', vaultImages.length);
 
-    // Map generated images
+    // Map generated images with full metadata for reuse
     const mappedGeneratedImages = generatedImages.map((img) => {
       const metadata = img.metadata as any;
       return {
@@ -447,10 +481,19 @@ export async function GET() {
         createdAt: img.createdAt.toISOString(),
         status: 'completed' as const,
         source: 'generated' as const,
+        // Include full metadata for reuse functionality
+        metadata: {
+          resolution: metadata?.resolution || '2K',
+          aspectRatio: metadata?.aspectRatio || null,
+          watermark: metadata?.watermark || false,
+          numReferenceImages: metadata?.numReferenceImages || 1,
+          referenceImageUrls: metadata?.referenceImageUrls || [],
+          profileId: metadata?.vaultProfileId || null,
+        },
       };
     });
 
-    // Map vault images
+    // Map vault images with full metadata for reuse
     const mappedVaultImages = vaultImages.map((img) => {
       const metadata = img.metadata as any;
       return {
@@ -462,6 +505,16 @@ export async function GET() {
         createdAt: img.createdAt.toISOString(),
         status: 'completed' as const,
         source: 'vault' as const,
+        profileId: img.profileId,
+        // Include full metadata for reuse functionality
+        metadata: {
+          resolution: metadata?.resolution || '2K',
+          aspectRatio: metadata?.aspectRatio || null,
+          watermark: metadata?.watermark || false,
+          numReferenceImages: metadata?.numReferenceImages || 1,
+          referenceImageUrls: metadata?.referenceImageUrls || [],
+          profileId: img.profileId,
+        },
       };
     });
 
