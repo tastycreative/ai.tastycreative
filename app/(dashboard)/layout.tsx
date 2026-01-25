@@ -50,6 +50,7 @@ import {
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
 import { NotificationBell } from "@/components/NotificationBell";
+import { GlobalProfileSelector } from "@/components/GlobalProfileSelector";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import { PermissionGuard } from "@/components/PermissionGuard";
 
@@ -106,6 +107,36 @@ export default function DashboardLayout({
       href: "/dashboard",
       icon: Home,
     },
+    {
+      name: "My Influencers",
+      href: "/workspace/my-influencers",
+      icon: Users,
+    },
+    {
+      name: "Vault",
+      href: "/workspace/vault",
+      icon: Shield,
+    },
+    {
+      name: "Reference Bank",
+      href: "/workspace/reference-bank",
+      icon: Library,
+    },
+    ...(permissions.canCaptionBank
+      ? [
+          {
+            name: "Caption Banks",
+            collapsible: true,
+            items: [
+              {
+                name: "Captions",
+                href: "/workspace/caption-banks/captions",
+                icon: FileText,
+              },
+            ],
+          },
+        ]
+      : []),
     // Content Studio - check Instagram/Planning tab permissions and individual features
     ...(permissions.hasInstagramTab || permissions.hasPlanningTab
       ? [
@@ -113,6 +144,12 @@ export default function DashboardLayout({
             name: "Content Studio",
             collapsible: true,
             items: [
+              // Sexting Set Organizer - always show first if user has the tab
+              {
+                name: "Sexting Set Organizer",
+                href: "/workspace/content-studio/sexting-set-organizer",
+                icon: Flame,
+              },
               // Always show these core features if user has the tab
               {
                 name: "Staging",
@@ -171,12 +208,6 @@ export default function DashboardLayout({
                 name: "Workflow",
                 href: "/workspace/content-studio/workflow",
                 icon: ListChecks,
-              },
-              // Sexting Set Organizer - always show if user has the tab
-              {
-                name: "Sexting Set Organizer",
-                href: "/workspace/content-studio/sexting-set-organizer",
-                icon: Flame,
               },
             ],
           },
@@ -347,28 +378,27 @@ export default function DashboardLayout({
             icon: Move,
           }] : []),
         ] : []),
-      ].flat(), // Flatten to remove nested arrays
-          },
-        ]
-      : []),
-    // Workspace - check hasVaultTab permission
-    ...(permissions.hasVaultTab
-      ? [
-          {
-            name: "Workspace",
-      collapsible: true,
-      items: [
-        {
-          name: "AI_VOICE_GROUP_LABEL",
+        // Divider only if we have Kling features AND AI Voice feature below
+        ...((permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) &&
+            permissions.canAIVoice ? [{
+          name: "DIVIDER_5",
           href: "#",
-          icon: Mic,
-        },
-              {
-                name: "Vault",
-                href: "/workspace/vault",
-                icon: Shield,
-              },
-            ],
+          icon: Sparkles,
+        }] : []),
+        // AI Voice section - only show if user has AI Voice permission
+        ...(permissions.canAIVoice ? [
+          {
+            name: "AI_VOICE_GROUP_LABEL",
+            href: "#",
+            icon: Mic,
+          },
+          {
+            name: "Voice Generator",
+            href: "/workspace/generate-content/ai-voice",
+            icon: Mic,
+          },
+        ] : []),
+      ].flat(), // Flatten to remove nested arrays
           },
         ]
       : []),
@@ -380,43 +410,33 @@ export default function DashboardLayout({
       collapsible: true,
       items: [
         {
-          name: "Instagram Extractor",
-          href: "/workspace/ai-tools/instagram-extractor",
-          icon: Instagram,
+          name: "User Feed",
+          href: "/workspace/user-feed",
+          icon: Share2,
         },
         {
-          name: "Style Transfer Prompts",
-          href: "/workspace/ai-tools/style-transfer-prompts",
-          icon: Wand2,
+          name: "My Profile",
+          href: "/workspace/my-profile",
+          icon: UserCheck,
         },
         {
-          name: "Video Prompts",
-          href: "/workspace/ai-tools/video-prompts",
-          icon: PlayCircle,
+          name: "Friends",
+          href: "/workspace/friends",
+          icon: UserCheck,
         },
         {
-          name: "Flux Kontext Prompts",
-          href: "/workspace/ai-tools/flux-kontext-prompts",
-          icon: Sparkles,
+          name: "Bookmarks",
+          href: "/workspace/bookmarks",
+          icon: Bookmark,
+        },
+        {
+          name: "My Creators",
+          href: "/workspace/creators",
+          icon: Users,
         },
       ],
     },
-    {
-      name: "Caption Banks",
-      collapsible: true,
-      items: [
-        {
-          name: "Captions",
-          href: "/workspace/caption-banks/captions",
-          icon: FileText,
-        },
-              {
-                name: "My Creators",
-                href: "/workspace/creators",
-                icon: Users,
-              },
-            ],
-          },
+
         ]
       : []),
     // Train Models - check hasTrainingTab permission
@@ -482,26 +502,7 @@ export default function DashboardLayout({
         ]
       : []),
     // Caption Banks - check canCaptionBank permission
-    ...(permissions.canCaptionBank
-      ? [
-          {
-            name: "Caption Banks",
-      collapsible: true,
-      items: [
-        {
-          name: "Captions",
-          href: "/workspace/caption-banks/captions",
-          icon: FileText,
-        },
-              {
-                name: "Caption Performance Tracker",
-                href: "/workspace/caption-banks/caption-performance-tracker",
-                icon: BarChart3,
-              },
-            ],
-          },
-        ]
-      : []),
+    
     // Conditionally add content creator link
     ...(isContentCreator
       ? [
@@ -1154,44 +1155,61 @@ export default function DashboardLayout({
           sidebarOpen ? "w-80" : "w-24",
         )}
       >
-        {/* Animated gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-        {/* Sidebar header */}
-        <div className="flex flex-col space-y-2 p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800 relative">
-          <div className="flex items-center justify-between">
-            {sidebarOpen && (
-              <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-gradient">
-                Creative Ink
-              </h1>
-            )}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:rotate-180 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            >
-              {sidebarOpen ? (
-                <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
-              ) : (
-                <ChevronRight className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
-              )}
-            </button>
-          </div>
-          {sidebarOpen && (
-            <div className="pt-1">
-              {permissionsLoading ? (
-                // Loading skeleton for organization switcher
-                <div className="animate-pulse">
-                  <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
+        {/* Sidebar Glass Container */}
+        <div className="flex-1 m-3 rounded-3xl bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08] flex flex-col overflow-hidden shadow-2xl shadow-black/20">
+          {/* Sidebar Header with Organization & Profile Selectors */}
+          <div className="p-5 border-b border-white/[0.06]">
+            <div className="flex items-center justify-between mb-3">
+              {sidebarOpen && (
+                <div className="text-[10px] font-semibold text-white/20 uppercase tracking-wider">
+                  Workspace
                 </div>
-              ) : (
-                <OrganizationSwitcher />
               )}
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all duration-200 ml-auto"
+                title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              >
+                {sidebarOpen ? (
+                  <ChevronLeft className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto custom-scrollbar">
+            {sidebarOpen && (
+              <div className="space-y-3 w-full">
+                {permissionsLoading ? (
+                  <div className="animate-pulse space-y-3">
+                    <div className="h-12 bg-white/5 rounded-lg" />
+                    <div className="h-12 bg-white/5 rounded-lg" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Organization Switcher - for managing organizations and subscriptions */}
+                    <div className="w-full">
+                      <div className="text-[10px] font-semibold text-white/30 uppercase tracking-wider mb-2 px-1">
+                        Organization
+                      </div>
+                      <OrganizationSwitcher />
+                    </div>
+
+                    {/* Profile Selector - for switching between Instagram profiles */}
+                    <div className="w-full">
+                      <div className="text-[10px] font-semibold text-white/30 uppercase tracking-wider mb-2 px-1">
+                        Active Profile
+                      </div>
+                      <GlobalProfileSelector />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
           {permissionsLoading ? (
             // Loading skeleton while permissions are being fetched
             <div className="space-y-2 animate-pulse">
@@ -1211,7 +1229,7 @@ export default function DashboardLayout({
               }
             })
           )}
-        </nav>
+          </nav>
 
           {/* Sidebar Footer */}
           <div className="p-5 border-t border-white/[0.06]">
@@ -1259,10 +1277,7 @@ export default function DashboardLayout({
         >
           {/* Sidebar header */}
           <div className="flex flex-col space-y-2 p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
-            <div className="flex items-center justify-between">
-              <h1 className="text-sm xs:text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Creative Ink
-              </h1>
+            <div className="flex items-center justify-end">
               <button
                 onClick={() => setSidebarOpen(false)}
                 className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1271,14 +1286,35 @@ export default function DashboardLayout({
                 <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
               </button>
             </div>
-            <div className="pt-1">
+            <div className="space-y-3">
               {permissionsLoading ? (
-                // Loading skeleton for organization switcher
-                <div className="animate-pulse">
+                // Loading skeleton for selectors
+                <div className="animate-pulse space-y-3">
+                  <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
                   <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
                 </div>
               ) : (
-                <OrganizationSwitcher />
+                <>
+                  {/* Organization Switcher */}
+                  <div>
+                    <div className="px-1 mb-2">
+                      <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                        Organization
+                      </p>
+                    </div>
+                    <OrganizationSwitcher />
+                  </div>
+
+                  {/* Profile Selector */}
+                  <div>
+                    <div className="px-1 mb-2">
+                      <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                        Active Profile
+                      </p>
+                    </div>
+                    <GlobalProfileSelector />
+                  </div>
+                </>
               )}
             </div>
           </div>
