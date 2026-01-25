@@ -204,6 +204,11 @@ export async function GET(request: NextRequest) {
     // Handle history request
     if (isHistoryRequest) {
       try {
+        // Get profileId from query params to filter by profile
+        const profileId = searchParams.get("profileId");
+        
+        console.log('📋 Fetching SeeDream T2V history for user:', userId, 'profileId:', profileId);
+        
         const videos = await prisma.generatedVideo.findMany({
           where: {
             clerkId: userId,
@@ -221,19 +226,41 @@ export async function GET(request: NextRequest) {
           orderBy: {
             createdAt: "desc",
           },
-          take: 20,
+          take: 50,
         });
 
-        const formattedVideos = videos.map((video) => ({
-          id: video.id,
-          videoUrl: video.awsS3Url || video.s3Key,
-          prompt: (video.job.params as any)?.prompt || "Unknown prompt",
-          modelVersion: "SeeDream 4.5",
-          duration: (video.metadata as any)?.duration || video.duration || 5,
-          cameraFixed: (video.metadata as any)?.cameraFixed || false,
-          createdAt: video.createdAt.toISOString(),
-          status: "completed" as const,
-        }));
+        // Filter by profileId if provided - include videos with no profile set (backward compatibility)
+        let filteredVideos = videos;
+        if (profileId) {
+          filteredVideos = videos.filter((video) => {
+            const params = video.job.params as any;
+            // Show videos that match the profile OR have no profile set
+            return params?.vaultProfileId === profileId || !params?.vaultProfileId;
+          });
+        }
+
+        const formattedVideos = filteredVideos.map((video) => {
+          const metadata = video.metadata as any;
+          const params = video.job.params as any;
+          return {
+            id: video.id,
+            videoUrl: video.awsS3Url || video.s3Key,
+            prompt: params?.prompt || "Unknown prompt",
+            modelVersion: "SeeDream 4.5",
+            duration: metadata?.duration || video.duration || 5,
+            cameraFixed: metadata?.cameraFixed || params?.cameraFixed || false,
+            createdAt: video.createdAt.toISOString(),
+            status: "completed" as const,
+            // Include full metadata for potential reuse
+            metadata: {
+              resolution: metadata?.resolution || params?.resolution || "720p",
+              ratio: metadata?.ratio || params?.ratio || "16:9",
+              generateAudio: params?.generateAudio ?? true,
+              cameraFixed: metadata?.cameraFixed || params?.cameraFixed || false,
+              profileId: params?.vaultProfileId || null,
+            },
+          };
+        });
 
         return NextResponse.json({ videos: formattedVideos });
       } catch (error) {
@@ -367,11 +394,53 @@ export async function GET(request: NextRequest) {
 
         const awsS3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, '/');
 
-        // Save to database - either VaultItem or GeneratedVideo
+        // Save to database - ALWAYS create GeneratedVideo for history
         let savedVideo: any;
         
+        // Always create GeneratedVideo for history tracking
+        const generatedVideo = await prisma.generatedVideo.create({
+          data: {
+            clerkId: userId,
+            jobId: generationJob.id,
+            filename: filename,
+            subfolder: subfolder || "",
+            type: "output",
+            s3Key: s3Key,
+            awsS3Key: s3Key,
+            awsS3Url: awsS3Url,
+            duration: data.duration,
+            fps: data.framespersecond,
+            format: "mp4",
+            metadata: {
+              source: "seedream-t2v",
+              prompt: params?.prompt || "",
+              resolution: params?.resolution || data.resolution,
+              ratio: params?.ratio || data.ratio,
+              duration: data.duration || params?.duration || 5,
+              seed: data.seed,
+              cameraFixed: params?.cameraFixed,
+              generateAudio: params?.generateAudio ?? true,
+              watermark: params?.watermark,
+              originalUrl: data.content.video_url,
+              savedToVault: saveToVault && vaultProfileId && vaultFolderId ? true : false,
+            },
+          },
+        });
+        
+        savedVideo = {
+          id: generatedVideo.id,
+          videoUrl: awsS3Url,
+          prompt: params?.prompt || "",
+          modelVersion: "SeeDream 4.5",
+          duration: data.duration || 5,
+          cameraFixed: params?.cameraFixed || false,
+          createdAt: generatedVideo.createdAt.toISOString(),
+          status: "completed" as const,
+          savedToVault: false,
+        };
+        
+        // Additionally create VaultItem if saving to vault
         if (saveToVault && vaultProfileId && vaultFolderId) {
-          // Create VaultItem for vault storage with generation metadata
           const vaultItem = await prisma.vaultItem.create({
             data: {
               clerkId: userId,
@@ -387,66 +456,21 @@ export async function GET(request: NextRequest) {
                 generationType: "text-to-video",
                 model: "SeeDream 4.5",
                 prompt: params?.prompt || "",
-                resolution: data.resolution,
-                ratio: data.ratio,
-                duration: data.duration || 5,
+                resolution: params?.resolution || data.resolution,
+                ratio: params?.ratio || data.ratio,
+                duration: data.duration || params?.duration || 5,
                 fps: data.framespersecond,
                 seed: data.seed,
                 cameraFixed: params?.cameraFixed,
+                generateAudio: params?.generateAudio ?? true,
                 generatedAt: new Date().toISOString(),
               },
             },
           });
           
-          savedVideo = {
-            id: vaultItem.id,
-            videoUrl: awsS3Url,
-            prompt: params?.prompt || "",
-            modelVersion: "SeeDream 4.5",
-            duration: data.duration || 5,
-            cameraFixed: params?.cameraFixed || false,
-            createdAt: vaultItem.createdAt.toISOString(),
-            status: "completed" as const,
-            savedToVault: true,
-          };
-        } else {
-          // Create GeneratedVideo for regular storage
-          const generatedVideo = await prisma.generatedVideo.create({
-            data: {
-              clerkId: userId,
-              jobId: generationJob.id,
-              filename: filename,
-              subfolder: subfolder || "",
-              type: "output",
-              s3Key: s3Key,
-              awsS3Key: s3Key,
-              awsS3Url: awsS3Url,
-              duration: data.duration,
-              fps: data.framespersecond,
-              format: "mp4",
-              metadata: {
-                source: "seedream-t2v",
-                prompt: params?.prompt || "",
-                resolution: data.resolution,
-                ratio: data.ratio,
-                seed: data.seed,
-                cameraFixed: params?.cameraFixed,
-                watermark: params?.watermark,
-                originalUrl: data.content.video_url,
-              },
-            },
-          });
-          
-          savedVideo = {
-            id: generatedVideo.id,
-            videoUrl: awsS3Url,
-            prompt: params?.prompt || "",
-            modelVersion: "SeeDream 4.5",
-            duration: data.duration || 5,
-            cameraFixed: params?.cameraFixed || false,
-            createdAt: generatedVideo.createdAt.toISOString(),
-            status: "completed" as const,
-          };
+          savedVideo.savedToVault = true;
+          savedVideo.vaultItemId = vaultItem.id;
+          console.log("Video also saved to Vault:", vaultItem.id);
         }
 
         // Update GenerationJob status

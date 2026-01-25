@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import {
   ImageIcon,
   Wand2,
@@ -23,14 +24,9 @@ import {
   Info,
   Zap,
   Archive,
+  FolderOpen,
+  Check,
 } from "lucide-react";
-
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername?: string | null;
-  isDefault?: boolean;
-}
 
 interface VaultFolder {
   id: string;
@@ -47,6 +43,12 @@ interface GeneratedImage {
   size: string;
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  metadata?: {
+    resolution?: string;
+    aspectRatio?: string;
+    negativePrompt?: string;
+    watermark?: boolean;
+  };
 }
 
 interface GenerationJob {
@@ -75,9 +77,70 @@ export default function SeeDreamTextToImage() {
   // Folder Selection State
   const [targetFolder, setTargetFolder] = useState<string>("");
 
-  // Vault Integration State
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  // Use global profile from header
+  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+
+  // Hydration fix - track if component is mounted
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Check for reuse data from sessionStorage (from Vault)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const reuseDataStr = sessionStorage.getItem('seedream-t2i-reuse');
+    if (reuseDataStr) {
+      try {
+        const reuseData = JSON.parse(reuseDataStr);
+        
+        // Populate form with reuse data
+        if (reuseData.prompt) {
+          setPrompt(reuseData.prompt);
+        }
+        if (reuseData.resolution) {
+          setSelectedResolution(reuseData.resolution as "2K" | "4K");
+        }
+        if (reuseData.aspectRatio) {
+          const validRatios = ["1:1", "3:4", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9"];
+          if (validRatios.includes(reuseData.aspectRatio)) {
+            setSelectedRatio(reuseData.aspectRatio as typeof selectedRatio);
+          }
+        }
+        if (reuseData.negativePrompt) {
+          setNegativePrompt(reuseData.negativePrompt);
+        }
+        if (reuseData.watermark !== undefined) {
+          setEnableWatermark(reuseData.watermark);
+        }
+        
+        // Clear sessionStorage after use
+        sessionStorage.removeItem('seedream-t2i-reuse');
+      } catch (e) {
+        console.error('Error parsing reuse data:', e);
+        sessionStorage.removeItem('seedream-t2i-reuse');
+      }
+    }
+  }, []);
+
+  // Folder dropdown state
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Vault Integration State - only folders for the selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   // Generation State
@@ -89,6 +152,7 @@ export default function SeeDreamTextToImage() {
   // History State
   const [generationHistory, setGenerationHistory] = useState<GeneratedImage[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   // Modal state for viewing images
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
@@ -126,104 +190,72 @@ export default function SeeDreamTextToImage() {
   // Get current size based on resolution and ratio
   const currentSize = resolutionRatios[selectedResolution][selectedRatio];
 
-  // Load generation history on mount and when apiClient becomes available
+  // Load generation history when apiClient is available or profile changes
   useEffect(() => {
     if (apiClient) {
       loadGenerationHistory();
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
   const loadGenerationHistory = async () => {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
-      const response = await apiClient.get("/api/generate/seedream-text-to-image");
+      // Add profileId to filter by selected profile
+      const url = globalProfileId 
+        ? `/api/generate/seedream-text-to-image?profileId=${globalProfileId}`
+        : "/api/generate/seedream-text-to-image";
+      const response = await apiClient.get(url);
       if (response.ok) {
         const data = await response.json();
         const images = data.images || [];
-        console.log('📋 Loaded generation history:', images.length, 'images');
+        console.log('📋 Loaded T2I generation history:', images.length, 'images for profile:', globalProfileId);
         console.log('📋 Image URLs present:', images.filter((i: any) => !!i.imageUrl).length);
         setGenerationHistory(images);
       } else {
-        console.error('Failed to load history:', response.status);
+        console.error('Failed to load T2I history:', response.status);
       }
     } catch (error) {
-      console.error('Error loading history:', error);
+      console.error('Error loading T2I history:', error);
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
-  // Load vault profiles and their folders
+  // Load vault folders for the selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient) return;
+    if (!apiClient || !globalProfileId) return;
 
     setIsLoadingVaultData(true);
     try {
-      // First, load all Instagram profiles
-      const profilesResponse = await fetch('/api/instagram/profiles');
-      if (!profilesResponse.ok) {
-        throw new Error('Failed to load profiles');
+      const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
+      if (foldersResponse.ok) {
+        const folders = await foldersResponse.json();
+        setVaultFolders(folders);
       }
-
-      const profilesData = await profilesResponse.json();
-      const profileList: InstagramProfile[] = Array.isArray(profilesData)
-        ? profilesData
-        : profilesData.profiles || [];
-
-      // Sort profiles alphabetically
-      const sortedProfiles = [...profileList].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
-      );
-
-      setVaultProfiles(sortedProfiles);
-
-      // Now load vault folders for each profile
-      const foldersByProfile: Record<string, VaultFolder[]> = {};
-
-      await Promise.all(
-        sortedProfiles.map(async (profile) => {
-          try {
-            const foldersResponse = await fetch(`/api/vault/folders?profileId=${profile.id}`);
-            if (foldersResponse.ok) {
-              const folders = await foldersResponse.json();
-              foldersByProfile[profile.id] = folders;
-            }
-          } catch (error) {
-            console.error(`Failed to load folders for profile ${profile.id}:`, error);
-            foldersByProfile[profile.id] = [];
-          }
-        })
-      );
-
-      setVaultFoldersByProfile(foldersByProfile);
     } catch (error) {
-      console.error('Failed to load vault data:', error);
+      console.error('Failed to load vault folders:', error);
+      setVaultFolders([]);
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
-  // Load vault data on mount
+  // Load vault data when profile changes
   useEffect(() => {
     loadVaultData();
+    // Clear selected folder when profile changes
+    setTargetFolder("");
   }, [loadVaultData]);
 
   // Get display text for the selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return 'Select a vault folder to save images';
+    if (!targetFolder || !globalProfileId) return 'Select a vault folder to save images';
     
-    if (targetFolder.startsWith('vault:')) {
-      const parts = targetFolder.split(':');
-      const profileId = parts[1];
-      const folderId = parts[2];
-      const profile = vaultProfiles.find(p => p.id === profileId);
-      const folders = vaultFoldersByProfile[profileId] || [];
-      const folder = folders.find(f => f.id === folderId);
-      if (profile && folder) {
-        const profileDisplay = profile.instagramUsername ? `@${profile.instagramUsername}` : profile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
-      }
+    const folder = vaultFolders.find(f => f.id === targetFolder);
+    if (folder && selectedProfile) {
+      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
     }
     return 'Select a vault folder to save images';
   };
@@ -262,14 +294,17 @@ export default function SeeDreamTextToImage() {
         watermark: enableWatermark,
         sequential_image_generation: maxImages > 1 ? "auto" : "disabled",
         size: currentSize,
+        // Always send the current profile ID so images are associated with the profile
+        vaultProfileId: globalProfileId || null,
+        // Include resolution and aspect ratio for metadata
+        resolution: selectedResolution,
+        aspectRatio: selectedRatio,
       };
 
-      // Handle vault folder selection
-      if (targetFolder && targetFolder.startsWith('vault:')) {
-        const parts = targetFolder.split(':');
+      // Handle vault folder selection - save directly to vault
+      if (targetFolder && globalProfileId) {
         payload.saveToVault = true;
-        payload.vaultProfileId = parts[1];
-        payload.vaultFolderId = parts[2];
+        payload.vaultFolderId = targetFolder;
       }
 
       // Add negative prompt if provided
@@ -402,6 +437,45 @@ export default function SeeDreamTextToImage() {
     setGeneratedImages([]);
   };
 
+  // Reuse settings from a generated image
+  const handleReuseSettings = (image: GeneratedImage) => {
+    // Set prompt
+    if (image.prompt) {
+      setPrompt(image.prompt);
+    }
+    
+    // Set resolution from metadata or try to parse from size
+    if (image.metadata?.resolution) {
+      setSelectedResolution(image.metadata.resolution as "2K" | "4K");
+    }
+    
+    // Set aspect ratio from metadata
+    if (image.metadata?.aspectRatio) {
+      const validRatios = ["1:1", "3:4", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9"];
+      if (validRatios.includes(image.metadata.aspectRatio)) {
+        setSelectedRatio(image.metadata.aspectRatio as typeof selectedRatio);
+      }
+    }
+    
+    // Set negative prompt from metadata
+    if (image.metadata?.negativePrompt) {
+      setNegativePrompt(image.metadata.negativePrompt);
+    }
+    
+    // Set watermark from metadata
+    if (image.metadata?.watermark !== undefined) {
+      setEnableWatermark(image.metadata.watermark);
+    }
+    
+    // Close any open modals
+    setShowImageModal(false);
+    setShowHistoryModal(false);
+    setSelectedImage(null);
+    
+    // Scroll to top to show the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="relative min-h-screen bg-slate-950 text-slate-50">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -421,7 +495,7 @@ export default function SeeDreamTextToImage() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Live Studio</p>
-                <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5</h1>
+                <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5 — Text to Image</h1>
               </div>
             </div>
             <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
@@ -567,7 +641,7 @@ export default function SeeDreamTextToImage() {
               </div>
 
               {/* Folder Selection */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Archive className="w-4 h-4 text-purple-300" />
                   <p className="text-sm font-semibold text-white">Save to Vault</p>
@@ -575,52 +649,130 @@ export default function SeeDreamTextToImage() {
                     <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
                   )}
                 </div>
-                <div className="relative">
-                  <select
-                    value={targetFolder}
-                    onChange={(e) => setTargetFolder(e.target.value)}
-                    disabled={isGenerating || isLoadingVaultData}
-                    className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-white focus:border-purple-400 focus:ring-2 focus:ring-purple-400/40 disabled:opacity-50 [&>option]:bg-slate-800 [&>option]:text-slate-100 [&>optgroup]:bg-slate-900 [&>optgroup]:text-purple-300"
-                  >
-                    <option value="">Select a vault folder...</option>
-                    
-                    {/* Vault Folders by Profile */}
-                    {vaultProfiles.map((profile) => {
-                      const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                      if (folders.length === 0) return null;
-                      
-                      return (
-                        <optgroup 
-                          key={profile.id} 
-                          label={`${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                        >
-                          {folders.map((folder) => (
-                            <option 
-                              key={folder.id} 
-                              value={`vault:${profile.id}:${folder.id}`}
-                            >
-                              {folder.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                </div>
                 
-                {/* Folder indicator */}
-                <div className="flex items-center gap-2">
-                  {targetFolder && (
-                    <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-200">
-                      <Archive className="w-3 h-3" />
-                      <span>Vault Storage</span>
+                {/* Modern Custom Dropdown */}
+                <div ref={folderDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
+                    className={`
+                      w-full flex items-center justify-between gap-3 px-4 py-3.5
+                      rounded-2xl border transition-all duration-200
+                      ${folderDropdownOpen 
+                        ? 'border-purple-400 bg-purple-500/10 ring-2 ring-purple-400/30' 
+                        : 'border-white/10 bg-slate-800/80 hover:border-purple-400/50 hover:bg-slate-800'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    `}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`
+                        flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
+                        ${targetFolder 
+                          ? 'bg-gradient-to-br from-purple-500/30 to-indigo-500/30 border border-purple-400/30' 
+                          : 'bg-slate-700/50 border border-white/5'
+                        }
+                      `}>
+                        <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-purple-300' : 'text-slate-400'}`} />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <p className={`text-sm font-medium truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
+                          {targetFolder 
+                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
+                            : 'Select a folder...'
+                          }
+                        </p>
+                        {targetFolder && selectedProfile && (
+                          <p className="text-[11px] text-purple-300/70 truncate">
+                            {selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {folderDropdownOpen && mounted && (
+                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
+                      {/* Clear Selection Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetFolder('');
+                          setFolderDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                          <X className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <span className="text-sm text-slate-400">No folder selected</span>
+                        {!targetFolder && <Check className="w-4 h-4 text-purple-400 ml-auto" />}
+                      </button>
+
+                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
+                        <div className="my-2 mx-3 h-px bg-white/5" />
+                      )}
+
+                      {/* Folder Options */}
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => {
+                              setTargetFolder(folder.id);
+                              setFolderDropdownOpen(false);
+                            }}
+                            className={`
+                              w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                              ${targetFolder === folder.id 
+                                ? 'bg-purple-500/15' 
+                                : 'hover:bg-white/5'
+                              }
+                            `}
+                          >
+                            <div className={`
+                              w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                              ${targetFolder === folder.id 
+                                ? 'bg-gradient-to-br from-purple-500/40 to-indigo-500/40 border border-purple-400/40' 
+                                : 'bg-slate-700/50 border border-white/5'
+                              }
+                            `}>
+                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-300' : 'text-slate-400'}`} />
+                            </div>
+                            <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                              {folder.name}
+                            </span>
+                            {targetFolder === folder.id && (
+                              <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
+                        <div className="px-4 py-6 text-center">
+                          <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm text-slate-400">No folders available</p>
+                          <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
+                        </div>
+                      )}
                     </div>
                   )}
-                  <p className="text-xs text-slate-300 flex-1">
-                    {getSelectedFolderDisplay()}
-                  </p>
                 </div>
+
+                {/* Status Indicator */}
+                {targetFolder && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                    <p className="text-xs text-purple-200 flex-1 truncate">
+                      {getSelectedFolderDisplay()}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Batch Size */}
@@ -766,9 +918,23 @@ export default function SeeDreamTextToImage() {
 
               {/* Generation History */}
               <div className="mt-8 space-y-3">
-                <div className="flex items-center gap-2 text-white">
-                  <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
-                  <h3 className="text-sm font-semibold">Recent Generations</h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-white">
+                    <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                    <h3 className="text-sm font-semibold">Recent Generations</h3>
+                    {generationHistory.length > 0 && (
+                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                    )}
+                  </div>
+                  {generationHistory.length > 8 && (
+                    <button
+                      onClick={() => setShowHistoryModal(true)}
+                      className="text-xs text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1"
+                    >
+                      View All
+                      <span className="bg-cyan-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                    </button>
+                  )}
                 </div>
                 {generationHistory.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -1053,7 +1219,105 @@ export default function SeeDreamTextToImage() {
                   <Download className="w-4 h-4" />
                   Download image
                 </button>
+
+                {/* Reuse button */}
+                <button
+                  type="button"
+                  onClick={() => handleReuseSettings(selectedImage)}
+                  className="w-full flex items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-white/10 hover:-translate-y-0.5"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reuse settings
+                </button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* View All History Modal */}
+      {showHistoryModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-cyan-900/40 backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-950/95 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
+                  <RefreshCw className="w-5 h-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
+                  <p className="text-xs text-slate-400">{generationHistory.length} images generated</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Grid of all history images */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {generationHistory.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {generationHistory.map((image) => (
+                    <button
+                      key={image.id}
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md shadow-cyan-900/20 transition hover:-translate-y-1 hover:border-cyan-200/40"
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        setSelectedImage(image);
+                        setShowImageModal(true);
+                      }}
+                    >
+                      {image.imageUrl ? (
+                        <img
+                          src={image.imageUrl}
+                          alt={image.prompt}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const placeholder = target.nextElementSibling as HTMLElement;
+                            if (placeholder) placeholder.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-800/50 ${image.imageUrl ? 'hidden' : 'flex'}`}
+                      >
+                        <ImageIcon className="w-8 h-8 text-slate-400 mb-2" />
+                        <span className="text-xs text-slate-400 px-2 text-center line-clamp-2">{image.prompt?.slice(0, 30) || 'Image'}</span>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
+                      <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 transition group-hover:opacity-100">
+                        <p className="text-[11px] text-slate-100 line-clamp-2 mb-1">{image.prompt}</p>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
+                          <span className="bg-white/20 rounded px-1.5 py-0.5">{image.size}</span>
+                        </div>
+                      </div>
+                      {/* Date badge */}
+                      <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
+                        {new Date(image.createdAt).toLocaleDateString()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <ImageIcon className="w-12 h-12 mb-3 opacity-50" />
+                  <p>No generation history yet</p>
+                </div>
+              )}
             </div>
           </div>
         </div>,

@@ -44,6 +44,8 @@ import {
   Film,
   Move,
   Flame,
+  Mic,
+  Library,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
@@ -76,6 +78,12 @@ export default function DashboardLayout({
   const [aiToolsOpen, setAiToolsOpen] = useState(false);
   const [trainModelsOpen, setTrainModelsOpen] = useState(false);
   const [captionBanksOpen, setCaptionBanksOpen] = useState(false);
+  const [fluxGroupOpen, setFluxGroupOpen] = useState(false);
+  const [wan22GroupOpen, setWan22GroupOpen] = useState(false);
+  const [advancedToolsGroupOpen, setAdvancedToolsGroupOpen] = useState(false);
+  const [seedreamGroupOpen, setSeedreamGroupOpen] = useState(false);
+  const [klingAiGroupOpen, setKlingAiGroupOpen] = useState(false);
+  const [aiVoiceGroupOpen, setAiVoiceGroupOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
@@ -351,9 +359,9 @@ export default function DashboardLayout({
       collapsible: true,
       items: [
         {
-          name: "My Influencers",
-          href: "/workspace/my-influencers",
-          icon: Users,
+          name: "AI_VOICE_GROUP_LABEL",
+          href: "#",
+          icon: Mic,
         },
               {
                 name: "Vault",
@@ -372,24 +380,35 @@ export default function DashboardLayout({
       collapsible: true,
       items: [
         {
-          name: "User Feed",
-          href: "/workspace/user-feed",
-          icon: Share2,
+          name: "Instagram Extractor",
+          href: "/workspace/ai-tools/instagram-extractor",
+          icon: Instagram,
         },
         {
-          name: "My Profile",
-          href: "/workspace/my-profile",
-          icon: UserCheck,
+          name: "Style Transfer Prompts",
+          href: "/workspace/ai-tools/style-transfer-prompts",
+          icon: Wand2,
         },
         {
-          name: "Friends",
-          href: "/workspace/friends",
-          icon: UserCheck,
+          name: "Video Prompts",
+          href: "/workspace/ai-tools/video-prompts",
+          icon: PlayCircle,
         },
         {
-          name: "Bookmarks",
-          href: "/workspace/bookmarks",
-          icon: Bookmark,
+          name: "Flux Kontext Prompts",
+          href: "/workspace/ai-tools/flux-kontext-prompts",
+          icon: Sparkles,
+        },
+      ],
+    },
+    {
+      name: "Caption Banks",
+      collapsible: true,
+      items: [
+        {
+          name: "Captions",
+          href: "/workspace/caption-banks/captions",
+          icon: FileText,
         },
               {
                 name: "My Creators",
@@ -554,12 +573,15 @@ export default function DashboardLayout({
           key="flux-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setFluxGroupOpen(!fluxGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-blue-400/30 dark:border-blue-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-blue-400/30 dark:border-blue-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-blue-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -572,10 +594,14 @@ export default function DashboardLayout({
                     Flux Models
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-blue-400 dark:bg-blue-300 animate-pulse"></div>
+                {fluxGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-blue-400 dark:text-blue-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-blue-400 dark:text-blue-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -587,12 +613,15 @@ export default function DashboardLayout({
           key="wan-22-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setWan22GroupOpen(!wan22GroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-teal-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 dark:from-green-500/10 dark:via-emerald-500/10 dark:to-teal-500/10 border border-green-400/30 dark:border-green-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 dark:from-green-500/10 dark:via-emerald-500/10 dark:to-teal-500/10 border border-green-400/30 dark:border-green-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-green-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -605,10 +634,14 @@ export default function DashboardLayout({
                     Wan 2.2 Models
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-green-400 dark:bg-green-300 animate-pulse"></div>
+                {wan22GroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-green-400 dark:text-green-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-green-400 dark:text-green-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -620,12 +653,15 @@ export default function DashboardLayout({
           key="advanced-tools-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setAdvancedToolsGroupOpen(!advancedToolsGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-orange-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-orange-500/20 dark:from-purple-500/10 dark:via-pink-500/10 dark:to-orange-500/10 border border-purple-400/30 dark:border-purple-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-purple-500/20 via-pink-500/20 to-orange-500/20 dark:from-purple-500/10 dark:via-pink-500/10 dark:to-orange-500/10 border border-purple-400/30 dark:border-purple-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-purple-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -638,10 +674,14 @@ export default function DashboardLayout({
                     Advanced Tools
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-purple-400 dark:bg-purple-300 animate-pulse"></div>
+                {advancedToolsGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-purple-400 dark:text-purple-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-purple-400 dark:text-purple-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -653,12 +693,15 @@ export default function DashboardLayout({
           key="seedream-45-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setSeedreamGroupOpen(!seedreamGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-indigo-500/20 dark:from-cyan-500/10 dark:via-blue-500/10 dark:to-indigo-500/10 border border-cyan-400/30 dark:border-cyan-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-indigo-500/20 dark:from-cyan-500/10 dark:via-blue-500/10 dark:to-indigo-500/10 border border-cyan-400/30 dark:border-cyan-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-cyan-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -671,10 +714,14 @@ export default function DashboardLayout({
                     SeeDream 4.5
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-cyan-400 dark:bg-cyan-300 animate-pulse"></div>
+                {seedreamGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-cyan-400 dark:text-cyan-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-cyan-400 dark:text-cyan-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
         </div>
       ) : null;
     }
@@ -686,12 +733,15 @@ export default function DashboardLayout({
           key="kling-ai-group-label"
           className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
         >
-          <div className="relative">
+          <button
+            onClick={() => setKlingAiGroupOpen(!klingAiGroupOpen)}
+            className="w-full relative group"
+          >
             {/* Background glow effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-pink-500/10 rounded-lg blur-sm"></div>
 
             {/* Main label container */}
-            <div className="relative bg-gradient-to-r from-violet-500/20 via-purple-500/20 to-pink-500/20 dark:from-violet-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-violet-400/30 dark:border-violet-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm">
+            <div className="relative bg-gradient-to-r from-violet-500/20 via-purple-500/20 to-pink-500/20 dark:from-violet-500/10 dark:via-purple-500/10 dark:to-pink-500/10 border border-violet-400/30 dark:border-violet-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-violet-400/50 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-1.5 xs:space-x-2">
                   <div className="relative">
@@ -704,10 +754,54 @@ export default function DashboardLayout({
                     Kling AI
                   </span>
                 </div>
-                <div className="h-1 w-1 rounded-full bg-violet-400 dark:bg-violet-300 animate-pulse"></div>
+                {klingAiGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-violet-400 dark:text-violet-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-violet-400 dark:text-violet-300 transition-transform duration-200" />
+                )}
               </div>
             </div>
-          </div>
+          </button>
+        </div>
+      ) : null;
+    }
+
+    // Handle AI Voice group label
+    if (item.name === "AI_VOICE_GROUP_LABEL") {
+      return sidebarOpen ? (
+        <div
+          key="ai-voice-group-label"
+          className="mx-2.5 xs:mx-3 mt-2.5 xs:mt-3 mb-1.5"
+        >
+          <button
+            onClick={() => setAiVoiceGroupOpen(!aiVoiceGroupOpen)}
+            className="w-full relative group"
+          >
+            {/* Background glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 via-orange-500/10 to-yellow-500/10 rounded-lg blur-sm"></div>
+
+            {/* Main label container */}
+            <div className="relative bg-gradient-to-r from-red-500/20 via-orange-500/20 to-yellow-500/20 dark:from-red-500/10 dark:via-orange-500/10 dark:to-yellow-500/10 border border-red-400/30 dark:border-red-500/20 rounded-lg px-2.5 xs:px-3 py-1.5 xs:py-2 backdrop-blur-sm hover:border-red-400/50 transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-1.5 xs:space-x-2">
+                  <div className="relative">
+                    <Mic className="h-3.5 w-3.5 xs:h-4 xs:w-4 text-red-400 dark:text-red-300 animate-pulse" />
+                    <div className="absolute inset-0 h-3.5 w-3.5 xs:h-4 xs:w-4 text-red-400 dark:text-red-300 opacity-50 blur-sm">
+                      <Mic className="h-3.5 w-3.5 xs:h-4 xs:w-4" />
+                    </div>
+                  </div>
+                  <span className="text-[10px] xs:text-xs font-bold bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 dark:from-red-300 dark:via-orange-300 dark:to-yellow-300 bg-clip-text text-transparent uppercase tracking-wider">
+                    AI Voice
+                  </span>
+                </div>
+                {aiVoiceGroupOpen ? (
+                  <ChevronUp className="h-3 w-3 text-red-400 dark:text-red-300 transition-transform duration-200" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-red-400 dark:text-red-300 transition-transform duration-200" />
+                )}
+              </div>
+            </div>
+          </button>
         </div>
       ) : null;
     }
@@ -722,6 +816,35 @@ export default function DashboardLayout({
           </div>
         </div>
       ) : null;
+    }
+
+    // Helper function to check if item should be hidden based on group state
+    const isItemInCollapsedGroup = () => {
+      // Map of group states to their item names
+      if (!fluxGroupOpen && ["Text to Image", "Style Transfer", "Skin Enhancer", "Flux Kontext"].includes(item.name)) {
+        return true;
+      }
+      if (!wan22GroupOpen && ["Text to Video", "Image to Video"].includes(item.name)) {
+        return true;
+      }
+      if (!advancedToolsGroupOpen && ["Face Swapping", "Image-to-Image Skin Enhancer", "FPS Boost"].includes(item.name)) {
+        return true;
+      }
+      if (!seedreamGroupOpen && ["SeeDream Text to Image", "SeeDream Image to Image", "SeeDream Text to Video", "SeeDream Image to Video"].includes(item.name)) {
+        return true;
+      }
+      if (!klingAiGroupOpen && ["Kling Text to Video", "Kling Image to Video", "Kling Multi-Image to Video", "Kling Motion Control"].includes(item.name)) {
+        return true;
+      }
+      if (!aiVoiceGroupOpen && ["Voice Generator"].includes(item.name)) {
+        return true;
+      }
+      return false;
+    };
+
+    // Don't render item if it's in a collapsed group and sidebar is open
+    if (sidebarOpen && isItemInCollapsedGroup()) {
+      return null;
     }
 
     const isActive = isNavItemActive(item.href);
@@ -1016,12 +1139,19 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:bg-gradient-to-br dark:from-black dark:via-gray-900 dark:to-blue-900/20 relative">
-      {/* Desktop Sidebar */}
+    <div className="flex h-screen bg-[#0a0a0f] relative overflow-hidden">
+      {/* Background ambient effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 rounded-full blur-3xl" />
+      </div>
+
+      {/* Desktop Sidebar - Modern Glass Design */}
       <div
         className={classNames(
-          "hidden lg:flex bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm transition-all duration-300 ease-in-out flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 relative",
-          sidebarOpen ? "w-64" : "w-16",
+          "hidden lg:flex flex-col transition-all duration-300 ease-out relative z-10",
+          sidebarOpen ? "w-80" : "w-24",
         )}
       >
         {/* Animated gradient overlay */}
@@ -1083,12 +1213,26 @@ export default function DashboardLayout({
           )}
         </nav>
 
-        {/* Theme toggle and footer */}
-        <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4 bg-gradient-to-t from-gray-900/50 to-transparent">
-          <div className="flex items-center justify-end">
-            <div className="transform transition-transform duration-300 hover:scale-110">
-              <ThemeToggle />
-            </div>
+          {/* Sidebar Footer */}
+          <div className="p-5 border-t border-white/[0.06]">
+            {sidebarOpen ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ThemeToggle />
+                </div>
+                <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
+                  <CreditCard className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-semibold text-white/80">25 Credits</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <ThemeToggle />
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 border border-white/10">
+                  <CreditCard className="w-5 h-5 text-emerald-400" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1102,17 +1246,15 @@ export default function DashboardLayout({
       >
         {/* Backdrop */}
         <div
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm dark:bg-black/60 transition-all duration-300"
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
 
         {/* Mobile Sidebar */}
         <div
           className={classNames(
-            "relative w-64 h-full bg-gradient-to-b from-gray-800 to-gray-900 dark:bg-gradient-to-b dark:from-gray-900/80 dark:to-black/90 backdrop-blur-sm flex flex-col shadow-2xl border-r border-gray-200/20 dark:border-gray-700/30 transition-all duration-300 ease-out",
-            sidebarOpen
-              ? "transform translate-x-0 opacity-100"
-              : "transform -translate-x-full opacity-0",
+            "absolute left-0 top-0 bottom-0 w-80 bg-[#0d0d12] border-r border-white/10 flex flex-col transition-transform duration-300 ease-out",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
           {/* Sidebar header */}
@@ -1164,11 +1306,13 @@ export default function DashboardLayout({
             )}
           </nav>
 
-          {/* Theme toggle and footer */}
-          <div className="border-t border-gray-700 dark:border-gray-800 p-2.5 xs:p-3 sm:p-4 bg-gradient-to-t from-gray-900/50 to-transparent">
-            <div className="flex items-center justify-end">
-              <div className="transform transition-transform duration-300 hover:scale-110">
-                <ThemeToggle />
+          {/* Mobile Footer */}
+          <div className="p-5 border-t border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <ThemeToggle />
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5">
+                <CreditCard className="w-4 h-4 text-emerald-400" />
+                <span className="text-sm font-semibold text-white/80">25 Credits</span>
               </div>
             </div>
           </div>
@@ -1176,105 +1320,94 @@ export default function DashboardLayout({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile menu button */}
-        <div className="lg:hidden bg-white/90 dark:bg-gray-900/60 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-1.5 xs:p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-all duration-300 active:scale-95 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            aria-label="Open menu"
-          >
-            <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2">
-              <ChevronRight className="h-4 w-4 xs:h-5 xs:w-5 sm:h-6 sm:w-6 transition-transform duration-300 group-hover:translate-x-1" />
-              <span className="text-[10px] xs:text-xs sm:text-sm font-medium">
-                Menu
-              </span>
+      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+        {/* Mobile Header Bar */}
+        <div className="lg:hidden bg-[#0d0d12]/90 backdrop-blur-xl border-b border-white/[0.06] px-4 py-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">{initials}</span>
+              </div>
             </div>
-          </button>
+          </div>
         </div>
 
         {/* Content area */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-white to-gray-50/50 dark:bg-gradient-to-br dark:from-black dark:to-gray-900/30 custom-scrollbar">
-          {/* Sticky Header with user info and credits */}
-          <div className="sticky top-0 z-20 bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/30 px-2.5 xs:px-3 sm:px-4 lg:px-6 xl:px-8 py-2 xs:py-2.5 sm:py-3 shadow-sm transition-all duration-300 hover:shadow-md">
-            <div className="flex items-center justify-between">
-              {/* Left Side - Global Progress Indicator */}
-              <div className="flex items-center">
-                <GlobalProgressIndicator />
-              </div>
-
-              {/* Right Side - Credits and User */}
-              <div className="flex items-center space-x-1.5 xs:space-x-2 sm:space-x-4">
-                {/* Unified Notification Bell (includes both post notifications and production tasks) */}
-                <NotificationBell />
-
-                {/* Theme Toggle */}
-                <ThemeToggle />
-
-                {/* Available Credits */}
-                <div className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border border-blue-200/50 dark:border-blue-700/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg shadow-sm hover:shadow-md hover:scale-105 transition-all duration-300 cursor-pointer group">
-                  <CreditCard className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400 group-hover:animate-pulse" />
-                  <span className="text-[10px] xs:text-xs sm:text-sm font-medium bg-gradient-to-r from-blue-700 to-purple-700 dark:from-blue-300 dark:to-purple-300 bg-clip-text text-transparent">
-                    <span className="hidden xs:inline">25 Credits</span>
-                    <span className="xs:hidden">25</span>
-                  </span>
+        <main className="flex-1 overflow-y-auto bg-transparent custom-scrollbar">
+          {/* Modern Top Header */}
+          <div className="sticky top-0 z-20 backdrop-blur-2xl bg-[#0a0a0f]/80 border-b border-white/[0.04]">
+            <div className="px-6 lg:px-8 py-4">
+              <div className="flex items-center justify-between">
+                {/* Left Side - Progress & Breadcrumb Area */}
+                <div className="flex items-center gap-4">
+                  <GlobalProgressIndicator />
                 </div>
 
-                {/* User Dropdown */}
-                <div className="relative group">
-                  <button className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-700 hover:from-gray-200 hover:to-gray-100 dark:hover:from-gray-700 dark:hover:to-gray-600 border border-gray-200/50 dark:border-gray-600/30 px-1.5 xs:px-2 sm:px-3 py-1 xs:py-1.5 sm:py-2 rounded-lg transition-all duration-300 shadow-sm active:scale-95 hover:shadow-md hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                    <div className="w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-md ring-2 ring-white/20 group-hover:ring-white/40 transition-all duration-300">
-                      <span className="text-white text-[10px] xs:text-xs sm:text-sm font-semibold">
-                        {initials}
-                      </span>
-                    </div>
-                    <span className="text-[10px] xs:text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
-                      {firstName}
-                    </span>
-                    <ChevronDown className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400 transition-transform duration-300 group-hover:rotate-180" />
-                  </button>
+                {/* Right Side - Compact Controls */}
+                <div className="hidden lg:flex items-center gap-3">
+                  {/* Notification */}
+                  <NotificationBell />
 
-                  {/* Dropdown Menu */}
-                  <div className="absolute right-0 mt-2 w-44 xs:w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 transform group-hover:translate-y-0 translate-y-2">
-                    <div className="py-2">
-                      <div className="px-3 xs:px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                        <p className="text-xs xs:text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {firstName}
-                        </p>
-                        <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {email}
-                        </p>
+                  {/* User Menu */}
+                  <div className="relative group">
+                    <button className="flex items-center gap-3 pl-3 pr-4 py-2 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-white/[0.12] transition-all duration-200">
+                      <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center ring-2 ring-white/10">
+                        <span className="text-white text-xs font-bold">{initials}</span>
                       </div>
-                      <Link
-                        href="/settings"
-                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
-                      >
-                        <Settings className="w-3.5 h-3.5" />
-                        <span>Profile Settings</span>
-                      </Link>
-                      <Link
-                        href="/billing"
-                        className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
-                      >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        <span>Billing</span>
-                      </Link>
-                      {isAdmin && (
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-white/90">{firstName}</p>
+                        <p className="text-[10px] text-white/40 truncate max-w-[120px]">{email}</p>
+                      </div>
+                      <ChevronDown className="w-4 h-4 text-white/40 group-hover:text-white/60 transition-colors" />
+                    </button>
+
+                    {/* User Dropdown */}
+                    <div className="absolute right-0 mt-2 w-56 py-2 bg-[#16161d] rounded-2xl border border-white/10 shadow-2xl shadow-black/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
+                      <div className="px-4 py-3 border-b border-white/[0.06]">
+                        <p className="text-sm font-semibold text-white">{firstName}</p>
+                        <p className="text-xs text-white/50 truncate">{email}</p>
+                      </div>
+                      <div className="py-1">
                         <Link
-                          href="/admin"
-                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2"
+                          href="/settings"
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
                         >
-                          <Shield className="w-3.5 h-3.5" />
-                          <span>Admin</span>
+                          <Settings className="w-4 h-4" />
+                          Settings
                         </Link>
-                      )}
-                      <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
+                        <Link
+                          href="/billing"
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                          Billing
+                        </Link>
+                        {isAdmin && (
+                          <Link
+                            href="/admin"
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                          >
+                            <Shield className="w-4 h-4" />
+                            Admin Panel
+                          </Link>
+                        )}
+                      </div>
+                      <div className="border-t border-white/[0.06] pt-1 mt-1">
                         <button
                           onClick={() => signOut({ redirectUrl: "/" })}
-                          className="w-full text-left px-3 xs:px-4 py-2 text-xs xs:text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 hover:translate-x-1 flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset rounded"
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all"
                         >
-                          <ChevronRight className="w-3.5 h-3.5" />
-                          <span>Sign Out</span>
+                          <ChevronRight className="w-4 h-4" />
+                          Sign Out
                         </button>
                       </div>
                     </div>
@@ -1296,7 +1429,7 @@ export default function DashboardLayout({
       {/* Tooltip for collapsed sidebar */}
       {!sidebarOpen && hoveredItem && (
         <div
-          className="hidden lg:block fixed z-50 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-sm rounded-lg shadow-lg border border-gray-700 dark:border-gray-600 pointer-events-none animate-fadeIn"
+          className="hidden lg:block fixed z-50 px-3 py-2 bg-[#1a1a24] text-white text-sm rounded-xl shadow-xl border border-white/10 pointer-events-none animate-fadeIn"
           style={{
             left: `${tooltipPosition.x}px`,
             top: `${tooltipPosition.y}px`,
@@ -1304,7 +1437,7 @@ export default function DashboardLayout({
           }}
         >
           {hoveredItem}
-          <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2 w-2 h-2 bg-gray-900 dark:bg-gray-800 rotate-45 border-l border-b border-gray-700 dark:border-gray-600"></div>
+          <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 w-2 h-2 bg-[#1a1a24] rotate-45 border-l border-b border-white/10" />
         </div>
       )}
     </div>

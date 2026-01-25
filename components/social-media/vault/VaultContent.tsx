@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, memo } from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -52,8 +55,14 @@ import {
   Info,
   Sparkles,
   Maximize2,
+  Crown,
+  UserCheck,
   Wand2,
+  FileOutput,
+  RotateCcw,
 } from "lucide-react";
+
+import { PlatformExportModal } from "@/components/export";
 
 interface InstagramProfile {
   id: string;
@@ -121,8 +130,10 @@ interface VaultItemMetadata {
   prompt?: string;
   size?: string;
   resolution?: string;
+  aspectRatio?: string;
   watermark?: boolean;
   numReferenceImages?: number;
+  referenceImageUrls?: string[];
   generatedAt?: string;
   // Additional fields for other generation types
   negativePrompt?: string;
@@ -144,6 +155,28 @@ interface VaultItem {
   folderId: string;
   profileId: string;
   metadata?: VaultItemMetadata | null;
+  // Admin view fields
+  creatorName?: string;
+  creatorId?: string;
+  folder?: {
+    id: string;
+    name: string;
+    isDefault?: boolean;
+  };
+  profile?: {
+    id: string;
+    name: string;
+    instagramUsername?: string | null;
+  };
+}
+
+// Content Creator interface for admin view
+interface ContentCreator {
+  id: string;
+  clerkId: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
 }
 
 // Memoized Grid Item Component for performance
@@ -467,9 +500,39 @@ const VaultListItem = memo(function VaultListItem({
 });
 
 export function VaultContent() {
-  const [profiles, setProfiles] = useState<InstagramProfile[]>([]);
+  // Router for navigation
+  const router = useRouter();
+  
+  // Use global profile selector
+  const { profileId: globalProfileId, profiles: globalProfiles, loadingProfiles } = useInstagramProfile();
+  
+  // Admin state
+  const { isAdmin, loading: adminLoading } = useIsAdmin();
+  const [adminViewMode, setAdminViewMode] = useState<'personal' | 'creators'>('personal');
+  const [contentCreators, setContentCreators] = useState<ContentCreator[]>([]);
+  const [selectedContentCreator, setSelectedContentCreator] = useState<ContentCreator | null>(null);
+  const [contentCreatorItems, setContentCreatorItems] = useState<VaultItem[]>([]);
+  const [loadingCreatorItems, setLoadingCreatorItems] = useState(false);
+  // Content creator folders (admin view)
+  const [creatorFolders, setCreatorFolders] = useState<Array<{
+    id: string;
+    name: string;
+    profileId: string;
+    isDefault: boolean;
+    itemCount: number;
+    profileName: string;
+  }>>([]);
+  const [creatorProfiles, setCreatorProfiles] = useState<Array<{ id: string; name: string; instagramUsername?: string | null }>>([]);
+  const [selectedCreatorFolderId, setSelectedCreatorFolderId] = useState<string | null>(null);
+  
+  // Local state derived from global profile
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const profiles = useMemo(() => 
+    [...globalProfiles].sort((a, b) => 
+      (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+    ), 
+    [globalProfiles]
+  );
 
   const [folders, setFolders] = useState<VaultFolder[]>([]);
   const [allFolders, setAllFolders] = useState<VaultFolder[]>([]);
@@ -512,11 +575,11 @@ export function VaultContent() {
   const [shareNote, setShareNote] = useState('');
   const [userSearchQuery, setUserSearchQuery] = useState('');
 
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [showPreviewInfo, setShowPreviewInfo] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Debounce search for better performance
@@ -673,41 +736,77 @@ export function VaultContent() {
     }
   };
 
+  // Load content creator items (admin only)
+  const loadContentCreatorItems = useCallback(async (creatorId?: string) => {
+    if (!isAdmin) return;
+    
+    setLoadingCreatorItems(true);
+    try {
+      const url = creatorId 
+        ? `/api/vault/admin/content-creator-items?contentCreatorId=${creatorId}`
+        : '/api/vault/admin/content-creator-items';
+      
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch content creator items');
+      
+      const data = await response.json();
+      setContentCreators(data.contentCreators || []);
+      setContentCreatorItems((data.items || []).map((item: any) => ({
+        ...item,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      })));
+      if (data.selectedContentCreator) {
+        setSelectedContentCreator(data.selectedContentCreator);
+      }
+      // Set creator folders and profiles if available
+      setCreatorFolders(data.folders || []);
+      setCreatorProfiles(data.profiles || []);
+      // Reset selected folder when changing creators
+      if (!creatorId || creatorId !== selectedContentCreator?.id) {
+        setSelectedCreatorFolderId(null);
+      }
+    } catch (error) {
+      console.error("Error loading content creator items:", error);
+      showToast("Failed to load content creator items", "error");
+    } finally {
+      setLoadingCreatorItems(false);
+    }
+  }, [isAdmin]);
+
+  // Load content creator items when admin view mode changes
   useEffect(() => {
-    const loadProfiles = async () => {
-      try {
-        setLoadingProfiles(true);
-        const response = await fetch("/api/instagram/profiles");
-        const data = await response.json();
-        const profileList: InstagramProfile[] = Array.isArray(data)
-          ? data
-          : data.profiles || [];
+    if (isAdmin && adminViewMode === 'creators') {
+      loadContentCreatorItems(selectedContentCreator?.id);
+    }
+  }, [isAdmin, adminViewMode, selectedContentCreator?.id, loadContentCreatorItems]);
 
-        const sorted = [...profileList].sort((a, b) =>
-          (a.name || "").localeCompare(b.name || "", undefined, { sensitivity: "base" })
-        );
+  // Sync with global profile selector
+  useEffect(() => {
+    if (globalProfileId && globalProfileId !== selectedProfileId) {
+      setSelectedProfileId(globalProfileId);
+      setSelectedSharedFolder(null);
+      setSharedFolderItems([]);
+    }
+  }, [globalProfileId]);
 
-        setProfiles(sorted);
-
-        const savedProfileId = typeof window !== "undefined" ? localStorage.getItem("vaultSelectedProfileId") : null;
-        const initialProfile = sorted.find((p) => p.id === savedProfileId) || sorted[0];
-        if (initialProfile) {
-          setSelectedProfileId(initialProfile.id);
-          localStorage.setItem("vaultSelectedProfileId", initialProfile.id);
-        }
-      } catch (error) {
-        console.error("Error loading profiles", error);
-      } finally {
-        setLoadingProfiles(false);
+  // Listen for profile changes from global selector
+  useEffect(() => {
+    const handleProfileChange = (event: CustomEvent<{ profileId: string }>) => {
+      const newProfileId = event.detail.profileId;
+      if (newProfileId && newProfileId !== selectedProfileId) {
+        setSelectedProfileId(newProfileId);
+        setSelectedSharedFolder(null);
+        setSharedFolderItems([]);
       }
     };
 
-    loadProfiles();
-  }, []);
+    window.addEventListener('profileChanged', handleProfileChange as EventListener);
+    return () => window.removeEventListener('profileChanged', handleProfileChange as EventListener);
+  }, [selectedProfileId]);
 
   useEffect(() => {
     if (selectedProfileId) {
-      localStorage.setItem("vaultSelectedProfileId", selectedProfileId);
       loadFolders();
     }
   }, [selectedProfileId]);
@@ -953,16 +1052,6 @@ export function VaultContent() {
     }
   };
 
-  const handleSelectProfile = (id: string) => {
-    setSelectedProfileId(id);
-    setSelectedSharedFolder(null);
-    setSharedFolderItems([]);
-    setProfileDropdownOpen(false);
-    const profileFolders = folders.filter((f) => f.profileId === id);
-    const nextFolder = profileFolders[0];
-    setSelectedFolderId(nextFolder ? nextFolder.id : null);
-  };
-
   const handleCreateFolder = async () => {
     if (!selectedProfileId || !folderNameInput.trim()) return;
 
@@ -1165,8 +1254,141 @@ export function VaultContent() {
     }
   };
 
+  // Handle reuse in SeeDream I2I - stores data in sessionStorage and navigates
+  const handleReuseInSeeDreamI2I = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      resolution: item.metadata.resolution || '2K',
+      aspectRatio: item.metadata.aspectRatio || null,
+      referenceImageUrls: item.metadata.referenceImageUrls || [],
+      outputImageUrl: item.awsS3Url, // The generated image that user wants to reuse settings from
+    };
+    
+    // Store in sessionStorage for the SeeDream I2I page to pick up
+    sessionStorage.setItem('seedream-i2i-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to SeeDream Image-to-Image page
+    router.push('/workspace/generate-content/seedream-image-to-image');
+  };
+
+  // Handle reuse in SeeDream T2I - stores data in sessionStorage and navigates
+  const handleReuseInSeeDreamT2I = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      resolution: item.metadata.resolution || '2K',
+      aspectRatio: item.metadata.aspectRatio || null,
+      negativePrompt: item.metadata.negativePrompt || '',
+      watermark: item.metadata.watermark || false,
+    };
+    
+    // Store in sessionStorage for the SeeDream T2I page to pick up
+    sessionStorage.setItem('seedream-t2i-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to SeeDream Text-to-Image page
+    router.push('/workspace/generate-content/seedream-text-to-image');
+  };
+
+  // Handle reuse in SeeDream T2V - stores data in sessionStorage and navigates
+  const handleReuseInSeeDreamT2V = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      resolution: item.metadata.resolution || '720p',
+      ratio: item.metadata.ratio || item.metadata.aspectRatio || '16:9',
+      duration: item.metadata.duration || 4,
+      cameraFixed: item.metadata.cameraFixed || false,
+      generateAudio: item.metadata.generateAudio ?? true,
+    };
+    
+    // Store in sessionStorage for the SeeDream T2V page to pick up
+    sessionStorage.setItem('seedream-t2v-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to SeeDream Text-to-Video page
+    router.push('/workspace/generate-content/seedream-text-to-video');
+  };
+
+  // Handle reuse in SeeDream I2V - stores data in sessionStorage and navigates
+  const handleReuseInSeeDreamI2V = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      resolution: item.metadata.resolution || '720p',
+      ratio: item.metadata.ratio || item.metadata.aspectRatio || '16:9',
+      duration: item.metadata.duration || 4,
+      cameraFixed: item.metadata.cameraFixed || false,
+      generateAudio: item.metadata.generateAudio ?? true,
+      referenceImageUrl: item.metadata.referenceImageUrl || null,
+    };
+    
+    // Store in sessionStorage for the SeeDream I2V page to pick up
+    sessionStorage.setItem('seedream-i2v-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to SeeDream Image-to-Video page
+    router.push('/workspace/generate-content/seedream-image-to-video');
+  };
+
   // All filtered items (not paginated)
   const allFilteredItems = useMemo(() => {
+    // Helper function to extract sequence number from filename for proper sorting
+    const getSequenceNumber = (fileName: string): number => {
+      // Match patterns like "001_", "01_", "1_" at the start of filename
+      const match = fileName.match(/^(\d+)_/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
+      return Infinity; // Items without sequence prefix go to the end
+    };
+
+    // Helper to get export batch identifier (for grouping items from same sexting set export)
+    const getExportBatchKey = (item: VaultItem): string | null => {
+      if (item.metadata?.source === 'sexting-set-export' && item.metadata?.originalSetId) {
+        // Group by original set ID + export timestamp (rounded to minute for same export batch)
+        const exportedAt = item.metadata?.exportedAt;
+        if (exportedAt) {
+          const date = new Date(exportedAt);
+          // Round to the minute to group items exported together
+          date.setSeconds(0, 0);
+          return `${item.metadata.originalSetId}_${date.getTime()}`;
+        }
+        return item.metadata.originalSetId;
+      }
+      return null;
+    };
+
+    // Helper to get sequence within a batch
+    const getBatchSequence = (item: VaultItem): number => {
+      if (item.metadata?.sequence) {
+        return item.metadata.sequence;
+      }
+      return getSequenceNumber(item.fileName);
+    };
+
     if (selectedSharedFolder) {
       return sharedFolderItems
         .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
@@ -1177,6 +1399,26 @@ export function VaultContent() {
           if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
           if (contentFilter === 'gifs') return item.fileType === 'image/gif';
           return true;
+        })
+        .sort((a, b) => {
+          // For shared folders, maintain sequence order within batches, then by date
+          const batchA = getExportBatchKey(a);
+          const batchB = getExportBatchKey(b);
+          
+          // If same batch, sort by sequence
+          if (batchA && batchB && batchA === batchB) {
+            return getBatchSequence(a) - getBatchSequence(b);
+          }
+          
+          // Otherwise sort by createdAt (recent first), then sequence, then filename
+          const dateA = new Date(a.createdAt).getTime();
+          const dateB = new Date(b.createdAt).getTime();
+          if (dateA !== dateB) return dateB - dateA; // Recent first
+          
+          const seqA = getSequenceNumber(a.fileName);
+          const seqB = getSequenceNumber(b.fileName);
+          if (seqA !== seqB) return seqA - seqB;
+          return a.fileName.localeCompare(b.fileName);
         });
     }
 
@@ -1197,13 +1439,79 @@ export function VaultContent() {
         if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
         if (contentFilter === 'gifs') return item.fileType === 'image/gif';
         return true;
+      })
+      .sort((a, b) => {
+        // Primary: Sort by createdAt (recent first)
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        
+        // Check if items are from the same export batch (sexting set)
+        const batchA = getExportBatchKey(a);
+        const batchB = getExportBatchKey(b);
+        
+        // If from the same batch, sort by sequence within the batch
+        if (batchA && batchB && batchA === batchB) {
+          return getBatchSequence(a) - getBatchSequence(b);
+        }
+        
+        // If different batches or not from batches, sort by date (recent first)
+        if (dateA !== dateB) return dateB - dateA;
+        
+        // Fallback: sort by sequence number from filename, then filename
+        const seqA = getSequenceNumber(a.fileName);
+        const seqB = getSequenceNumber(b.fileName);
+        if (seqA !== seqB) return seqA - seqB;
+        return a.fileName.localeCompare(b.fileName);
       });
   }, [vaultItems, sharedFolderItems, selectedFolderId, selectedProfileId, debouncedSearchQuery, folders, contentFilter, selectedSharedFolder]);
 
+  // Filtered items for admin creator view
+  const allFilteredCreatorItems = useMemo(() => {
+    if (!isAdmin || adminViewMode !== 'creators') return [];
+    
+    return contentCreatorItems
+      .filter((item) => {
+        // Filter by selected content creator if one is selected
+        if (selectedContentCreator && item.creatorId !== selectedContentCreator.id) {
+          return false;
+        }
+        return true;
+      })
+      .filter((item) => {
+        // Filter by selected folder if one is selected
+        if (selectedCreatorFolderId) {
+          return item.folderId === selectedCreatorFolderId;
+        }
+        return true;
+      })
+      .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
+      .filter((item) => {
+        if (contentFilter === 'all') return true;
+        if (contentFilter === 'photos') return item.fileType.startsWith('image/') && item.fileType !== 'image/gif';
+        if (contentFilter === 'videos') return item.fileType.startsWith('video/');
+        if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
+        if (contentFilter === 'gifs') return item.fileType === 'image/gif';
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+  }, [isAdmin, adminViewMode, contentCreatorItems, selectedContentCreator, selectedCreatorFolderId, debouncedSearchQuery, contentFilter]);
+
+  // Combined filtered items based on current view
+  const currentFilteredItems = useMemo(() => {
+    if (isAdmin && adminViewMode === 'creators') {
+      return allFilteredCreatorItems;
+    }
+    return allFilteredItems;
+  }, [isAdmin, adminViewMode, allFilteredCreatorItems, allFilteredItems]);
+
   // Paginated items for display
   const filteredItems = useMemo(() => {
-    return allFilteredItems.slice(0, displayCount);
-  }, [allFilteredItems, displayCount]);
+    return currentFilteredItems.slice(0, displayCount);
+  }, [currentFilteredItems, displayCount]);
 
   // Wrapped select handler that includes filteredItems for range selection
   const onSelectItem = useCallback((id: string, e?: React.MouseEvent) => {
@@ -1222,21 +1530,21 @@ export function VaultContent() {
       if ((e.ctrlKey || e.metaKey) && e.key === 'a' && 
           !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
         e.preventDefault();
-        if (allFilteredItems.length > 0) {
-          setSelectedItems(new Set(allFilteredItems.map(item => item.id)));
+        if (currentFilteredItems.length > 0) {
+          setSelectedItems(new Set(currentFilteredItems.map(item => item.id)));
           setSelectionMode(true);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItems.size, allFilteredItems]);
+  }, [selectedItems.size, currentFilteredItems]);
 
-  const hasMoreItems = displayCount < allFilteredItems.length;
+  const hasMoreItems = displayCount < currentFilteredItems.length;
   
   const loadMoreItems = useCallback(() => {
-    setDisplayCount(prev => Math.min(prev + ITEMS_PER_PAGE, allFilteredItems.length));
-  }, [allFilteredItems.length]);
+    setDisplayCount(prev => Math.min(prev + ITEMS_PER_PAGE, currentFilteredItems.length));
+  }, [currentFilteredItems.length]);
 
   // Infinite scroll handler
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -1253,7 +1561,8 @@ export function VaultContent() {
     : visibleFolders.find((folder) => folder.id === selectedFolderId) || null;
   
   const isViewingShared = selectedSharedFolder !== null;
-  const canEdit = !isViewingShared || selectedSharedFolder?.permission === 'EDIT';
+  const isViewingCreators = isAdmin && adminViewMode === 'creators';
+  const canEdit = (!isViewingShared && !isViewingCreators) || selectedSharedFolder?.permission === 'EDIT';
 
   const totalItems = vaultItems.filter(item => item.profileId === selectedProfileId).length;
   const totalSize = vaultItems
@@ -1265,6 +1574,12 @@ export function VaultContent() {
   const videoCount = vaultItems.filter(item => 
     item.profileId === selectedProfileId && item.fileType.startsWith('video/')
   ).length;
+
+  // Creator items stats
+  const creatorTotalItems = contentCreatorItems.length;
+  const creatorTotalSize = contentCreatorItems.reduce((acc, item) => acc + item.fileSize, 0);
+  const creatorImageCount = contentCreatorItems.filter(item => item.fileType.startsWith('image/')).length;
+  const creatorVideoCount = contentCreatorItems.filter(item => item.fileType.startsWith('video/')).length;
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -1278,24 +1593,27 @@ export function VaultContent() {
       <style jsx global>{`
         .vault-scroll::-webkit-scrollbar { width: 8px; }
         .vault-scroll::-webkit-scrollbar-track { background: transparent; }
-        .vault-scroll::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.3); border-radius: 4px; }
-        .vault-scroll::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.5); }
+        .vault-scroll::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.3); border-radius: 4px; }
+        .vault-scroll::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.5); }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); } 50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.5); } }
         .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
         .animate-slideUp { animation: slideUp 0.2s ease-out; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glass-card-hover:hover { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.12); }
       `}</style>
 
       {/* Toast */}
       {toast && createPortal(
         <div className="fixed bottom-4 right-4 z-[100] animate-slideUp">
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${
-            toast.type === 'success' ? 'bg-emerald-900/90 text-emerald-100 border border-emerald-700' : 
-            toast.type === 'error' ? 'bg-red-900/90 text-red-100 border border-red-700' : 'bg-blue-900/90 text-blue-100 border border-blue-700'
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-xl ${
+            toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-100 border border-emerald-500/30' : 
+            toast.type === 'error' ? 'bg-red-500/20 text-red-100 border border-red-500/30' : 'bg-violet-500/20 text-violet-100 border border-violet-500/30'
           }`}>
             {toast.type === 'success' && <Check className="w-5 h-5 text-emerald-400" />}
             {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-400" />}
-            {toast.type === 'info' && <AlertCircle className="w-5 h-5 text-blue-400" />}
+            {toast.type === 'info' && <AlertCircle className="w-5 h-5 text-violet-400" />}
             <p className="text-sm font-medium">{toast.message}</p>
             <button onClick={() => setToast(null)} className="ml-2 hover:opacity-70"><X className="w-4 h-4" /></button>
           </div>
@@ -1307,10 +1625,10 @@ export function VaultContent() {
       {isAddingNew && typeof window !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setIsAddingNew(false); setNewFiles([]); }} />
-          <div className="relative bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg animate-slideUp border-t sm:border border-gray-700 max-h-[90vh] sm:max-h-none overflow-hidden">
-            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-700">
+          <div className="relative glass-card rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg animate-slideUp max-h-[90vh] sm:max-h-none overflow-hidden">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-white/[0.06]">
               <h3 className="text-base sm:text-lg font-semibold text-white">Upload Files</h3>
-              <button onClick={() => { setIsAddingNew(false); setNewFiles([]); }} className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+              <button onClick={() => { setIsAddingNew(false); setNewFiles([]); }} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -1319,7 +1637,7 @@ export function VaultContent() {
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
                 onDrop={(e) => { e.preventDefault(); setIsDragging(false); setNewFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }}
-                className={`relative border-2 border-dashed rounded-xl p-6 sm:p-8 transition-all ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-gray-600 hover:border-gray-500 hover:bg-gray-800/50'}`}
+                className={`relative border-2 border-dashed rounded-xl p-6 sm:p-8 transition-all ${isDragging ? 'border-violet-500 bg-violet-500/10' : 'border-white/20 hover:border-white/30 hover:bg-white/5'}`}
               >
                 <div className="flex flex-col items-center gap-3">
                   <div className={`p-3 rounded-full ${isDragging ? 'bg-blue-500/20' : 'bg-gray-800'}`}>
@@ -1646,6 +1964,46 @@ export function VaultContent() {
                 <Info className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
               </button>
             )}
+            {/* Reuse in SeeDream I2I button - only for seedream-i2i source items */}
+            {previewItem.metadata?.source === 'seedream-i2i' && (
+              <button 
+                onClick={() => handleReuseInSeeDreamI2I(previewItem)}
+                className="p-1.5 sm:p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+                title="Reuse settings in SeeDream I2I"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+              </button>
+            )}
+            {/* Reuse in SeeDream T2I button - only for seedream-t2i source items */}
+            {previewItem.metadata?.source === 'seedream-t2i' && (
+              <button 
+                onClick={() => handleReuseInSeeDreamT2I(previewItem)}
+                className="p-1.5 sm:p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+                title="Reuse settings in SeeDream T2I"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+              </button>
+            )}
+            {/* Reuse in SeeDream T2V button - only for seedream-t2v source items */}
+            {previewItem.metadata?.source === 'seedream-t2v' && (
+              <button 
+                onClick={() => handleReuseInSeeDreamT2V(previewItem)}
+                className="p-1.5 sm:p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+                title="Reuse settings in SeeDream T2V"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+              </button>
+            )}
+            {/* Reuse in SeeDream I2V button - only for seedream-i2v source items */}
+            {previewItem.metadata?.source === 'seedream-i2v' && (
+              <button 
+                onClick={() => handleReuseInSeeDreamI2V(previewItem)}
+                className="p-1.5 sm:p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-full transition-colors"
+                title="Reuse settings in SeeDream I2V"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+              </button>
+            )}
             <a href={previewItem.awsS3Url} download={previewItem.fileName} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></a>
             {canEdit && <button onClick={() => { handleDeleteItem(previewItem.id); setPreviewItem(null); setShowPreviewInfo(false); }} className="p-1.5 sm:p-2 bg-red-500/20 hover:bg-red-500/30 rounded-full transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
           </div>
@@ -1745,135 +2103,304 @@ export function VaultContent() {
       )}
 
       {/* Main Layout */}
-      <div className="h-[calc(100vh-120px)] sm:h-[calc(100vh-120px)] flex bg-gray-950 rounded-xl border border-gray-800 overflow-hidden relative">
+      <div className="h-[calc(100vh-120px)] sm:h-[calc(100vh-120px)] flex bg-[#0a0a0f] rounded-2xl glass-card overflow-hidden relative">
+        {/* Background ambient effects */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-0 left-1/4 w-64 h-64 bg-violet-500/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-fuchsia-500/5 rounded-full blur-3xl" />
+        </div>
+
         {/* Sidebar */}
-        <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative z-50 lg:z-auto w-72 lg:w-64 h-full bg-gray-900 border-r border-gray-800 flex flex-col rounded-l-xl overflow-hidden transition-transform duration-300 ease-in-out`}>
-          <div className="p-4 border-b border-gray-800">
+        <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative z-50 lg:z-auto w-72 lg:w-72 h-full glass-card border-r border-white/[0.06] flex flex-col rounded-l-2xl overflow-hidden transition-transform duration-300 ease-in-out`}>
+          <div className="p-5 border-b border-white/[0.06]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/25">
                   <HardDrive className="w-5 h-5 text-white" />
                 </div>
                 <span className="font-semibold text-white">Media Vault</span>
               </div>
-              <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-gray-800 rounded-lg transition-colors">
+              <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-colors">
                 <PanelLeftClose className="w-5 h-5 text-gray-400" />
               </button>
             </div>
           </div>
 
-          <div className="p-3 border-b border-gray-800">
-            <div className="relative">
-              <button onClick={() => setProfileDropdownOpen(!profileDropdownOpen)} className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-6 h-6 bg-blue-600/30 rounded-full flex items-center justify-center">
-                    <span className="text-xs font-medium text-blue-400">{selectedProfile?.name?.charAt(0) || '?'}</span>
-                  </div>
-                  <span className="text-sm font-medium text-gray-200 truncate">{selectedProfile?.name || 'Select profile'}</span>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {profileDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-20 overflow-hidden">
-                  {loadingProfiles ? (
-                    <div className="p-4 text-center"><Loader2 className="w-5 h-5 animate-spin text-gray-500 mx-auto" /></div>
-                  ) : profiles.length === 0 ? (
-                    <div className="p-4 text-center text-sm text-gray-500">No profiles</div>
-                  ) : (
-                    <div className="max-h-48 overflow-y-auto vault-scroll">
-                      {profiles.map((profile) => (
-                        <button key={profile.id} onClick={() => handleSelectProfile(profile.id)} className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${profile.id === selectedProfileId ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-gray-700 text-gray-300'}`}>
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${profile.id === selectedProfileId ? 'bg-blue-600/30' : 'bg-gray-700'}`}>
-                            <span className="text-xs font-medium">{profile.name?.charAt(0) || '?'}</span>
-                          </div>
-                          <span className="text-sm font-medium truncate">{profile.name}</span>
-                          {profile.id === selectedProfileId && <Check className="w-4 h-4 ml-auto" />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+          {/* Admin View Mode Toggle */}
+          {isAdmin && !adminLoading && (
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2 p-1 bg-white/5 rounded-xl">
+                <button
+                  onClick={() => { setAdminViewMode('personal'); setSelectedContentCreator(null); setSelectedCreatorFolderId(null); setCreatorFolders([]); setCreatorProfiles([]); }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    adminViewMode === 'personal'
+                      ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25'
+                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <HardDrive className="w-4 h-4" />
+                  <span>My Vault</span>
+                </button>
+                <button
+                  onClick={() => setAdminViewMode('creators')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    adminViewMode === 'creators'
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25'
+                      : 'text-gray-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <Crown className="w-4 h-4" />
+                  <span>Creators</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Content Creator Selection (Admin only) */}
+          {isAdmin && adminViewMode === 'creators' && (
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 block">Content Creators</label>
+              <select
+                value={selectedContentCreator?.id || 'all'}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedCreatorFolderId(null); // Reset folder selection when changing creators
+                  if (value === 'all') {
+                    setSelectedContentCreator(null);
+                    setCreatorFolders([]);
+                    setCreatorProfiles([]);
+                    loadContentCreatorItems();
+                  } else {
+                    const creator = contentCreators.find(c => c.id === value);
+                    if (creator) {
+                      setSelectedContentCreator(creator);
+                      loadContentCreatorItems(creator.id);
+                    }
+                  }
+                }}
+                className="w-full px-3 py-2.5 bg-gray-900 border border-white/10 rounded-xl text-sm text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors [&>option]:bg-gray-900 [&>option]:text-gray-200"
+              >
+                <option value="all" className="bg-gray-900 text-gray-200">All Content Creators ({contentCreators.length})</option>
+                {contentCreators.map((creator) => (
+                  <option key={creator.id} value={creator.id} className="bg-gray-900 text-gray-200">
+                    {`${creator.firstName || ''} ${creator.lastName || ''}`.trim() || creator.email || 'Unknown'}
+                  </option>
+                ))}
+              </select>
+              {contentCreators.length === 0 && !loadingCreatorItems && (
+                <p className="text-xs text-gray-500 mt-2">No content creators found</p>
               )}
             </div>
-          </div>
+          )}
 
-          <div className="flex-1 overflow-y-auto vault-scroll p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Folders</span>
-              <button onClick={() => setShowNewFolderInput(true)} disabled={!selectedProfileId} className="p-1 hover:bg-gray-800 rounded transition-colors disabled:opacity-50">
-                <Plus className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
-
-            {showNewFolderInput && (
-              <div className="flex items-center gap-2 mb-2">
-                <input type="text" value={folderNameInput} onChange={(e) => setFolderNameInput(e.target.value)} placeholder="Folder name" onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()} autoFocus className="flex-1 px-2 py-1.5 text-sm bg-gray-800 border border-gray-600 rounded-lg text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                <button onClick={handleCreateFolder} disabled={!folderNameInput.trim()} className="p-1.5 bg-blue-600 text-white rounded-lg disabled:opacity-50"><Check className="w-4 h-4" /></button>
-                <button onClick={() => { setShowNewFolderInput(false); setFolderNameInput(''); }} className="p-1.5 bg-gray-800 text-gray-400 rounded-lg"><X className="w-4 h-4" /></button>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              {visibleFolders.map((folder) => {
-                const isActive = folder.id === selectedFolderId && !selectedSharedFolder;
-                const itemCount = folder.isDefault ? vaultItems.filter((item) => item.profileId === selectedProfileId).length : vaultItems.filter((item) => item.folderId === folder.id && item.profileId === selectedProfileId).length;
-                return (
-                  <div key={folder.id} className="group">
-                    {editingFolderId === folder.id ? (
-                      <div className="flex items-center gap-2 px-2">
-                        <input value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()} autoFocus className="flex-1 px-2 py-1.5 text-sm bg-gray-800 border border-gray-600 rounded-lg text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                        <button onClick={handleUpdateFolder} className="p-1 text-emerald-400"><Check className="w-4 h-4" /></button>
-                        <button onClick={() => { setEditingFolderId(null); setEditingFolderName(''); }} className="p-1 text-gray-500"><X className="w-4 h-4" /></button>
-                      </div>
-                    ) : (
-                      <div onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolder(null); setSharedFolderItems([]); setSidebarOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer ${isActive ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-gray-800 text-gray-400'}`}>
-                        {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
-                        <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${isActive ? 'bg-blue-600/30 text-blue-400' : 'bg-gray-800 text-gray-500'}`}>{itemCount}</span>
-                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
-                          <button onClick={(e) => { e.stopPropagation(); handleOpenShareModal(folder); }} className="p-1 hover:bg-gray-700 rounded" title="Share"><Share2 className="w-3.5 h-3.5 text-gray-500" /></button>
-                          {!folder.isDefault && (
-                            <>
-                              <button onClick={(e) => { e.stopPropagation(); startEditFolder(folder); }} className="p-1 hover:bg-gray-700 rounded" title="Rename"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
-                              <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="p-1 hover:bg-gray-700 rounded" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {sharedFolders.length > 0 && (
-              <div className="mt-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Shared with me</span>
-                  <span className="text-xs bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded-full">{sharedFolders.length}</span>
+          {/* Current Profile Display (read-only, controlled by global selector) */}
+          {selectedProfile && adminViewMode === 'personal' && (
+            <div className="px-4 py-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-3 px-3 py-2.5 bg-white/5 rounded-xl">
+                <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg flex items-center justify-center">
+                  <span className="text-sm font-medium text-white">{selectedProfile?.name?.charAt(0) || '?'}</span>
                 </div>
+                <span className="text-sm font-medium text-gray-200 truncate">{selectedProfile?.name}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto vault-scroll p-4">
+            {adminViewMode === 'personal' && (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</span>
+                  <button onClick={() => setShowNewFolderInput(true)} disabled={!selectedProfileId} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50">
+                    <Plus className="w-4 h-4 text-gray-400" />
+                  </button>
+                </div>
+
+                {showNewFolderInput && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <input type="text" value={folderNameInput} onChange={(e) => setFolderNameInput(e.target.value)} placeholder="Folder name" onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" />
+                    <button onClick={handleCreateFolder} disabled={!folderNameInput.trim()} className="p-2 bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white rounded-xl disabled:opacity-50"><Check className="w-4 h-4" /></button>
+                    <button onClick={() => { setShowNewFolderInput(false); setFolderNameInput(''); }} className="p-2 bg-white/10 text-gray-400 rounded-xl"><X className="w-4 h-4" /></button>
+                  </div>
+                )}
+
                 <div className="space-y-1">
-                  {sharedFolders.map((shared) => {
-                    const isActive = selectedSharedFolder?.folderId === shared.folderId;
+                  {visibleFolders.map((folder) => {
+                    const isActive = folder.id === selectedFolderId && !selectedSharedFolder && adminViewMode === 'personal';
+                    const itemCount = folder.isDefault ? vaultItems.filter((item) => item.profileId === selectedProfileId).length : vaultItems.filter((item) => item.folderId === folder.id && item.profileId === selectedProfileId).length;
                     return (
-                      <button key={shared.id} onClick={() => { loadSharedFolderItems(shared); setSidebarOpen(false); }} className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isActive ? 'bg-blue-600/20 text-blue-400' : 'hover:bg-gray-800 text-gray-400'}`}>
-                        <Users className={`w-4 h-4 ${isActive ? 'text-blue-400' : 'text-gray-500'}`} />
-                        <div className="flex-1 min-w-0 text-left">
-                          <span className="text-sm font-medium truncate block">{shared.folderName}</span>
-                          <span className="text-xs text-gray-500 truncate block">From {shared.sharedBy}</span>
-                        </div>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${shared.permission === 'EDIT' ? 'bg-emerald-600/20 text-emerald-400' : 'bg-gray-800 text-gray-500'}`}>{shared.permission === 'EDIT' ? 'Edit' : 'View'}</span>
-                      </button>
+                      <div key={folder.id} className="group">
+                        {editingFolderId === folder.id ? (
+                          <div className="flex items-center gap-2 px-2">
+                            <input value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" />
+                            <button onClick={handleUpdateFolder} className="p-1.5 text-emerald-400"><Check className="w-4 h-4" /></button>
+                            <button onClick={() => { setEditingFolderId(null); setEditingFolderName(''); }} className="p-1.5 text-gray-500"><X className="w-4 h-4" /></button>
+                          </div>
+                        ) : (
+                          <div onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolder(null); setSharedFolderItems([]); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'}`}>
+                            {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
+                            <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>{itemCount}</span>
+                            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                              <button onClick={(e) => { e.stopPropagation(); handleOpenShareModal(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Share"><Share2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                              {!folder.isDefault && (
+                                <>
+                                  <button onClick={(e) => { e.stopPropagation(); startEditFolder(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Rename"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="p-1 hover:bg-white/10 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
+
+                {sharedFolders.length > 0 && (
+                  <div className="mt-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Shared with me</span>
+                      <span className="text-xs bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">{sharedFolders.length}</span>
+                    </div>
+                    <div className="space-y-1">
+                      {sharedFolders.map((shared) => {
+                        const isActive = selectedSharedFolder?.folderId === shared.folderId && adminViewMode === 'personal';
+                        return (
+                          <button key={shared.id} onClick={() => { loadSharedFolderItems(shared); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'}`}>
+                            <Users className={`w-4 h-4 ${isActive ? 'text-violet-400' : 'text-gray-500'}`} />
+                            <div className="flex-1 min-w-0 text-left">
+                              <span className="text-sm font-medium truncate block">{shared.folderName}</span>
+                              <span className="text-xs text-gray-500 truncate block">From {shared.sharedBy}</span>
+                            </div>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${shared.permission === 'EDIT' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-gray-500'}`}>{shared.permission === 'EDIT' ? 'Edit' : 'View'}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Admin Creator View - Stats */}
+            {isAdmin && adminViewMode === 'creators' && (
+              <div className="space-y-4">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Creator Stats</div>
+                {selectedContentCreator ? (
+                  <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center">
+                        <UserCheck className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">{`${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Unknown'}</p>
+                        <p className="text-xs text-gray-500">{selectedContentCreator.email || 'No email'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2 bg-white/5 rounded-lg text-center">
+                        <p className="text-lg font-semibold text-white">{contentCreatorItems.filter(i => i.creatorId === selectedContentCreator.id).length}</p>
+                        <p className="text-xs text-gray-500">Items</p>
+                      </div>
+                      <div className="p-2 bg-white/5 rounded-lg text-center">
+                        <p className="text-lg font-semibold text-white">{formatFileSize(contentCreatorItems.filter(i => i.creatorId === selectedContentCreator.id).reduce((acc, i) => acc + i.fileSize, 0))}</p>
+                        <p className="text-xs text-gray-500">Total Size</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                    <p className="text-sm text-gray-400 mb-2">All Creators</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2 bg-white/5 rounded-lg text-center">
+                        <p className="text-lg font-semibold text-white">{creatorTotalItems}</p>
+                        <p className="text-xs text-gray-500">Total Items</p>
+                      </div>
+                      <div className="p-2 bg-white/5 rounded-lg text-center">
+                        <p className="text-lg font-semibold text-white">{formatFileSize(creatorTotalSize)}</p>
+                        <p className="text-xs text-gray-500">Total Size</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
+                      <span className="flex items-center gap-1"><ImageIcon className="w-3 h-3" /> {creatorImageCount}</span>
+                      <span className="flex items-center gap-1"><VideoIcon className="w-3 h-3" /> {creatorVideoCount}</span>
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {contentCreators.length} creators</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Creator Folders - shown when a specific creator is selected */}
+                {selectedContentCreator && creatorFolders.length > 0 && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Creator Folders</span>
+                      <span className="text-xs bg-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">{creatorFolders.length}</span>
+                    </div>
+                    
+                    {/* All Items option */}
+                    <button
+                      onClick={() => { setSelectedCreatorFolderId(null); setSidebarOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-1 ${
+                        !selectedCreatorFolderId 
+                          ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' 
+                          : 'hover:bg-white/5 text-gray-400 border border-transparent'
+                      }`}
+                    >
+                      <Folder className={`w-4 h-4 ${!selectedCreatorFolderId ? 'text-violet-400' : 'text-gray-500'}`} />
+                      <span className="flex-1 text-sm font-medium text-left">All Items</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${!selectedCreatorFolderId ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>
+                        {contentCreatorItems.filter(i => i.creatorId === selectedContentCreator.id).length}
+                      </span>
+                    </button>
+
+                    {/* Group folders by profile */}
+                    {creatorProfiles.map(profile => {
+                      const profileFolders = creatorFolders.filter(f => f.profileId === profile.id);
+                      if (profileFolders.length === 0) return null;
+                      
+                      return (
+                        <div key={profile.id} className="mb-3">
+                          <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500">
+                            <span className="truncate">{profile.name}</span>
+                            {profile.instagramUsername && (
+                              <span className="text-gray-600">@{profile.instagramUsername}</span>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            {profileFolders.map((folder) => {
+                              const isActive = selectedCreatorFolderId === folder.id;
+                              return (
+                                <button
+                                  key={folder.id}
+                                  onClick={() => { setSelectedCreatorFolderId(folder.id); setSidebarOpen(false); }}
+                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all ${
+                                    isActive 
+                                      ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' 
+                                      : 'hover:bg-white/5 text-gray-400 border border-transparent'
+                                  }`}
+                                >
+                                  {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
+                                  <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>
+                                    {folder.itemCount}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {selectedProfileId && (
-            <div className="p-4 border-t border-gray-800">
-              <div className="text-xs text-gray-500 mb-2">Storage used</div>
+          {/* Storage Stats Footer */}
+          {adminViewMode === 'personal' && selectedProfileId && (
+            <div className="p-4 border-t border-white/[0.06]">
+              <div className="text-xs text-gray-400 mb-2">Storage used</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-lg font-semibold text-white">{formatFileSize(totalSize)}</span>
               </div>
@@ -1888,48 +2415,87 @@ export function VaultContent() {
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden w-full relative">
-          <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-3 sm:py-4">
+          <div className="glass-card border-b border-white/[0.06] px-4 sm:px-6 py-3 sm:py-4">
             {/* Mobile header row */}
             <div className="flex items-center gap-3 lg:hidden mb-3">
-              <button onClick={() => setSidebarOpen(true)} className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
+              <button onClick={() => setSidebarOpen(true)} className="p-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors">
                 <Menu className="w-5 h-5 text-gray-300" />
               </button>
-              <h1 className="text-lg font-semibold text-white truncate flex-1">{selectedFolder?.name || 'Select a folder'}</h1>
-              {!isViewingShared && (
-                <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || !selectedFolderId} className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50">
+              <h1 className="text-lg font-semibold text-white truncate flex-1">
+                {isViewingCreators 
+                  ? (selectedContentCreator 
+                      ? `${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Creator Files'
+                      : 'All Creator Files')
+                  : (selectedFolder?.name || 'Select a folder')}
+              </h1>
+              {!isViewingShared && !isViewingCreators && (
+                <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || !selectedFolderId} className="p-2 bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white rounded-xl transition-colors disabled:opacity-50 shadow-lg shadow-violet-500/25">
                   <Upload className="w-5 h-5" />
                 </button>
               )}
+              {/* Mobile Export button */}
+              {vaultItems.filter(item => item.fileType.startsWith('image/')).length > 0 && (
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                  title="Platform Export"
+                >
+                  <FileOutput className="w-5 h-5" />
+                </button>
+              )}
             </div>
-            
+
             {/* Desktop header row */}
             <div className="hidden lg:flex items-center justify-between">
               <div>
-                <h1 className="text-xl font-semibold text-white">{selectedFolder?.name || 'Select a folder'}</h1>
+                <h1 className="text-xl font-semibold text-white">
+                  {isViewingCreators 
+                    ? (selectedContentCreator 
+                        ? `${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Creator Files'
+                        : 'All Creator Files')
+                    : (selectedFolder?.name || 'Select a folder')}
+                </h1>
                 {isViewingShared && selectedSharedFolder && (
                   <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5">
                     <Share2 className="w-3.5 h-3.5" /> Shared by {selectedSharedFolder.sharedBy}
                     {!canEdit && <span className="text-amber-400 ml-2">(View only)</span>}
                   </p>
                 )}
+                {isViewingCreators && (
+                  <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5">
+                    <Crown className="w-3.5 h-3.5 text-amber-400" /> 
+                    Content Creator Generations
+                    <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full ml-2">Admin View</span>
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <div className="relative w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input type="text" placeholder="Search files..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+                  <input type="text" placeholder="Search files..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors" />
                 </div>
-                <div className="flex items-center bg-gray-800 rounded-lg p-1">
-                  <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-gray-700 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-4 h-4" /></button>
-                  <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-gray-700 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
+                <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
+                  <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-4 h-4" /></button>
+                  <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
                 </div>
-                {!isViewingShared && (
-                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || !selectedFolderId} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50">
+                {!isViewingShared && !isViewingCreators && (
+                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || !selectedFolderId} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25">
                     <Upload className="w-4 h-4" /> Upload
+                  </button>
+                )}
+                {/* Desktop Export button */}
+                {vaultItems.filter(item => item.fileType.startsWith('image/')).length > 0 && (
+                  <button
+                    onClick={() => setShowExportModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-fuchsia-500 to-pink-600 hover:from-fuchsia-600 hover:to-pink-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-fuchsia-500/25"
+                    title="Export for platforms"
+                  >
+                    <FileOutput className="w-4 h-4" /> Export
                   </button>
                 )}
               </div>
             </div>
-            
+
             {/* Mobile shared folder info */}
             {isViewingShared && selectedSharedFolder && (
               <p className="text-sm text-gray-400 flex items-center gap-1 lg:hidden mb-3">
@@ -1942,11 +2508,11 @@ export function VaultContent() {
             <div className="flex items-center gap-2 lg:hidden mb-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" />
+                <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors" />
               </div>
-              <div className="flex items-center bg-gray-800 rounded-lg p-1">
-                <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-gray-700 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-4 h-4" /></button>
-                <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-gray-700 text-blue-400' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
+              <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
+                <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-4 h-4" /></button>
+                <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
               </div>
             </div>
             
@@ -1954,7 +2520,7 @@ export function VaultContent() {
             <div className="flex items-center justify-between gap-3 mt-3 lg:mt-4">
               <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1 sm:mx-0 sm:px-0 vault-scroll">
                 {['all', 'photos', 'videos', 'audio', 'gifs'].map((filter) => (
-                  <button key={filter} onClick={() => setContentFilter(filter as any)} className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0 ${contentFilter === filter ? 'bg-blue-600/20 text-blue-400' : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'}`}>{filter.charAt(0).toUpperCase() + filter.slice(1)}</button>
+                  <button key={filter} onClick={() => setContentFilter(filter as any)} className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${contentFilter === filter ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}>{filter.charAt(0).toUpperCase() + filter.slice(1)}</button>
                 ))}
               </div>
               {filteredItems.length > 0 && (
@@ -1966,7 +2532,7 @@ export function VaultContent() {
                       setSelectionMode(true);
                     }
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap flex-shrink-0 ${selectionMode ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium rounded-xl transition-all whitespace-nowrap flex-shrink-0 ${selectionMode ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-400 hover:bg-white/10 hover:text-white'}`}
                 >
                   <Check className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                   <span className="hidden sm:inline">{selectionMode ? 'Cancel' : 'Select'}</span>
@@ -1975,49 +2541,75 @@ export function VaultContent() {
             </div>
           </div>
 
-          <div ref={contentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto vault-scroll p-3 sm:p-4 md:p-6 bg-gray-950 rounded-br-xl">
-            {!selectedProfileId && !selectedSharedFolder ? (
-              <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="w-14 sm:w-16 h-14 sm:h-16 bg-gray-800 rounded-2xl flex items-center justify-center mb-4"><Folder className="w-7 sm:w-8 h-7 sm:h-8 text-gray-600" /></div>
-                <h3 className="text-base sm:text-lg font-medium text-white mb-1">Select a profile</h3>
-                <p className="text-xs sm:text-sm text-gray-500">Choose a profile from the sidebar to view your files</p>
-                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors">
-                  <Menu className="w-4 h-4" /> Open sidebar
-                </button>
-              </div>
-            ) : !selectedFolderId && !selectedSharedFolder ? (
-              <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="w-14 sm:w-16 h-14 sm:h-16 bg-gray-800 rounded-2xl flex items-center justify-center mb-4"><FolderPlus className="w-7 sm:w-8 h-7 sm:h-8 text-gray-600" /></div>
-                <h3 className="text-base sm:text-lg font-medium text-white mb-1">Create a folder</h3>
-                <p className="text-xs sm:text-sm text-gray-500">Organize your files by creating folders</p>
-                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors">
-                  <Menu className="w-4 h-4" /> Open sidebar
-                </button>
-              </div>
-            ) : loadingItems ? (
+          <div ref={contentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto vault-scroll p-3 sm:p-4 md:p-6 bg-[#0a0a0f] rounded-br-2xl">
+            {/* Admin Creator View - Loading/Empty States */}
+            {isViewingCreators && loadingCreatorItems && (
               <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4' : 'space-y-2'}>
                 {[...Array(8)].map((_, i) => (
-                  <div key={i} className={viewMode === 'grid' ? 'bg-gray-900 rounded-xl border border-gray-800 p-2 sm:p-3 animate-pulse' : 'bg-gray-900 rounded-lg border border-gray-800 p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
-                    <div className={viewMode === 'grid' ? 'aspect-square bg-gray-800 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-gray-800 rounded-lg flex-shrink-0'} />
-                    <div className={viewMode === 'grid' ? '' : 'flex-1'}><div className="h-3 sm:h-4 bg-gray-800 rounded w-3/4 mb-2" /><div className="h-2 sm:h-3 bg-gray-800 rounded w-1/2" /></div>
+                  <div key={i} className={viewMode === 'grid' ? 'glass-card rounded-xl p-2 sm:p-3 animate-pulse' : 'glass-card rounded-xl p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
+                    <div className={viewMode === 'grid' ? 'aspect-square bg-white/5 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-white/5 rounded-lg flex-shrink-0'} />
+                    <div className={viewMode === 'grid' ? '' : 'flex-1'}><div className="h-3 sm:h-4 bg-white/5 rounded w-3/4 mb-2" /><div className="h-2 sm:h-3 bg-white/5 rounded w-1/2" /></div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isViewingCreators && !loadingCreatorItems && contentCreatorItems.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-2xl flex items-center justify-center mb-4 border border-amber-500/30">
+                  <Crown className="w-8 h-8 text-amber-400" />
+                </div>
+                <h3 className="text-lg font-medium text-white mb-1">No Content Creator Files</h3>
+                <p className="text-sm text-gray-400 max-w-sm">
+                  {contentCreators.length === 0 
+                    ? "No users with the Content Creator role found in the system."
+                    : "Content creators haven't uploaded any files to their vault yet."}
+                </p>
+              </div>
+            )}
+
+            {!isViewingCreators && !selectedProfileId && !selectedSharedFolder ? (
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-2xl flex items-center justify-center mb-4 border border-violet-500/30"><Folder className="w-8 h-8 text-violet-400" /></div>
+                <h3 className="text-lg font-medium text-white mb-1">Select a profile</h3>
+                <p className="text-sm text-gray-400">Choose a profile from the sidebar to view your files</p>
+                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl font-medium transition-colors">
+                  <Menu className="w-4 h-4" /> Open sidebar
+                </button>
+              </div>
+            ) : !isViewingCreators && !selectedFolderId && !selectedSharedFolder ? (
+              <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-2xl flex items-center justify-center mb-4 border border-violet-500/30"><FolderPlus className="w-8 h-8 text-violet-400" /></div>
+                <h3 className="text-lg font-medium text-white mb-1">Create a folder</h3>
+                <p className="text-sm text-gray-400">Organize your files by creating folders</p>
+                <button onClick={() => setSidebarOpen(true)} className="mt-4 lg:hidden flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl font-medium transition-colors">
+                  <Menu className="w-4 h-4" /> Open sidebar
+                </button>
+              </div>
+            ) : (loadingItems || loadingCreatorItems) && !isViewingCreators ? (
+              <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4' : 'space-y-2'}>
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className={viewMode === 'grid' ? 'glass-card rounded-xl p-2 sm:p-3 animate-pulse' : 'glass-card rounded-xl p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
+                    <div className={viewMode === 'grid' ? 'aspect-square bg-white/5 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-white/5 rounded-lg flex-shrink-0'} />
+                    <div className={viewMode === 'grid' ? '' : 'flex-1'}><div className="h-3 sm:h-4 bg-white/5 rounded w-3/4 mb-2" /><div className="h-2 sm:h-3 bg-white/5 rounded w-1/2" /></div>
                   </div>
                 ))}
               </div>
             ) : allFilteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="w-14 sm:w-16 h-14 sm:h-16 bg-gray-800 rounded-2xl flex items-center justify-center mb-4"><FileIcon className="w-7 sm:w-8 h-7 sm:h-8 text-gray-600" /></div>
-                <h3 className="text-base sm:text-lg font-medium text-white mb-1">No files yet</h3>
-                <p className="text-xs sm:text-sm text-gray-500 mb-4">Upload some files to get started</p>
-                {!isViewingShared && <button onClick={() => setIsAddingNew(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"><Upload className="w-4 h-4" /> Upload files</button>}
+                <div className="w-16 h-16 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-2xl flex items-center justify-center mb-4 border border-violet-500/30"><FileIcon className="w-8 h-8 text-violet-400" /></div>
+                <h3 className="text-lg font-medium text-white mb-1">No files yet</h3>
+                <p className="text-sm text-gray-400 mb-4">Upload some files to get started</p>
+                {!isViewingShared && !isViewingCreators && <button onClick={() => setIsAddingNew(true)} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-violet-500/25"><Upload className="w-4 h-4" /> Upload files</button>}
               </div>
             ) : viewMode === 'grid' ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
                   {filteredItems.length > 0 && selectionMode && (
-                    <div className="col-span-full flex items-center justify-between mb-2 px-2 py-2 bg-gray-900/80 backdrop-blur-sm rounded-lg border border-gray-800">
+                    <div className="col-span-full flex items-center justify-between mb-2 px-3 py-2.5 glass-card rounded-xl">
                       <div className="flex items-center gap-2">
-                        <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === allFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 cursor-pointer" />
-                        <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${allFilteredItems.length}` : 'Select all'}</span>
+                        <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-violet-600 bg-white/10 border-white/20 rounded focus:ring-violet-500 cursor-pointer" />
+                        <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
                       </div>
                       <span className="text-xs text-gray-500">Shift+click for range</span>
                     </div>
@@ -2028,7 +2620,7 @@ export function VaultContent() {
                       item={item}
                       isSelected={selectedItems.has(item.id)}
                       selectionMode={selectionMode}
-                      canEdit={canEdit}
+                      canEdit={canEdit && !isViewingCreators}
                       onSelect={onSelectItem}
                       onPreview={setPreviewItem}
                       onDelete={handleDeleteItem}
@@ -2038,8 +2630,8 @@ export function VaultContent() {
                 </div>
                 {hasMoreItems && (
                   <div className="flex justify-center mt-4 sm:mt-6">
-                    <button onClick={loadMoreItems} className="px-4 sm:px-6 py-2 sm:py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm sm:text-base font-medium transition-colors flex items-center gap-2">
-                      <Loader2 className="w-4 h-4" /> Load more ({allFilteredItems.length - filteredItems.length})
+                    <button onClick={loadMoreItems} className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl text-sm sm:text-base font-medium transition-all flex items-center gap-2 border border-white/10">
+                      <Loader2 className="w-4 h-4" /> Load more ({currentFilteredItems.length - filteredItems.length})
                     </button>
                   </div>
                 )}
@@ -2048,10 +2640,10 @@ export function VaultContent() {
               <>
                 <div className="space-y-2">
                   {filteredItems.length > 0 && selectionMode && (
-                    <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-gray-900/80 backdrop-blur-sm rounded-lg mb-2 border border-gray-800">
+                    <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 glass-card rounded-xl mb-2">
                       <div className="flex items-center gap-2 sm:gap-3">
-                        <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === allFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 cursor-pointer" />
-                        <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${allFilteredItems.length}` : 'Select all'}</span>
+                        <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-violet-600 bg-white/10 border-white/20 rounded focus:ring-violet-500 cursor-pointer" />
+                        <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
                       </div>
                       <span className="text-xs text-gray-500">Shift+click for range</span>
                     </div>
@@ -2062,7 +2654,7 @@ export function VaultContent() {
                       item={item}
                       isSelected={selectedItems.has(item.id)}
                       selectionMode={selectionMode}
-                      canEdit={canEdit}
+                      canEdit={canEdit && !isViewingCreators}
                       onSelect={onSelectItem}
                       onPreview={setPreviewItem}
                       onDelete={handleDeleteItem}
@@ -2072,8 +2664,8 @@ export function VaultContent() {
                 </div>
                 {hasMoreItems && (
                   <div className="flex justify-center mt-6">
-                    <button onClick={loadMoreItems} className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors flex items-center gap-2">
-                      <Loader2 className="w-4 h-4" /> Load more ({allFilteredItems.length - filteredItems.length} remaining)
+                    <button onClick={loadMoreItems} className="px-6 py-3 bg-white/10 hover:bg-white/20 text-gray-300 rounded-xl font-medium transition-all flex items-center gap-2 border border-white/10">
+                      <Loader2 className="w-4 h-4" /> Load more ({currentFilteredItems.length - filteredItems.length} remaining)
                     </button>
                   </div>
                 )}
@@ -2084,10 +2676,10 @@ export function VaultContent() {
           {/* Floating Selection Action Bar */}
           {selectedItems.size > 0 && (
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 animate-slideUp">
-              <div className="flex items-center gap-2 sm:gap-3 bg-gray-900/95 backdrop-blur-lg border border-gray-700 rounded-2xl px-3 sm:px-5 py-2.5 sm:py-3 shadow-2xl shadow-black/50">
+              <div className="flex items-center gap-2 sm:gap-3 glass-card backdrop-blur-xl rounded-2xl px-3 sm:px-5 py-2.5 sm:py-3 shadow-2xl shadow-violet-500/10">
                 {/* Selection count */}
-                <div className="flex items-center gap-2 pr-2 sm:pr-3 border-r border-gray-700">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                <div className="flex items-center gap-2 pr-2 sm:pr-3 border-r border-white/10">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-r from-violet-500 to-fuchsia-600 rounded-full flex items-center justify-center shadow-lg shadow-violet-500/25">
                     <span className="text-xs sm:text-sm font-bold text-white">{selectedItems.size}</span>
                   </div>
                   <span className="text-xs sm:text-sm text-gray-300 hidden sm:inline">selected</span>
@@ -2096,21 +2688,21 @@ export function VaultContent() {
                 {/* Select all */}
                 <button 
                   onClick={toggleSelectAll}
-                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-300 hover:bg-white/10 rounded-lg transition-colors"
                 >
                   <Check className="w-4 h-4" />
-                  <span className="hidden sm:inline">{selectedItems.size === allFilteredItems.length ? 'Deselect all' : 'Select all'}</span>
+                  <span className="hidden sm:inline">{selectedItems.size === currentFilteredItems.length ? 'Deselect all' : 'Select all'}</span>
                 </button>
                 
                 {/* Divider */}
-                <div className="w-px h-6 bg-gray-700" />
+                <div className="w-px h-6 bg-white/10" />
                 
                 {/* Actions */}
-                {canEdit && (
+                {canEdit && !isViewingCreators && (
                   <button 
                     onClick={handleBulkMove} 
                     disabled={isMoving}
-                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-blue-400 hover:bg-blue-600/20 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-violet-400 hover:bg-violet-500/20 rounded-lg transition-colors disabled:opacity-50"
                     title="Move"
                   >
                     <Move className="w-4 h-4" />
@@ -2118,21 +2710,30 @@ export function VaultContent() {
                   </button>
                 )}
                 
-                <button 
-                  onClick={handleDownloadZip} 
+                <button
+                  onClick={handleDownloadZip}
                   disabled={isDownloading}
-                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-emerald-400 hover:bg-emerald-600/20 rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
                   title="Download"
                 >
                   {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   <span className="hidden md:inline">Download</span>
                 </button>
-                
-                {canEdit && (
+
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-fuchsia-400 hover:bg-fuchsia-500/20 rounded-lg transition-colors"
+                  title="Platform Export"
+                >
+                  <FileOutput className="w-4 h-4" />
+                  <span className="hidden md:inline">Export</span>
+                </button>
+
+                {canEdit && !isViewingCreators && (
                   <button 
                     onClick={handleBulkDelete} 
                     disabled={isDeleting}
-                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-red-400 hover:bg-red-600/20 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-red-400 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
                     title="Delete"
                   >
                     {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -2141,12 +2742,12 @@ export function VaultContent() {
                 )}
                 
                 {/* Divider */}
-                <div className="w-px h-6 bg-gray-700" />
+                <div className="w-px h-6 bg-white/10" />
                 
                 {/* Close */}
                 <button 
                   onClick={clearSelection}
-                  className="p-1.5 sm:p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-1.5 sm:p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                   title="Clear selection (Esc)"
                 >
                   <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -2156,6 +2757,31 @@ export function VaultContent() {
           )}
         </div>
       </div>
+
+      {/* Platform Export Modal */}
+      <PlatformExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        images={(() => {
+          // If items are selected, use selected images. Otherwise, use all images.
+          const itemsSource = isViewingCreators ? contentCreatorItems : vaultItems;
+          const imagesToExport = selectedItems.size > 0
+            ? itemsSource.filter(item => selectedItems.has(item.id))
+            : itemsSource;
+          return imagesToExport
+            .filter(item => item.fileType.startsWith('image/'))
+            .map(item => ({
+              url: item.awsS3Url,
+              filename: item.fileName,
+            }));
+        })()}
+        defaultModelName={selectedProfile?.name || ''}
+        profileId={selectedProfileId || undefined}
+        onExportComplete={(result) => {
+          showToast(`Exported ${result.fileCount} files to ${result.filename}`, 'success');
+          setShowExportModal(false);
+        }}
+      />
     </>
   );
 }

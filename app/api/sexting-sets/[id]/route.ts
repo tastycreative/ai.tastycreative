@@ -140,3 +140,75 @@ export async function DELETE(
     );
   }
 }
+
+// PATCH - Update image metadata (rename)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id: setId } = await params;
+    const body = await request.json();
+    const { imageId, newName } = body;
+
+    if (!imageId || !newName) {
+      return NextResponse.json(
+        { error: "Image ID and new name are required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify ownership of the set
+    const existingSet = await prisma.sextingSet.findFirst({
+      where: { id: setId, userId },
+    });
+
+    if (!existingSet) {
+      return NextResponse.json(
+        { error: "Set not found or unauthorized" },
+        { status: 404 }
+      );
+    }
+
+    // Find and update the image
+    const image = await prisma.sextingImage.findFirst({
+      where: { id: imageId, setId },
+    });
+
+    if (!image) {
+      return NextResponse.json(
+        { error: "Image not found" },
+        { status: 404 }
+      );
+    }
+
+    // Sanitize the new name (preserve extension if not provided)
+    const originalExtension = image.name.split('.').pop() || '';
+    const newExtension = newName.split('.').pop() || '';
+    const finalName = newExtension.toLowerCase() === originalExtension.toLowerCase() 
+      ? newName 
+      : `${newName}.${originalExtension}`;
+
+    // Update the image name
+    const updatedImage = await prisma.sextingImage.update({
+      where: { id: imageId },
+      data: { name: finalName },
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      image: updatedImage 
+    });
+  } catch (error) {
+    console.error("Error updating image:", error);
+    return NextResponse.json(
+      { error: "Failed to update image" },
+      { status: 500 }
+    );
+  }
+}

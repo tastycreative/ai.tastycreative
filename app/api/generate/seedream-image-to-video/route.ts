@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       watermark,
       generateAudio,
       targetFolder,
+      referenceImageUrl, // The actual reference image URL for history/reuse
       // Vault folder params
       saveToVault,
       vaultProfileId,
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
           generateAudio,
           source: "seedream-i2v",
           targetFolder: targetFolder || null,
+          referenceImageUrl: referenceImageUrl || null, // Store reference image for history/reuse
           // Vault params
           saveToVault: saveToVault || false,
           vaultProfileId: vaultProfileId || null,
@@ -214,6 +216,11 @@ export async function GET(request: NextRequest) {
     // Handle history request
     if (isHistoryRequest) {
       try {
+        // Get profileId from query params to filter by profile
+        const profileId = searchParams.get("profileId");
+        
+        console.log('📋 Fetching SeeDream I2V history for user:', userId, 'profileId:', profileId);
+        
         const videos = await prisma.generatedVideo.findMany({
           where: {
             clerkId: userId,
@@ -231,19 +238,43 @@ export async function GET(request: NextRequest) {
           orderBy: {
             createdAt: "desc",
           },
-          take: 20,
+          take: 50,
         });
 
-        const formattedVideos = videos.map((video) => ({
-          id: video.id,
-          videoUrl: video.awsS3Url || video.s3Key,
-          prompt: (video.job.params as any)?.prompt || "Unknown prompt",
-          modelVersion: "SeeDream 4.5",
-          duration: (video.metadata as any)?.duration || video.duration || 5,
-          cameraFixed: (video.metadata as any)?.cameraFixed || false,
-          createdAt: video.createdAt.toISOString(),
-          status: "completed" as const,
-        }));
+        // Filter by profileId if provided - include videos with matching profile OR no profile set
+        let filteredVideos = videos;
+        if (profileId) {
+          filteredVideos = videos.filter((video) => {
+            const params = video.job.params as any;
+            // Include if profileId matches OR if no profileId was set (backward compatibility)
+            return params?.vaultProfileId === profileId || !params?.vaultProfileId;
+          });
+        }
+
+        const formattedVideos = filteredVideos.map((video) => {
+          const metadata = video.metadata as any;
+          const params = video.job.params as any;
+          return {
+            id: video.id,
+            videoUrl: video.awsS3Url || video.s3Key,
+            prompt: params?.prompt || "Unknown prompt",
+            modelVersion: "SeeDream 4.5",
+            duration: metadata?.duration || video.duration || 5,
+            cameraFixed: metadata?.cameraFixed || params?.cameraFixed || false,
+            createdAt: video.createdAt.toISOString(),
+            status: "completed" as const,
+            // Include reference image and full metadata for potential reuse
+            referenceImageUrl: params?.referenceImageUrl || null,
+            metadata: {
+              resolution: metadata?.resolution || params?.resolution || "720p",
+              ratio: metadata?.ratio || params?.ratio || "16:9",
+              generateAudio: params?.generateAudio ?? true,
+              cameraFixed: metadata?.cameraFixed || params?.cameraFixed || false,
+              referenceImageUrl: params?.referenceImageUrl || null,
+              profileId: params?.vaultProfileId || null,
+            },
+          };
+        });
 
         return NextResponse.json({ videos: formattedVideos });
       } catch (error) {
@@ -376,12 +407,58 @@ export async function GET(request: NextRequest) {
 
         const awsS3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, '/');
 
-        // Save to database - either VaultItem or GeneratedVideo
-        let formattedVideo: any;
+        // ALWAYS create GeneratedVideo for history tracking
+        const savedVideo = await prisma.generatedVideo.create({
+          data: {
+            clerkId: userId,
+            jobId: generationJob.id,
+            filename: filename,
+            subfolder: subfolder || "",
+            type: "output",
+            s3Key: s3Key,
+            awsS3Key: s3Key,
+            awsS3Url: awsS3Url,
+            duration: data.duration,
+            fps: data.framespersecond,
+            format: "mp4",
+            metadata: {
+              source: "seedream-i2v",
+              prompt: params?.prompt || "",
+              resolution: params?.resolution || data.resolution,
+              ratio: params?.ratio || data.ratio,
+              seed: data.seed,
+              cameraFixed: params?.cameraFixed,
+              generateAudio: params?.generateAudio,
+              watermark: params?.watermark,
+              referenceImageUrl: params?.referenceImageUrl || null,
+              originalUrl: data.content.video_url,
+            },
+          },
+        });
+
+        let formattedVideo: any = {
+          id: savedVideo.id,
+          videoUrl: awsS3Url,
+          prompt: params?.prompt || "Unknown prompt",
+          modelVersion: "SeeDream 4.5",
+          duration: data.duration || 5,
+          cameraFixed: params?.cameraFixed || false,
+          createdAt: savedVideo.createdAt.toISOString(),
+          status: "completed" as const,
+          referenceImageUrl: params?.referenceImageUrl || null,
+          metadata: {
+            resolution: params?.resolution || data.resolution || "720p",
+            ratio: params?.ratio || data.ratio || "16:9",
+            generateAudio: params?.generateAudio ?? true,
+            cameraFixed: params?.cameraFixed || false,
+            referenceImageUrl: params?.referenceImageUrl || null,
+            profileId: vaultProfileId || null,
+          },
+        };
         
+        // ADDITIONALLY create VaultItem if saving to vault
         if (saveToVault && vaultProfileId && vaultFolderId) {
-          // Create VaultItem for vault storage with generation metadata
-          const vaultItem = await prisma.vaultItem.create({
+          await prisma.vaultItem.create({
             data: {
               clerkId: userId,
               profileId: vaultProfileId,
@@ -396,66 +473,19 @@ export async function GET(request: NextRequest) {
                 generationType: "image-to-video",
                 model: "SeeDream 4.5",
                 prompt: params?.prompt || "Unknown prompt",
-                resolution: data.resolution,
-                ratio: data.ratio,
+                resolution: params?.resolution || data.resolution,
+                ratio: params?.ratio || data.ratio,
                 duration: data.duration || 5,
                 fps: data.framespersecond,
                 seed: data.seed,
                 cameraFixed: params?.cameraFixed,
+                generateAudio: params?.generateAudio,
+                referenceImageUrl: params?.referenceImageUrl || null,
                 generatedAt: new Date().toISOString(),
               },
             },
           });
-
-          formattedVideo = {
-            id: vaultItem.id,
-            videoUrl: awsS3Url,
-            prompt: params?.prompt || "Unknown prompt",
-            modelVersion: "SeeDream 4.5",
-            duration: data.duration || 5,
-            cameraFixed: params?.cameraFixed || false,
-            createdAt: vaultItem.createdAt.toISOString(),
-            status: "completed" as const,
-            savedToVault: true,
-          };
-        } else {
-          // Save to GeneratedVideo for regular storage
-          const savedVideo = await prisma.generatedVideo.create({
-            data: {
-              clerkId: userId,
-              jobId: generationJob.id,
-              filename: filename,
-              subfolder: subfolder || "",
-              type: "output",
-              s3Key: s3Key,
-              awsS3Key: s3Key,
-              awsS3Url: awsS3Url,
-              duration: data.duration,
-              fps: data.framespersecond,
-              format: "mp4",
-              metadata: {
-                source: "seedream-i2v",
-                prompt: params?.prompt || "",
-                resolution: data.resolution,
-                ratio: data.ratio,
-                seed: data.seed,
-                cameraFixed: params?.cameraFixed,
-                watermark: params?.watermark,
-                originalUrl: data.content.video_url,
-              },
-            },
-          });
-
-          formattedVideo = {
-            id: savedVideo.id,
-            videoUrl: awsS3Url,
-            prompt: params?.prompt || "Unknown prompt",
-            modelVersion: "SeeDream 4.5",
-            duration: data.duration || 5,
-            cameraFixed: params?.cameraFixed || false,
-            createdAt: savedVideo.createdAt.toISOString(),
-            status: "completed" as const,
-          };
+          formattedVideo.savedToVault = true;
         }
 
         // Update GenerationJob status
