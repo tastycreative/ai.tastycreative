@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const type = searchParams.get("type");
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const assets = await prisma.ofModelAsset.findMany({
+    const assets = await prisma.of_model_assets.findMany({
       where: {
         creatorId: id,
         ...(type && { type: type.toUpperCase() as any }),
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const asset = await prisma.ofModelAsset.create({
+    const asset = await prisma.of_model_assets.create({
       data: {
         creatorId: id,
         type: type.toUpperCase(),
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         fileSize,
         mimeType,
         metadata,
-      },
+      } as any,
     });
 
     return NextResponse.json({ data: asset }, { status: 201 });
@@ -130,7 +130,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -142,7 +142,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify asset exists
-    const existingAsset = await prisma.ofModelAsset.findFirst({
+    const existingAsset = await prisma.of_model_assets.findFirst({
       where: {
         id: assetId,
         creatorId: id,
@@ -165,7 +165,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (updateData.mimeType !== undefined) data.mimeType = updateData.mimeType;
     if (updateData.metadata !== undefined) data.metadata = updateData.metadata;
 
-    const asset = await prisma.ofModelAsset.update({
+    const asset = await prisma.of_model_assets.update({
       where: { id: assetId },
       data,
     });
@@ -200,7 +200,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -212,7 +212,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify asset exists
-    const existingAsset = await prisma.ofModelAsset.findFirst({
+    const existingAsset = await prisma.of_model_assets.findFirst({
       where: {
         id: assetId,
         creatorId: id,
@@ -226,7 +226,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    await prisma.ofModelAsset.delete({
+    await prisma.of_model_assets.delete({
       where: { id: assetId },
     });
 

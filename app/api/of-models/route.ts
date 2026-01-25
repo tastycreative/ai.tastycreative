@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     const sortDirection = searchParams.get("sortDirection") || "desc";
 
     // Build where clause (no user filtering - accessible by all)
-    const where: Prisma.OfModelWhereInput = {
+    const where: Prisma.of_modelsWhereInput = {
       ...(status && status !== "all" && { status: status.toUpperCase() as any }),
       ...(search && {
         OR: [
@@ -31,23 +31,17 @@ export async function GET(req: NextRequest) {
     };
 
     // Build orderBy
-    const orderBy: Prisma.OfModelOrderByWithRelationInput = {
+    const orderBy: Prisma.of_modelsOrderByWithRelationInput = {
       [sort]: sortDirection as "asc" | "desc",
     };
 
-    const models = await prisma.ofModel.findMany({
+    const models = await prisma.of_models.findMany({
       where,
       take: limit + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
       orderBy,
       include: {
-        details: true,
-        _count: {
-          select: {
-            assets: true,
-            pricingCategories: true,
-          },
-        },
+        _count: true,
       },
     });
 
@@ -109,7 +103,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if slug is already taken
-    const existingModel = await prisma.ofModel.findUnique({
+    const existingModel = await prisma.of_models.findUnique({
       where: { slug },
     });
 
@@ -120,7 +114,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const model = await prisma.ofModel.create({
+    const model = await prisma.of_models.create({
       data: {
         name,
         displayName,
@@ -144,15 +138,9 @@ export async function POST(req: NextRequest) {
         referrerName,
         chattingManagers,
         createdBy: userId, // Track who created it
-      },
+      } as Prisma.of_modelsUncheckedCreateInput,
       include: {
-        details: true,
-        _count: {
-          select: {
-            assets: true,
-            pricingCategories: true,
-          },
-        },
+        _count: true,
       },
     });
 

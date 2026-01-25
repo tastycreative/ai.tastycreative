@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { id, categoryId } = await params;
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -28,13 +28,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const category = await prisma.ofModelPricingCategory.findFirst({
+    const category = await prisma.of_model_pricing_categories.findFirst({
       where: {
         id: categoryId,
         creatorId: id,
       },
       include: {
-        items: {
+        of_model_pricing_items: {
           orderBy: { order: "asc" },
         },
       },
@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -81,7 +81,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify category exists
-    const existingCategory = await prisma.ofModelPricingCategory.findFirst({
+    const existingCategory = await prisma.of_model_pricing_categories.findFirst({
       where: {
         id: categoryId,
         creatorId: id,
@@ -97,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     // If slug is being updated, check for conflicts
     if (body.slug && body.slug !== existingCategory.slug) {
-      const slugExists = await prisma.ofModelPricingCategory.findUnique({
+      const slugExists = await prisma.of_model_pricing_categories.findUnique({
         where: {
           creatorId_slug: {
             creatorId: id,
@@ -120,11 +120,11 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     if (body.description !== undefined) updateData.description = body.description;
     if (body.order !== undefined) updateData.order = body.order;
 
-    const category = await prisma.ofModelPricingCategory.update({
+    const category = await prisma.of_model_pricing_categories.update({
       where: { id: categoryId },
       data: updateData,
       include: {
-        items: {
+        of_model_pricing_items: {
           orderBy: { order: "asc" },
         },
       },
@@ -151,7 +151,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { id, categoryId } = await params;
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -163,7 +163,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify category exists
-    const existingCategory = await prisma.ofModelPricingCategory.findFirst({
+    const existingCategory = await prisma.of_model_pricing_categories.findFirst({
       where: {
         id: categoryId,
         creatorId: id,
@@ -178,7 +178,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Delete category (cascades to items)
-    await prisma.ofModelPricingCategory.delete({
+    await prisma.of_model_pricing_categories.delete({
       where: { id: categoryId },
     });
 

@@ -12,15 +12,15 @@ export async function GET(req: NextRequest) {
 
     // Get counts by status (all models, not user-specific)
     const [total, active, inactive, dropped, pending] = await Promise.all([
-      prisma.ofModel.count(),
-      prisma.ofModel.count({ where: { status: "ACTIVE" } }),
-      prisma.ofModel.count({ where: { status: "INACTIVE" } }),
-      prisma.ofModel.count({ where: { status: "DROPPED" } }),
-      prisma.ofModel.count({ where: { status: "PENDING" } }),
+      prisma.of_models.count(),
+      prisma.of_models.count({ where: { status: "ACTIVE" } }),
+      prisma.of_models.count({ where: { status: "INACTIVE" } }),
+      prisma.of_models.count({ where: { status: "DROPPED" } }),
+      prisma.of_models.count({ where: { status: "PENDING" } }),
     ]);
 
     // Get recent models
-    const recentModels = await prisma.ofModel.findMany({
+    const recentModels = await prisma.of_models.findMany({
       take: 5,
       orderBy: { createdAt: "desc" },
       select: {
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Get total assets count
-    const totalAssets = await prisma.ofModelAsset.count();
+    const totalAssets = await prisma.of_model_assets.count();
 
     return NextResponse.json({
       data: {

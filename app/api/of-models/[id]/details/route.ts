@@ -17,9 +17,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
-      include: { details: true },
     });
 
     if (!model) {
@@ -29,7 +28,12 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    return NextResponse.json({ data: model.details });
+    // Fetch details separately since the relation name isn't 'details' in the generated types
+    const details = await prisma.of_model_details.findUnique({
+      where: { creatorId: id },
+    });
+
+    return NextResponse.json({ data: details });
   } catch (error) {
     console.error("Error fetching OF model details:", error);
     return NextResponse.json(
@@ -51,9 +55,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
-      include: { details: true },
     });
 
     if (!model) {
@@ -97,7 +100,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
 
     // Upsert details
-    const details = await prisma.ofModelDetails.upsert({
+    const details = await prisma.of_model_details.upsert({
       where: { creatorId: id },
       update: detailsData,
       create: {

@@ -17,15 +17,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // Try to find by ID first, then by slug
-    const model = await prisma.ofModel.findFirst({
+    const model = await prisma.of_models.findFirst({
       where: {
         OR: [{ id }, { slug: id }],
       },
-      include: {
-        details: true,
-        assets: {
-          orderBy: { createdAt: "desc" },
-        },
+      include: ({
         pricingCategories: {
           orderBy: { order: "asc" },
           include: {
@@ -34,7 +30,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             },
           },
         },
-      },
+      } as any),
     });
 
     if (!model) {
@@ -66,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const body = await req.json();
 
     // Verify model exists
-    const existingModel = await prisma.ofModel.findUnique({
+    const existingModel = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -79,7 +75,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     // If slug is being updated, check for conflicts
     if (body.slug && body.slug !== existingModel.slug) {
-      const slugExists = await prisma.ofModel.findUnique({
+      const slugExists = await prisma.of_models.findUnique({
         where: { slug: body.slug },
       });
 
@@ -129,18 +125,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const model = await prisma.ofModel.update({
+
+    const model = await prisma.of_models.update({
       where: { id },
       data: updateData,
-      include: {
-        details: true,
+      include: ({
         _count: {
           select: {
             assets: true,
             pricingCategories: true,
           },
         },
-      },
+      } as any),
     });
 
     return NextResponse.json({ data: model });
@@ -164,7 +160,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // Verify model exists
-    const existingModel = await prisma.ofModel.findUnique({
+    const existingModel = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -176,7 +172,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
     }
 
     // Delete the model (cascades to details, assets, pricing)
-    await prisma.ofModel.delete({
+    await prisma.of_models.delete({
       where: { id },
     });
 

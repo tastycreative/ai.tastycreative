@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const { id } = await params;
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -28,11 +28,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const categories = await prisma.ofModelPricingCategory.findMany({
+    const categories = await prisma.of_model_pricing_categories.findMany({
       where: { creatorId: id },
       orderBy: { order: "asc" },
       include: {
-        items: {
+        of_model_pricing_items: {
           orderBy: { order: "asc" },
         },
       },
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Verify model exists
-    const model = await prisma.ofModel.findUnique({
+    const model = await prisma.of_models.findUnique({
       where: { id },
     });
 
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     }
 
     // Check if slug is unique for this creator
-    const existingCategory = await prisma.ofModelPricingCategory.findUnique({
+    const existingCategory = await prisma.of_model_pricing_categories.findUnique({
       where: {
         creatorId_slug: {
           creatorId: id,
@@ -96,16 +96,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const category = await prisma.ofModelPricingCategory.create({
+    const category = await prisma.of_model_pricing_categories.create({
       data: {
         creatorId: id,
         name,
         slug,
         description,
         order,
-      },
+      } as any,
       include: {
-        items: true,
+        of_model_pricing_items: true,
       },
     });
 
