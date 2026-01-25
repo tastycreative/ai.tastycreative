@@ -63,54 +63,25 @@ export async function PATCH(
       );
     }
 
-    // Update the plan
-    const updatedPlan = await prisma.$transaction(async (tx) => {
-      // Update plan details
-      const plan = await tx.subscriptionPlan.update({
-        where: { id: planId },
-        data: {
-          ...(displayName !== undefined && { displayName }),
-          ...(description !== undefined && { description }),
-          ...(price !== undefined && { price }),
-          ...(billingInterval !== undefined && { billingInterval }),
-          ...(maxMembers !== undefined && { maxMembers }),
-          ...(maxProfiles !== undefined && { maxProfiles }),
-          ...(maxWorkspaces !== undefined && { maxWorkspaces }),
-          ...(maxStorageGB !== undefined && { maxStorageGB }),
-          ...(monthlyCredits !== undefined && { monthlyCredits }),
-          ...(stripePriceId !== undefined && { stripePriceId }),
-          ...(stripeProductId !== undefined && { stripeProductId }),
-          ...(isActive !== undefined && { isActive }),
-          ...(isPublic !== undefined && { isPublic }),
-        },
-      });
-
-      // Update features if provided
-      if (features && Array.isArray(features)) {
-        // Delete existing features
-        await tx.planFeature.deleteMany({
-          where: { planId },
-        });
-
-        // Create new features
-        if (features.length > 0) {
-          await tx.planFeature.createMany({
-            data: features.map((feature: { featureKey: string; featureValue: string }) => ({
-              planId,
-              featureKey: feature.featureKey,
-              featureValue: feature.featureValue,
-            })),
-          });
-        }
-      }
-
-      // Fetch complete plan with features
-      return await tx.subscriptionPlan.findUnique({
-        where: { id: planId },
-        include: {
-          planFeatures: true,
-        },
-      });
+    // Update the plan (features are now stored as JSON)
+    const updatedPlan = await prisma.subscriptionPlan.update({
+      where: { id: planId },
+      data: {
+        ...(displayName !== undefined && { displayName }),
+        ...(description !== undefined && { description }),
+        ...(price !== undefined && { price }),
+        ...(billingInterval !== undefined && { billingInterval }),
+        ...(maxMembers !== undefined && { maxMembers }),
+        ...(maxProfiles !== undefined && { maxProfiles }),
+        ...(maxWorkspaces !== undefined && { maxWorkspaces }),
+        ...(maxStorageGB !== undefined && { maxStorageGB }),
+        ...(monthlyCredits !== undefined && { monthlyCredits }),
+        ...(stripePriceId !== undefined && { stripePriceId }),
+        ...(stripeProductId !== undefined && { stripeProductId }),
+        ...(isActive !== undefined && { isActive }),
+        ...(isPublic !== undefined && { isPublic }),
+        ...(features !== undefined && { features }),
+      },
     });
 
     return NextResponse.json({

@@ -29,10 +29,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get all subscription plans with their features and organization count
+    // Get all subscription plans with organization count
     const plans = await prisma.subscriptionPlan.findMany({
       include: {
-        planFeatures: true,
         _count: {
           select: { organizations: true },
         },

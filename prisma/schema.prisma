@@ -27,7 +27,6 @@ model User {
   name                     String?
   avatarUrl                String?
   lastLoginAt              DateTime?
-  isAdmin                  Boolean                   @default(false)
   feedPostBookmarks        FeedPostBookmark[]
   feedPostCommentLikes     FeedPostCommentLike[]
   feedPostComments         FeedPostComment[]
@@ -1001,30 +1000,18 @@ model SubscriptionPlan {
   stripeProductId String?
   isActive        Boolean         @default(true)
   isPublic        Boolean         @default(true)
+
+  // Store all plan features as JSON - flexible and scalable
+  features        Json            @default("{}")
+
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @default(now()) @updatedAt
   organizations   Organization[]
-  planFeatures    PlanFeature[]
 
   @@index([isActive])
   @@index([isPublic])
   @@index([name])
   @@map("subscription_plans")
-}
-
-model PlanFeature {
-  id           String           @id @default(cuid())
-  planId       String
-  featureKey   String
-  featureValue String
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @default(now()) @updatedAt
-  plan         SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-  @@unique([planId, featureKey])
-  @@index([planId])
-  @@index([featureKey])
-  @@map("plan_features")
 }
 
 model Organization {
@@ -1112,63 +1099,15 @@ model OrganizationInvite {
 }
 
 model CustomOrganizationPermission {
-  id                    String       @id @default(cuid())
-  organizationId        String       @unique
-  hasGenerateTab        Boolean?
-  hasVaultTab           Boolean?
-  hasTrainingTab        Boolean?
-  hasInstagramTab       Boolean?
-  hasPlanningTab        Boolean?
-  hasPipelineTab        Boolean?
-  hasAnalyticsTab       Boolean?
-  hasFeedTab            Boolean?
-  hasMarketplaceTab     Boolean?
-  canTextToImage        Boolean?
-  canImageToVideo       Boolean?
-  canImageToImage       Boolean?
-  canTextToVideo        Boolean?
-  canFaceSwap           Boolean?
-  canFluxKontext        Boolean?
-  canVideoFpsBoost      Boolean?
-  canSkinEnhancement           Boolean?
-  canStyleTransfer             Boolean?
-  canSkinEnhancer              Boolean?
-  canImageToImageSkinEnhancer  Boolean?
-  canSeeDreamTextToImage       Boolean?
-  canSeeDreamImageToImage      Boolean?
-  canSeeDreamTextToVideo       Boolean?
-  canSeeDreamImageToVideo      Boolean?
-  canKlingTextToVideo          Boolean?
-  canKlingImageToVideo         Boolean?
-  canKlingMultiImageToVideo    Boolean?
-  canKlingMotionControl        Boolean?
-  canTrainLoRA                 Boolean?
-  canShareLoRA                 Boolean?
-  canAccessMarketplace         Boolean?
-  canAutoSchedule       Boolean?
-  canBulkUpload         Boolean?
-  canCaptionBank        Boolean?
-  canHashtagBank        Boolean?
-  canStoryPlanner       Boolean?
-  canReelPlanner        Boolean?
-  canFeedPostPlanner    Boolean?
-  canContentPipeline    Boolean?
-  canPerformanceMetrics Boolean?
-  canShareFolders       Boolean?
-  canCreateFolders      Boolean?
-  maxVaultFolders       Int?
-  canApproveContent     Boolean?
-  canCommentOnContent   Boolean?
-  canAssignTasks        Boolean?
-  canMentionTeam        Boolean?
-  canExportData         Boolean?
-  canAccessAPI          Boolean?
-  canWhiteLabel         Boolean?
-  canCustomBranding     Boolean?
-  canWebhooks           Boolean?
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @default(now()) @updatedAt
-  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+
+  // Store all permissions as JSON - flexible and scalable
+  permissions    Json         @default("{}")
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@map("custom_organization_permissions")

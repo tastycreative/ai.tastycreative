@@ -4,62 +4,8 @@ import { useState, useEffect } from 'react';
 import { X, Save, Shield, Loader2 } from 'lucide-react';
 import PlanFeaturesEditor from './PlanFeaturesEditor';
 
-interface CustomOrganizationPermission {
-  id: string;
-  organizationId: string;
-  hasGenerateTab: boolean | null;
-  hasVaultTab: boolean | null;
-  hasTrainingTab: boolean | null;
-  hasInstagramTab: boolean | null;
-  hasPlanningTab: boolean | null;
-  hasPipelineTab: boolean | null;
-  hasAnalyticsTab: boolean | null;
-  hasFeedTab: boolean | null;
-  hasMarketplaceTab: boolean | null;
-  canTextToImage: boolean | null;
-  canImageToVideo: boolean | null;
-  canImageToImage: boolean | null;
-  canTextToVideo: boolean | null;
-  canFaceSwap: boolean | null;
-  canFluxKontext: boolean | null;
-  canVideoFpsBoost: boolean | null;
-  canSkinEnhancement: boolean | null;
-  canStyleTransfer: boolean | null;
-  canSkinEnhancer: boolean | null;
-  canImageToImageSkinEnhancer: boolean | null;
-  canSeeDreamTextToImage: boolean | null;
-  canSeeDreamImageToImage: boolean | null;
-  canSeeDreamTextToVideo: boolean | null;
-  canSeeDreamImageToVideo: boolean | null;
-  canKlingTextToVideo: boolean | null;
-  canKlingImageToVideo: boolean | null;
-  canKlingMultiImageToVideo: boolean | null;
-  canKlingMotionControl: boolean | null;
-  canTrainLoRA: boolean | null;
-  canShareLoRA: boolean | null;
-  canAccessMarketplace: boolean | null;
-  canAutoSchedule: boolean | null;
-  canBulkUpload: boolean | null;
-  canCaptionBank: boolean | null;
-  canHashtagBank: boolean | null;
-  canStoryPlanner: boolean | null;
-  canReelPlanner: boolean | null;
-  canFeedPostPlanner: boolean | null;
-  canContentPipeline: boolean | null;
-  canPerformanceMetrics: boolean | null;
-  canShareFolders: boolean | null;
-  canCreateFolders: boolean | null;
-  maxVaultFolders: number | null;
-  canApproveContent: boolean | null;
-  canCommentOnContent: boolean | null;
-  canAssignTasks: boolean | null;
-  canMentionTeam: boolean | null;
-  canExportData: boolean | null;
-  canAccessAPI: boolean | null;
-  canWhiteLabel: boolean | null;
-  canCustomBranding: boolean | null;
-  canWebhooks: boolean | null;
-}
+// No need for a rigid interface - permissions are now dynamic JSON
+// Any permission from PLAN_FEATURES can be used
 
 interface OrganizationPermissionsModalProps {
   organizationId: string;
@@ -77,7 +23,7 @@ export default function OrganizationPermissionsModal({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<Partial<CustomOrganizationPermission>>({});
+  const [permissions, setPermissions] = useState<Record<string, boolean | number | null>>({});
 
   useEffect(() => {
     fetchPermissions();

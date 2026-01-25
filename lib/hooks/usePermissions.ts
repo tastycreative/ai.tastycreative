@@ -191,6 +191,17 @@ const DEFAULT_SOLO_PERMISSIONS: Permissions = {
   canFluxKontext: false,
   canVideoFpsBoost: false,
   canSkinEnhancement: false,
+  canStyleTransfer: false,
+  canSkinEnhancer: false,
+  canImageToImageSkinEnhancer: false,
+  canSeeDreamTextToImage: false,
+  canSeeDreamImageToImage: false,
+  canSeeDreamTextToVideo: false,
+  canSeeDreamImageToVideo: false,
+  canKlingTextToVideo: false,
+  canKlingImageToVideo: false,
+  canKlingMultiImageToVideo: false,
+  canKlingMotionControl: false,
 
   // No training features
   canTrainLoRA: false,

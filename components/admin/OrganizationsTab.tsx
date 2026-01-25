@@ -14,6 +14,7 @@ import {
   Check,
   AlertCircle,
   Settings,
+  Loader2,
 } from 'lucide-react';
 import OrganizationPermissionsModal from './OrganizationPermissionsModal';
 
@@ -44,7 +45,8 @@ interface TeamMember {
   userId: string;
   user: {
     id: string;
-    name: string | null;
+    firstName: string | null;
+    lastName: string | null;
     email: string | null;
     avatarUrl: string | null;
   };
@@ -84,9 +86,15 @@ export default function OrganizationsTab() {
   const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [showChangePlanModal, setShowChangePlanModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [changingPlan, setChangingPlan] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
+  const [creatingOrg, setCreatingOrg] = useState(false);
 
   // Create Organization Form State
   const [newOrgName, setNewOrgName] = useState('');
@@ -104,9 +112,10 @@ export default function OrganizationsTab() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [orgsRes, usersRes] = await Promise.all([
+      const [orgsRes, usersRes, plansRes] = await Promise.all([
         fetch('/api/admin/organizations'),
         fetch('/api/admin/users'),
+        fetch('/api/admin/plans'),
       ]);
 
       if (orgsRes.ok) {
@@ -117,6 +126,11 @@ export default function OrganizationsTab() {
       if (usersRes.ok) {
         const usersData = await usersRes.json();
         setUsers(usersData || []);
+      }
+
+      if (plansRes.ok) {
+        const plansData = await plansRes.json();
+        setPlans(plansData.plans || []);
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -133,6 +147,9 @@ export default function OrganizationsTab() {
     }
 
     try {
+      setCreatingOrg(true);
+      setError(null);
+
       const response = await fetch('/api/admin/organizations/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -156,6 +173,8 @@ export default function OrganizationsTab() {
       }
     } catch (err) {
       setError('Failed to create organization');
+    } finally {
+      setCreatingOrg(false);
     }
   };
 
@@ -166,6 +185,9 @@ export default function OrganizationsTab() {
     }
 
     try {
+      setAddingMember(true);
+      setError(null);
+
       const response = await fetch(`/api/admin/organizations/${selectedOrg.id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,6 +209,8 @@ export default function OrganizationsTab() {
       }
     } catch (err) {
       setError('Failed to add member');
+    } finally {
+      setAddingMember(false);
     }
   };
 
@@ -229,6 +253,39 @@ export default function OrganizationsTab() {
       }
     } catch (err) {
       setError('Failed to remove member');
+    }
+  };
+
+  const handleChangePlan = async () => {
+    if (!selectedOrg || !selectedPlanId) {
+      return;
+    }
+
+    try {
+      setChangingPlan(true);
+      setError(null);
+
+      const response = await fetch(`/api/admin/organizations/${selectedOrg.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptionPlanId: selectedPlanId === 'none' ? null : selectedPlanId
+        }),
+      });
+
+      if (response.ok) {
+        setSuccess('Plan updated successfully');
+        setShowChangePlanModal(false);
+        setSelectedPlanId('');
+        fetchData();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to update plan');
+      }
+    } catch (err) {
+      setError('Failed to update plan');
+    } finally {
+      setChangingPlan(false);
     }
   };
 
@@ -378,7 +435,18 @@ export default function OrganizationsTab() {
 
             {/* Actions */}
             <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mb-4">
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => {
+                    setSelectedOrg(org);
+                    setSelectedPlanId(org.subscriptionPlan?.id || 'none');
+                    setShowChangePlanModal(true);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors border border-purple-200 dark:border-purple-800"
+                >
+                  <Crown className="w-4 h-4" />
+                  Change Plan
+                </button>
                 <button
                   onClick={() => {
                     setSelectedOrg(org);
@@ -411,14 +479,18 @@ export default function OrganizationsTab() {
                   <div key={member.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
                     <div className="flex items-center gap-3">
                       {member.user.avatarUrl ? (
-                        <img src={member.user.avatarUrl} alt={member.user.name || ''} className="w-8 h-8 rounded-full" />
+                        <img src={member.user.avatarUrl} alt={`${member.user.firstName || ''} ${member.user.lastName || ''}`.trim() || 'User'} className="w-8 h-8 rounded-full" />
                       ) : (
                         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                           <User className="w-4 h-4 text-white" />
                         </div>
                       )}
                       <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">{member.user.name || 'Unnamed User'}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {member.user.firstName || member.user.lastName
+                            ? `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim()
+                            : 'Unnamed User'}
+                        </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{member.user.email}</p>
                       </div>
                     </div>
@@ -482,7 +554,19 @@ export default function OrganizationsTab() {
                 <input
                   type="text"
                   value={newOrgName}
-                  onChange={(e) => setNewOrgName(e.target.value)}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setNewOrgName(name);
+                    // Auto-generate slug from organization name
+                    const slug = name
+                      .toLowerCase()
+                      .trim()
+                      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+                      .replace(/\s+/g, '-') // Replace spaces with hyphens
+                      .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+                      .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+                    setNewOrgSlug(slug);
+                  }}
                   className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   placeholder="Acme Inc."
                   autoFocus
@@ -539,10 +623,17 @@ export default function OrganizationsTab() {
               </button>
               <button
                 onClick={handleCreateOrganization}
-                disabled={!newOrgName || !newOrgSlug || !newOrgOwnerId}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 shadow-lg shadow-blue-500/25"
+                disabled={!newOrgName || !newOrgSlug || !newOrgOwnerId || creatingOrg}
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 shadow-lg shadow-blue-500/25 flex items-center gap-2"
               >
-                Create Organization
+                {creatingOrg ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Organization'
+                )}
               </button>
             </div>
             </div>
@@ -630,12 +721,115 @@ export default function OrganizationsTab() {
               </button>
               <button
                 onClick={handleAddMember}
-                disabled={!selectedUserId || !selectedRole}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 shadow-lg shadow-blue-500/25"
+                disabled={!selectedUserId || !selectedRole || addingMember}
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-600 disabled:hover:to-blue-700 shadow-lg shadow-blue-500/25 flex items-center gap-2"
               >
-                Add Member
+                {addingMember ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add Member'
+                )}
               </button>
             </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Plan Modal */}
+      {showChangePlanModal && selectedOrg && (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm"
+          onClick={() => {
+            setShowChangePlanModal(false);
+            setSelectedOrg(null);
+            setSelectedPlanId('');
+          }}
+        >
+          <div className="flex min-h-screen items-center justify-center p-4">
+            <div
+              className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-lg w-full border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Crown className="w-6 h-6 text-purple-600" />
+                    Change Subscription Plan
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{selectedOrg.name}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowChangePlanModal(false);
+                    setSelectedOrg(null);
+                    setSelectedPlanId('');
+                  }}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Current Plan:</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {selectedOrg.subscriptionPlan?.displayName || 'No Plan'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  New Plan <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                  autoFocus
+                >
+                  <option value="">Select a plan...</option>
+                  <option value="none">No Plan (Remove subscription)</option>
+                  {plans
+                    .filter((plan) => plan.isActive)
+                    .map((plan) => (
+                      <option key={plan.id} value={plan.id}>
+                        {plan.displayName} - ${plan.price}/{plan.billingInterval.toLowerCase()}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="mt-6 flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowChangePlanModal(false);
+                    setSelectedOrg(null);
+                    setSelectedPlanId('');
+                  }}
+                  disabled={changingPlan}
+                  className="px-5 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-all active:scale-95 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleChangePlan}
+                  disabled={!selectedPlanId || changingPlan}
+                  className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg hover:from-purple-700 hover:to-purple-800 font-medium transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-purple-600 disabled:hover:to-purple-700 shadow-lg shadow-purple-500/25 flex items-center gap-2"
+                >
+                  {changingPlan ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    'Change Plan'
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

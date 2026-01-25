@@ -32,11 +32,7 @@ export async function GET() {
     const organization = await prisma.organization.findUnique({
       where: { id: user.currentOrganizationId },
       include: {
-        subscriptionPlan: {
-          include: {
-            planFeatures: true,
-          },
-        },
+        subscriptionPlan: true,
         customPermissions: true,
       },
     });
@@ -45,28 +41,31 @@ export async function GET() {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
     }
 
-    // Build permissions map
+    // Build permissions map (features are now stored as JSON)
     const planPermissions: Record<string, any> = {};
-    if (organization.subscriptionPlan?.planFeatures) {
-      for (const feature of organization.subscriptionPlan.planFeatures) {
-        let value: any = feature.featureValue;
-        if (value === 'true') value = true;
-        else if (value === 'false') value = false;
-        else if (value === 'unlimited') value = null;
-        else if (!isNaN(Number(value))) value = Number(value);
+    if (organization.subscriptionPlan?.features) {
+      const features = typeof organization.subscriptionPlan.features === 'string'
+        ? JSON.parse(organization.subscriptionPlan.features)
+        : organization.subscriptionPlan.features;
 
-        planPermissions[feature.featureKey] = value;
-      }
+      Object.assign(planPermissions, features);
     }
+
+    // Parse custom permissions from JSON
+    const customPerms = organization.customPermissions?.permissions
+      ? (typeof organization.customPermissions.permissions === 'string'
+        ? JSON.parse(organization.customPermissions.permissions)
+        : organization.customPermissions.permissions)
+      : {};
 
     return NextResponse.json({
       organizationName: organization.name,
       planName: organization.subscriptionPlan?.displayName || 'No Plan',
       planFeatures: planPermissions,
-      customPermissions: organization.customPermissions,
+      customPermissions: customPerms,
       finalPermissions: {
         ...planPermissions,
-        ...(organization.customPermissions || {}),
+        ...customPerms,
       },
     });
   } catch (error) {

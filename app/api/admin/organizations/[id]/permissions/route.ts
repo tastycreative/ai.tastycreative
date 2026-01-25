@@ -38,11 +38,7 @@ export async function GET(
     const organization = await prisma.organization.findUnique({
       where: { id: organizationId },
       include: {
-        subscriptionPlan: {
-          include: {
-            planFeatures: true,
-          },
-        },
+        subscriptionPlan: true,
       },
     });
 
@@ -58,27 +54,29 @@ export async function GET(
       where: { organizationId },
     });
 
-    // Build permissions from plan features
+    // Build permissions from plan features (now stored as JSON)
     const planPermissions: Record<string, any> = {};
-    if (organization.subscriptionPlan?.planFeatures) {
-      for (const feature of organization.subscriptionPlan.planFeatures) {
-        // Convert string values to appropriate types
-        let value: any = feature.featureValue;
-        if (value === 'true') value = true;
-        else if (value === 'false') value = false;
-        else if (value === 'unlimited') value = null; // null means unlimited
-        else if (!isNaN(Number(value))) value = Number(value);
+    if (organization.subscriptionPlan?.features) {
+      const features = typeof organization.subscriptionPlan.features === 'string'
+        ? JSON.parse(organization.subscriptionPlan.features)
+        : organization.subscriptionPlan.features;
 
-        planPermissions[feature.featureKey] = value;
-      }
+      Object.assign(planPermissions, features);
     }
+
+    // Parse custom permissions from JSON field
+    const customPermsData = customPermissions?.permissions
+      ? (typeof customPermissions.permissions === 'string'
+        ? JSON.parse(customPermissions.permissions)
+        : customPermissions.permissions)
+      : {};
 
     // Merge plan permissions with custom overrides
     const permissions = {
       id: customPermissions?.id || '',
       organizationId,
       ...planPermissions,
-      ...(customPermissions || {}),
+      ...customPermsData, // JSON permissions override plan defaults
       // Add plan info for reference
       _planName: organization.subscriptionPlan?.displayName || 'No Plan',
       _canCustomize: true, // Admins can always customize
@@ -131,7 +129,7 @@ export async function PATCH(
     const body = await req.json();
 
     // Remove metadata fields that shouldn't be saved
-    const { _planName, _canCustomize, id: _id, createdAt, updatedAt, ...permissionsToSave } = body;
+    const { _planName, _canCustomize, id: _id, createdAt, updatedAt, organizationId: _orgId, ...permissionsToSave } = body;
 
     // Check if organization exists
     const organization = await prisma.organization.findUnique({
@@ -145,13 +143,15 @@ export async function PATCH(
       );
     }
 
-    // Update or create custom permissions (these override plan defaults)
+    // Store permissions as JSON (these override plan defaults)
     const permissions = await prisma.customOrganizationPermission.upsert({
       where: { organizationId },
-      update: permissionsToSave,
+      update: {
+        permissions: permissionsToSave, // Store entire permissions object as JSON
+      },
       create: {
         organizationId,
-        ...permissionsToSave,
+        permissions: permissionsToSave, // Store entire permissions object as JSON
       },
     });
 

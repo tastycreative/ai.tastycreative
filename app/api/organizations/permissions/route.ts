@@ -19,10 +19,14 @@ function mergePermissions(
     else merged[key] = value;
   });
 
-  // Override with custom permissions (if not null)
-  if (customPermissions) {
-    Object.entries(customPermissions).forEach(([key, value]) => {
-      if (value !== null && key !== 'id' && key !== 'organizationId' && key !== 'createdAt' && key !== 'updatedAt') {
+  // Override with custom permissions from JSON field
+  if (customPermissions?.permissions) {
+    const perms = typeof customPermissions.permissions === 'string'
+      ? JSON.parse(customPermissions.permissions)
+      : customPermissions.permissions;
+
+    Object.entries(perms).forEach(([key, value]) => {
+      if (value !== null) {
         merged[key] = value;
       }
     });
@@ -164,11 +168,7 @@ export async function GET(req: NextRequest) {
     const organization = await prisma.organization.findUnique({
       where: { id: user.currentOrganizationId },
       include: {
-        subscriptionPlan: {
-          include: {
-            planFeatures: true,
-          },
-        },
+        subscriptionPlan: true,
         customPermissions: true,
       },
     });
@@ -180,12 +180,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Build plan features map
-    const planFeatures: Record<string, string> = {};
-    if (organization.subscriptionPlan?.planFeatures) {
-      organization.subscriptionPlan.planFeatures.forEach((feature) => {
-        planFeatures[feature.featureKey] = feature.featureValue;
-      });
+    // Build plan features map (now stored as JSON)
+    const planFeatures: Record<string, any> = {};
+    if (organization.subscriptionPlan?.features) {
+      const features = typeof organization.subscriptionPlan.features === 'string'
+        ? JSON.parse(organization.subscriptionPlan.features)
+        : organization.subscriptionPlan.features;
+
+      Object.assign(planFeatures, features);
     }
 
     // Merge with custom permissions

@@ -5,15 +5,6 @@ import { DollarSign, Plus, Edit2, Trash2, X, CheckCircle, XCircle, Search, Users
 import PlanFeaturesEditor from './PlanFeaturesEditor';
 import { getDefaultFeatures } from '@/lib/planFeatures';
 
-interface PlanFeature {
-  id: string;
-  planId: string;
-  featureKey: string;
-  featureValue: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 interface SubscriptionPlan {
   id: string;
   name: string;
@@ -30,9 +21,9 @@ interface SubscriptionPlan {
   stripeProductId: string | null;
   isActive: boolean;
   isPublic: boolean;
+  features: Record<string, boolean | number | null>; // JSON field
   createdAt: string;
   updatedAt: string;
-  planFeatures: PlanFeature[];
   organizationsCount: number;
 }
 
@@ -96,17 +87,12 @@ export default function PlansTab() {
       setError(null);
 
       // Convert features object to array format for API
-      const featuresArray = Object.entries(planFeatures).map(([key, value]) => ({
-        featureKey: key,
-        featureValue: value === null ? 'unlimited' : String(value),
-      }));
-
       const response = await fetch('/api/admin/plans/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          features: featuresArray,
+          features: planFeatures, // Send features as JSON object
         }),
       });
 
@@ -133,18 +119,12 @@ export default function PlansTab() {
     try {
       setError(null);
 
-      // Convert features object to array format for API
-      const featuresArray = Object.entries(planFeatures).map(([key, value]) => ({
-        featureKey: key,
-        featureValue: value === null ? 'unlimited' : String(value),
-      }));
-
       const response = await fetch(`/api/admin/plans/${selectedPlan.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          features: featuresArray,
+          features: planFeatures, // Send features as JSON object
         }),
       });
 
@@ -212,18 +192,8 @@ export default function PlansTab() {
     });
 
     // Convert plan features array to object for the editor
-    const featuresObj: Record<string, boolean | number | null> = {};
-    plan.planFeatures.forEach(f => {
-      let value: boolean | number | null = false;
-      if (f.featureValue === 'true') value = true;
-      else if (f.featureValue === 'false') value = false;
-      else if (f.featureValue === 'unlimited') value = null;
-      else if (!isNaN(Number(f.featureValue))) value = Number(f.featureValue);
-
-      featuresObj[f.featureKey] = value;
-    });
-
-    setPlanFeatures(featuresObj);
+    // Features are now stored as JSON object
+    setPlanFeatures(plan.features || {});
     setShowEditPlanModal(true);
   };
 
@@ -410,34 +380,39 @@ export default function PlansTab() {
             </div>
 
             {/* Features Summary */}
-            {plan.planFeatures.length > 0 && (
+            {plan.features && Object.keys(plan.features).length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Available Features ({plan.planFeatures.filter(f => f.featureValue === 'true').length} enabled):
+                  Available Features ({Object.entries(plan.features).filter(([_, v]) => v === true).length} enabled):
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {/* Tab Permissions */}
-                  {plan.planFeatures.filter(f => f.featureKey.startsWith('has') && f.featureValue === 'true').map((feature) => (
-                    <span
-                      key={feature.id}
-                      className="text-xs px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg border border-green-200 dark:border-green-800 flex items-center gap-1"
-                    >
-                      ✓ {feature.featureKey.replace('has', '').replace('Tab', '')}
-                    </span>
-                  ))}
+                  {Object.entries(plan.features)
+                    .filter(([key, value]) => key.startsWith('has') && value === true)
+                    .map(([key]) => (
+                      <span
+                        key={key}
+                        className="text-xs px-3 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg border border-green-200 dark:border-green-800 flex items-center gap-1"
+                      >
+                        ✓ {key.replace('has', '').replace('Tab', '')}
+                      </span>
+                    ))}
                   {/* Feature Permissions */}
-                  {plan.planFeatures.filter(f => f.featureKey.startsWith('can') && f.featureValue === 'true').slice(0, 6).map((feature) => (
-                    <span
-                      key={feature.id}
-                      className="text-xs px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-200 dark:border-blue-800 flex items-center gap-1"
-                    >
-                      ✓ {feature.featureKey.replace('can', '')}
-                    </span>
-                  ))}
+                  {Object.entries(plan.features)
+                    .filter(([key, value]) => key.startsWith('can') && value === true)
+                    .slice(0, 6)
+                    .map(([key]) => (
+                      <span
+                        key={key}
+                        className="text-xs px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-200 dark:border-blue-800 flex items-center gap-1"
+                      >
+                        ✓ {key.replace('can', '')}
+                      </span>
+                    ))}
                 </div>
-                {plan.planFeatures.filter(f => f.featureKey.startsWith('can') && f.featureValue === 'true').length > 6 && (
+                {Object.entries(plan.features).filter(([key, value]) => key.startsWith('can') && value === true).length > 6 && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    +{plan.planFeatures.filter(f => f.featureKey.startsWith('can') && f.featureValue === 'true').length - 6} more features
+                    +{Object.entries(plan.features).filter(([key, value]) => key.startsWith('can') && value === true).length - 6} more features
                   </p>
                 )}
               </div>

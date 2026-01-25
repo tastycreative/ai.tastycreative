@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create the plan with features
+    // Create the plan with features (features are now stored as JSON)
     const plan = await prisma.subscriptionPlan.create({
       data: {
         name,
@@ -85,15 +85,7 @@ export async function POST(req: NextRequest) {
         stripeProductId: stripeProductId || null,
         isActive: isActive !== undefined ? isActive : true,
         isPublic: isPublic !== undefined ? isPublic : true,
-        planFeatures: features && features.length > 0 ? {
-          create: features.map((feature: { featureKey: string; featureValue: string }) => ({
-            featureKey: feature.featureKey,
-            featureValue: feature.featureValue,
-          })),
-        } : undefined,
-      },
-      include: {
-        planFeatures: true,
+        features: features || {},
       },
     });
 
