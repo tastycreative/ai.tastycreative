@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
+import { usePermissions } from "@/lib/hooks/usePermissions.query";
+import { useOrganization } from "@/lib/hooks/useOrganization.query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -45,11 +47,14 @@ import {
   Flame,
   Mic,
   Library,
+  Building2,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { GlobalProgressIndicator } from "@/components/GlobalProgressIndicator";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalProfileSelector } from "@/components/GlobalProfileSelector";
+import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
+import { PermissionGuard } from "@/components/PermissionGuard";
 
 interface NavItem {
   name: string;
@@ -94,9 +99,12 @@ export default function DashboardLayout({
   const { user } = useUser();
   const { isAdmin } = useIsAdmin();
   const { isContentCreator } = useIsContentCreator();
+  const { permissions, subscriptionInfo, loading: permissionsLoading } = usePermissions();
+  const { currentOrganization } = useOrganization();
 
   // Dynamic navigation based on user permissions
-  const navigation: (NavItem | NavSection)[] = [
+  // Don't build navigation until permissions are loaded to prevent showing unauthorized tabs
+  const navigation: (NavItem | NavSection)[] = permissionsLoading ? [] : [
     {
       name: "Dashboard",
       href: "/dashboard",
@@ -117,278 +125,291 @@ export default function DashboardLayout({
       href: "/workspace/reference-bank",
       icon: Library,
     },
-    {
-      name: "Content Studio",
+    ...(permissions.canCaptionBank
+      ? [
+          {
+            name: "Caption Banks",
+            collapsible: true,
+            items: [
+              {
+                name: "Captions",
+                href: "/workspace/caption-banks/captions",
+                icon: FileText,
+              },
+            ],
+          },
+        ]
+      : []),
+    // Content Studio - check Instagram/Planning tab permissions and individual features
+    ...(permissions.hasInstagramTab || permissions.hasPlanningTab
+      ? [
+          {
+            name: "Content Studio",
+            collapsible: true,
+            items: [
+              // Sexting Set Organizer - always show first if user has the tab
+              {
+                name: "Sexting Set Organizer",
+                href: "/workspace/content-studio/sexting-set-organizer",
+                icon: Flame,
+              },
+              // Always show these core features if user has the tab
+              {
+                name: "Staging",
+                href: "/workspace/content-studio/staging",
+                icon: Layers,
+              },
+              {
+                name: "Calendar",
+                href: "/workspace/content-studio/calendar",
+                icon: Calendar,
+              },
+              // Pipeline - check canContentPipeline permission
+              ...(permissions.canContentPipeline ? [{
+                name: "Pipeline",
+                href: "/workspace/content-studio/pipeline",
+                icon: GitBranch,
+              }] : []),
+              // Stories - check canStoryPlanner permission
+              ...(permissions.canStoryPlanner ? [{
+                name: "Stories",
+                href: "/workspace/content-studio/stories",
+                icon: Clock,
+              }] : []),
+              // Reels - check canReelPlanner permission
+              ...(permissions.canReelPlanner ? [{
+                name: "Reels",
+                href: "/workspace/content-studio/reels",
+                icon: Sparkles,
+              }] : []),
+              // Feed Posts - check canFeedPostPlanner permission
+              ...(permissions.canFeedPostPlanner ? [{
+                name: "Feed Posts",
+                href: "/workspace/content-studio/feed-posts",
+                icon: ImageIcon,
+              }] : []),
+              // Performance - check canPerformanceMetrics permission
+              ...(permissions.canPerformanceMetrics ? [{
+                name: "Performance",
+                href: "/workspace/content-studio/performance",
+                icon: Activity,
+              }] : []),
+              // Formulas - always show if user has the tab (utility feature)
+              {
+                name: "Formulas",
+                href: "/workspace/content-studio/formulas",
+                icon: Sparkles,
+              },
+              // Hashtags - check canHashtagBank permission
+              ...(permissions.canHashtagBank ? [{
+                name: "Hashtags",
+                href: "/workspace/content-studio/hashtags",
+                icon: Hash,
+              }] : []),
+              // Workflow - always show if user has the tab (utility feature)
+              {
+                name: "Workflow",
+                href: "/workspace/content-studio/workflow",
+                icon: ListChecks,
+              },
+            ],
+          },
+        ]
+      : []),
+    // Generate Content - check hasGenerateTab permission and individual feature permissions
+    ...(permissions.hasGenerateTab
+      ? [
+          {
+            name: "Generate Content",
       collapsible: true,
       items: [
-        {
-          name: "Sexting Set Organizer",
-          href: "/workspace/content-studio/sexting-set-organizer",
-          icon: Flame,
-        },
-        {
-          name: "Staging",
-          href: "/workspace/content-studio/staging",
-          icon: Layers,
-        },
-        {
-          name: "Calendar",
-          href: "/workspace/content-studio/calendar",
-          icon: Calendar,
-        },
-        {
-          name: "Pipeline",
-          href: "/workspace/content-studio/pipeline",
-          icon: GitBranch,
-        },
-        {
-          name: "Stories",
-          href: "/workspace/content-studio/stories",
-          icon: Clock,
-        },
-        {
-          name: "Reels",
-          href: "/workspace/content-studio/reels",
-          icon: Sparkles,
-        },
-        {
-          name: "Feed Posts",
-          href: "/workspace/content-studio/feed-posts",
-          icon: ImageIcon,
-        },
-        {
-          name: "Performance",
-          href: "/workspace/content-studio/performance",
-          icon: Activity,
-        },
-        {
-          name: "Formulas",
-          href: "/workspace/content-studio/formulas",
-          icon: Sparkles,
-        },
-        {
-          name: "Hashtags",
-          href: "/workspace/content-studio/hashtags",
-          icon: Hash,
-        },
-        {
-          name: "Workflow",
-          href: "/workspace/content-studio/workflow",
-          icon: ListChecks,
-        },
-      ],
-    },
-    {
-      name: "Generate Content",
-      collapsible: true,
-      items: [
-        {
-          name: "FLUX_GROUP_LABEL",
-          href: "#",
-          icon: Sparkles,
-        },
-        {
-          name: "Text to Image",
-          href: "/workspace/generate-content/text-to-image",
-          icon: ImageIcon,
-        },
-        {
-          name: "Style Transfer",
-          href: "/workspace/generate-content/style-transfer",
-          icon: Palette,
-        },
-        {
-          name: "Skin Enhancer",
-          href: "/workspace/generate-content/skin-enhancer",
-          icon: Sparkles,
-        },
-        {
-          name: "Flux Kontext",
-          href: "/workspace/generate-content/flux-kontext",
-          icon: Wand2,
-        },
-        {
+        // Flux Models section - only show if user has at least one Flux feature
+        ...(permissions.canTextToImage || permissions.canStyleTransfer || permissions.canSkinEnhancer || permissions.canFluxKontext ? [
+          {
+            name: "FLUX_GROUP_LABEL",
+            href: "#",
+            icon: Sparkles,
+          },
+          ...(permissions.canTextToImage ? [{
+            name: "Text to Image",
+            href: "/workspace/generate-content/text-to-image",
+            icon: ImageIcon,
+          }] : []),
+          ...(permissions.canStyleTransfer ? [{
+            name: "Style Transfer",
+            href: "/workspace/generate-content/style-transfer",
+            icon: Palette,
+          }] : []),
+          ...(permissions.canSkinEnhancer ? [{
+            name: "Skin Enhancer",
+            href: "/workspace/generate-content/skin-enhancer",
+            icon: Sparkles,
+          }] : []),
+          ...(permissions.canFluxKontext ? [{
+            name: "Flux Kontext",
+            href: "/workspace/generate-content/flux-kontext",
+            icon: Wand2,
+          }] : []),
+        ] : []),
+        // Divider only if we have Flux features AND other features below
+        ...((permissions.canTextToImage || permissions.canStyleTransfer || permissions.canSkinEnhancer || permissions.canFluxKontext) &&
+            (permissions.canTextToVideo || permissions.canImageToVideo || permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ||
+             permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
+             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
           name: "DIVIDER_1",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "WAN_22_GROUP_LABEL",
-          href: "#",
-          icon: Video,
-        },
-        {
-          name: "Text to Video",
-          href: "/workspace/generate-content/text-to-video",
-          icon: PlayCircle,
-        },
-        {
-          name: "Image to Video",
-          href: "/workspace/generate-content/image-to-video",
-          icon: Video,
-        },
-        {
+        }] : []),
+        // Wan 2.2 Models section - only show if user has Wan features
+        ...(permissions.canTextToVideo || permissions.canImageToVideo ? [
+          {
+            name: "WAN_22_GROUP_LABEL",
+            href: "#",
+            icon: Video,
+          },
+          ...(permissions.canTextToVideo ? [{
+            name: "Text to Video",
+            href: "/workspace/generate-content/text-to-video",
+            icon: PlayCircle,
+          }] : []),
+          ...(permissions.canImageToVideo ? [{
+            name: "Image to Video",
+            href: "/workspace/generate-content/image-to-video",
+            icon: Video,
+          }] : []),
+        ] : []),
+        // Divider only if we have Wan features AND other features below
+        ...((permissions.canTextToVideo || permissions.canImageToVideo) &&
+            (permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ||
+             permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
+             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
           name: "DIVIDER_2",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "ADVANCED_TOOLS_GROUP_LABEL",
-          href: "#",
-          icon: Wand2,
-        },
-        {
-          name: "Face Swapping",
-          href: "/workspace/generate-content/face-swapping",
-          icon: Shuffle,
-        },
-        {
-          name: "Image-to-Image Skin Enhancer",
-          href: "/workspace/generate-content/image-to-image-skin-enhancer",
-          icon: Palette,
-        },
-        {
-          name: "FPS Boost",
-          href: "/workspace/generate-content/fps-boost",
-          icon: PlayCircle,
-        },
-        {
+        }] : []),
+        // Advanced Tools section - only show if user has advanced features
+        ...(permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ? [
+          {
+            name: "ADVANCED_TOOLS_GROUP_LABEL",
+            href: "#",
+            icon: Wand2,
+          },
+          ...(permissions.canFaceSwap ? [{
+            name: "Face Swapping",
+            href: "/workspace/generate-content/face-swapping",
+            icon: Shuffle,
+          }] : []),
+          ...(permissions.canImageToImageSkinEnhancer ? [{
+            name: "Image-to-Image Skin Enhancer",
+            href: "/workspace/generate-content/image-to-image-skin-enhancer",
+            icon: Palette,
+          }] : []),
+          ...(permissions.canVideoFpsBoost ? [{
+            name: "FPS Boost",
+            href: "/workspace/generate-content/fps-boost",
+            icon: PlayCircle,
+          }] : []),
+        ] : []),
+        // Divider only if we have Advanced features AND other features below
+        ...((permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost) &&
+            (permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
+             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
           name: "DIVIDER_3",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "SEEDREAM_45_GROUP_LABEL",
-          href: "#",
-          icon: Sparkles,
-        },
-        {
-          name: "SeeDream Text to Image",
-          href: "/workspace/generate-content/seedream-text-to-image",
-          icon: ImageIcon,
-        },
-        {
-          name: "SeeDream Image to Image",
-          href: "/workspace/generate-content/seedream-image-to-image",
-          icon: Palette,
-        },
-        {
-          name: "SeeDream Text to Video",
-          href: "/workspace/generate-content/seedream-text-to-video",
-          icon: Video,
-        },
-        {
-          name: "SeeDream Image to Video",
-          href: "/workspace/generate-content/seedream-image-to-video",
-          icon: PlayCircle,
-        },
-        {
+        }] : []),
+        // SeeDream 4.5 section - only show if user has SeeDream features
+        ...(permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ? [
+          {
+            name: "SEEDREAM_45_GROUP_LABEL",
+            href: "#",
+            icon: Sparkles,
+          },
+          ...(permissions.canSeeDreamTextToImage ? [{
+            name: "SeeDream Text to Image",
+            href: "/workspace/generate-content/seedream-text-to-image",
+            icon: ImageIcon,
+          }] : []),
+          ...(permissions.canSeeDreamImageToImage ? [{
+            name: "SeeDream Image to Image",
+            href: "/workspace/generate-content/seedream-image-to-image",
+            icon: Palette,
+          }] : []),
+          ...(permissions.canSeeDreamTextToVideo ? [{
+            name: "SeeDream Text to Video",
+            href: "/workspace/generate-content/seedream-text-to-video",
+            icon: Video,
+          }] : []),
+          ...(permissions.canSeeDreamImageToVideo ? [{
+            name: "SeeDream Image to Video",
+            href: "/workspace/generate-content/seedream-image-to-video",
+            icon: PlayCircle,
+          }] : []),
+        ] : []),
+        // Divider only if we have SeeDream features AND Kling features below
+        ...((permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo) &&
+            (permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
           name: "DIVIDER_4",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "KLING_AI_GROUP_LABEL",
-          href: "#",
-          icon: Film,
-        },
-        {
-          name: "Kling Text to Video",
-          href: "/workspace/generate-content/kling-text-to-video",
-          icon: PlayCircle,
-        },
-        {
-          name: "Kling Image to Video",
-          href: "/workspace/generate-content/kling-image-to-video",
-          icon: Video,
-        },
-        {
-          name: "Kling Multi-Image to Video",
-          href: "/workspace/generate-content/kling-multi-image-to-video",
-          icon: Film,
-        },
-        {
-          name: "Kling Motion Control",
-          href: "/workspace/generate-content/kling-motion-control",
-          icon: Move,
-        },
-        {
+        }] : []),
+        // Kling AI section - only show if user has Kling features
+        ...(permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl ? [
+          {
+            name: "KLING_AI_GROUP_LABEL",
+            href: "#",
+            icon: Film,
+          },
+          ...(permissions.canKlingTextToVideo ? [{
+            name: "Kling Text to Video",
+            href: "/workspace/generate-content/kling-text-to-video",
+            icon: PlayCircle,
+          }] : []),
+          ...(permissions.canKlingImageToVideo ? [{
+            name: "Kling Image to Video",
+            href: "/workspace/generate-content/kling-image-to-video",
+            icon: Video,
+          }] : []),
+          ...(permissions.canKlingMultiImageToVideo ? [{
+            name: "Kling Multi-Image to Video",
+            href: "/workspace/generate-content/kling-multi-image-to-video",
+            icon: Film,
+          }] : []),
+          ...(permissions.canKlingMotionControl ? [{
+            name: "Kling Motion Control",
+            href: "/workspace/generate-content/kling-motion-control",
+            icon: Move,
+          }] : []),
+        ] : []),
+        // Divider only if we have Kling features AND AI Voice feature below
+        ...((permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) &&
+            permissions.canAIVoice ? [{
           name: "DIVIDER_5",
           href: "#",
           icon: Sparkles,
-        },
-        {
-          name: "AI_VOICE_GROUP_LABEL",
-          href: "#",
-          icon: Mic,
-        },
-        {
-          name: "Voice Generator",
-          href: "/workspace/generate-content/ai-voice",
-          icon: Mic,
-        },
-      ],
-    },
-    {
-      name: "AI Tools",
-      collapsible: true,
-      items: [
-        {
-          name: "Instagram Extractor",
-          href: "/workspace/ai-tools/instagram-extractor",
-          icon: Instagram,
-        },
-        {
-          name: "Style Transfer Prompts",
-          href: "/workspace/ai-tools/style-transfer-prompts",
-          icon: Wand2,
-        },
-        {
-          name: "Video Prompts",
-          href: "/workspace/ai-tools/video-prompts",
-          icon: PlayCircle,
-        },
-        {
-          name: "Flux Kontext Prompts",
-          href: "/workspace/ai-tools/flux-kontext-prompts",
-          icon: Sparkles,
-        },
-      ],
-    },
-    {
-      name: "Caption Banks",
-      collapsible: true,
-      items: [
-        {
-          name: "Captions",
-          href: "/workspace/caption-banks/captions",
-          icon: FileText,
-        },
-        {
-          name: "Caption Performance Tracker",
-          href: "/workspace/caption-banks/caption-performance-tracker",
-          icon: BarChart3,
-        },
-      ],
-    },
-    {
-      name: "Train Models",
-      collapsible: true,
-      items: [
-        {
-          name: "Train LoRA",
-          href: "/workspace/train-lora",
-          icon: PlusCircle,
-        },
-        {
-          name: "Training Jobs",
-          href: "/workspace/training-jobs",
-          icon: BarChart3,
-        },
-      ],
-    },
-    {
-      name: "Social Media",
+        }] : []),
+        // AI Voice section - only show if user has AI Voice permission
+        ...(permissions.canAIVoice ? [
+          {
+            name: "AI_VOICE_GROUP_LABEL",
+            href: "#",
+            icon: Mic,
+          },
+          {
+            name: "Voice Generator",
+            href: "/workspace/generate-content/ai-voice",
+            icon: Mic,
+          },
+        ] : []),
+      ].flat(), // Flatten to remove nested arrays
+          },
+        ]
+      : []),
+    // Social Media - check hasFeedTab permission
+    ...(permissions.hasFeedTab
+      ? [
+          {
+            name: "Social Media",
       collapsible: true,
       items: [
         {
@@ -418,11 +439,73 @@ export default function DashboardLayout({
         },
       ],
     },
-    {
-      name: "AI Marketplace",
-      href: "/workspace/ai-marketplace",
-      icon: ShoppingBag,
-    },
+
+        ]
+      : []),
+    // Train Models - check hasTrainingTab permission
+    ...(permissions.hasTrainingTab
+      ? [
+          {
+            name: "Train Models",
+      collapsible: true,
+      items: [
+        {
+          name: "Train LoRA",
+          href: "/workspace/train-lora",
+          icon: PlusCircle,
+        },
+              {
+                name: "Training Jobs",
+                href: "/workspace/training-jobs",
+                icon: BarChart3,
+              },
+            ],
+          },
+        ]
+      : []),
+    // AI Tools - show if user has generation features
+    ...(permissions.hasGenerateTab
+      ? [
+          {
+            name: "AI Tools",
+            collapsible: true,
+            items: [
+              {
+                name: "Instagram Extractor",
+                href: "/workspace/ai-tools/instagram-extractor",
+                icon: Instagram,
+              },
+              {
+                name: "Style Transfer Prompts",
+                href: "/workspace/ai-tools/style-transfer-prompts",
+                icon: Wand2,
+              },
+              {
+                name: "Video Prompts",
+                href: "/workspace/ai-tools/video-prompts",
+                icon: PlayCircle,
+              },
+              {
+                name: "Flux Kontext Prompts",
+                href: "/workspace/ai-tools/flux-kontext-prompts",
+                icon: Sparkles,
+              },
+            ],
+          },
+        ]
+      : []),
+    // Marketplace - check permission
+    ...(permissions.hasMarketplaceTab
+      ? [
+          {
+            name: "AI Marketplace",
+            href: "/workspace/ai-marketplace",
+            icon: ShoppingBag,
+          },
+        ]
+      : []),
+    // Caption Banks - check canCaptionBank permission
+    
     // Conditionally add content creator link
     ...(isContentCreator
       ? [
@@ -1081,15 +1164,32 @@ export default function DashboardLayout({
           <div className="p-5 border-b border-white/[0.06]">
             <div className="flex items-center justify-between">
               {sidebarOpen ? (
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0">
                     <Sparkles className="w-6 h-6 text-white" />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h1 className="text-xl font-bold bg-gradient-to-r from-white via-violet-200 to-fuchsia-200 bg-clip-text text-transparent">
                       Creative Ink
                     </h1>
-                    <p className="text-[11px] text-white/40 font-medium tracking-wide">AI CONTENT STUDIO</p>
+                    {!permissionsLoading && currentOrganization ? (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {currentOrganization.logoUrl ? (
+                          <img
+                            src={currentOrganization.logoUrl}
+                            alt={currentOrganization.name}
+                            className="w-3 h-3 rounded object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <Building2 className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                        )}
+                        <p className="text-[10px] text-white/50 font-medium tracking-wide truncate">
+                          {currentOrganization.name}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-white/40 font-medium tracking-wide">AI CONTENT STUDIO</p>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -1100,7 +1200,8 @@ export default function DashboardLayout({
               {sidebarOpen && (
                 <button
                   onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200"
+                  className="p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200 flex-shrink-0"
+                  title="Collapse sidebar"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -1110,31 +1211,55 @@ export default function DashboardLayout({
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="w-full mt-4 p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200 flex items-center justify-center"
+                title="Expand sidebar"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
             )}
-          </div>
 
-          {/* Profile Selector - Prominent Position */}
-          {sidebarOpen && (
-            <div className="p-5 border-b border-white/[0.06]">
-              <div className="text-[11px] font-semibold text-white/30 uppercase tracking-wider mb-3 px-1">
-                Active Workspace
+            {/* Profile Selector Section */}
+            {sidebarOpen && (
+              <div className="w-full mt-4">
+                {permissionsLoading ? (
+                  <div className="animate-pulse">
+                    <div className="h-12 bg-white/5 rounded-lg" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Profile Selector - for switching between Instagram profiles */}
+                    <div className="w-full">
+                      <div className="text-[10px] font-semibold text-white/30 uppercase tracking-wider mb-2 px-1">
+                        Active Profile
+                      </div>
+                      <GlobalProfileSelector />
+                    </div>
+                  </>
+                )}
               </div>
-              <GlobalProfileSelector />
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-            {navigation.map((item) => {
+          {permissionsLoading ? (
+            // Loading skeleton while permissions are being fetched
+            <div className="space-y-2 animate-pulse">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg"
+                />
+              ))}
+            </div>
+          ) : (
+            navigation.map((item) => {
               if ("items" in item) {
                 return renderNavSection(item);
               } else {
                 return renderNavItem(item);
               }
-            })}
+            })
+          )}
           </nav>
 
           {/* Sidebar Footer */}
@@ -1181,41 +1306,71 @@ export default function DashboardLayout({
             sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          {/* Mobile Sidebar Header */}
-          <div className="p-5 border-b border-white/[0.06]">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-white" />
-                </div>
-                <h1 className="text-xl font-bold text-white">Creative Ink</h1>
-              </div>
+          {/* Sidebar header */}
+          <div className="flex flex-col space-y-2 p-2.5 xs:p-3 sm:p-4 border-b border-gray-700 dark:border-gray-800">
+            <div className="flex items-center justify-end">
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-2.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10"
+                className="p-1 text-gray-400 hover:text-white dark:text-gray-400 dark:hover:text-white transition-all duration-200 active:scale-95 hover:bg-gray-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="Close sidebar"
               >
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="h-4 w-4 xs:h-4.5 xs:w-4.5 sm:h-5 sm:w-5" />
               </button>
             </div>
-          </div>
+            <div className="space-y-3">
+              {permissionsLoading ? (
+                // Loading skeleton for selectors
+                <div className="animate-pulse space-y-3">
+                  <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
+                  <div className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg" />
+                </div>
+              ) : (
+                <>
+                  {/* Organization Switcher */}
+                  <div>
+                    <div className="px-1 mb-2">
+                      <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                        Organization
+                      </p>
+                    </div>
+                    <OrganizationSwitcher />
+                  </div>
 
-          {/* Mobile Profile Selector */}
-          <div className="p-5 border-b border-white/[0.06]">
-            <div className="text-[11px] font-semibold text-white/30 uppercase tracking-wider mb-3">
-              Active Workspace
+                  {/* Profile Selector */}
+                  <div>
+                    <div className="px-1 mb-2">
+                      <p className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                        Active Profile
+                      </p>
+                    </div>
+                    <GlobalProfileSelector />
+                  </div>
+                </>
+              )}
             </div>
-            <GlobalProfileSelector />
           </div>
 
-          {/* Mobile Navigation */}
-          <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-            {navigation.map((item) => {
-              if ("items" in item) {
-                return renderNavSection(item);
-              } else {
-                return renderNavItem(item);
-              }
-            })}
+          {/* Navigation */}
+          <nav className="flex-1 px-2 py-2.5 xs:py-3 sm:py-4 space-y-1 sm:space-y-2 overflow-y-auto">
+            {permissionsLoading ? (
+              // Loading skeleton while permissions are being fetched
+              <div className="space-y-2 animate-pulse">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="h-10 bg-gray-700/50 dark:bg-gray-800/50 rounded-lg"
+                  />
+                ))}
+              </div>
+            ) : (
+              navigation.map((item) => {
+                if ("items" in item) {
+                  return renderNavSection(item);
+                } else {
+                  return renderNavItem(item);
+                }
+              })
+            )}
           </nav>
 
           {/* Mobile Footer */}
@@ -1283,11 +1438,24 @@ export default function DashboardLayout({
                     </button>
 
                     {/* User Dropdown */}
-                    <div className="absolute right-0 mt-2 w-56 py-2 bg-[#16161d] rounded-2xl border border-white/10 shadow-2xl shadow-black/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
+                    <div className="absolute right-0 mt-2 w-72 py-2 bg-[#16161d] rounded-2xl border border-white/10 shadow-2xl shadow-black/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2">
                       <div className="px-4 py-3 border-b border-white/[0.06]">
                         <p className="text-sm font-semibold text-white">{firstName}</p>
                         <p className="text-xs text-white/50 truncate">{email}</p>
                       </div>
+
+                      {/* Organization Switcher Section */}
+                      {!permissionsLoading && (
+                        <div className="px-3 py-3 border-b border-white/[0.06]">
+                          <div className="mb-2">
+                            <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wider px-1">
+                              Organization
+                            </p>
+                          </div>
+                          <OrganizationSwitcher />
+                        </div>
+                      )}
+
                       <div className="py-1">
                         <Link
                           href="/settings"
@@ -1330,8 +1498,10 @@ export default function DashboardLayout({
           </div>
 
           {/* Content */}
-          <div className="px-4 py-4 lg:px-8 lg:py-6 animate-fadeIn">
-            {children}
+          <div className="px-2.5 py-2.5 xs:px-3 xs:py-3 sm:px-4 sm:py-4 lg:px-6 xl:px-8 animate-fadeIn">
+            <PermissionGuard>
+              {children}
+            </PermissionGuard>
           </div>
         </main>
       </div>

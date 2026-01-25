@@ -242,7 +242,7 @@ export async function saveVideoToDatabase(
         duration,
         fps,
         format,
-        data: videoData,
+        data: videoData ? new Uint8Array(videoData) : undefined,
         metadata,
         s3Key: pathInfo.s3Key || options.s3Key,  // Include S3 key
         networkVolumePath: pathInfo.networkVolumePath,  // Include network volume path

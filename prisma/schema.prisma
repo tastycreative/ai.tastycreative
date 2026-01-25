@@ -24,10 +24,10 @@ model User {
   username                 String?
   coverImageUrl            String?
   currentOrganizationId    String?
-  isAdmin                  Boolean                   @default(false)
   name                     String?
   avatarUrl                String?
   lastLoginAt              DateTime?
+  isAdmin                  Boolean                   @default(false)
   feedPostBookmarks        FeedPostBookmark[]
   feedPostCommentLikes     FeedPostCommentLike[]
   feedPostComments         FeedPostComment[]
@@ -42,10 +42,10 @@ model User {
   instagramProfiles        InstagramProfile[]
   notifications            Notification[]
   productionEntries        ProductionEntry[]
-  team_members             team_members[]
+  teamMemberships          TeamMember[]
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
-  workspace_members        workspace_members[]
+  workspace_members        WorkspaceMember[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -483,8 +483,8 @@ model InstagramProfile {
   sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
-  referenceItems         ReferenceItem[]
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  reference_items        reference_items[]
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
@@ -985,6 +985,187 @@ model SextingImage {
   @@map("sexting_images")
 }
 
+model SubscriptionPlan {
+  id              String          @id @default(cuid())
+  name            String          @unique
+  displayName     String
+  description     String?
+  price           Float           @default(0)
+  billingInterval BillingInterval @default(MONTHLY)
+  maxMembers      Int             @default(1)
+  maxProfiles     Int             @default(1)
+  maxWorkspaces   Int             @default(0)
+  maxStorageGB    Int             @default(5)
+  monthlyCredits  Int             @default(100)
+  stripePriceId   String?         @unique
+  stripeProductId String?
+  isActive        Boolean         @default(true)
+  isPublic        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @default(now()) @updatedAt
+  features        Json            @default("{}")
+  organizations   Organization[]
+  plan_features   plan_features[]
+
+  @@index([isActive])
+  @@index([isPublic])
+  @@index([name])
+  @@map("subscription_plans")
+}
+
+model Organization {
+  id                   String                        @id @default(cuid())
+  name                 String
+  slug                 String                        @unique
+  description          String?
+  logoUrl              String?
+  subscriptionPlanId   String?
+  subscriptionStatus   SubscriptionStatus            @default(TRIAL)
+  trialEndsAt          DateTime?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean                       @default(false)
+  stripeCustomerId     String?                       @unique
+  stripeSubscriptionId String?                       @unique
+  billingEmail         String?
+  billingName          String?
+  billingAddress       Json?
+  customMaxMembers     Int?
+  customMaxProfiles    Int?
+  customMaxWorkspaces  Int?
+  customMaxStorageGB   Int?
+  customMonthlyCredits Int?
+  currentStorageGB     Float                         @default(0)
+  creditsUsedThisMonth Int                           @default(0)
+  lastCreditReset      DateTime?
+  isActive             Boolean                       @default(true)
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @default(now()) @updatedAt
+  customPermissions    CustomOrganizationPermission?
+  invites              OrganizationInvite[]
+  subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
+  members              TeamMember[]
+  usageLogs            UsageLog[]
+  workspaces           Workspace[]
+
+  @@index([slug])
+  @@index([subscriptionPlanId])
+  @@index([stripeCustomerId])
+  @@index([isActive])
+  @@map("organizations")
+}
+
+model TeamMember {
+  id               String       @id @default(cuid())
+  userId           String
+  organizationId   String
+  role             TeamRole     @default(MEMBER)
+  canInviteMembers Boolean      @default(false)
+  canManageBilling Boolean      @default(false)
+  canManageMembers Boolean      @default(false)
+  lastActiveAt     DateTime?
+  invitedBy        String?
+  joinedAt         DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @default(now()) @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([organizationId, role])
+  @@map("team_members")
+}
+
+model OrganizationInvite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           TeamRole     @default(MEMBER)
+  invitedBy      String
+  token          String       @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([token])
+  @@index([email])
+  @@map("organization_invites")
+}
+
+model CustomOrganizationPermission {
+  id                    String       @id @default(cuid())
+  organizationId        String       @unique
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @default(now()) @updatedAt
+  permissions           Json         @default("{}")
+  maxVaultFolders       Int?
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("custom_organization_permissions")
+}
+
+model Workspace {
+  id             String            @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  color          String?
+  icon           String?
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @default(now()) @updatedAt
+  members        WorkspaceMember[]
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        TeamRole  @default(MEMBER)
+  joinedAt    DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  users       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model UsageLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  workspaceId    String?
+  action         String
+  resource       String
+  creditsUsed    Int          @default(0)
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([organizationId, createdAt])
+  @@index([createdAt])
+  @@map("usage_logs")
+}
+
 model ai_voice_accounts {
   id                   String                 @id
   name                 String
@@ -1032,332 +1213,39 @@ model ai_voice_generations {
   @@index([voiceAccountId])
 }
 
-model custom_organization_permissions {
-  id                    String        @id
-  organizationId        String        @unique
-  permissions           Json          @default("{}")
-  hasGenerateTab        Boolean?
-  hasVaultTab           Boolean?
-  hasTrainingTab        Boolean?
-  hasInstagramTab       Boolean?
-  hasPlanningTab        Boolean?
-  hasPipelineTab        Boolean?
-  hasAnalyticsTab       Boolean?
-  hasFeedTab            Boolean?
-  hasMarketplaceTab     Boolean?
-  canTextToImage        Boolean?
-  canImageToVideo       Boolean?
-  canImageToImage       Boolean?
-  canTextToVideo        Boolean?
-  canFaceSwap           Boolean?
-  canFluxKontext        Boolean?
-  canVideoFpsBoost      Boolean?
-  canSkinEnhancement    Boolean?
-  canTrainLoRA          Boolean?
-  canShareLoRA          Boolean?
-  canAccessMarketplace  Boolean?
-  canAutoSchedule       Boolean?
-  canBulkUpload         Boolean?
-  canCaptionBank        Boolean?
-  canHashtagBank        Boolean?
-  canStoryPlanner       Boolean?
-  canReelPlanner        Boolean?
-  canFeedPostPlanner    Boolean?
-  canContentPipeline    Boolean?
-  canPerformanceMetrics Boolean?
-  canShareFolders       Boolean?
-  canCreateFolders      Boolean?
-  maxVaultFolders       Int?
-  canApproveContent     Boolean?
-  canCommentOnContent   Boolean?
-  canAssignTasks        Boolean?
-  canMentionTeam        Boolean?
-  canExportData         Boolean?
-  canAccessAPI          Boolean?
-  canWhiteLabel         Boolean?
-  canCustomBranding     Boolean?
-  canWebhooks           Boolean?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @default(now())
-  organizations         organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+model reference_items {
+  id                 String           @id
+  clerkId            String
+  profileId          String
+  name               String
+  description        String?
+  fileType           String
+  mimeType           String
+  fileSize           Int
+  width              Int?
+  height             Int?
+  duration           Float?
+  awsS3Key           String
+  awsS3Url           String
+  thumbnailUrl       String?
+  tags               String[]         @default([])
+  usageCount         Int              @default(0)
+  lastUsedAt         DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime
+  instagram_profiles InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  @@index([organizationId])
+  @@index([clerkId])
+  @@index([clerkId, profileId])
+  @@index([fileType])
+  @@index([lastUsedAt])
+  @@index([profileId])
+  @@index([tags])
+  @@index([usageCount])
 }
 
-model organization_invites {
-  id             String        @id
-  organizationId String
-  email          String
-  role           TeamRole      @default(MEMBER)
-  invitedBy      String
-  token          String        @unique
-  expiresAt      DateTime
-  acceptedAt     DateTime?
-  createdAt      DateTime      @default(now())
-  organizations  organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, email])
-  @@index([email])
-  @@index([organizationId])
-  @@index([token])
-}
-
-model organizations {
-  id                              String                           @id
-  name                            String
-  slug                            String                           @unique
-  description                     String?
-  logoUrl                         String?
-  subscriptionPlanId              String?
-  subscriptionStatus              SubscriptionStatus               @default(TRIAL)
-  trialEndsAt                     DateTime?
-  currentPeriodStart              DateTime?
-  currentPeriodEnd                DateTime?
-  cancelAtPeriodEnd               Boolean                          @default(false)
-  stripeCustomerId                String?                          @unique
-  stripeSubscriptionId            String?                          @unique
-  billingEmail                    String?
-  billingName                     String?
-  billingAddress                  Json?
-  customMaxMembers                Int?
-  customMaxProfiles               Int?
-  customMaxWorkspaces             Int?
-  customMaxStorageGB              Int?
-  customMonthlyCredits            Int?
-  currentStorageGB                Float                            @default(0)
-  creditsUsedThisMonth            Int                              @default(0)
-  lastCreditReset                 DateTime?
-  isActive                        Boolean                          @default(true)
-  createdAt                       DateTime                         @default(now())
-  updatedAt                       DateTime                         @default(now())
-  custom_organization_permissions custom_organization_permissions?
-  organization_invites            organization_invites[]
-  subscription_plans              subscription_plans?              @relation(fields: [subscriptionPlanId], references: [id])
-  team_members                    team_members[]
-  usage_logs                      usage_logs[]
-  workspaces                      workspaces[]
-
-  @@index([isActive])
-  @@index([slug])
-  @@index([stripeCustomerId])
-  @@index([subscriptionPlanId])
-}
-
-model plan_features {
-  id                 String             @id
-  planId             String
-  featureKey         String
-  featureValue       String
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @default(now())
-  subscription_plans subscription_plans @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-  @@unique([planId, featureKey])
-  @@index([featureKey])
-  @@index([planId])
-}
-
-model subscription_plans {
-  id              String          @id
-  name            String          @unique
-  displayName     String
-  description     String?
-  price           Float           @default(0)
-  billingInterval BillingInterval @default(MONTHLY)
-  maxMembers      Int             @default(1)
-  maxProfiles     Int             @default(1)
-  maxWorkspaces   Int             @default(0)
-  maxStorageGB    Int             @default(5)
-  monthlyCredits  Int             @default(100)
-  stripePriceId   String?         @unique
-  stripeProductId String?
-  isActive        Boolean         @default(true)
-  isPublic        Boolean         @default(true)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @default(now())
-  features        Json            @default("{}")
-  organizations   organizations[]
-  plan_features   plan_features[]
-
-  @@index([isActive])
-  @@index([isPublic])
-  @@index([name])
-}
-
-model team_members {
-  id               String        @id
-  userId           String
-  organizationId   String
-  role             TeamRole      @default(MEMBER)
-  canInviteMembers Boolean       @default(false)
-  canManageBilling Boolean       @default(false)
-  canManageMembers Boolean       @default(false)
-  lastActiveAt     DateTime?
-  invitedBy        String?
-  joinedAt         DateTime      @default(now())
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @default(now())
-  organizations    organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  users            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, organizationId])
-  @@index([organizationId])
-  @@index([organizationId, role])
-  @@index([userId])
-}
-
-model usage_logs {
-  id             String        @id
-  organizationId String
-  userId         String
-  workspaceId    String?
-  action         String
-  resource       String
-  creditsUsed    Int           @default(0)
-  metadata       Json?
-  createdAt      DateTime      @default(now())
-  organizations  organizations @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([createdAt])
-  @@index([organizationId, createdAt])
-  @@index([organizationId])
-  @@index([userId])
-}
-
-model workspace_members {
-  id          String     @id
-  workspaceId String
-  userId      String
-  role        TeamRole   @default(MEMBER)
-  joinedAt    DateTime   @default(now())
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @default(now())
-  users       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspaces  workspaces @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@unique([workspaceId, userId])
-  @@index([userId])
-  @@index([workspaceId])
-}
-
-model workspaces {
-  id                String              @id
-  organizationId    String
-  name              String
-  slug              String
-  description       String?
-  color             String?
-  icon              String?
-  isActive          Boolean             @default(true)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @default(now())
-  workspace_members workspace_members[]
-  organizations     organizations       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, slug])
-  @@index([isActive])
-  @@index([organizationId])
-}
-
-// ============================================
-// OF MODELS (Creator Management)
-// ============================================
-
-model OfModel {
-  id                String                   @id @default(cuid())
-  name              String
-  displayName       String
-  slug              String                   @unique
-  status            OfModelStatus            @default(ACTIVE)
-
-  // Profile
-  profileImageUrl   String?
-  bio               String?
-  personalityType   String?
-  commonTerms       String[]                 @default([])
-  commonEmojis      String[]                 @default([])
-  restrictedTerms   String[]                 @default([])
-  notes             String?
-
-  // Financial
-  percentageTaken   Float?
-  guaranteedAmount  Float?
-
-  // Dates
-  launchDate        DateTime?
-
-  // Social Links
-  instagramUrl      String?
-  twitterUrl        String?
-  tiktokUrl         String?
-  websiteUrl        String?
-  profileLinkUrl    String?
-
-  // Referral
-  referrerName      String?
-
-  // Managers (Clerk user IDs)
-  chattingManagers  String[]                 @default([])
-
-  // Tracking (optional - who created/modified)
-  createdBy         String?
-
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-
-  // Relations
-  details           OfModelDetails?
-  assets            OfModelAsset[]
-  pricingCategories OfModelPricingCategory[]
-
-  @@index([status])
-  @@index([slug])
-  @@map("of_models")
-}
-
-model OfModelDetails {
-  id                   String   @id @default(cuid())
-  creatorId            String   @unique
-
-  // Personal Information
-  fullName             String?
-  age                  Int?
-  birthday             DateTime?
-  height               String?
-  weight               String?
-  ethnicity            String?
-  timezone             String?
-  currentCity          String?
-
-  // Preferences
-  interests            String[] @default([])
-  favoriteColors       String[] @default([])
-  favoriteEmojis       String[] @default([])
-
-  // Content
-  contentOffered       String[] @default([])
-  customMinPrice       Float?
-  videoCallMinPrice    Float?
-  limitations          String[] @default([])
-  verbiageRestrictions String[] @default([])
-
-  // External
-  amazonWishlist       String?
-
-  // Status
-  onboardingCompleted  Boolean  @default(false)
-
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  creator              OfModel  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-
-  @@index([creatorId])
-  @@map("of_model_details")
-}
-
-model OfModelAsset {
-  id           String           @id @default(cuid())
+model of_model_assets {
+  id           String           @id
   creatorId    String
   type         OfModelAssetType
   name         String
@@ -1367,67 +1255,118 @@ model OfModelAsset {
   mimeType     String?
   metadata     Json?
   createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  creator      OfModel          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  updatedAt    DateTime
+  of_models    of_models        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId])
   @@index([type])
-  @@map("of_model_assets")
 }
 
-model OfModelPricingCategory {
-  id          String               @id @default(cuid())
-  creatorId   String
-  name        String
-  slug        String
-  description String?
-  order       Int                  @default(0)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+model of_model_details {
+  id                   String    @id
+  creatorId            String    @unique
+  fullName             String?
+  age                  Int?
+  birthday             DateTime?
+  height               String?
+  weight               String?
+  ethnicity            String?
+  timezone             String?
+  currentCity          String?
+  interests            String[]  @default([])
+  favoriteColors       String[]  @default([])
+  favoriteEmojis       String[]  @default([])
+  contentOffered       String[]  @default([])
+  customMinPrice       Float?
+  videoCallMinPrice    Float?
+  limitations          String[]  @default([])
+  verbiageRestrictions String[]  @default([])
+  amazonWishlist       String?
+  onboardingCompleted  Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime
+  of_models            of_models @relation(fields: [creatorId], references: [id], onDelete: Cascade)
 
-  creator     OfModel              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
-  items       OfModelPricingItem[]
+  @@index([creatorId])
+}
+
+model of_model_pricing_categories {
+  id                     String                   @id
+  creatorId              String
+  name                   String
+  slug                   String
+  description            String?
+  order                  Int                      @default(0)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime
+  of_models              of_models                @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  of_model_pricing_items of_model_pricing_items[]
 
   @@unique([creatorId, slug])
   @@index([creatorId])
-  @@map("of_model_pricing_categories")
 }
 
-model OfModelPricingItem {
-  id          String                 @id @default(cuid())
-  categoryId  String
-  name        String
-  price       Float
-  description String?
-  order       Int                    @default(0)
-  isActive    Boolean                @default(true)
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
-
-  category    OfModelPricingCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+model of_model_pricing_items {
+  id                          String                      @id
+  categoryId                  String
+  name                        String
+  price                       Float
+  description                 String?
+  order                       Int                         @default(0)
+  isActive                    Boolean                     @default(true)
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime
+  of_model_pricing_categories of_model_pricing_categories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([categoryId])
-  @@map("of_model_pricing_items")
 }
 
-// ============================================
-// ENUMS
-// ============================================
+model of_models {
+  id                          String                        @id
+  name                        String
+  displayName                 String
+  slug                        String                        @unique
+  status                      OfModelStatus                 @default(ACTIVE)
+  profileImageUrl             String?
+  bio                         String?
+  personalityType             String?
+  commonTerms                 String[]                      @default([])
+  commonEmojis                String[]                      @default([])
+  restrictedTerms             String[]                      @default([])
+  notes                       String?
+  percentageTaken             Float?
+  guaranteedAmount            Float?
+  launchDate                  DateTime?
+  instagramUrl                String?
+  twitterUrl                  String?
+  tiktokUrl                   String?
+  websiteUrl                  String?
+  profileLinkUrl              String?
+  referrerName                String?
+  chattingManagers            String[]                      @default([])
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime
+  createdBy                   String?
+  of_model_assets             of_model_assets[]
+  of_model_details            of_model_details?
+  of_model_pricing_categories of_model_pricing_categories[]
 
-enum OfModelStatus {
-  ACTIVE
-  INACTIVE
-  DROPPED
-  PENDING
+  @@index([slug])
+  @@index([status])
 }
 
-enum OfModelAssetType {
-  IMAGE
-  VIDEO
-  DOCUMENT
-  AUDIO
-  OTHER
+model plan_features {
+  id                 String           @id
+  planId             String
+  featureKey         String
+  featureValue       String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @default(now())
+  subscription_plans SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+  @@index([featureKey])
+  @@index([planId])
 }
 
 enum SyncStatus {
@@ -1649,40 +1588,22 @@ enum TeamRole {
   MEMBER
 }
 
-// Reference Bank for storing reusable reference images/videos
-model ReferenceItem {
-  id          String         @id @default(cuid())
-  clerkId     String
-  profileId   String
-  name        String
-  description String?
-  fileType    String         // 'image' or 'video'
-  mimeType    String
-  fileSize    Int
-  width       Int?
-  height      Int?
-  duration    Float?         // For videos
-  awsS3Key    String
-  awsS3Url    String
-  thumbnailUrl String?
-  tags        String[]       @default([])
-  usageCount  Int            @default(0)
-  lastUsedAt  DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  profile     InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@index([clerkId])
-  @@index([profileId])
-  @@index([clerkId, profileId])
-  @@index([fileType])
-  @@index([tags])
-  @@index([usageCount])
-  @@index([lastUsedAt])
-  @@map("reference_items")
-}
-
 enum ReferenceType {
   IMAGE
   VIDEO
+}
+
+enum OfModelAssetType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  AUDIO
+  OTHER
+}
+
+enum OfModelStatus {
+  ACTIVE
+  INACTIVE
+  DROPPED
+  PENDING
 }

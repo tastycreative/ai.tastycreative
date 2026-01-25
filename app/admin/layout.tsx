@@ -23,6 +23,7 @@ import {
   TrendingUp,
   FileText,
   Lock,
+  Building2,
   Mic,
   UserCircle,
 } from "lucide-react";
@@ -66,6 +67,16 @@ export default function AdminLayout({
       name: "Users Management",
       href: "/admin/users",
       icon: Users,
+    },
+    {
+      name: "Organizations",
+      href: "/admin/organizations",
+      icon: Building2,
+    },
+    {
+      name: "Subscription Plans",
+      href: "/admin/plans",
+      icon: CreditCard,
     },
     {
       name: "Production Tracker",
@@ -301,7 +312,7 @@ export default function AdminLayout({
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 relative overflow-hidden">
+    <div className="flex h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 relative overflow-hidden">
       {/* Animated Background Effects */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/10 rounded-full blur-3xl animate-pulse" />
@@ -444,7 +455,7 @@ export default function AdminLayout({
         </div>
 
         {/* Content area */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 custom-scrollbar">
+        <main className="flex-1 h-full overflow-y-auto bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 custom-scrollbar">
           {/* Sticky Header with user info */}
           <div className="sticky top-0 z-20 bg-slate-900/90 backdrop-blur-md border-b border-red-900/30 px-4 lg:px-8 py-3 shadow-lg">
             <div className="flex items-center justify-between">
@@ -514,7 +525,7 @@ export default function AdminLayout({
           </div>
 
           {/* Content */}
-          <div className="px-4 py-6 lg:px-8 animate-fadeIn">
+          <div className="px-4 py-6 lg:px-8 animate-fadeIn h-full">
             {children}
           </div>
         </main>
