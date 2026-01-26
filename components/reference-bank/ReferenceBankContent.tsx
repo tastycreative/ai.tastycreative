@@ -494,9 +494,13 @@ export function ReferenceBankContent() {
         }),
       });
       
-      if (!presignResponse.ok) throw new Error("Failed to get upload URL");
+      if (!presignResponse.ok) {
+        const errorData = await presignResponse.json();
+        throw new Error(errorData.error || "Failed to get upload URL");
+      }
       
       const { uploadUrl, key } = await presignResponse.json();
+      console.log("Upload URL received:", uploadUrl);
       
       // Upload to S3
       setUploadProgress(30);
@@ -508,7 +512,11 @@ export function ReferenceBankContent() {
         },
       });
       
-      if (!uploadResponse.ok) throw new Error("Failed to upload file");
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error("S3 upload failed:", uploadResponse.status, errorText.substring(0, 200));
+        throw new Error(`Failed to upload to S3: ${uploadResponse.status}`);
+      }
       
       setUploadProgress(70);
       
@@ -528,7 +536,10 @@ export function ReferenceBankContent() {
         }),
       });
       
-      if (!createResponse.ok) throw new Error("Failed to create record");
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json();
+        throw new Error(errorData.error || "Failed to create record");
+      }
       
       setUploadProgress(100);
       
@@ -542,7 +553,7 @@ export function ReferenceBankContent() {
       fetchReferenceItems();
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Failed to upload file. Please try again.");
+      alert(`Failed to upload file: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
