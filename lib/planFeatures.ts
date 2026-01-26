@@ -93,6 +93,14 @@ export const PLAN_FEATURES: FeatureDefinition[] = [
     type: 'boolean',
     defaultValue: true,
   },
+  {
+    key: 'hasReferenceBank',
+    label: 'Reference Bank',
+    description: 'Media reference library',
+    category: 'tab',
+    type: 'boolean',
+    defaultValue: true,
+  },
 
   // ============================================
   // GENERATION FEATURES - AI generation tools

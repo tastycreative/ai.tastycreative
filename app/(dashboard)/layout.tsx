@@ -120,11 +120,15 @@ export default function DashboardLayout({
       href: "/workspace/vault",
       icon: Shield,
     },
-    {
-      name: "Reference Bank",
-      href: "/workspace/reference-bank",
-      icon: Library,
-    },
+    ...(permissions.hasReferenceBank
+      ? [
+          {
+            name: "Reference Bank",
+            href: "/workspace/reference-bank",
+            icon: Library,
+          },
+        ]
+      : []),
     ...(permissions.canCaptionBank
       ? [
           {
