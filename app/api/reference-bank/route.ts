@@ -38,10 +38,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-<<<<<<< HEAD
-    const items = await prisma.reference_items.findMany({
-=======
-    // Check for duplicate by file size (and optionally name pattern)
+// Check for duplicate by file size (and optionally name pattern)
     if (checkDuplicate && fileSize) {
       const fileSizeNum = parseInt(fileSize, 10);
       // Allow for small variations in file size (within 1KB)
@@ -79,7 +76,6 @@ export async function GET(req: NextRequest) {
     }
 
     const items = await prisma.referenceItem.findMany({
->>>>>>> 3033b39 (feat/fix: improve Kling & Seedream generation stability, deduplication, and vault handling)
       where: {
         clerkId: userId,
         profileId,
@@ -149,7 +145,7 @@ export async function POST(req: NextRequest) {
     const region = process.env.AWS_REGION || "us-east-1";
     const awsS3Url = `https://${bucket}.s3.${region}.amazonaws.com/${awsS3Key}`;
 
-    const item = await prisma.reference_items.create({
+    const item = await prisma.referenceItem.create({
       data: {
         clerkId: userId,
         profileId,
