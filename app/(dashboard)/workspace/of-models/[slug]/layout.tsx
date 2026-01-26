@@ -14,6 +14,7 @@ import {
   Globe,
   ExternalLink,
 } from 'lucide-react';
+import { useOfModelStore } from '@/stores/of-model-store';
 
 interface OfModel {
   id: string;
@@ -36,6 +37,62 @@ const statusColors: Record<string, string> = {
   ARCHIVED: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
+// Convert Google Drive links to displayable thumbnail URLs
+function getDisplayImageUrl(url: string | null): string | null {
+  if (!url) return null;
+
+  // Google Drive handling
+  if (url.includes('drive.google.com')) {
+    try {
+      // Extract file ID from various Google Drive URL formats
+      const fileMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      let driveId: string | null = null;
+
+      if (fileMatch && fileMatch[1]) {
+        driveId = fileMatch[1];
+      } else {
+        const urlObj = new URL(url);
+        driveId = urlObj.searchParams.get('id');
+      }
+
+      if (driveId) {
+        return `https://drive.google.com/thumbnail?id=${driveId}&sz=w400`;
+      }
+    } catch {
+      // Fall through to return original URL
+    }
+  }
+
+  return url;
+}
+
+// Convert social media handles/URLs to proper clickable URLs
+function getSocialUrl(value: string | null, platform: 'instagram' | 'twitter' | 'tiktok'): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Already a full URL
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  // Remove @ if present and convert to URL
+  const handle = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+
+  switch (platform) {
+    case 'instagram':
+      return `https://instagram.com/${handle}`;
+    case 'twitter':
+      return `https://twitter.com/${handle}`;
+    case 'tiktok':
+      return `https://tiktok.com/@${handle}`;
+    default:
+      return trimmed;
+  }
+}
+
 export default function OfModelLayout({
   children,
 }: {
@@ -46,6 +103,9 @@ export default function OfModelLayout({
   const slug = params.slug as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Get model from store as fallback (set when clicking from list page)
+  const storeModel = useOfModelStore((state) => state.selectedModel);
 
   useEffect(() => {
     if (slug) {
@@ -60,9 +120,22 @@ export default function OfModelLayout({
       if (response.ok) {
         const result = await response.json();
         setModel(result.data);
+      } else {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('API error loading model:', response.status, error);
+        // Use store model as fallback if API fails and slug matches
+        if (storeModel && storeModel.slug === slug) {
+          console.log('Using store model as fallback');
+          setModel(storeModel as OfModel);
+        }
       }
     } catch (error) {
       console.error('Error loading model:', error);
+      // Use store model as fallback if fetch fails and slug matches
+      if (storeModel && storeModel.slug === slug) {
+        console.log('Using store model as fallback');
+        setModel(storeModel as OfModel);
+      }
     } finally {
       setLoading(false);
     }
@@ -182,17 +255,20 @@ export default function OfModelLayout({
         <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-6 mb-6">
           <div className="flex flex-col sm:flex-row items-start gap-6">
             {/* Profile Image */}
-            {model.profileImageUrl ? (
+            {getDisplayImageUrl(model.profileImageUrl) ? (
               <img
-                src={model.profileImageUrl}
+                src={getDisplayImageUrl(model.profileImageUrl)!}
                 alt={model.displayName}
                 className="w-24 h-24 rounded-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
               />
-            ) : (
-              <div className="w-24 h-24 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center text-white text-3xl font-semibold">
-                {model.displayName.charAt(0).toUpperCase()}
-              </div>
-            )}
+            ) : null}
+            <div className={`w-24 h-24 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center text-white text-3xl font-semibold ${getDisplayImageUrl(model.profileImageUrl) ? 'hidden' : ''}`}>
+              {model.displayName.charAt(0).toUpperCase()}
+            </div>
 
             {/* Model Info */}
             <div className="flex-1">
@@ -219,7 +295,7 @@ export default function OfModelLayout({
               <div className="flex flex-wrap items-center gap-3">
                 {model.instagramUrl && (
                   <a
-                    href={model.instagramUrl}
+                    href={getSocialUrl(model.instagramUrl, 'instagram')!}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-sm text-pink-600 hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
@@ -231,7 +307,7 @@ export default function OfModelLayout({
                 )}
                 {model.twitterUrl && (
                   <a
-                    href={model.twitterUrl}
+                    href={getSocialUrl(model.twitterUrl, 'twitter')!}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300"

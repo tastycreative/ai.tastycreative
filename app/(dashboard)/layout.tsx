@@ -116,6 +116,11 @@ export default function DashboardLayout({
       icon: Users,
     },
     {
+      name: "OF Models",
+      href: "/workspace/of-models",
+      icon: UserCheck,
+    },
+    {
       name: "Vault",
       href: "/workspace/vault",
       icon: Shield,

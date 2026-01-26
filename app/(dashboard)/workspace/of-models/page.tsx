@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { useOfModelStore } from '@/stores/of-model-store';
 
 interface OfModel {
   id: string;
@@ -45,24 +46,109 @@ const statusColors: Record<string, string> = {
   ARCHIVED: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
+// Convert Google Drive links to displayable thumbnail URLs
+function getDisplayImageUrl(url: string | null): string | null {
+  if (!url) return null;
+
+  // Google Drive handling
+  if (url.includes('drive.google.com')) {
+    try {
+      // Extract file ID from various Google Drive URL formats
+      const fileMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      let driveId: string | null = null;
+
+      if (fileMatch && fileMatch[1]) {
+        driveId = fileMatch[1];
+      } else {
+        const urlObj = new URL(url);
+        driveId = urlObj.searchParams.get('id');
+      }
+
+      if (driveId) {
+        return `https://drive.google.com/thumbnail?id=${driveId}&sz=w400`;
+      }
+    } catch {
+      // Fall through to return original URL
+    }
+  }
+
+  return url;
+}
+
+// Convert social media handles/URLs to proper clickable URLs
+function getSocialUrl(value: string | null, platform: 'instagram' | 'twitter' | 'tiktok'): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Already a full URL
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  // Remove @ if present and convert to URL
+  const handle = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+
+  switch (platform) {
+    case 'instagram':
+      return `https://instagram.com/${handle}`;
+    case 'twitter':
+      return `https://twitter.com/${handle}`;
+    case 'tiktok':
+      return `https://tiktok.com/@${handle}`;
+    default:
+      return trimmed;
+  }
+}
+
+const ITEMS_PER_PAGE = 12;
+
 export default function OfModelsPage() {
   const [models, setModels] = useState<OfModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedModel, setSelectedModel] = useState<OfModel | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
+  // Store for passing model data to detail page
+  const setStoreSelectedModel = useOfModelStore((state) => state.setSelectedModel);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset page when search/filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter]);
+
+  // Fetch models when debounced search or status filter changes
   useEffect(() => {
     loadModels();
-  }, []);
+  }, [debouncedSearch, statusFilter]);
 
   const loadModels = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/of-models');
+      const params = new URLSearchParams();
+      params.set('limit', '500'); // Fetch more models
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch);
+      }
+      if (statusFilter && statusFilter !== 'ALL') {
+        params.set('status', statusFilter);
+      }
+      const response = await fetch(`/api/of-models?${params.toString()}`);
       if (response.ok) {
         const result = await response.json();
         setModels(result.data || []);
@@ -91,16 +177,17 @@ export default function OfModelsPage() {
     setShowDeleteModal(true);
   };
 
-  const filteredModels = models.filter(model => {
-    const matchesSearch =
-      model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      model.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      model.slug.toLowerCase().includes(searchQuery.toLowerCase());
+  // Models are already filtered by the API, no need for client-side filtering
+  const totalModels = models.length;
+  const totalPages = Math.ceil(totalModels / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedModels = models.slice(startIndex, endIndex);
 
-    const matchesStatus = statusFilter === 'ALL' || model.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
@@ -155,175 +242,255 @@ export default function OfModelsPage() {
           </div>
         </div>
 
-        {/* Models Table */}
-        <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          ) : filteredModels.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                {searchQuery || statusFilter !== 'ALL' ? 'No models found' : 'No OF models yet'}
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                {searchQuery || statusFilter !== 'ALL'
-                  ? 'Try adjusting your search or filter'
-                  : 'Get started by creating your first OF model profile'}
-              </p>
-              {!searchQuery && statusFilter === 'ALL' && (
-                <button
-                  onClick={handleCreate}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
-                  Add Model
-                </button>
+        {/* Results Count */}
+        {!loading && totalModels > 0 && (
+          <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            Showing {startIndex + 1}-{Math.min(endIndex, totalModels)} of {totalModels} models
+          </div>
+        )}
+
+        {/* Models Grid */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : models.length === 0 ? (
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-12 text-center">
+            <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              {searchQuery || statusFilter !== 'ALL' ? 'No models found' : 'No OF models yet'}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              {searchQuery || statusFilter !== 'ALL'
+                ? 'Try adjusting your search or filter'
+                : 'Get started by creating your first OF model profile'}
+            </p>
+            {!searchQuery && statusFilter === 'ALL' && (
+              <button
+                onClick={handleCreate}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Add Model
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {paginatedModels.map((model) => (
+              <div
+                key={model.id}
+                className="bg-gradient-to-br from-white to-pink-50/30 dark:from-gray-800/50 dark:to-purple-900/20 shadow-md rounded-xl border border-pink-200/30 dark:border-purple-700/20 p-3 sm:p-4 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
+              >
+                <div className="space-y-2 sm:space-y-2.5">
+                  {/* Profile Image */}
+                  <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-pink-100 to-purple-100/40 dark:from-gray-700/40 dark:to-purple-900/30 flex items-center justify-center">
+                    {getDisplayImageUrl(model.profileImageUrl) ? (
+                      <img
+                        src={getDisplayImageUrl(model.profileImageUrl)!}
+                        alt={model.displayName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Hide broken image and show fallback
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold ${getDisplayImageUrl(model.profileImageUrl) ? 'hidden' : ''}`}>
+                      {model.displayName.charAt(0).toUpperCase()}
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className={`absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0.5 rounded-full shadow-sm font-medium ${statusColors[model.status]}`}>
+                      {model.status}
+                    </div>
+                  </div>
+
+                  {/* Model Info */}
+                  <div className="text-center space-y-1.5">
+                    <div className="space-y-0.5">
+                      <Link
+                        href={`/workspace/of-models/${model.slug}`}
+                        onClick={() => setStoreSelectedModel(model as any)}
+                      >
+                        <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white line-clamp-1 hover:text-pink-600 dark:hover:text-pink-400 transition-colors cursor-pointer">
+                          {model.displayName}
+                        </h3>
+                      </Link>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        @{model.slug}
+                      </p>
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[24px] sm:min-h-[28px]">
+                      {model.bio || 'No bio provided'}
+                    </p>
+
+                    {/* Social Links */}
+                    <div className="flex items-center justify-center gap-2">
+                      {model.instagramUrl && (
+                        <a
+                          href={getSocialUrl(model.instagramUrl, 'instagram')!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 hover:bg-pink-100 dark:hover:bg-pink-900/30 rounded-lg transition-colors"
+                          title="Instagram"
+                        >
+                          <Instagram className="w-4 h-4 text-pink-500" />
+                        </a>
+                      )}
+                      {model.twitterUrl && (
+                        <a
+                          href={getSocialUrl(model.twitterUrl, 'twitter')!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                          title="Twitter"
+                        >
+                          <Twitter className="w-4 h-4 text-blue-400" />
+                        </a>
+                      )}
+                      {model.websiteUrl && (
+                        <a
+                          href={model.websiteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          title="Website"
+                        >
+                          <Globe className="w-4 h-4 text-gray-500" />
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Dates */}
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {model.launchDate && (
+                        <>
+                          <span>Launch: {new Date(model.launchDate).toLocaleDateString()}</span>
+                          <span>•</span>
+                        </>
+                      )}
+                      <span>{new Date(model.createdAt).toLocaleDateString()}</span>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+                        <Link
+                          href={`/workspace/of-models/${model.slug}`}
+                          onClick={() => setStoreSelectedModel(model as any)}
+                          className="flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors active:scale-95"
+                        >
+                          <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden xs:inline">View</span>
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(model)}
+                          className="flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs font-medium bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white shadow-sm transition-all active:scale-95"
+                        >
+                          <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="hidden xs:inline">Edit</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(model)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors p-1.5 rounded active:scale-95"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {!loading && totalPages > 1 && (
+          <div className="mt-8 flex items-center justify-center gap-2">
+            {/* Previous Button */}
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+
+            {/* Page Numbers */}
+            <div className="flex items-center gap-1">
+              {/* First page */}
+              {currentPage > 3 && (
+                <>
+                  <button
+                    onClick={() => goToPage(1)}
+                    className="w-10 h-10 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    1
+                  </button>
+                  {currentPage > 4 && (
+                    <span className="px-2 text-gray-400">...</span>
+                  )}
+                </>
+              )}
+
+              {/* Page numbers around current */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => {
+                  if (totalPages <= 7) return true;
+                  if (page === 1 || page === totalPages) return false;
+                  return Math.abs(page - currentPage) <= 2;
+                })
+                .map(page => (
+                  <button
+                    key={page}
+                    onClick={() => goToPage(page)}
+                    className={`w-10 h-10 text-sm font-medium rounded-lg border transition-colors ${
+                      page === currentPage
+                        ? 'border-pink-500 bg-pink-500 text-white'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+              {/* Last page */}
+              {currentPage < totalPages - 2 && (
+                <>
+                  {currentPage < totalPages - 3 && (
+                    <span className="px-2 text-gray-400">...</span>
+                  )}
+                  <button
+                    onClick={() => goToPage(totalPages)}
+                    className="w-10 h-10 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    {totalPages}
+                  </button>
+                </>
               )}
             </div>
-          ) : (
-            <div className="overflow-x-auto overflow-y-visible">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Model
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Social Links
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Launch Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {filteredModels.map((model) => (
-                    <tr
-                      key={model.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          {model.profileImageUrl ? (
-                            <img
-                              src={model.profileImageUrl}
-                              alt={model.displayName}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
-                              {model.displayName.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div>
-                            <Link
-                              href={`/workspace/of-models/${model.slug}`}
-                              className="font-medium text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400"
-                            >
-                              {model.displayName}
-                            </Link>
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              @{model.slug}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {model.instagramUrl && (
-                            <a
-                              href={model.instagramUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                              title="Instagram"
-                            >
-                              <Instagram className="w-4 h-4 text-pink-500" />
-                            </a>
-                          )}
-                          {model.twitterUrl && (
-                            <a
-                              href={model.twitterUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                              title="Twitter"
-                            >
-                              <Twitter className="w-4 h-4 text-blue-400" />
-                            </a>
-                          )}
-                          {model.websiteUrl && (
-                            <a
-                              href={model.websiteUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                              title="Website"
-                            >
-                              <Globe className="w-4 h-4 text-gray-500" />
-                            </a>
-                          )}
-                          {!model.instagramUrl && !model.twitterUrl && !model.websiteUrl && (
-                            <span className="text-sm text-gray-400">None</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[model.status]}`}>
-                          {model.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {model.launchDate
-                          ? new Date(model.launchDate).toLocaleDateString()
-                          : '—'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        {new Date(model.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/workspace/of-models/${model.slug}`}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                            title="View"
-                          >
-                            <Eye className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                          </Link>
-                          <button
-                            onClick={() => handleEdit(model)}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                            title="Edit"
-                          >
-                            <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(model)}
-                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+
+            {/* Next Button */}
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Create Modal */}
