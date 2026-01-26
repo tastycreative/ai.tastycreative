@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Pencil, Trash2, Instagram, Search, MoreVertical, Link2, X, ExternalLink } from 'lucide-react';
+import { Plus, Pencil, Trash2, Instagram, Search, MoreVertical, Link2, X, ExternalLink, Share2, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@clerk/nextjs';
 
@@ -15,12 +15,14 @@ interface LinkedLoRA {
 
 interface Creator {
   id: string;
+  clerkId: string;
   name: string;
   description: string | null;
   instagramUsername: string | null;
   instagramAccountId: string | null;
   profileImageUrl: string | null;
   isDefault: boolean;
+  organizationId: string | null;
   createdAt: string;
   updatedAt: string;
   linkedLoRAs?: LinkedLoRA[];
@@ -28,6 +30,11 @@ interface Creator {
     posts: number;
     feedPosts: number;
   };
+  organization?: {
+    id: string;
+    name: string;
+    logoUrl: string | null;
+  } | null;
 }
 
 export default function CreatorsPage() {
@@ -105,6 +112,30 @@ export default function CreatorsPage() {
       toast.error('Failed to update default creator');
     }
     setOpenMenuId(null);
+  };
+
+  const handleToggleShare = async (creator: Creator) => {
+    const isCurrentlyShared = !!creator.organizationId;
+
+    try {
+      const response = await fetch(`/api/instagram/profiles/${creator.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shareWithOrganization: !isCurrentlyShared,
+        }),
+      });
+
+      if (response.ok) {
+        toast.success(isCurrentlyShared ? 'Profile unshared from organization' : 'Profile shared with organization');
+        loadCreators();
+      } else {
+        toast.error('Failed to update sharing');
+      }
+    } catch (error) {
+      console.error('Error toggling share:', error);
+      toast.error('Failed to update sharing');
+    }
   };
 
   const filteredCreators = creators.filter(creator =>
@@ -318,35 +349,66 @@ export default function CreatorsPage() {
                         {(creator._count?.posts || 0) + (creator._count?.feedPosts || 0)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {creator.isDefault ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                            Default
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-                            Active
-                          </span>
-                        )}
+                        <div className="flex flex-col gap-1">
+                          {creator.isDefault ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              Default
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                              Active
+                            </span>
+                          )}
+                          {creator.organizationId && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              <Building2 className="w-3 h-3" />
+                              Shared
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {new Date(creator.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEdit(creator)}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                            title="Edit"
-                          >
-                            <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(creator)}
-                            className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
-                          </button>
+                          {creator.clerkId === userId ? (
+                            <>
+                              <button
+                                onClick={() => handleToggleShare(creator)}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  creator.organizationId
+                                    ? 'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                                    : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                                }`}
+                                title={creator.organizationId ? 'Unshare from organization' : 'Share with organization'}
+                              >
+                                {creator.organizationId ? (
+                                  <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                ) : (
+                                  <Share2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => handleEdit(creator)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                title="Edit"
+                              >
+                                <Pencil className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(creator)}
+                                className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                              Shared by organization
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -441,6 +503,7 @@ function CreateCreatorModal({
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
   const [isDefault, setIsDefault] = useState(false);
+  const [shareWithOrganization, setShareWithOrganization] = useState(false);
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -506,6 +569,7 @@ function CreateCreatorModal({
           instagramUsername: instagramUsername.trim() || null,
           profileImageUrl,
           isDefault,
+          shareWithOrganization,
         }),
       });
 
@@ -614,17 +678,32 @@ function CreateCreatorModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="isDefault"
-              checked={isDefault}
-              onChange={(e) => setIsDefault(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-            />
-            <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-gray-300">
-              Set as default creator
-            </label>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isDefault"
+                checked={isDefault}
+                onChange={(e) => setIsDefault(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-gray-300">
+                Set as default creator
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="shareWithOrganization"
+                checked={shareWithOrganization}
+                onChange={(e) => setShareWithOrganization(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="shareWithOrganization" className="text-sm text-gray-700 dark:text-gray-300">
+                Share with organization
+              </label>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">
@@ -666,6 +745,7 @@ function EditCreatorModal({
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(creator.profileImageUrl);
   const [isDefault, setIsDefault] = useState(creator.isDefault);
+  const [shareWithOrganization, setShareWithOrganization] = useState(!!creator.organizationId);
   const [saving, setSaving] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -731,6 +811,7 @@ function EditCreatorModal({
           instagramUsername: instagramUsername.trim() || null,
           profileImageUrl,
           isDefault,
+          shareWithOrganization,
         }),
       });
 
@@ -836,17 +917,32 @@ function EditCreatorModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="editIsDefault"
-              checked={isDefault}
-              onChange={(e) => setIsDefault(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-            />
-            <label htmlFor="editIsDefault" className="text-sm text-gray-700 dark:text-gray-300">
-              Set as default creator
-            </label>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="editIsDefault"
+                checked={isDefault}
+                onChange={(e) => setIsDefault(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="editIsDefault" className="text-sm text-gray-700 dark:text-gray-300">
+                Set as default creator
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="editShareWithOrganization"
+                checked={shareWithOrganization}
+                onChange={(e) => setShareWithOrganization(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="editShareWithOrganization" className="text-sm text-gray-700 dark:text-gray-300">
+                Share with organization
+              </label>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">

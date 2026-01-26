@@ -463,6 +463,7 @@ model LoRAShare {
 model InstagramProfile {
   id                     String                @id @default(cuid())
   clerkId                String
+  organizationId         String?
   name                   String
   description            String?
   instagramUsername      String?
@@ -483,11 +484,13 @@ model InstagramProfile {
   sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
+  organization           Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   reference_items        reference_items[]
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
+  @@index([organizationId])
   @@map("instagram_profiles")
 }
 
@@ -1042,6 +1045,7 @@ model Organization {
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @default(now()) @updatedAt
   customPermissions    CustomOrganizationPermission?
+  instagramProfiles    InstagramProfile[]
   invites              OrganizationInvite[]
   subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   members              TeamMember[]
