@@ -266,6 +266,11 @@ export default function SeeDreamTextToImage() {
       return;
     }
 
+    if (!targetFolder) {
+      setError("Please select a vault folder to save your images");
+      return;
+    }
+
     if (!prompt.trim()) {
       setError("Please enter a prompt");
       return;

@@ -246,7 +246,10 @@ export async function GET(request: NextRequest) {
     // Handle history request
     if (isHistoryRequest) {
       try {
-        console.log("[Kling T2V] Fetching video history for user:", userId);
+        // Get profileId from query params to filter by profile
+        const profileId = searchParams.get("profileId");
+        
+        console.log("[Kling T2V] Fetching video history for user:", userId, "profileId:", profileId);
 
         // Step 1: Get generation jobs first, then filter by source in JS for reliability
         const recentJobs = await prisma.generationJob.findMany({
@@ -300,67 +303,45 @@ export async function GET(request: NextRequest) {
 
         console.log("[Kling T2V] Found generated videos:", videos.length);
 
-        // Step 3: Also fetch vault items that were created from Kling T2V
-        const allVaultVideos = await prisma.vaultItem.findMany({
-          where: {
-            clerkId: userId,
-            fileType: {
-              startsWith: "video/",
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 100,
-        });
+        // Filter by profileId if provided - include videos with matching profile OR no profile set
+        let filteredVideos = videos;
+        if (profileId) {
+          filteredVideos = videos.filter((video) => {
+            const params = video.job.params as any;
+            // Include if profileId matches OR if no profileId was set (backward compatibility)
+            return params?.vaultProfileId === profileId || !params?.vaultProfileId;
+          });
+        }
 
-        // Filter to only Kling T2V generated videos
-        const vaultVideos = allVaultVideos
-          .filter((vid) => {
-            const metadata = vid.metadata as any;
-            return metadata?.source === "kling-t2v";
-          })
-          .slice(0, 20);
+        console.log("[Kling T2V] Filtered videos by profile:", filteredVideos.length);
 
-        console.log("[Kling T2V] Found vault videos:", vaultVideos.length);
-
-        // Map generated videos
-        const mappedGeneratedVideos = videos.map((video) => ({
-          id: video.id,
-          videoUrl: video.awsS3Url || video.s3Key || "",
-          prompt: (video.job.params as any)?.prompt || "Unknown prompt",
-          model: (video.job.params as any)?.model || "kling-v1",
-          duration: (video.job.params as any)?.duration || "5",
-          aspectRatio: (video.job.params as any)?.aspect_ratio || "16:9",
-          createdAt: video.createdAt.toISOString(),
-          status: "completed" as const,
-          source: "generated" as const,
-        }));
-
-        // Map vault videos
-        const mappedVaultVideos = vaultVideos.map((vid) => {
-          const metadata = vid.metadata as any;
+        // Map generated videos - this is the single source of truth for history
+        const mappedGeneratedVideos = filteredVideos.map((video) => {
+          const params = video.job.params as any;
           return {
-            id: vid.id,
-            videoUrl: vid.awsS3Url || "",
-            prompt: metadata?.prompt || "Unknown prompt",
-            model: metadata?.model || "kling-v1",
-            duration: metadata?.duration || "5",
-            aspectRatio: metadata?.aspect_ratio || "16:9",
-            createdAt: vid.createdAt.toISOString(),
+            id: video.id,
+            videoUrl: video.awsS3Url || video.s3Key || "",
+            prompt: params?.prompt || "Unknown prompt",
+            model: params?.model || "kling-v1",
+            duration: params?.duration || "5",
+            aspectRatio: params?.aspect_ratio || "16:9",
+            createdAt: video.createdAt.toISOString(),
             status: "completed" as const,
-            source: "vault" as const,
+            source: "generated" as const,
+            metadata: {
+              negativePrompt: params?.negative_prompt || "",
+              mode: params?.mode || "std",
+              cfgScale: params?.cfg_scale || 0.5,
+              sound: params?.sound || null,
+              cameraControl: params?.camera_control || null,
+              profileId: params?.vaultProfileId || null,
+            },
           };
         });
 
-        // Combine and sort by date
-        const allVideos = [...mappedGeneratedVideos, ...mappedVaultVideos]
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .slice(0, 20);
+        console.log("[Kling T2V] Returning total videos:", mappedGeneratedVideos.length);
 
-        console.log("[Kling T2V] Returning total videos:", allVideos.length);
-
-        return NextResponse.json({ videos: allVideos });
+        return NextResponse.json({ videos: mappedGeneratedVideos });
       } catch (error) {
         console.error("[Kling T2V] Error fetching video history:", error);
         return NextResponse.json({ videos: [] });
@@ -509,12 +490,58 @@ export async function GET(request: NextRequest) {
 
         const awsS3Url = `https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${encodeURIComponent(s3Key)}`.replace(/%2F/g, "/");
 
-        // Save to database - either VaultItem or GeneratedVideo
-        let savedVideo: any;
+        // ALWAYS create GeneratedVideo for history tracking
+        const generatedVideo = await prisma.generatedVideo.create({
+          data: {
+            clerkId: userId,
+            jobId: generationJob.id,
+            filename: filename,
+            subfolder: subfolder || "",
+            type: "output",
+            s3Key: s3Key,
+            awsS3Key: s3Key,
+            awsS3Url: awsS3Url,
+            duration: parseFloat(params?.duration || "5"),
+            format: "mp4",
+            metadata: {
+              source: "kling-t2v",
+              prompt: params?.prompt || "",
+              negative_prompt: params?.negative_prompt || "",
+              model: params?.model || "kling-v1",
+              mode: params?.mode || "std",
+              duration: params?.duration || "5",
+              aspect_ratio: params?.aspect_ratio || "16:9",
+              cfg_scale: params?.cfg_scale || 0.5,
+              sound: params?.sound || null,
+              camera_control: params?.camera_control || null,
+              originalUrl: videoUrl,
+              videoId: videoInfo.id,
+            },
+          },
+        });
 
+        let savedVideo: any = {
+          id: generatedVideo.id,
+          videoUrl: awsS3Url,
+          prompt: params?.prompt || "",
+          model: params?.model || "kling-v1",
+          duration: params?.duration || "5",
+          aspectRatio: params?.aspect_ratio || "16:9",
+          createdAt: generatedVideo.createdAt.toISOString(),
+          status: "completed" as const,
+          metadata: {
+            negativePrompt: params?.negative_prompt || "",
+            mode: params?.mode || "std",
+            cfgScale: params?.cfg_scale || 0.5,
+            sound: params?.sound || null,
+            cameraControl: params?.camera_control || null,
+            profileId: vaultProfileId || null,
+          },
+        };
+
+        // ADDITIONALLY create VaultItem if saving to vault
         if (saveToVault && vaultProfileId && vaultFolderId) {
-          // Create VaultItem for vault storage with generation metadata
-          const vaultItem = await prisma.vaultItem.create({
+          await prisma.vaultItem.create({
             data: {
               clerkId: userId,
               profileId: vaultProfileId,
@@ -533,62 +560,14 @@ export async function GET(request: NextRequest) {
                 duration: params?.duration || "5",
                 aspectRatio: params?.aspect_ratio || "16:9",
                 mode: params?.mode || "std",
+                cfgScale: params?.cfg_scale || 0.5,
+                sound: params?.sound || null,
+                cameraControl: params?.camera_control || null,
                 generatedAt: new Date().toISOString(),
               },
             },
           });
-
-          savedVideo = {
-            id: vaultItem.id,
-            videoUrl: awsS3Url,
-            prompt: params?.prompt || "",
-            model: params?.model || "kling-v1",
-            duration: params?.duration || "5",
-            aspectRatio: params?.aspect_ratio || "16:9",
-            createdAt: vaultItem.createdAt.toISOString(),
-            status: "completed" as const,
-            savedToVault: true,
-          };
-        } else {
-          // Create GeneratedVideo for regular storage
-          const generatedVideo = await prisma.generatedVideo.create({
-            data: {
-              clerkId: userId,
-              jobId: generationJob.id,
-              filename: filename,
-              subfolder: subfolder || "",
-              type: "output",
-              s3Key: s3Key,
-              awsS3Key: s3Key,
-              awsS3Url: awsS3Url,
-              duration: parseFloat(params?.duration || "5"),
-              format: "mp4",
-              metadata: {
-                source: "kling-t2v",
-                prompt: params?.prompt || "",
-                negative_prompt: params?.negative_prompt || "",
-                model: params?.model || "kling-v1",
-                mode: params?.mode || "std",
-                duration: params?.duration || "5",
-                aspect_ratio: params?.aspect_ratio || "16:9",
-                cfg_scale: params?.cfg_scale || 0.5,
-                camera_control: params?.camera_control || null,
-                originalUrl: videoUrl,
-                videoId: videoInfo.id,
-              },
-            },
-          });
-
-          savedVideo = {
-            id: generatedVideo.id,
-            videoUrl: awsS3Url,
-            prompt: params?.prompt || "",
-            model: params?.model || "kling-v1",
-            duration: params?.duration || "5",
-            aspectRatio: params?.aspect_ratio || "16:9",
-            createdAt: generatedVideo.createdAt.toISOString(),
-            status: "completed" as const,
-          };
+          savedVideo.savedToVault = true;
         }
 
         // Update GenerationJob status

@@ -16,6 +16,7 @@ import {
   FolderOpen,
   Info,
   Loader2,
+  Maximize2,
   Play,
   RefreshCw,
   RotateCcw,
@@ -45,6 +46,14 @@ interface GeneratedVideo {
   aspectRatio: string;
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  metadata?: {
+    negativePrompt?: string;
+    mode?: string;
+    cfgScale?: number;
+    sound?: string | null;
+    cameraControl?: any;
+    profileId?: string | null;
+  };
 }
 
 // Kling model options with feature support flags
@@ -107,6 +116,66 @@ export default function KlingTextToVideo() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+    
+    // Check for reuse data from Vault
+    const reuseData = sessionStorage.getItem('kling-t2v-reuse');
+    if (reuseData) {
+      try {
+        const data = JSON.parse(reuseData);
+        console.log('Restoring Kling T2V settings from Vault:', data);
+        
+        // Set prompt and negative prompt
+        if (data.prompt) setPrompt(data.prompt);
+        if (data.negativePrompt) setNegativePrompt(data.negativePrompt);
+        
+        // Set model
+        if (data.model && MODEL_OPTIONS.find(m => m.value === data.model)) {
+          setModel(data.model);
+        }
+        
+        // Set mode
+        if (data.mode && MODE_OPTIONS.find(m => m.value === data.mode)) {
+          setMode(data.mode);
+        }
+        
+        // Set duration
+        if (data.duration && DURATION_OPTIONS.find(d => d.value === data.duration)) {
+          setDuration(data.duration);
+        }
+        
+        // Set aspect ratio
+        if (data.aspectRatio && ASPECT_RATIO_OPTIONS.find(a => a.value === data.aspectRatio)) {
+          setAspectRatio(data.aspectRatio);
+        }
+        
+        // Set CFG scale
+        if (typeof data.cfgScale === 'number') {
+          setCfgScale(data.cfgScale);
+        }
+        
+        // Set sound
+        if (data.sound) {
+          setSound(data.sound);
+        }
+        
+        // Set camera control
+        if (data.cameraControl) {
+          setUseCameraControl(true);
+          if (data.cameraControl.type) {
+            setCameraControlType(data.cameraControl.type);
+          }
+          if (data.cameraControl.config) {
+            setCameraConfig(data.cameraControl.config);
+          }
+        }
+        
+        // Clear the sessionStorage after reading
+        sessionStorage.removeItem('kling-t2v-reuse');
+      } catch (err) {
+        console.error('Error parsing Kling T2V reuse data:', err);
+        sessionStorage.removeItem('kling-t2v-reuse');
+      }
+    }
   }, []);
 
   // Folder dropdown state
@@ -164,6 +233,7 @@ export default function KlingTextToVideo() {
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,9 +283,11 @@ export default function KlingTextToVideo() {
     setIsLoadingHistory(true);
     try {
       console.log("[Kling T2V Frontend] Loading generation history...");
-      const response = await apiClient.get(
-        "/api/generate/kling-text-to-video?history=true"
-      );
+      // Add profileId to filter by selected profile
+      const url = globalProfileId
+        ? `/api/generate/kling-text-to-video?history=true&profileId=${globalProfileId}`
+        : "/api/generate/kling-text-to-video?history=true";
+      const response = await apiClient.get(url);
       if (response.ok) {
         const data = await response.json();
         const videos = data.videos || [];
@@ -230,7 +302,7 @@ export default function KlingTextToVideo() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
   useEffect(() => {
     if (apiClient) {
@@ -335,6 +407,10 @@ export default function KlingTextToVideo() {
       setError("API client not available");
       return;
     }
+    if (!targetFolder) {
+      setError("Please select a vault folder to save your video");
+      return;
+    }
     if (!prompt.trim()) {
       setError("Please enter a prompt");
       return;
@@ -363,6 +439,8 @@ export default function KlingTextToVideo() {
         mode,
         duration,
         aspect_ratio: aspectRatio,
+        // Always include profile ID for history filtering
+        vaultProfileId: globalProfileId || null,
       };
 
       // Add CFG scale only for V1 models that support it
@@ -399,7 +477,6 @@ export default function KlingTextToVideo() {
       // Add vault folder params if selected
       if (targetFolder && globalProfileId) {
         payload.saveToVault = true;
-        payload.vaultProfileId = globalProfileId;
         payload.vaultFolderId = targetFolder;
       }
 
@@ -492,6 +569,62 @@ export default function KlingTextToVideo() {
     setPollingStatus("");
   };
 
+  // Handle reuse settings from a selected video
+  const handleReuseSettings = (video: GeneratedVideo) => {
+    // Set prompt
+    setPrompt(video.prompt || '');
+    
+    // Set negative prompt from metadata
+    if (video.metadata?.negativePrompt) {
+      setNegativePrompt(video.metadata.negativePrompt);
+    }
+    
+    // Set model
+    if (video.model && MODEL_OPTIONS.find(m => m.value === video.model)) {
+      setModel(video.model);
+    }
+    
+    // Set mode from metadata
+    if (video.metadata?.mode && MODE_OPTIONS.find(m => m.value === video.metadata?.mode)) {
+      setMode(video.metadata.mode);
+    }
+    
+    // Set duration
+    if (video.duration && DURATION_OPTIONS.find(d => d.value === video.duration)) {
+      setDuration(video.duration);
+    }
+    
+    // Set aspect ratio
+    if (video.aspectRatio && ASPECT_RATIO_OPTIONS.find(a => a.value === video.aspectRatio)) {
+      setAspectRatio(video.aspectRatio);
+    }
+    
+    // Set CFG scale from metadata
+    if (typeof video.metadata?.cfgScale === 'number') {
+      setCfgScale(video.metadata.cfgScale);
+    }
+    
+    // Set sound from metadata
+    if (video.metadata?.sound) {
+      setSound(video.metadata.sound as "on" | "off");
+    }
+    
+    // Set camera control from metadata
+    if (video.metadata?.cameraControl) {
+      setUseCameraControl(true);
+      const cameraControl = video.metadata.cameraControl;
+      if (cameraControl.type) {
+        setCameraControlType(cameraControl.type);
+      }
+      if (cameraControl.config) {
+        setCameraConfig(cameraControl.config);
+      }
+    }
+    
+    // Close modal
+    setShowVideoModal(false);
+  };
+
   useEffect(() => {
     if (showVideoModal) {
       pauseAllPreviews();
@@ -509,6 +642,7 @@ export default function KlingTextToVideo() {
       if (event.key === "Escape") {
         setShowVideoModal(false);
         setShowHelpModal(false);
+        setShowHistoryModal(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -1199,15 +1333,25 @@ export default function KlingTextToVideo() {
                   <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
                   <h2 className="text-lg font-semibold text-white">Recent generations</h2>
                 </div>
-                <button
-                  type="button"
-                  onClick={loadGenerationHistory}
-                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
-                  disabled={isLoadingHistory}
-                >
-                  {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowHistoryModal(true)}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                    View All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadGenerationHistory}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    disabled={isLoadingHistory}
+                  >
+                    {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {generationHistory.length === 0 ? (
@@ -1287,9 +1431,120 @@ export default function KlingTextToVideo() {
               />
               <div className="p-4 text-sm text-slate-200">
                 <p className="font-semibold text-white mb-1">{selectedVideo.prompt}</p>
-                <p className="text-slate-400">
+                <p className="text-slate-400 mb-3">
                   {selectedVideo.duration}s · {selectedVideo.aspectRatio} · {selectedVideo.model}
                 </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleReuseSettings(selectedVideo)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/30 px-4 py-2 text-sm font-medium text-violet-300 transition"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reuse Settings
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleDownload(
+                        selectedVideo.videoUrl,
+                        `kling-t2v-${selectedVideo.id}.mp4`
+                      )
+                    }
+                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-2 text-sm font-medium text-white transition"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* View All History Modal */}
+      {showHistoryModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+            onClick={() => setShowHistoryModal(false)}
+          >
+            <div
+              className="relative w-full max-w-7xl max-h-[90vh] overflow-auto rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-slate-900/95 backdrop-blur p-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
+                  <h2 className="text-2xl font-bold text-white">All Recent Generations</h2>
+                  <p className="text-sm text-slate-400 mt-1">
+                    {generationHistory.length} video{generationHistory.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(false)}
+                  className="rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6">
+                {generationHistory.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                    <Clock className="w-12 h-12 mb-4 opacity-50" />
+                    <p className="text-lg">No generation history yet</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {generationHistory.map((video) => (
+                      <div
+                        key={video.id}
+                        role="button"
+                        aria-label="Open video"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (video.videoUrl) {
+                            openVideoModal(video);
+                            setShowHistoryModal(false);
+                          }
+                        }}
+                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer transition hover:border-violet-400/50 hover:shadow-lg hover:shadow-violet-900/20"
+                      >
+                        {video.videoUrl ? (
+                          <video
+                            data-role="preview"
+                            preload="metadata"
+                            src={video.videoUrl}
+                            className="w-full aspect-video object-cover pointer-events-none"
+                            controlsList="nodownload noplaybackrate noremoteplayback"
+                          />
+                        ) : (
+                          <div className="w-full aspect-video flex items-center justify-center bg-slate-800/50">
+                            <div className="text-center text-slate-400">
+                              <Video className="w-8 h-8 mx-auto mb-2" />
+                              <p className="text-xs">Processing...</p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3 text-white transform translate-y-full group-hover:translate-y-0 transition">
+                          <p className="text-xs font-medium line-clamp-2 mb-1">{video.prompt}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-300">
+                            <span>{video.duration}s</span>
+                            <span>•</span>
+                            <span>{video.aspectRatio}</span>
+                          </div>
+                        </div>
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
+                          <div className="rounded-full bg-violet-500/20 backdrop-blur-sm px-2 py-1 text-[10px] text-violet-200 border border-violet-400/30">
+                            {video.status === "completed" ? "✓ Ready" : "Processing"}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>,

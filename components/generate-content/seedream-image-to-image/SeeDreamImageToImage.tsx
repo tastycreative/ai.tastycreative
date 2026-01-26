@@ -175,6 +175,9 @@ export default function SeeDreamImageToImage() {
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
 
+  // Track which images have been saved to Reference Bank to prevent duplicates
+  const savedToReferenceBankRef = useRef<Set<string>>(new Set());
+
   // Form State
   const [prompt, setPrompt] = useState("");
   const [selectedResolution, setSelectedResolution] = useState<"2K" | "4K">("2K");
@@ -418,7 +421,7 @@ export default function SeeDreamImageToImage() {
   };
 
   // Save uploaded image to Reference Bank
-  const saveToReferenceBank = async (imageBase64: string, fileName: string, file?: File): Promise<{ id: string; url: string } | null> => {
+  const saveToReferenceBank = async (imageBase64: string, fileName: string, file?: File, skipIfExists?: boolean): Promise<{ id: string; url: string } | null> => {
     if (!globalProfileId) return null;
     
     try {
@@ -436,6 +439,23 @@ export default function SeeDreamImageToImage() {
       }
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Check if a similar file already exists in Reference Bank (by size and name pattern)
+      if (skipIfExists) {
+        try {
+          const existingCheck = await fetch(`/api/reference-bank?profileId=${globalProfileId}&checkDuplicate=true&fileSize=${blob.size}&fileName=${encodeURIComponent(finalFileName)}`);
+          if (existingCheck.ok) {
+            const existing = await existingCheck.json();
+            if (existing.duplicate) {
+              console.log('⏭️ Skipping duplicate - image already exists in Reference Bank:', existing.existingId);
+              return { id: existing.existingId, url: existing.existingUrl };
+            }
+          }
+        } catch (err) {
+          console.warn('Could not check for duplicates:', err);
+          // Continue with save if check fails
+        }
+      }
       
       // Get dimensions from the image
       const img = new Image();
@@ -615,11 +635,18 @@ export default function SeeDreamImageToImage() {
 
   const handleRemoveImage = (imageId: string) => {
     setUploadedImages((prev) => prev.filter((img) => img.id !== imageId));
+    // Also remove from the saved tracking ref
+    savedToReferenceBankRef.current.delete(imageId);
   };
 
   const handleGenerate = async () => {
     if (!apiClient) {
       setError("API client not available");
+      return;
+    }
+
+    if (!targetFolder) {
+      setError("Please select a vault folder to save your images");
       return;
     }
 
@@ -664,13 +691,42 @@ export default function SeeDreamImageToImage() {
     });
     
     // Save new uploads to Reference Bank before generating (only those not already saved)
+    // Additional checks: ensure image doesn't already have a referenceId or url (indicating it's already saved)
+    // Also check the savedToReferenceBankRef to prevent re-saving during the same session
     if (globalProfileId) {
-      const unsavedImages = uploadedImages.filter(img => !img.fromReferenceBank && img.file);
+      const unsavedImages = uploadedImages.filter(img => 
+        !img.fromReferenceBank && 
+        !img.referenceId && 
+        !img.url && 
+        img.file &&
+        !savedToReferenceBankRef.current.has(img.id)  // Also check ref to prevent session duplicates
+      );
+      
+      // Debug log to help trace duplicate issues
+      console.log('📸 Reference image check:', {
+        totalImages: uploadedImages.length,
+        unsavedCount: unsavedImages.length,
+        alreadySavedInSession: Array.from(savedToReferenceBankRef.current),
+        images: uploadedImages.map(img => ({
+          id: img.id,
+          fromReferenceBank: img.fromReferenceBank,
+          hasReferenceId: !!img.referenceId,
+          hasUrl: !!img.url,
+          hasFile: !!img.file,
+          savedInSession: savedToReferenceBankRef.current.has(img.id),
+          willBeSaved: !img.fromReferenceBank && !img.referenceId && !img.url && !!img.file && !savedToReferenceBankRef.current.has(img.id)
+        }))
+      });
+      
       if (unsavedImages.length > 0) {
         setIsSavingToReferenceBank(true);
         for (const img of unsavedImages) {
           try {
-            const saveResult = await saveToReferenceBank(img.base64, img.file?.name || 'reference.jpg', img.file);
+            // Mark as being saved immediately to prevent race conditions
+            savedToReferenceBankRef.current.add(img.id);
+            
+            // Pass skipIfExists: true to avoid creating duplicates
+            const saveResult = await saveToReferenceBank(img.base64, img.file?.name || 'reference.jpg', img.file, true);
             if (saveResult) {
               // Track the URL locally for use in payload
               savedReferenceUrls.set(img.id, saveResult.url);
@@ -903,6 +959,8 @@ export default function SeeDreamImageToImage() {
     setError(null);
     setGeneratedImages([]);
     setUploadedImages([]);
+    // Clear the saved tracking ref
+    savedToReferenceBankRef.current.clear();
   };
 
   // Handle reusing generation parameters from a previous generation
@@ -1060,7 +1118,21 @@ export default function SeeDreamImageToImage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-semibold text-white">Reference Images</label>
-                  <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">{uploadedImages.length || 0} added</span>
+                  <div className="flex items-center gap-2">
+                    {/* Reference Bank Button */}
+                    {mounted && globalProfileId && (
+                      <button
+                        type="button"
+                        onClick={() => setShowReferenceBankSelector(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 transition-all"
+                        disabled={isGenerating}
+                      >
+                        <Library className="w-3.5 h-3.5" />
+                        Reference Bank
+                      </button>
+                    )}
+                    <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">{uploadedImages.length || 0} added</span>
+                  </div>
                 </div>
 
                 {/* Uploaded Images Grid */}
@@ -1145,23 +1217,6 @@ export default function SeeDreamImageToImage() {
                   </p>
                 )}
 
-                {/* Reference Bank Button - only show after mount to avoid hydration mismatch */}
-                {mounted && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setShowReferenceBankSelector(true)}
-                      disabled={isGenerating || !globalProfileId}
-                      className="group flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-violet-500/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:border-violet-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Library className="w-4 h-4" />
-                      <span className="text-sm font-medium">Select from Reference Bank</span>
-                    </button>
-                    {!globalProfileId && (
-                      <p className="text-xs text-amber-400/80">Select a profile to use Reference Bank</p>
-                    )}
-                  </>
-                )}
                 {isSavingToReferenceBank && (
                   <p className="text-xs text-cyan-400 flex items-center gap-1.5">
                     <Loader2 className="w-3 h-3 animate-spin" />
