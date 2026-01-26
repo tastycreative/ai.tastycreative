@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       // Allow for small variations in file size (within 1KB)
       const sizeVariance = 1024;
       
-      const existingItem = await prisma.referenceItem.findFirst({
+      const existingItem = await prisma.reference_items.findFirst({
         where: {
           clerkId: userId,
           profileId,
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ duplicate: false });
     }
 
-    const items = await prisma.referenceItem.findMany({
+    const items = await prisma.reference_items.findMany({
       where: {
         clerkId: userId,
         profileId,
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
     const region = process.env.AWS_REGION || "us-east-1";
     const awsS3Url = `https://${bucket}.s3.${region}.amazonaws.com/${awsS3Key}`;
 
-    const item = await prisma.referenceItem.create({
+    const item = await prisma.reference_items.create({
       data: {
         clerkId: userId,
         profileId,
