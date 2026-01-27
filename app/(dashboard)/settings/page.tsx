@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useUser } from "@clerk/nextjs";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import Cropper, { Area } from "react-easy-crop";
 import {
@@ -24,6 +25,10 @@ import {
   Sparkles,
   Database,
   KeyRound,
+  Building2,
+  Users,
+  Crown,
+  Plus,
 } from "lucide-react";
 
 interface UserProfile {
@@ -39,18 +44,50 @@ interface UserProfile {
   role: string;
 }
 
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  logoUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  memberRole?: 'OWNER' | 'ADMIN' | 'MANAGER' | 'CREATOR' | 'VIEWER' | 'MEMBER';
+  canManage?: boolean;
+  members?: OrganizationMember[];
+}
+
+interface OrganizationMember {
+  id: string;
+  role: 'OWNER' | 'ADMIN' | 'MANAGER' | 'CREATOR' | 'VIEWER' | 'MEMBER';
+  joinedAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    imageUrl: string | null;
+  };
+}
+
 export default function SettingsPage() {
   const { user } = useUser();
+  const queryClient = useQueryClient();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingOrg, setLoadingOrg] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingOrg, setSavingOrg] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingOrgLogo, setUploadingOrgLogo] = useState(false);
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(
     null
   );
+  const [showCreateOrgModal, setShowCreateOrgModal] = useState(false);
   const usernameCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const orgLogoInputRef = useRef<HTMLInputElement | null>(null);
   
   // Cropping state
   const [showCropModal, setShowCropModal] = useState(false);
@@ -66,6 +103,11 @@ export default function SettingsPage() {
     firstName: "",
     lastName: "",
     email: "",
+  });
+
+  const [orgFormData, setOrgFormData] = useState({
+    name: "",
+    description: "",
   });
 
   // Fetch user profile data
@@ -95,6 +137,48 @@ export default function SettingsPage() {
 
     fetchProfile();
   }, []);
+
+  // Fetch organization data
+  useEffect(() => {
+    const fetchOrganization = async () => {
+      try {
+        setLoadingOrg(true);
+        const response = await fetch("/api/organization/current");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.organization) {
+            setOrganization(data.organization);
+            setOrgFormData({
+              name: data.organization.name || "",
+              description: data.organization.description || "",
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching organization:", error);
+      } finally {
+        setLoadingOrg(false);
+      }
+    };
+
+    fetchOrganization();
+  }, []);
+
+  // Handle hash navigation after page loads
+  useEffect(() => {
+    if (!loading && !loadingOrg) {
+      const hash = window.location.hash;
+      if (hash) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          const element = document.querySelector(hash);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+      }
+    }
+  }, [loading, loadingOrg]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -343,6 +427,121 @@ export default function SettingsPage() {
     }
   };
 
+  const handleOrgInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setOrgFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleOrgSave = async () => {
+    if (!organization?.canManage) {
+      toast.error("You don't have permission to update organization settings");
+      return;
+    }
+
+    try {
+      setSavingOrg(true);
+      const response = await fetch("/api/organization/current", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(orgFormData),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update organization");
+      }
+
+      const data = await response.json();
+      setOrganization(data.organization);
+      toast.success("Organization updated successfully!");
+    } catch (error) {
+      console.error("Error updating organization:", error);
+      toast.error("Failed to update organization");
+    } finally {
+      setSavingOrg(false);
+    }
+  };
+
+  const handleOrgLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!organization?.canManage) {
+      toast.error("You don't have permission to update organization logo");
+      return;
+    }
+
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Invalid file type. Only JPEG, PNG, and WebP are allowed.");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error("File too large. Maximum size is 5MB.");
+      return;
+    }
+
+    try {
+      setUploadingOrgLogo(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/organization/logo", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to upload logo");
+      }
+
+      const data = await response.json();
+      setOrganization(data.organization);
+      toast.success("Organization logo updated successfully!");
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload logo");
+    } finally {
+      setUploadingOrgLogo(false);
+      if (orgLogoInputRef.current) {
+        orgLogoInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleOrgLogoDelete = async () => {
+    if (!organization?.canManage || !organization?.logoUrl) return;
+
+    try {
+      setUploadingOrgLogo(true);
+      const response = await fetch("/api/organization/logo", {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete logo");
+      }
+
+      const data = await response.json();
+      setOrganization(data.organization);
+      toast.success("Organization logo removed successfully!");
+    } catch (error) {
+      console.error("Error deleting logo:", error);
+      toast.error("Failed to remove logo");
+    } finally {
+      setUploadingOrgLogo(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -363,6 +562,21 @@ export default function SettingsPage() {
         return "bg-amber-500/20 text-amber-200 border-amber-500/30";
       default:
         return "bg-cyan-500/20 text-cyan-200 border-cyan-500/30";
+    }
+  };
+
+  const getOrgRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case "OWNER":
+        return "bg-amber-500/20 text-amber-200 border-amber-500/30";
+      case "ADMIN":
+        return "bg-red-500/20 text-red-200 border-red-500/30";
+      case "MANAGER":
+        return "bg-purple-500/20 text-purple-200 border-purple-500/30";
+      case "CREATOR":
+        return "bg-cyan-500/20 text-cyan-200 border-cyan-500/30";
+      default:
+        return "bg-slate-500/20 text-slate-200 border-slate-500/30";
     }
   };
 
@@ -650,6 +864,250 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Organization Settings Card */}
+        {!loadingOrg && !organization && (
+          <div id="organization" className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur scroll-mt-24">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white">Create Organization</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Start your own organization to collaborate with team members
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="p-6 rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-indigo-500/5">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                    <Users className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-white mb-2">Why create an organization?</h3>
+                    <ul className="space-y-2 text-sm text-slate-300">
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-400 mt-0.5">•</span>
+                        <span>Share Instagram profiles with your team members</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-400 mt-0.5">•</span>
+                        <span>Collaborate on content creation and management</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-400 mt-0.5">•</span>
+                        <span>Invite team members with different roles and permissions</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-400 mt-0.5">•</span>
+                        <span>Centralized billing and subscription management</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-white/10">
+                  <button
+                    onClick={() => setShowCreateOrgModal(true)}
+                    className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 px-6 py-3 font-semibold text-white shadow-xl shadow-blue-900/40 transition hover:-translate-y-0.5"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
+                      Create Organization
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {organization && (
+          <div id="organization" className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur scroll-mt-24">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white">Organization Settings</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {organization.canManage
+                    ? "Manage your organization's information and members"
+                    : "View your organization's information"}
+                </p>
+              </div>
+              {organization.memberRole && (
+                <span className={`px-3 py-1.5 rounded-xl text-xs font-semibold border flex items-center gap-1 ${getOrgRoleBadgeColor(organization.memberRole)}`}>
+                  {organization.memberRole === 'OWNER' && <Crown className="w-3 h-3" />}
+                  {organization.memberRole}
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              {/* Organization Logo */}
+              <div className="flex items-center gap-6 p-4 rounded-2xl border border-white/10 bg-slate-950/60">
+                <div className="relative group">
+                  <div className="w-20 h-20 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 p-1 shadow-lg">
+                    <div className="w-full h-full rounded-lg bg-slate-900 flex items-center justify-center overflow-hidden">
+                      {organization.logoUrl ? (
+                        <img
+                          src={organization.logoUrl}
+                          alt="Organization Logo"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Building2 className="w-8 h-8 text-slate-400" />
+                      )}
+                    </div>
+                  </div>
+
+                  {organization.canManage && (
+                    <>
+                      {/* Upload Overlay */}
+                      <div className="absolute inset-0 rounded-xl bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
+                        {uploadingOrgLogo ? (
+                          <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        ) : (
+                          <Camera className="w-6 h-6 text-white" />
+                        )}
+                      </div>
+
+                      {/* Hidden File Input */}
+                      <input
+                        ref={orgLogoInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleOrgLogoUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        disabled={uploadingOrgLogo}
+                      />
+
+                      {/* Delete Button */}
+                      {organization.logoUrl && (
+                        <button
+                          onClick={handleOrgLogoDelete}
+                          disabled={uploadingOrgLogo}
+                          className="absolute -bottom-2 -right-2 w-7 h-7 bg-red-500 hover:bg-red-600 rounded-lg flex items-center justify-center shadow-lg transition-colors disabled:opacity-50"
+                          title="Remove organization logo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-white" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">{organization.name}</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {organization.canManage
+                      ? "Hover over logo to change it"
+                      : "Organization logo"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Organization Name */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Organization Name</label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+                  <input
+                    type="text"
+                    name="name"
+                    value={orgFormData.name}
+                    onChange={handleOrgInputChange}
+                    disabled={!organization.canManage}
+                    className="relative w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 disabled:cursor-not-allowed"
+                    placeholder="Enter organization name"
+                  />
+                </div>
+              </div>
+
+              {/* Organization Description */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300">Description</label>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+                  <textarea
+                    name="description"
+                    value={orgFormData.description}
+                    onChange={handleOrgInputChange}
+                    disabled={!organization.canManage}
+                    rows={3}
+                    className="relative w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:opacity-60 disabled:cursor-not-allowed resize-none"
+                    placeholder="Enter organization description"
+                  />
+                </div>
+              </div>
+
+              {/* Save Button */}
+              {organization.canManage && (
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={handleOrgSave}
+                    disabled={savingOrg}
+                    className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 px-6 py-3 font-semibold text-white shadow-xl shadow-blue-900/40 transition hover:-translate-y-0.5 disabled:from-slate-500 disabled:to-slate-500 disabled:shadow-none"
+                  >
+                    {savingOrg ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <Save className="w-4 h-4" />
+                        Save Changes
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Organization Members */}
+              {organization.members && organization.members.length > 0 && (
+                <div className="pt-4 border-t border-white/10">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Users className="w-4 h-4 text-slate-400" />
+                    <h3 className="text-sm font-semibold text-white">Team Members</h3>
+                    <span className="text-xs text-slate-400">({organization.members.length})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {organization.members.map((member) => (
+                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-950/60 border border-white/5">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                          {member.user.imageUrl ? (
+                            <img src={member.user.imageUrl} alt={member.user.name || 'Member'} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-white text-sm font-bold">
+                              {member.user.name?.charAt(0)?.toUpperCase() || member.user.email?.charAt(0)?.toUpperCase() || 'U'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            {member.user.name || member.user.email || 'Unknown'}
+                          </p>
+                          <p className="text-xs text-slate-400 truncate">
+                            Joined {new Date(member.joinedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-semibold border flex items-center gap-1 ${getOrgRoleBadgeColor(member.role)}`}>
+                          {member.role === 'OWNER' && <Crown className="w-3 h-3" />}
+                          {member.role}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Database Details Card */}
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
           <div className="flex items-center gap-3 mb-6">
@@ -665,6 +1123,33 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Create Organization Modal */}
+      {showCreateOrgModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <CreateOrganizationModal
+          onClose={() => setShowCreateOrgModal(false)}
+          onSuccess={async () => {
+            setShowCreateOrgModal(false);
+
+            // Invalidate organizations query to refresh OrganizationSwitcher
+            queryClient.invalidateQueries({ queryKey: ['organizations'] });
+
+            // Refetch organization data for settings page
+            const response = await fetch("/api/organization/current");
+            if (response.ok) {
+              const data = await response.json();
+              if (data.organization) {
+                setOrganization(data.organization);
+                setOrgFormData({
+                  name: data.organization.name || "",
+                  description: data.organization.description || "",
+                });
+              }
+            }
+          }}
+        />,
+        document.body
+      )}
 
       {/* Image Crop Modal */}
       {showCropModal && imageToCrop && typeof window !== 'undefined' && document?.body && createPortal(
@@ -768,6 +1253,223 @@ export default function SettingsPage() {
         </div>,
         document.body
       )}
+    </div>
+  );
+}
+
+// Create Organization Modal Component
+function CreateOrganizationModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [orgName, setOrgName] = useState('');
+  const [orgDescription, setOrgDescription] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [checkingSlug, setCheckingSlug] = useState(false);
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const slugCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Generate slug from name
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
+  const slug = generateSlug(orgName);
+
+  // Check slug availability
+  useEffect(() => {
+    if (!slug || slug.length < 3) {
+      setSlugAvailable(null);
+      setCheckingSlug(false);
+      return;
+    }
+
+    setCheckingSlug(true);
+    setSlugAvailable(null);
+
+    if (slugCheckTimeoutRef.current) {
+      clearTimeout(slugCheckTimeoutRef.current);
+    }
+
+    slugCheckTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/organization/check-slug?slug=${encodeURIComponent(slug)}`
+        );
+        const data = await response.json();
+        setSlugAvailable(data.available);
+      } catch (error) {
+        console.error('Error checking slug:', error);
+      } finally {
+        setCheckingSlug(false);
+      }
+    }, 500);
+  }, [slug]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!orgName.trim()) {
+      toast.error('Organization name is required');
+      return;
+    }
+
+    if (slug.length < 3) {
+      toast.error('Organization name must be at least 3 characters');
+      return;
+    }
+
+    if (slugAvailable === false) {
+      toast.error('This organization name is already taken');
+      return;
+    }
+
+    try {
+      setCreating(true);
+
+      const response = await fetch('/api/organization/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: orgName.trim(),
+          slug: slug,
+          description: orgDescription.trim() || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create organization');
+      }
+
+      toast.success('Organization created successfully!');
+      onSuccess();
+    } catch (error) {
+      console.error('Error creating organization:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create organization');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4">
+      <div className="rounded-3xl border border-white/10 bg-slate-900 shadow-2xl shadow-blue-900/40 max-w-md w-full overflow-hidden">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <h3 className="text-lg font-bold text-white">Create Organization</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+          >
+            <X className="w-5 h-5 text-slate-400" />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <form onSubmit={handleCreate} className="p-6 space-y-5">
+          {/* Organization Name */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-300">
+              Organization Name <span className="text-red-400">*</span>
+            </label>
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+              <input
+                type="text"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                className="relative w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40"
+                placeholder="Enter organization name"
+                required
+              />
+            </div>
+            {slug && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-400">URL:</span>
+                <span className="text-slate-300 font-mono">{slug}</span>
+                {checkingSlug && (
+                  <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />
+                )}
+                {slugAvailable === true && slug.length >= 3 && (
+                  <span className="text-emerald-400">✓ Available</span>
+                )}
+                {slugAvailable === false && (
+                  <span className="text-red-400">✗ Already taken</span>
+                )}
+                {slug.length < 3 && slug.length > 0 && (
+                  <span className="text-amber-400">Must be at least 3 characters</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Organization Description */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-300">
+              Description (Optional)
+            </label>
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+              <textarea
+                value={orgDescription}
+                onChange={(e) => setOrgDescription(e.target.value)}
+                rows={3}
+                className="relative w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm text-white placeholder-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/40 resize-none"
+                placeholder="Enter organization description"
+              />
+            </div>
+          </div>
+
+          {/* Info Box */}
+          <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <p className="text-xs text-blue-200/80">
+              You will be the owner of this organization and can invite team members after creation.
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={creating}
+              className="px-4 py-2.5 text-slate-300 hover:bg-white/10 rounded-xl font-medium transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={creating || !orgName.trim() || slug.length < 3 || slugAvailable === false || checkingSlug}
+              className="relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 px-5 py-2.5 font-semibold text-white shadow-xl shadow-blue-900/40 transition hover:-translate-y-0.5 disabled:from-slate-500 disabled:to-slate-500 disabled:shadow-none disabled:translate-y-0"
+            >
+              {creating ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  Create Organization
+                </span>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

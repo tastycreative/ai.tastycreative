@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useOrganization, type Organization } from '@/lib/hooks/useOrganization.query';
 import { usePermissions } from '@/lib/hooks/usePermissions.query';
+import Link from 'next/link';
 import {
   ChevronDown,
   Building2,
@@ -116,12 +117,18 @@ export function OrganizationSwitcher() {
   // Solo mode - no organization
   if (!currentOrganization && organizations.length === 0) {
     return (
-      <div className="flex items-center space-x-2 px-3 py-2.5 bg-white/[0.03] backdrop-blur-sm rounded-xl border border-white/[0.08]">
-        <User className="w-4 h-4 text-white/70" />
-        <span className="text-sm font-medium text-white/90">
-          Personal
-        </span>
-      </div>
+      <Link
+        href="/settings#organization"
+        className="flex items-center justify-between px-3 py-2.5 bg-white/[0.05] backdrop-blur-sm hover:bg-white/[0.08] border border-white/[0.08] hover:border-blue-500/30 rounded-xl transition-all duration-200 group"
+      >
+        <div className="flex items-center space-x-2">
+          <User className="w-4 h-4 text-white/70 group-hover:text-blue-400 transition-colors" />
+          <span className="text-sm font-medium text-white/90">
+            Personal
+          </span>
+        </div>
+        <Plus className="w-4 h-4 text-white/40 group-hover:text-blue-400 transition-colors" />
+      </Link>
     );
   }
 

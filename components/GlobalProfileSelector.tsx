@@ -18,11 +18,11 @@ export function GlobalProfileSelector() {
 
   // Sort profiles by name
   const sortedProfiles = useMemo(() => {
-    return [...profiles].sort((a, b) => 
+    return [...profiles].sort((a, b) =>
       (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
     );
   }, [profiles]);
-  
+
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
