@@ -1281,7 +1281,7 @@ function CreateOrganizationModal({
       .replace(/^-+|-+$/g, '');
   };
 
-  const tenant = generateSlug(orgName);
+  const slug = generateSlug(orgName);
 
   // Check slug availability
   useEffect(() => {
@@ -1301,7 +1301,7 @@ function CreateOrganizationModal({
     slugCheckTimeoutRef.current = setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api/organization/check-slug?slug=${encodeURIComponent(tenant)}`
+          `/api/organization/check-slug?slug=${encodeURIComponent(slug)}`
         );
         const data = await response.json();
         setSlugAvailable(data.available);
@@ -1311,7 +1311,7 @@ function CreateOrganizationModal({
         setCheckingSlug(false);
       }
     }, 500);
-  }, [tenant]);
+  }, [slug]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
