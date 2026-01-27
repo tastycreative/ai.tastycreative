@@ -452,7 +452,7 @@ export default function PlansTab() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                      Plan Name (slug) <span className="text-red-500">*</span>
+                      Plan Name (tenant) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -659,7 +659,7 @@ export default function PlansTab() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                      Plan Name (slug)
+                      Plan Name (tenant)
                     </label>
                     <input
                       type="text"

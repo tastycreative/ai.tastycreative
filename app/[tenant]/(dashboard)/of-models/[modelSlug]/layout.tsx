@@ -117,7 +117,7 @@ export default function OfModelLayout({
 }) {
   const params = useParams();
   const pathname = usePathname();
-  const tenant = params.tenant as string;
+  const slug = params.slug as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [loading, setLoading] = useState(true);
 

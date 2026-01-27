@@ -45,7 +45,7 @@ interface OfModel {
 
 export default function OfModelPricingPage() {
   const params = useParams();
-  const tenant = params.tenant as string;
+  const slug = params.slug as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [categories, setCategories] = useState<PricingCategory[]>([]);
   const [loading, setLoading] = useState(true);
