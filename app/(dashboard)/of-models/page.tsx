@@ -546,7 +546,7 @@ function ModelCard({
   setStoreSelectedModel: (model: any) => void;
 }) {
   const imageUrl = getDisplayImageUrl(model.profileImageUrl);
-  const config = statusConfig[model.status];
+  const config = statusConfig[model.status] || statusConfig.INACTIVE;
 
   return (
     <div
@@ -693,7 +693,7 @@ function ModelListItem({
   setStoreSelectedModel: (model: any) => void;
 }) {
   const imageUrl = getDisplayImageUrl(model.profileImageUrl);
-  const config = statusConfig[model.status];
+  const config = statusConfig[model.status] || statusConfig.INACTIVE;
 
   return (
     <div
