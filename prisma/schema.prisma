@@ -476,7 +476,6 @@ model InstagramProfile {
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
   profileImageUrl        String?
-  organizationId         String?
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -489,7 +488,6 @@ model InstagramProfile {
   posts                  InstagramPost[]
   organization           Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  organizations          Organization?         @relation(fields: [organizationId], references: [id])
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
