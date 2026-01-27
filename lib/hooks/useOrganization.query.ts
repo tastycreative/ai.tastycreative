@@ -36,7 +36,7 @@ export function useOrganization() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  const switchOrganization = async (organizationId: string) => {
+  const switchOrganization = async (organizationId: string, tenant: string) => {
     try {
       const response = await fetch('/api/organizations/switch', {
         method: 'POST',
@@ -45,8 +45,8 @@ export function useOrganization() {
       });
 
       if (response.ok) {
-        // Reload the page to refresh all organization-scoped data
-        window.location.reload();
+        // Navigate to the organization's dashboard using tenant
+        window.location.href = `/${tenant}/dashboard`;
       }
     } catch (error) {
       console.error('Error switching organization:', error);

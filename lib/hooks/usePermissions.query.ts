@@ -100,9 +100,27 @@ interface PermissionsResponse {
 
 async function fetchPermissions(): Promise<PermissionsResponse> {
   const response = await fetch('/api/organizations/permissions');
+
+  // Handle 404 or other errors by returning default permissions
+  // This can happen when user doesn't have an organization yet
   if (!response.ok) {
-    throw new Error('Failed to fetch permissions');
+    return {
+      permissions: LOADING_PERMISSIONS,
+      subscriptionInfo: {
+        planName: 'none',
+        planDisplayName: 'No Organization',
+        status: 'inactive',
+        maxMembers: 0,
+        maxProfiles: 0,
+        maxWorkspaces: 0,
+        maxStorageGB: 0,
+        monthlyCredits: 0,
+        currentStorageGB: 0,
+        creditsUsedThisMonth: 0,
+      },
+    };
   }
+
   return response.json();
 }
 
@@ -176,6 +194,7 @@ export function usePermissions() {
     gcTime: 1000 * 60 * 10, // 10 minutes
     refetchOnMount: false, // Don't refetch on mount if we have data
     refetchOnWindowFocus: false,
+    retry: false, // Don't retry on failure - we handle errors in fetchPermissions
   });
 
   const canAccessFeature = (featureKey: keyof Permissions): boolean => {

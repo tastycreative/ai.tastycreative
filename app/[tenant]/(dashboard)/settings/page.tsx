@@ -1281,7 +1281,7 @@ function CreateOrganizationModal({
       .replace(/^-+|-+$/g, '');
   };
 
-  const slug = generateSlug(orgName);
+  const tenant = generateSlug(orgName);
 
   // Check slug availability
   useEffect(() => {

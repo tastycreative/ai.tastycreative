@@ -2,11 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 const isProtectedRoute = createRouteMatcher([
-  '/dashboard(.*)',
-  '/settings(.*)',
-  '/billing(.*)',
-  '/team(.*)',
-  '/workspace(.*)',
+  '/:tenant/(.*)', // Protect all tenant-based routes (org and personal workspaces)
   // Removed '/api/webhooks(.*)' - webhooks need to be public for external services
 ]);
 
@@ -58,23 +54,23 @@ const isCustomAuthApiRoute = createRouteMatcher([
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
-  
-  // If user is logged in and trying to access auth routes, redirect to dashboard
+
+  // If user is logged in and trying to access auth routes, redirect to /dashboard (temp landing)
   if (userId && isAuthRoute(req)) {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
-  
-  // If user is logged in and accessing homepage, redirect to dashboard
+
+  // If user is logged in and accessing homepage, redirect to /dashboard (temp landing)
   if (userId && req.nextUrl.pathname === '/') {
     return NextResponse.redirect(new URL('/dashboard', req.url));
   }
-  
+
   // Allow public routes for non-authenticated users
   if (isPublicRoute(req)) {
     return;
   }
-  
-  // Protect all routes starting with `/dashboard`, `/settings`, etc.
+
+  // Protect all org routes
   if (isProtectedRoute(req)) {
     await auth.protect();
   }

@@ -117,7 +117,7 @@ export default function OfModelLayout({
 }) {
   const params = useParams();
   const pathname = usePathname();
-  const slug = params.slug as string;
+  const tenant = params.tenant as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -132,7 +132,7 @@ export default function OfModelLayout({
   const loadModel = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/of-models/${slug}`);
+      const response = await fetch(`/api/of-models/`);
       if (response.ok) {
         const result = await response.json();
         setModel(result.data);
@@ -154,10 +154,10 @@ export default function OfModelLayout({
   };
 
   const tabs = [
-    { name: 'Overview', href: `/of-models/${slug}`, icon: User, exact: true },
-    { name: 'Pricing', href: `/of-models/${slug}/pricing`, icon: DollarSign },
-    { name: 'Assets', href: `/of-models/${slug}/assets`, icon: Image },
-    { name: 'Details', href: `/of-models/${slug}/details`, icon: FileText },
+    { name: 'Overview', href: `/of-models/`, icon: User, exact: true },
+    { name: 'Pricing', href: `/of-models//pricing`, icon: DollarSign },
+    { name: 'Assets', href: `/of-models//assets`, icon: Image },
+    { name: 'Details', href: `/of-models//details`, icon: FileText },
   ];
 
   const isActive = (tab: { href: string; exact?: boolean }) => {

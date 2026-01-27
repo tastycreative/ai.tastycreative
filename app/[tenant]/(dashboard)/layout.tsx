@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
@@ -95,6 +95,8 @@ export default function DashboardLayout({
   const [mounted, setMounted] = useState(false);
   const flyoutTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pathname = usePathname();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const { signOut } = useClerk();
   const { user } = useUser();
   const { isAdmin } = useIsAdmin();
@@ -107,29 +109,29 @@ export default function DashboardLayout({
   const navigation: (NavItem | NavSection)[] = permissionsLoading ? [] : [
     {
       name: "Dashboard",
-      href: "/dashboard",
+      href: `/${tenant}/dashboard`,
       icon: Home,
     },
     {
       name: "My Influencers",
-      href: "/workspace/my-influencers",
+      href: `/${tenant}/workspace/my-influencers`,
       icon: Users,
     },
     {
       name: "OF Models",
-      href: "/of-models",
+      href: `/${tenant}/of-models`,
       icon: UserCheck,
     },
     {
       name: "Vault",
-      href: "/workspace/vault",
+      href: `/${tenant}/workspace/vault`,
       icon: Shield,
     },
     ...(permissions.hasReferenceBank
       ? [
           {
             name: "Reference Bank",
-            href: "/workspace/reference-bank",
+            href: `/${tenant}/workspace/reference-bank`,
             icon: Library,
           },
         ]
@@ -142,7 +144,7 @@ export default function DashboardLayout({
             items: [
               {
                 name: "Captions",
-                href: "/workspace/caption-banks/captions",
+                href: `/${tenant}/workspace/caption-banks/captions`,
                 icon: FileText,
               },
             ],
@@ -159,66 +161,66 @@ export default function DashboardLayout({
               // Sexting Set Organizer - always show first if user has the tab
               {
                 name: "Sexting Set Organizer",
-                href: "/workspace/content-studio/sexting-set-organizer",
+                href: `/${tenant}/workspace/content-studio/sexting-set-organizer`,
                 icon: Flame,
               },
               // Always show these core features if user has the tab
               {
                 name: "Staging",
-                href: "/workspace/content-studio/staging",
+                href: `/${tenant}/workspace/content-studio/staging`,
                 icon: Layers,
               },
               {
                 name: "Calendar",
-                href: "/workspace/content-studio/calendar",
+                href: `/${tenant}/workspace/content-studio/calendar`,
                 icon: Calendar,
               },
               // Pipeline - check canContentPipeline permission
               ...(permissions.canContentPipeline ? [{
                 name: "Pipeline",
-                href: "/workspace/content-studio/pipeline",
+                href: `/${tenant}/workspace/content-studio/pipeline`,
                 icon: GitBranch,
               }] : []),
               // Stories - check canStoryPlanner permission
               ...(permissions.canStoryPlanner ? [{
                 name: "Stories",
-                href: "/workspace/content-studio/stories",
+                href: `/${tenant}/workspace/content-studio/stories`,
                 icon: Clock,
               }] : []),
               // Reels - check canReelPlanner permission
               ...(permissions.canReelPlanner ? [{
                 name: "Reels",
-                href: "/workspace/content-studio/reels",
+                href: `/${tenant}/workspace/content-studio/reels`,
                 icon: Sparkles,
               }] : []),
               // Feed Posts - check canFeedPostPlanner permission
               ...(permissions.canFeedPostPlanner ? [{
                 name: "Feed Posts",
-                href: "/workspace/content-studio/feed-posts",
+                href: `/${tenant}/workspace/content-studio/feed-posts`,
                 icon: ImageIcon,
               }] : []),
               // Performance - check canPerformanceMetrics permission
               ...(permissions.canPerformanceMetrics ? [{
                 name: "Performance",
-                href: "/workspace/content-studio/performance",
+                href: `/${tenant}/workspace/content-studio/performance`,
                 icon: Activity,
               }] : []),
               // Formulas - always show if user has the tab (utility feature)
               {
                 name: "Formulas",
-                href: "/workspace/content-studio/formulas",
+                href: `/${tenant}/workspace/content-studio/formulas`,
                 icon: Sparkles,
               },
               // Hashtags - check canHashtagBank permission
               ...(permissions.canHashtagBank ? [{
                 name: "Hashtags",
-                href: "/workspace/content-studio/hashtags",
+                href: `/${tenant}/workspace/content-studio/hashtags`,
                 icon: Hash,
               }] : []),
               // Workflow - always show if user has the tab (utility feature)
               {
                 name: "Workflow",
-                href: "/workspace/content-studio/workflow",
+                href: `/${tenant}/workspace/content-studio/workflow`,
                 icon: ListChecks,
               },
             ],
@@ -241,22 +243,22 @@ export default function DashboardLayout({
           },
           ...(permissions.canTextToImage ? [{
             name: "Text to Image",
-            href: "/workspace/generate-content/text-to-image",
+            href: `/${tenant}/workspace/generate-content/text-to-image`,
             icon: ImageIcon,
           }] : []),
           ...(permissions.canStyleTransfer ? [{
             name: "Style Transfer",
-            href: "/workspace/generate-content/style-transfer",
+            href: `/${tenant}/workspace/generate-content/style-transfer`,
             icon: Palette,
           }] : []),
           ...(permissions.canSkinEnhancer ? [{
             name: "Skin Enhancer",
-            href: "/workspace/generate-content/skin-enhancer",
+            href: `/${tenant}/workspace/generate-content/skin-enhancer`,
             icon: Sparkles,
           }] : []),
           ...(permissions.canFluxKontext ? [{
             name: "Flux Kontext",
-            href: "/workspace/generate-content/flux-kontext",
+            href: `/${tenant}/workspace/generate-content/flux-kontext`,
             icon: Wand2,
           }] : []),
         ] : []),
@@ -278,12 +280,12 @@ export default function DashboardLayout({
           },
           ...(permissions.canTextToVideo ? [{
             name: "Text to Video",
-            href: "/workspace/generate-content/text-to-video",
+            href: `/${tenant}/workspace/generate-content/text-to-video`,
             icon: PlayCircle,
           }] : []),
           ...(permissions.canImageToVideo ? [{
             name: "Image to Video",
-            href: "/workspace/generate-content/image-to-video",
+            href: `/${tenant}/workspace/generate-content/image-to-video`,
             icon: Video,
           }] : []),
         ] : []),
@@ -305,17 +307,17 @@ export default function DashboardLayout({
           },
           ...(permissions.canFaceSwap ? [{
             name: "Face Swapping",
-            href: "/workspace/generate-content/face-swapping",
+            href: `/${tenant}/workspace/generate-content/face-swapping`,
             icon: Shuffle,
           }] : []),
           ...(permissions.canImageToImageSkinEnhancer ? [{
             name: "Image-to-Image Skin Enhancer",
-            href: "/workspace/generate-content/image-to-image-skin-enhancer",
+            href: `/${tenant}/workspace/generate-content/image-to-image-skin-enhancer`,
             icon: Palette,
           }] : []),
           ...(permissions.canVideoFpsBoost ? [{
             name: "FPS Boost",
-            href: "/workspace/generate-content/fps-boost",
+            href: `/${tenant}/workspace/generate-content/fps-boost`,
             icon: PlayCircle,
           }] : []),
         ] : []),
@@ -336,22 +338,22 @@ export default function DashboardLayout({
           },
           ...(permissions.canSeeDreamTextToImage ? [{
             name: "SeeDream Text to Image",
-            href: "/workspace/generate-content/seedream-text-to-image",
+            href: `/${tenant}/workspace/generate-content/seedream-text-to-image`,
             icon: ImageIcon,
           }] : []),
           ...(permissions.canSeeDreamImageToImage ? [{
             name: "SeeDream Image to Image",
-            href: "/workspace/generate-content/seedream-image-to-image",
+            href: `/${tenant}/workspace/generate-content/seedream-image-to-image`,
             icon: Palette,
           }] : []),
           ...(permissions.canSeeDreamTextToVideo ? [{
             name: "SeeDream Text to Video",
-            href: "/workspace/generate-content/seedream-text-to-video",
+            href: `/${tenant}/workspace/generate-content/seedream-text-to-video`,
             icon: Video,
           }] : []),
           ...(permissions.canSeeDreamImageToVideo ? [{
             name: "SeeDream Image to Video",
-            href: "/workspace/generate-content/seedream-image-to-video",
+            href: `/${tenant}/workspace/generate-content/seedream-image-to-video`,
             icon: PlayCircle,
           }] : []),
         ] : []),
@@ -371,22 +373,22 @@ export default function DashboardLayout({
           },
           ...(permissions.canKlingTextToVideo ? [{
             name: "Kling Text to Video",
-            href: "/workspace/generate-content/kling-text-to-video",
+            href: `/${tenant}/workspace/generate-content/kling-text-to-video`,
             icon: PlayCircle,
           }] : []),
           ...(permissions.canKlingImageToVideo ? [{
             name: "Kling Image to Video",
-            href: "/workspace/generate-content/kling-image-to-video",
+            href: `/${tenant}/workspace/generate-content/kling-image-to-video`,
             icon: Video,
           }] : []),
           ...(permissions.canKlingMultiImageToVideo ? [{
             name: "Kling Multi-Image to Video",
-            href: "/workspace/generate-content/kling-multi-image-to-video",
+            href: `/${tenant}/workspace/generate-content/kling-multi-image-to-video`,
             icon: Film,
           }] : []),
           ...(permissions.canKlingMotionControl ? [{
             name: "Kling Motion Control",
-            href: "/workspace/generate-content/kling-motion-control",
+            href: `/${tenant}/workspace/generate-content/kling-motion-control`,
             icon: Move,
           }] : []),
         ] : []),
@@ -406,7 +408,7 @@ export default function DashboardLayout({
           },
           {
             name: "Voice Generator",
-            href: "/workspace/generate-content/ai-voice",
+            href: `/${tenant}/workspace/generate-content/ai-voice`,
             icon: Mic,
           },
         ] : []),
@@ -423,27 +425,27 @@ export default function DashboardLayout({
       items: [
         {
           name: "User Feed",
-          href: "/workspace/user-feed",
+          href: `/${tenant}/workspace/user-feed`,
           icon: Share2,
         },
         {
           name: "My Profile",
-          href: "/workspace/my-profile",
+          href: `/${tenant}/workspace/my-profile`,
           icon: UserCheck,
         },
         {
           name: "Friends",
-          href: "/workspace/friends",
+          href: `/${tenant}/workspace/friends`,
           icon: UserCheck,
         },
         {
           name: "Bookmarks",
-          href: "/workspace/bookmarks",
+          href: `/${tenant}/workspace/bookmarks`,
           icon: Bookmark,
         },
         {
           name: "My Creators",
-          href: "/workspace/creators",
+          href: `/${tenant}/workspace/creators`,
           icon: Users,
         },
       ],
@@ -460,12 +462,12 @@ export default function DashboardLayout({
       items: [
         {
           name: "Train LoRA",
-          href: "/workspace/train-lora",
+          href: `/${tenant}/workspace/train-lora`,
           icon: PlusCircle,
         },
               {
                 name: "Training Jobs",
-                href: "/workspace/training-jobs",
+                href: `/${tenant}/workspace/training-jobs`,
                 icon: BarChart3,
               },
             ],
@@ -481,22 +483,22 @@ export default function DashboardLayout({
             items: [
               {
                 name: "Instagram Extractor",
-                href: "/workspace/ai-tools/instagram-extractor",
+                href: `/${tenant}/workspace/ai-tools/instagram-extractor`,
                 icon: Instagram,
               },
               {
                 name: "Style Transfer Prompts",
-                href: "/workspace/ai-tools/style-transfer-prompts",
+                href: `/${tenant}/workspace/ai-tools/style-transfer-prompts`,
                 icon: Wand2,
               },
               {
                 name: "Video Prompts",
-                href: "/workspace/ai-tools/video-prompts",
+                href: `/${tenant}/workspace/ai-tools/video-prompts`,
                 icon: PlayCircle,
               },
               {
                 name: "Flux Kontext Prompts",
-                href: "/workspace/ai-tools/flux-kontext-prompts",
+                href: `/${tenant}/workspace/ai-tools/flux-kontext-prompts`,
                 icon: Sparkles,
               },
             ],
@@ -508,36 +510,36 @@ export default function DashboardLayout({
       ? [
           {
             name: "AI Marketplace",
-            href: "/workspace/ai-marketplace",
+            href: `/${tenant}/workspace/ai-marketplace`,
             icon: ShoppingBag,
           },
         ]
       : []),
     // Caption Banks - check canCaptionBank permission
-    
+
     // Conditionally add content creator link
     ...(isContentCreator
       ? [
           {
             name: "Content Creator",
-            href: "/content-creator",
+            href: `/${tenant}/content-creator`,
             icon: BarChart3,
           },
         ]
       : []),
     {
       name: "Settings",
-      href: "/settings",
+      href: `/${tenant}/settings`,
       icon: Settings,
     },
     {
       name: "Billing",
-      href: "/billing",
+      href: `/${tenant}/billing`,
       icon: CreditCard,
     },
     {
       name: "Team",
-      href: "/team",
+      href: `/${tenant}/team`,
       icon: UserCheck,
     },
   ];
@@ -572,8 +574,8 @@ export default function DashboardLayout({
   }, []);
 
   const isNavItemActive = (href: string) => {
-    if (href === "/dashboard") {
-      return pathname === "/dashboard";
+    if (href === `//dashboard`) {
+      return pathname === `//dashboard`;
     }
     return pathname.startsWith(href);
   };
@@ -1467,14 +1469,14 @@ export default function DashboardLayout({
 
                       <div className="py-1">
                         <Link
-                          href="/settings"
+                          href={`/${tenant}/settings`}
                           className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
                         >
                           <Settings className="w-4 h-4" />
                           Settings
                         </Link>
                         <Link
-                          href="/billing"
+                          href={`/${tenant}/billing`}
                           className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
                         >
                           <CreditCard className="w-4 h-4" />
@@ -1482,7 +1484,7 @@ export default function DashboardLayout({
                         </Link>
                         {isAdmin && (
                           <Link
-                            href="/admin"
+                            href={`/${tenant}/admin`}
                             className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
                           >
                             <Shield className="w-4 h-4" />

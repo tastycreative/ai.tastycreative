@@ -60,21 +60,21 @@ const statusConfig: Record<string, { bg: string; text: string; dot: string; bord
 export default function OfModelOverviewPage() {
   const params = useParams();
   const router = useRouter();
-  const slug = params.slug as string;
+  const modelSlug = params.modelSlug as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
-    if (slug) {
+    if (modelSlug) {
       loadModel();
     }
-  }, [slug]);
+  }, [modelSlug]);
 
   const loadModel = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/of-models/${slug}`);
+      const response = await fetch(`/api/of-models/${modelSlug}`);
       if (response.ok) {
         const result = await response.json();
         setModel(result.data);

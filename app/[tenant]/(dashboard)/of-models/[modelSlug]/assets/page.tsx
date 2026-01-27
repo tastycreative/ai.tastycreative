@@ -52,7 +52,7 @@ const assetTypeConfig: Record<string, { icon: React.ComponentType<any>; color: s
 
 export default function OfModelAssetsPage() {
   const params = useParams();
-  const slug = params.slug as string;
+  const tenant = params.tenant as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +69,7 @@ export default function OfModelAssetsPage() {
 
   const loadModel = async () => {
     try {
-      const response = await fetch(`/api/of-models/${slug}`);
+      const response = await fetch(`/api/of-models/`);
       if (response.ok) {
         const result = await response.json();
         setModel(result.data);

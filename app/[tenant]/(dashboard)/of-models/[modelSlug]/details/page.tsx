@@ -148,7 +148,7 @@ function Section({
 
 export default function OfModelDetailsPage() {
   const params = useParams();
-  const slug = params.slug as string;
+  const tenant = params.tenant as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [details, setDetails] = useState<OfModelDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -162,7 +162,7 @@ export default function OfModelDetailsPage() {
 
   const loadModel = async () => {
     try {
-      const response = await fetch(`/api/of-models/${slug}`);
+      const response = await fetch(`/api/of-models/`);
       if (response.ok) {
         const result = await response.json();
         setModel(result.data);

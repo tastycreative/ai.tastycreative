@@ -50,14 +50,14 @@ export function OrganizationSwitcher() {
     }
   }, [isOpen]);
 
-  const handleSwitch = async (organizationId: string) => {
+  const handleSwitch = async (organizationId: string, slug: string) => {
     if (organizationId === currentOrganization?.id) {
       setIsOpen(false);
       return;
     }
 
     setSwitching(true);
-    await switchOrganization(organizationId);
+    await switchOrganization(organizationId, slug);
     setSwitching(false);
     setIsOpen(false);
   };
@@ -118,7 +118,7 @@ export function OrganizationSwitcher() {
   if (!currentOrganization && organizations.length === 0) {
     return (
       <Link
-        href="/settings#organization"
+        href="/dashboard"
         className="flex items-center justify-between px-3 py-2.5 bg-white/[0.05] backdrop-blur-sm hover:bg-white/[0.08] border border-white/[0.08] hover:border-blue-500/30 rounded-xl transition-all duration-200 group"
       >
         <div className="flex items-center space-x-2">
@@ -199,7 +199,7 @@ export function OrganizationSwitcher() {
               return (
                 <button
                   key={org.id}
-                  onClick={() => handleSwitch(org.id)}
+                  onClick={() => handleSwitch(org.id, org.slug)}
                   disabled={switching}
                   className={`w-full text-left px-4 py-3 transition-all duration-200 flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed ${
                     isActive
@@ -251,8 +251,12 @@ export function OrganizationSwitcher() {
           <div className="border-t border-white/[0.06] p-2">
             <button
               onClick={() => {
-                // Navigate to create organization page
-                window.location.href = '/organizations/new';
+                // Navigate to settings page to create organization
+                if (currentOrganization?.slug) {
+                  window.location.href = `/${currentOrganization.slug}/settings#organization`;
+                } else {
+                  window.location.href = '/dashboard';
+                }
               }}
               className="w-full text-left px-4 py-2.5 text-sm text-blue-400 hover:bg-blue-500/10 rounded-xl transition-all duration-200 flex items-center space-x-2 group"
             >

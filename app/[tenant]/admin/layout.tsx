@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import {
   ChevronLeft,
@@ -53,39 +53,43 @@ export default function AdminLayout({
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [expandedSections, setExpandedSections] = useState<string[]>(["AI Voice Note Tracker"]);
   const pathname = usePathname();
+  const params = useParams();
   const { signOut } = useClerk();
   const { user } = useUser();
+
+  // Get the slug from params
+  const tenant = params.tenant as string;
 
   // Admin navigation
   const navigation: (NavItem | NavSection)[] = [
     {
       name: "Overview",
-      href: "/admin",
+      href: `/${tenant}/admin`,
       icon: Home,
     },
     {
       name: "Users Management",
-      href: "/admin/users",
+      href: `/${tenant}/admin/users`,
       icon: Users,
     },
     {
       name: "Organizations",
-      href: "/admin/organizations",
+      href: `/${tenant}/admin/organizations`,
       icon: Building2,
     },
     {
       name: "Subscription Plans",
-      href: "/admin/plans",
+      href: `/${tenant}/admin/plans`,
       icon: CreditCard,
     },
     {
       name: "Production Tracker",
-      href: "/admin/production",
+      href: `/${tenant}/admin/production`,
       icon: Activity,
     },
     {
       name: "AI Marketplace",
-      href: "/admin/marketplace",
+      href: `/${tenant}/admin/marketplace`,
       icon: ShoppingBag,
     },
     {
@@ -95,49 +99,49 @@ export default function AdminLayout({
       items: [
         {
           name: "AI Voice Accounts",
-          href: "/admin/ai-voice-note-tracker/ai-voice-accounts",
+          href: `/${tenant}/admin/ai-voice-note-tracker/ai-voice-accounts`,
           icon: UserCircle,
         },
         {
           name: "Generation Tracker",
-          href: "/admin/ai-voice-note-tracker/generation-tracker",
+          href: `/${tenant}/admin/ai-voice-note-tracker/generation-tracker`,
           icon: TrendingUp,
         },
       ],
     },
     {
       name: "Analytics",
-      href: "/admin/analytics",
+      href: `/${tenant}/admin/analytics`,
       icon: BarChart,
     },
     {
       name: "Security",
-      href: "/admin/security",
+      href: `/${tenant}/admin/security`,
       icon: Shield,
     },
     {
       name: "System Settings",
-      href: "/admin/settings",
+      href: `/${tenant}/admin/settings`,
       icon: Settings,
     },
     {
       name: "Database",
-      href: "/admin/database",
+      href: `/${tenant}/admin/database`,
       icon: Database,
     },
     {
       name: "Notifications",
-      href: "/admin/notifications",
+      href: `/${tenant}/admin/notifications`,
       icon: Bell,
     },
     {
       name: "Billing & Plans",
-      href: "/admin/billing",
+      href: `/${tenant}/admin/billing`,
       icon: CreditCard,
     },
     {
       name: "Activity Logs",
-      href: "/admin/logs",
+      href: `/${tenant}/admin/logs`,
       icon: FileText,
     },
   ];
@@ -167,8 +171,8 @@ export default function AdminLayout({
   }, []);
 
   const isNavItemActive = (href: string) => {
-    if (href === "/admin") {
-      return pathname === "/admin";
+    if (href === `/${tenant}/admin`) {
+      return pathname === `/${tenant}/admin`;
     }
     return pathname.startsWith(href);
   };
@@ -495,15 +499,15 @@ export default function AdminLayout({
                         <p className="text-xs text-red-400 mt-1 font-semibold">Admin Access</p>
                       </div>
                       <Link
-                        href="/dashboard"
-                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 transition-all duration-200 block flex items-center space-x-2"
+                        href={`/${tenant}/dashboard`}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 transition-all duration-200 flex items-center space-x-2"
                       >
                         <Home className="w-4 h-4" />
                         <span>User Dashboard</span>
                       </Link>
                       <Link
-                        href="/settings"
-                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 transition-all duration-200 block flex items-center space-x-2"
+                        href={`/${tenant}/settings`}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-slate-700 transition-all duration-200 flex items-center space-x-2"
                       >
                         <Settings className="w-4 h-4" />
                         <span>Settings</span>
