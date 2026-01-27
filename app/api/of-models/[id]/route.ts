@@ -21,16 +21,18 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       where: {
         OR: [{ id }, { slug: id }],
       },
-      include: ({
-        pricingCategories: {
+      include: {
+        of_model_details: true,
+        of_model_pricing_categories: {
           orderBy: { order: "asc" },
           include: {
-            items: {
+            of_model_pricing_items: {
               orderBy: { order: "asc" },
             },
           },
         },
-      } as any),
+        of_model_assets: true,
+      },
     });
 
     if (!model) {
