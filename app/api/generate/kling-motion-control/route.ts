@@ -277,7 +277,8 @@ export async function GET(request: NextRequest) {
     // Handle history request
     if (isHistoryRequest) {
       try {
-        console.log("[Kling Motion Control] Fetching video history for user:", userId);
+        const filterProfileId = searchParams.get("profileId");
+        console.log("[Kling Motion Control] Fetching video history for user:", userId, "profileId:", filterProfileId);
 
         // Step 1: Get generation jobs first, then filter by source in JS for reliability
         const recentJobs = await prisma.generationJob.findMany({
@@ -300,7 +301,13 @@ export async function GET(request: NextRequest) {
         const klingJobIds = recentJobs
           .filter((job) => {
             const params = job.params as any;
-            return params?.source === "kling-motion-control";
+            if (params?.source !== "kling-motion-control") return false;
+            
+            // Filter by profileId if specified
+            if (filterProfileId) {
+              return params?.vaultProfileId === filterProfileId;
+            }
+            return true;
           })
           .map((job) => job.id);
 
@@ -332,13 +339,20 @@ export async function GET(request: NextRequest) {
         console.log("[Kling Motion Control] Found generated videos:", videos.length);
 
         // Step 3: Also fetch vault items that were created from Kling Motion Control
-        const allVaultVideos = await prisma.vaultItem.findMany({
-          where: {
-            clerkId: userId,
-            fileType: {
-              startsWith: "video/",
-            },
+        const vaultQuery: any = {
+          clerkId: userId,
+          fileType: {
+            startsWith: "video/",
           },
+        };
+        
+        // Filter by profileId if specified
+        if (filterProfileId) {
+          vaultQuery.profileId = filterProfileId;
+        }
+        
+        const allVaultVideos = await prisma.vaultItem.findMany({
+          where: vaultQuery,
           orderBy: {
             createdAt: "desc",
           },
@@ -356,18 +370,30 @@ export async function GET(request: NextRequest) {
         console.log("[Kling Motion Control] Found vault videos:", vaultVideos.length);
 
         // Map generated videos
-        const mappedGeneratedVideos = videos.map((video) => ({
-          id: video.id,
-          videoUrl: video.awsS3Url || video.s3Key || "",
-          prompt: (video.job.params as any)?.prompt || "",
-          mode: (video.job.params as any)?.mode || "std",
-          characterOrientation: (video.job.params as any)?.character_orientation || "image",
-          imageUrl: (video.job.params as any)?.imageUrl || null,
-          referenceVideoUrl: (video.job.params as any)?.referenceVideoUrl || null,
-          createdAt: video.createdAt.toISOString(),
-          status: "completed" as const,
-          source: "generated" as const,
-        }));
+        const mappedGeneratedVideos = videos.map((video) => {
+          const params = video.job.params as any;
+          return {
+            id: video.id,
+            videoUrl: video.awsS3Url || video.s3Key || "",
+            prompt: params?.prompt || "",
+            mode: params?.mode || "std",
+            characterOrientation: params?.character_orientation || "image",
+            imageUrl: params?.imageUrl || null,
+            referenceVideoUrl: params?.referenceVideoUrl || null,
+            createdAt: video.createdAt.toISOString(),
+            status: "completed" as const,
+            source: "generated" as const,
+            metadata: {
+              prompt: params?.prompt || "",
+              mode: params?.mode || "std",
+              character_orientation: params?.character_orientation || "image",
+              keep_original_sound: params?.keep_original_sound || "no",
+              imageUrl: params?.imageUrl || null,
+              referenceVideoUrl: params?.referenceVideoUrl || null,
+              profileId: params?.vaultProfileId || null,
+            },
+          };
+        });
 
         // Map vault videos
         const mappedVaultVideos = vaultVideos.map((vid) => {
@@ -383,6 +409,15 @@ export async function GET(request: NextRequest) {
             createdAt: vid.createdAt.toISOString(),
             status: "completed" as const,
             source: "vault" as const,
+            metadata: {
+              prompt: metadata?.prompt || "",
+              mode: metadata?.mode || "std",
+              character_orientation: metadata?.character_orientation || "image",
+              keep_original_sound: metadata?.keep_original_sound || "no",
+              imageUrl: metadata?.imageUrl || null,
+              referenceVideoUrl: metadata?.referenceVideoUrl || null,
+              profileId: metadata?.profileId || null,
+            },
           };
         });
 
@@ -573,6 +608,7 @@ export async function GET(request: NextRequest) {
               fileSize: videoBuffer.length,
               metadata: {
                 source: "kling-motion-control",
+                profileId: vaultProfileId,
                 prompt: params?.prompt || "",
                 mode: params?.mode || "std",
                 character_orientation: params?.character_orientation || "image",
@@ -614,6 +650,7 @@ export async function GET(request: NextRequest) {
               format: "mp4",
               metadata: {
                 source: "kling-motion-control",
+                profileId: params?.vaultProfileId || null,
                 prompt: params?.prompt || "",
                 mode: params?.mode || "std",
                 character_orientation: params?.character_orientation || "image",

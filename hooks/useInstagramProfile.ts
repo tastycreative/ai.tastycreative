@@ -9,6 +9,15 @@ export interface Profile {
   instagramUsername?: string;
   profileImageUrl?: string;
   isDefault: boolean;
+  organizationId?: string | null;
+  organization?: {
+    id: string;
+    name: string;
+    logoUrl?: string | null;
+  } | null;
+  user?: {
+    name?: string | null;
+  };
 }
 
 const STORAGE_KEY = 'selectedInstagramProfileId';

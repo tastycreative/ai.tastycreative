@@ -332,7 +332,7 @@ export default function SeeDreamImageToVideo() {
   };
 
   // Save image to Reference Bank
-  const saveToReferenceBank = async (imageBase64: string, fileName: string, file?: File): Promise<{ id: string; url: string } | null> => {
+  const saveToReferenceBank = async (imageBase64: string, fileName: string, file?: File, skipIfExists?: boolean): Promise<{ id: string; url: string } | null> => {
     if (!globalProfileId) return null;
     
     try {
@@ -350,6 +350,22 @@ export default function SeeDreamImageToVideo() {
       }
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Check if a similar file already exists in Reference Bank (by size)
+      if (skipIfExists) {
+        try {
+          const existingCheck = await fetch(`/api/reference-bank?profileId=${globalProfileId}&checkDuplicate=true&fileSize=${blob.size}&fileName=${encodeURIComponent(finalFileName)}`);
+          if (existingCheck.ok) {
+            const existing = await existingCheck.json();
+            if (existing.duplicate) {
+              console.log('⏭️ Skipping duplicate - image already exists in Reference Bank:', existing.existingId);
+              return { id: existing.existingId, url: existing.existingUrl };
+            }
+          }
+        } catch (err) {
+          console.warn('Could not check for duplicates:', err);
+        }
+      }
       
       // Get dimensions from the image
       const img = new Image();
@@ -562,6 +578,10 @@ export default function SeeDreamImageToVideo() {
       setError("API client not available");
       return;
     }
+    if (!targetFolder) {
+      setError("Please select a vault folder to save your video");
+      return;
+    }
     if (!prompt.trim()) {
       setError("Please enter a prompt");
       return;
@@ -584,7 +604,8 @@ export default function SeeDreamImageToVideo() {
     if (globalProfileId && !fromReferenceBank && uploadedImage && uploadedImageFile) {
       setIsSavingToReferenceBank(true);
       try {
-        const saveResult = await saveToReferenceBank(uploadedImage, uploadedImageFile.name || 'reference.jpg', uploadedImageFile);
+        // Pass skipIfExists: true to avoid creating duplicates
+        const saveResult = await saveToReferenceBank(uploadedImage, uploadedImageFile.name || 'reference.jpg', uploadedImageFile, true);
         if (saveResult) {
           savedReferenceUrl = saveResult.url;
           setReferenceId(saveResult.id);

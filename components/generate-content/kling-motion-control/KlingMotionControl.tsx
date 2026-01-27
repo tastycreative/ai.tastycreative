@@ -19,6 +19,7 @@ import {
   Image as ImageIcon,
   Info,
   Loader2,
+  Maximize2,
   Play,
   RefreshCw,
   RotateCcw,
@@ -172,6 +173,15 @@ interface GeneratedVideo {
   createdAt: string;
   status: "processing" | "completed" | "failed";
   savedToVault?: boolean;
+  metadata?: {
+    prompt?: string;
+    mode?: string;
+    character_orientation?: string;
+    keep_original_sound?: string;
+    imageUrl?: string;
+    referenceVideoUrl?: string;
+    profileId?: string;
+  };
 }
 
 // Mode options
@@ -219,6 +229,7 @@ export default function KlingMotionControl() {
   const [showVideoReferenceBankSelector, setShowVideoReferenceBankSelector] = useState(false);
   const [videoFromReferenceBank, setVideoFromReferenceBank] = useState(false);
   const [videoReferenceId, setVideoReferenceId] = useState<string | null>(null);
+  const [videoDuration, setVideoDuration] = useState<number | null>(null);
 
   // Folder state
   const [targetFolder, setTargetFolder] = useState<string>("");
@@ -235,6 +246,7 @@ export default function KlingMotionControl() {
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
@@ -297,8 +309,12 @@ export default function KlingMotionControl() {
     if (!apiClient || !user) return;
     setIsLoadingHistory(true);
     try {
-      console.log("[Kling Motion Control Frontend] Loading generation history...");
-      const response = await apiClient.get("/api/generate/kling-motion-control?history=true");
+      console.log("[Kling Motion Control Frontend] Loading generation history for profileId:", profileId);
+      // Add profileId to filter by selected profile
+      const url = profileId
+        ? `/api/generate/kling-motion-control?history=true&profileId=${profileId}`
+        : "/api/generate/kling-motion-control?history=true";
+      const response = await apiClient.get(url);
       if (response.ok) {
         // Safely parse JSON response
         const responseText = await response.text();
@@ -320,11 +336,108 @@ export default function KlingMotionControl() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [apiClient, user]);
+  }, [apiClient, user, profileId]);
 
   // Initial data load
   useEffect(() => {
     setMounted(true);
+    
+    // Check for reuse data from Vault
+    const reuseData = sessionStorage.getItem('kling-motion-control-reuse');
+    if (reuseData) {
+      try {
+        const data = JSON.parse(reuseData);
+        console.log('Restoring Kling Motion Control settings from Vault:', data);
+        
+        // Set prompt
+        if (data.prompt) setPrompt(data.prompt);
+        
+        // Set mode
+        if (data.mode && MODE_OPTIONS.find(m => m.value === data.mode)) {
+          setMode(data.mode);
+        }
+        
+        // Set character orientation
+        if (data.characterOrientation && ORIENTATION_OPTIONS.find(o => o.value === data.characterOrientation)) {
+          setCharacterOrientation(data.characterOrientation);
+        }
+        
+        // Set keep original sound
+        if (typeof data.keepOriginalSound === 'boolean') {
+          setKeepOriginalSound(data.keepOriginalSound);
+        }
+        
+        // Load reference image if URL provided
+        if (data.imageUrl) {
+          console.log('Loading reference image from vault reuse, URL:', data.imageUrl);
+          fetch(`/api/proxy-image?url=${encodeURIComponent(data.imageUrl)}`)
+            .then(res => {
+              if (!res.ok) {
+                throw new Error(`Failed to fetch image: ${res.status} ${res.statusText}`);
+              }
+              return res.blob();
+            })
+            .then(blob => {
+              console.log('Reference image loaded, size:', blob.size);
+              const file = new File([blob], 'reference.jpg', { type: blob.type || 'image/jpeg' });
+              setImageFile(file);
+              setFromReferenceBank(false);
+              setReferenceId(null);
+              
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                setImagePreview(reader.result as string);
+              };
+              reader.readAsDataURL(blob);
+            })
+            .catch(err => {
+              console.error('Failed to load reference image from vault:', err);
+              setError('Failed to load reference image. Please try uploading manually.');
+            });
+        }
+        
+        // Load reference video if URL provided
+        if (data.referenceVideoUrl) {
+          console.log('Loading reference video from vault reuse, URL:', data.referenceVideoUrl);
+          fetch(`/api/proxy-image?url=${encodeURIComponent(data.referenceVideoUrl)}`)
+            .then(res => {
+              if (!res.ok) {
+                throw new Error(`Failed to fetch video: ${res.status} ${res.statusText}`);
+              }
+              return res.blob();
+            })
+            .then(blob => {
+              console.log('Reference video loaded, size:', blob.size);
+              const file = new File([blob], 'reference.mp4', { type: blob.type || 'video/mp4' });
+              setVideoFile(file);
+              setVideoFromReferenceBank(false);
+              setVideoReferenceId(null);
+              
+              const url = URL.createObjectURL(blob);
+              setVideoPreview(url);
+              
+              // Get video duration
+              const video = document.createElement('video');
+              video.preload = 'metadata';
+              video.onloadedmetadata = () => {
+                setVideoDuration(video.duration);
+                URL.revokeObjectURL(video.src);
+              };
+              video.src = URL.createObjectURL(blob);
+            })
+            .catch(err => {
+              console.error('Failed to load reference video from vault:', err);
+              setError('Failed to load reference video. Please try uploading manually.');
+            });
+        }
+        
+        // Clear the sessionStorage after reading
+        sessionStorage.removeItem('kling-motion-control-reuse');
+      } catch (err) {
+        console.error('Error parsing Kling Motion Control reuse data:', err);
+        sessionStorage.removeItem('kling-motion-control-reuse');
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -338,6 +451,13 @@ export default function KlingMotionControl() {
   useEffect(() => {
     setTargetFolder("");
   }, [profileId]);
+
+  // Reload generation history when profile changes
+  useEffect(() => {
+    if (user && apiClient && profileId) {
+      loadGenerationHistory();
+    }
+  }, [profileId, loadGenerationHistory, user, apiClient]);
 
   // Click outside handler for folder dropdown
   useEffect(() => {
@@ -424,6 +544,15 @@ export default function KlingMotionControl() {
     const url = URL.createObjectURL(file);
     setVideoPreview(url);
     
+    // Get video duration
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      setVideoDuration(video.duration);
+      URL.revokeObjectURL(video.src);
+    };
+    video.src = URL.createObjectURL(file);
+    
     // Reset reference bank tracking for new uploads
     setVideoFromReferenceBank(false);
     setVideoReferenceId(null);
@@ -450,13 +579,14 @@ export default function KlingMotionControl() {
     setVideoPreview(null);
     setVideoFromReferenceBank(false);
     setVideoReferenceId(null);
+    setVideoDuration(null);
     if (videoInputRef.current) {
       videoInputRef.current.value = "";
     }
   }, [videoPreview, videoFromReferenceBank]);
 
   // Save image to Reference Bank (for file-based uploads)
-  const saveToReferenceBank = async (file: File, imageBase64: string): Promise<string | null> => {
+  const saveToReferenceBank = async (file: File, imageBase64: string, skipIfExists?: boolean): Promise<string | null> => {
     if (!profileId) return null;
     
     try {
@@ -473,6 +603,22 @@ export default function KlingMotionControl() {
       }
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Check if a similar file already exists in Reference Bank (by size)
+      if (skipIfExists) {
+        try {
+          const existingCheck = await fetch(`/api/reference-bank?profileId=${profileId}&checkDuplicate=true&fileSize=${blob.size}&fileName=${encodeURIComponent(fileName)}`);
+          if (existingCheck.ok) {
+            const existing = await existingCheck.json();
+            if (existing.duplicate) {
+              console.log('⏭️ Skipping duplicate - image already exists in Reference Bank:', existing.existingId);
+              return existing.existingId;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not check for duplicates:', err);
+        }
+      }
       
       // Get dimensions from image
       const img = new Image();
@@ -532,13 +678,29 @@ export default function KlingMotionControl() {
   };
 
   // Save video to Reference Bank
-  const saveVideoToReferenceBank = async (file: File): Promise<string | null> => {
+  const saveVideoToReferenceBank = async (file: File, skipIfExists?: boolean): Promise<string | null> => {
     if (!profileId) return null;
     
     try {
       const mimeType = file.type || 'video/mp4';
       const extension = mimeType.includes('webm') ? 'webm' : mimeType.includes('quicktime') ? 'mov' : 'mp4';
       const fileName = file.name || `reference-video-${Date.now()}.${extension}`;
+      
+      // Check if a similar file already exists in Reference Bank (by size)
+      if (skipIfExists) {
+        try {
+          const existingCheck = await fetch(`/api/reference-bank?profileId=${profileId}&checkDuplicate=true&fileSize=${file.size}&fileName=${encodeURIComponent(fileName)}`);
+          if (existingCheck.ok) {
+            const existing = await existingCheck.json();
+            if (existing.duplicate) {
+              console.log('⏭️ Skipping duplicate - video already exists in Reference Bank:', existing.existingId);
+              return existing.existingId;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not check for duplicates:', err);
+        }
+      }
       
       // Get presigned URL
       const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
@@ -644,6 +806,15 @@ export default function KlingMotionControl() {
       // Create preview URL
       const url = URL.createObjectURL(blob);
       setVideoPreview(url);
+      
+      // Get video duration
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        setVideoDuration(video.duration);
+        URL.revokeObjectURL(video.src);
+      };
+      video.src = URL.createObjectURL(blob);
       
       setVideoFromReferenceBank(true);
       setVideoReferenceId(item.id);
@@ -768,6 +939,10 @@ export default function KlingMotionControl() {
       setError("API client not available");
       return;
     }
+    if (!targetFolder) {
+      setError("Please select a vault folder to save your video");
+      return;
+    }
     if (!imageFile) {
       setError("Please select a reference image");
       return;
@@ -775,6 +950,17 @@ export default function KlingMotionControl() {
     if (!videoFile) {
       setError("Please select a reference video");
       return;
+    }
+    
+    // Validate video duration based on character orientation
+    // "image" orientation: max 10 seconds
+    // "video" orientation: max 30 seconds
+    if (videoDuration !== null) {
+      const maxDuration = characterOrientation === "image" ? 10 : 30;
+      if (videoDuration > maxDuration) {
+        setError(`For character orientation '${characterOrientation === "image" ? "Match Image" : "Match Video"}', the reference video must not exceed ${maxDuration} seconds. Your video is ${Math.round(videoDuration)} seconds. ${characterOrientation === "image" ? "Try switching to 'Match Video' orientation for longer videos (up to 30s)." : "Please use a shorter video."}`);
+        return;
+      }
     }
 
     setIsGenerating(true);
@@ -787,7 +973,8 @@ export default function KlingMotionControl() {
     if (profileId && !fromReferenceBank && imageFile && imagePreview) {
       setIsSavingToReferenceBank(true);
       try {
-        const newReferenceId = await saveToReferenceBank(imageFile, imagePreview);
+        // Pass skipIfExists: true to avoid creating duplicates
+        const newReferenceId = await saveToReferenceBank(imageFile, imagePreview, true);
         if (newReferenceId) {
           setReferenceId(newReferenceId);
           setFromReferenceBank(true);
@@ -803,7 +990,8 @@ export default function KlingMotionControl() {
     // Save video to Reference Bank before generating (only for new uploads)
     if (profileId && !videoFromReferenceBank && videoFile) {
       try {
-        const newVideoReferenceId = await saveVideoToReferenceBank(videoFile);
+        // Pass skipIfExists: true to avoid creating duplicates
+        const newVideoReferenceId = await saveVideoToReferenceBank(videoFile, true);
         if (newVideoReferenceId) {
           setVideoReferenceId(newVideoReferenceId);
           setVideoFromReferenceBank(true);
@@ -933,6 +1121,84 @@ export default function KlingMotionControl() {
     setPollingStatus("");
   };
 
+  // Handle reuse settings from a selected video
+  const handleReuseSettings = async (video: GeneratedVideo) => {
+    // Set prompt
+    if (video.prompt) {
+      setPrompt(video.prompt);
+    }
+    
+    // Set mode from metadata or root level
+    const mode = video.metadata?.mode || video.mode;
+    if (mode && MODE_OPTIONS.find(m => m.value === mode)) {
+      setMode(mode as "std" | "pro");
+    }
+    
+    // Set character orientation from metadata or root level
+    const orientation = video.metadata?.character_orientation || video.characterOrientation;
+    if (orientation && ORIENTATION_OPTIONS.find(o => o.value === orientation)) {
+      setCharacterOrientation(orientation as "image" | "video");
+    }
+    
+    // Set keep original sound from metadata
+    if (video.metadata?.keep_original_sound) {
+      setKeepOriginalSound(video.metadata.keep_original_sound === "yes");
+    }
+    
+    // Load reference image if URL provided
+    const imageUrl = video.metadata?.imageUrl || video.imageUrl;
+    if (imageUrl) {
+      try {
+        const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(imageUrl)}`);
+        if (proxyResponse.ok) {
+          const blob = await proxyResponse.blob();
+          const file = new File([blob], 'reference.jpg', { type: blob.type || 'image/jpeg' });
+          setImageFile(file);
+          setFromReferenceBank(false);
+          setReferenceId(null);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setImagePreview(reader.result as string);
+          };
+          reader.readAsDataURL(blob);
+        }
+      } catch (err) {
+        console.error('Failed to load reference image:', err);
+      }
+    }
+    
+    // Load reference video if URL provided
+    const referenceVideoUrl = video.metadata?.referenceVideoUrl || video.referenceVideoUrl;
+    if (referenceVideoUrl) {
+      try {
+        const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(referenceVideoUrl)}`);
+        if (proxyResponse.ok) {
+          const blob = await proxyResponse.blob();
+          const file = new File([blob], 'reference.mp4', { type: blob.type || 'video/mp4' });
+          setVideoFile(file);
+          setVideoFromReferenceBank(false);
+          setVideoReferenceId(null);
+          const url = URL.createObjectURL(blob);
+          setVideoPreview(url);
+          
+          // Get video duration
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.onloadedmetadata = () => {
+            setVideoDuration(video.duration);
+            URL.revokeObjectURL(video.src);
+          };
+          video.src = URL.createObjectURL(blob);
+        }
+      } catch (err) {
+        console.error('Failed to load reference video:', err);
+      }
+    }
+    
+    // Close modal
+    setShowVideoModal(false);
+  };
+
   useEffect(() => {
     if (showVideoModal) {
       pauseAllPreviews();
@@ -950,6 +1216,7 @@ export default function KlingMotionControl() {
       if (event.key === "Escape") {
         setShowVideoModal(false);
         setShowHelpModal(false);
+        setShowHistoryModal(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -1182,6 +1449,24 @@ export default function KlingMotionControl() {
                     >
                       <X className="w-4 h-4" />
                     </button>
+                    {/* Duration indicator */}
+                    {videoDuration !== null && (
+                      <div className={`absolute top-2 left-2 px-2 py-1 rounded-lg text-xs text-white flex items-center gap-1 ${
+                        (characterOrientation === "image" && videoDuration > 10) || 
+                        (characterOrientation === "video" && videoDuration > 30)
+                          ? 'bg-red-500/80'
+                          : 'bg-slate-800/80'
+                      }`}>
+                        <Clock className="w-3 h-3" />
+                        {Math.round(videoDuration)}s
+                        {characterOrientation === "image" && videoDuration > 10 && (
+                          <span className="ml-1">⚠️ Max 10s</span>
+                        )}
+                        {characterOrientation === "video" && videoDuration > 30 && (
+                          <span className="ml-1">⚠️ Max 30s</span>
+                        )}
+                      </div>
+                    )}
                     {videoFromReferenceBank && (
                       <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-pink-500/80 text-xs text-white flex items-center gap-1">
                         <Library className="w-3 h-3" />
@@ -1486,17 +1771,28 @@ export default function KlingMotionControl() {
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-violet-900/30 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">History</p>
-                  <h2 className="text-lg font-semibold text-white">Previous generations</h2>
+                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
+                  <h2 className="text-lg font-semibold text-white">Recent generations</h2>
                 </div>
-                <button
-                  onClick={loadGenerationHistory}
-                  disabled={isLoadingHistory}
-                  className="p-2 rounded-lg hover:bg-white/10 transition"
-                  title="Refresh history"
-                >
-                  <RefreshCw className={`w-4 h-4 text-slate-300 ${isLoadingHistory ? "animate-spin" : ""}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowHistoryModal(true)}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                    View All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadGenerationHistory}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    disabled={isLoadingHistory}
+                  >
+                    {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {generationHistory.length === 0 ? (
@@ -1578,13 +1874,123 @@ export default function KlingMotionControl() {
                 src={selectedVideo.videoUrl}
                 className="w-full h-auto max-h-[70vh] object-contain bg-black rounded-3xl"
               />
-              <div className="p-4 text-sm text-slate-200">
-                <p className="font-semibold text-white mb-1">
-                  {selectedVideo.prompt || "Motion Control Video"}
-                </p>
-                <p className="text-slate-400">
-                  {selectedVideo.mode === "pro" ? "Professional" : "Standard"} · {selectedVideo.characterOrientation === "image" ? "Match Image" : "Match Video"}
-                </p>
+              <div className="p-4 text-sm text-slate-200 flex justify-between items-start">
+                <div>
+                  <p className="font-semibold text-white mb-1">
+                    {selectedVideo.prompt || "Motion Control Video"}
+                  </p>
+                  <p className="text-slate-400">
+                    {selectedVideo.mode === "pro" ? "Professional" : "Standard"} · {selectedVideo.characterOrientation === "image" ? "Match Image" : "Match Video"}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(selectedVideo.videoUrl, `motion-control-${selectedVideo.id}.mp4`)}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white transition hover:-translate-y-0.5 hover:bg-white/10"
+                  >
+                    <Download className="w-3 h-3" />
+                    Download
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReuseSettings(selectedVideo)}
+                    className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500 via-purple-500 to-pink-600 px-3 py-1.5 text-xs text-white font-medium transition hover:-translate-y-0.5 hover:shadow-lg"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Reuse Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* View All History Modal */}
+      {showHistoryModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+            onClick={() => setShowHistoryModal(false)}
+          >
+            <div
+              className="relative w-full max-w-7xl max-h-[90vh] overflow-auto rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-slate-900/95 backdrop-blur p-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
+                  <h2 className="text-2xl font-bold text-white">All Recent Generations</h2>
+                  <p className="text-sm text-slate-400 mt-1">
+                    {generationHistory.length} video{generationHistory.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(false)}
+                  className="rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6">
+                {generationHistory.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                    <Clock className="w-12 h-12 mb-4 opacity-50" />
+                    <p className="text-lg">No generation history yet</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {generationHistory.map((video) => (
+                      <div
+                        key={video.id}
+                        role="button"
+                        aria-label="Open video"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (video.videoUrl) {
+                            openVideoModal(video);
+                            setShowHistoryModal(false);
+                          }
+                        }}
+                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer transition hover:border-violet-400/50 hover:shadow-lg hover:shadow-violet-900/20"
+                      >
+                        {video.videoUrl ? (
+                          <video
+                            data-role="preview"
+                            preload="metadata"
+                            src={video.videoUrl}
+                            className="w-full aspect-video object-cover pointer-events-none"
+                            controlsList="nodownload noplaybackrate noremoteplayback"
+                          />
+                        ) : (
+                          <div className="w-full aspect-video flex items-center justify-center bg-slate-800/50">
+                            <div className="text-center text-slate-400">
+                              <Video className="w-8 h-8 mx-auto mb-2" />
+                              <p className="text-xs">Processing...</p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3 text-white transform translate-y-full group-hover:translate-y-0 transition">
+                          <p className="text-xs font-medium line-clamp-2 mb-1">{video.prompt || "Motion Control Video"}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-300">
+                            <span>{video.mode === "pro" ? "Pro" : "Std"}</span>
+                            <span>•</span>
+                            <span>{video.characterOrientation === "image" ? "Image" : "Video"}</span>
+                          </div>
+                        </div>
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
+                          <div className="rounded-full bg-violet-500/20 backdrop-blur-sm px-2 py-1 text-[10px] text-violet-200 border border-violet-400/30">
+                            {video.status === "completed" ? "✓ Ready" : "Processing"}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>,

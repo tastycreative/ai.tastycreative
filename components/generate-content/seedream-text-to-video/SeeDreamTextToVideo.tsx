@@ -356,6 +356,10 @@ export default function SeeDreamTextToVideo() {
       setError("API client not available");
       return;
     }
+    if (!targetFolder) {
+      setError("Please select a vault folder to save your video");
+      return;
+    }
     if (!prompt.trim()) {
       setError("Please enter a prompt");
       return;

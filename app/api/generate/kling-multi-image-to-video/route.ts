@@ -111,10 +111,11 @@ export async function POST(request: NextRequest) {
 
     const prompt = formData.get("prompt") as string | null;
     const negative_prompt = formData.get("negative_prompt") as string | null;
-    const model = (formData.get("model") as string) || "kling-v1-6";
+    const model = (formData.get("model") as string) || (formData.get("model_name") as string) || "kling-v1-6";
     const mode = (formData.get("mode") as string) || "std";
     const duration = (formData.get("duration") as string) || "5";
     const cfg_scale = parseFloat((formData.get("cfg_scale") as string) || "0.5");
+    const aspect_ratio = (formData.get("aspect_ratio") as string) || "16:9";
     const targetFolder = formData.get("targetFolder") as string | null;
     const saveToVault = formData.get("saveToVault") === "true";
     const vaultProfileId = formData.get("vaultProfileId") as string | null;
@@ -125,33 +126,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "At least 2 images are required" }, { status: 400 });
     }
 
-    if (images.length > 5) {
-      return NextResponse.json({ error: "Maximum 5 images allowed" }, { status: 400 });
+    if (images.length > 4) {
+      return NextResponse.json({ error: "Maximum 4 images allowed" }, { status: 400 });
     }
 
     // Upload all images to S3 and get URLs
-    const imageList: Array<{ url: string; index?: number }> = [];
+    // API expects image_list as array of objects with "image" key (not "url")
+    const imageList: Array<{ image: string }> = [];
     for (let i = 0; i < images.length; i++) {
       const imageBuffer = Buffer.from(await images[i].arrayBuffer());
       const imageFilename = `kling-multi-i2v-source-${Date.now()}-${i + 1}.jpg`;
       const imageUrl = await uploadImageToS3(imageBuffer, imageFilename, userId);
-      // Format: array of objects with url property
-      imageList.push({ url: imageUrl });
+      // Format: array of objects with "image" key as per Kling API docs
+      imageList.push({ image: imageUrl });
       console.log(`[Kling Multi-I2V] Image ${i + 1} uploaded to:`, imageUrl);
     }
 
     // Prepare Kling API request payload according to Kling API spec
-    // The multi-image2video endpoint expects 'image_list' as an array of objects
+    // The multi-image2video endpoint expects 'image_list' as an array of objects with "image" key
     const payload: Record<string, unknown> = {
       model_name: model,
       image_list: imageList,
+      prompt: prompt || "", // prompt is REQUIRED for multi-image-to-video
       mode: mode,
       duration: duration,
-      cfg_scale: cfg_scale,
+      aspect_ratio: aspect_ratio,
     };
 
     // Add optional parameters
-    if (prompt) payload.prompt = prompt;
     if (negative_prompt) payload.negative_prompt = negative_prompt;
 
     console.log("[Kling Multi-I2V] Sending request with payload:", JSON.stringify(payload, null, 2));
@@ -215,6 +217,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Extract source image URLs for reuse feature
+    const sourceImageUrls = imageList.map(item => item.image);
+
     // Create GenerationJob in database
     const generationJob = await prisma.generationJob.create({
       data: {
@@ -230,7 +235,9 @@ export async function POST(request: NextRequest) {
           mode,
           duration,
           cfg_scale,
+          aspect_ratio,
           image_count: images.length,
+          sourceImageUrls,
           targetFolder,
           saveToVault,
           vaultProfileId,
@@ -275,10 +282,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const taskId = searchParams.get("taskId");
     const history = searchParams.get("history");
+    const filterProfileId = searchParams.get("profileId");
 
     // If requesting history
     if (history === "true") {
-      console.log("[Kling Multi-I2V] Fetching video history for user:", userId);
+      console.log("[Kling Multi-I2V] Fetching video history for user:", userId, "profileId:", filterProfileId);
 
       // Step 1: Get generation jobs first, then filter by source in JS for reliability
       const recentJobs = await prisma.generationJob.findMany({
@@ -297,11 +305,16 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      // Filter to only Kling Multi-I2V jobs
+      // Filter to only Kling Multi-I2V jobs (and optionally by profile)
       const klingJobIds = recentJobs
         .filter((job) => {
           const params = job.params as any;
-          return params?.source === "kling-multi-i2v";
+          if (params?.source !== "kling-multi-i2v") return false;
+          // Filter by profile if specified
+          if (filterProfileId) {
+            return params?.vaultProfileId === filterProfileId;
+          }
+          return true;
         })
         .map((job) => job.id);
 
@@ -328,13 +341,20 @@ export async function GET(request: NextRequest) {
       console.log("[Kling Multi-I2V] Found jobs with videos:", jobs.length);
 
       // Step 3: Also fetch vault items that were created from Kling Multi-I2V
-      const allVaultVideos = await prisma.vaultItem.findMany({
-        where: {
-          clerkId: userId,
-          fileType: {
-            startsWith: "video/",
-          },
+      const vaultQuery: any = {
+        clerkId: userId,
+        fileType: {
+          startsWith: "video/",
         },
+      };
+      
+      // Add profile filter if specified
+      if (filterProfileId) {
+        vaultQuery.profileId = filterProfileId;
+      }
+      
+      const allVaultVideos = await prisma.vaultItem.findMany({
+        where: vaultQuery,
         orderBy: {
           createdAt: "desc",
         },
@@ -354,35 +374,67 @@ export async function GET(request: NextRequest) {
       // Map generated videos from jobs
       const mappedGeneratedVideos = jobs
         .filter(job => job.videos.length > 0)
-        .map(job => ({
-          id: job.id,
-          videoUrl: job.videos[0]?.awsS3Url || job.videos[0]?.networkVolumePath || "",
-          prompt: (job.params as { prompt?: string })?.prompt || "",
-          model: (job.params as { model?: string })?.model || "kling-v1-6",
-          duration: (job.params as { duration?: string })?.duration || "5",
-          imageCount: (job.params as { image_count?: number })?.image_count || 0,
-          createdAt: job.createdAt.toISOString(),
-          status: "completed" as const,
-          source: "generated" as const,
-        }));
+        .map(job => {
+          const params = job.params as any;
+          const videoMetadata = job.videos[0]?.metadata as any;
+          return {
+            id: job.id,
+            videoUrl: job.videos[0]?.awsS3Url || job.videos[0]?.networkVolumePath || "",
+            prompt: params?.prompt || videoMetadata?.prompt || "",
+            model: params?.model || videoMetadata?.model || "kling-v1-6",
+            mode: params?.mode || videoMetadata?.mode || "std",
+            duration: params?.duration || videoMetadata?.duration || "5",
+            aspectRatio: params?.aspect_ratio || videoMetadata?.aspectRatio || "16:9",
+            imageCount: params?.image_count || videoMetadata?.imageCount || 0,
+            cfgScale: params?.cfg_scale || videoMetadata?.cfgScale || 0.5,
+            negativePrompt: params?.negative_prompt || videoMetadata?.negativePrompt || "",
+            sourceImageUrls: params?.sourceImageUrls || videoMetadata?.sourceImageUrls || [],
+            createdAt: job.createdAt.toISOString(),
+            status: "completed" as const,
+            source: "generated" as const,
+            metadata: {
+              ...videoMetadata,
+              prompt: params?.prompt || videoMetadata?.prompt || "",
+              negativePrompt: params?.negative_prompt || videoMetadata?.negativePrompt || "",
+              model: params?.model || videoMetadata?.model || "kling-v1-6",
+              mode: params?.mode || videoMetadata?.mode || "std",
+              duration: params?.duration || videoMetadata?.duration || "5",
+              aspectRatio: params?.aspect_ratio || videoMetadata?.aspectRatio || "16:9",
+              imageCount: params?.image_count || videoMetadata?.imageCount || 0,
+              cfgScale: params?.cfg_scale || videoMetadata?.cfgScale || 0.5,
+              sourceImageUrls: params?.sourceImageUrls || videoMetadata?.sourceImageUrls || [],
+            },
+          };
+        });
 
-      // Map vault videos
-      const mappedVaultVideos = vaultVideos.map((vid) => {
-        const metadata = vid.metadata as any;
-        return {
-          id: vid.id,
-          videoUrl: vid.awsS3Url || "",
-          prompt: metadata?.prompt || "",
-          model: metadata?.model || "kling-v1-6",
-          duration: metadata?.duration || "5",
-          imageCount: metadata?.image_count || 0,
-          createdAt: vid.createdAt.toISOString(),
-          status: "completed" as const,
-          source: "vault" as const,
-        };
-      });
+      // Get the video URLs from generation jobs to filter out duplicates
+      const generatedVideoUrls = new Set(mappedGeneratedVideos.map(v => v.videoUrl).filter(Boolean));
 
-      // Combine and sort by date
+      // Map vault videos, but exclude those that already exist in generation jobs
+      const mappedVaultVideos = vaultVideos
+        .filter((vid) => !generatedVideoUrls.has(vid.awsS3Url || ""))
+        .map((vid) => {
+          const metadata = vid.metadata as any;
+          return {
+            id: vid.id,
+            videoUrl: vid.awsS3Url || "",
+            prompt: metadata?.prompt || "",
+            model: metadata?.model || "kling-v1-6",
+            mode: metadata?.mode || "std",
+            duration: metadata?.duration || "5",
+            aspectRatio: metadata?.aspectRatio || "16:9",
+            imageCount: metadata?.imageCount || metadata?.image_count || 0,
+            cfgScale: metadata?.cfgScale || 0.5,
+            negativePrompt: metadata?.negativePrompt || "",
+            sourceImageUrls: metadata?.sourceImageUrls || [],
+            createdAt: vid.createdAt.toISOString(),
+            status: "completed" as const,
+            source: "vault" as const,
+            metadata: metadata,
+          };
+        });
+
+      // Combine and sort by date - no more duplicates since we filtered vault videos
       const allVideos = [...mappedGeneratedVideos, ...mappedVaultVideos]
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 20);
@@ -452,8 +504,59 @@ export async function GET(request: NextRequest) {
           const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
           const videoFilename = `kling-multi-i2v-${Date.now()}.mp4`;
           
-          const targetFolder = (job.params as { targetFolder?: string })?.targetFolder;
+          const params = job.params as {
+            prompt?: string;
+            negative_prompt?: string;
+            model?: string;
+            mode?: string;
+            duration?: string;
+            cfg_scale?: number;
+            aspect_ratio?: string;
+            image_count?: number;
+            sourceImageUrls?: string[];
+            targetFolder?: string;
+            saveToVault?: boolean;
+            vaultProfileId?: string;
+            vaultFolderId?: string;
+          };
+          
+          const targetFolder = params.targetFolder;
           const s3VideoUrl = await uploadVideoToS3(videoBuffer, videoFilename, userId, targetFolder || undefined);
+          const s3Key = s3VideoUrl.split(".com/")[1];
+
+          // Common metadata for both VaultItem and GeneratedVideo
+          const metadata = {
+            source: "kling-multi-i2v",
+            profileId: params.vaultProfileId || null,
+            prompt: params.prompt || "",
+            negativePrompt: params.negative_prompt || "",
+            model: params.model || "kling-v1-6",
+            mode: params.mode || "std",
+            duration: params.duration || "5",
+            cfgScale: params.cfg_scale || 0.5,
+            aspectRatio: params.aspect_ratio || "16:9",
+            imageCount: params.image_count || 0,
+            sourceImageUrls: params.sourceImageUrls || [],
+            originalUrl: videoUrl,
+          };
+
+          // Save to VaultItem if vault settings are provided
+          if (params.saveToVault && params.vaultProfileId && params.vaultFolderId) {
+            await prisma.vaultItem.create({
+              data: {
+                clerkId: userId,
+                profileId: params.vaultProfileId,
+                folderId: params.vaultFolderId,
+                fileName: videoFilename,
+                fileType: "video/mp4",
+                awsS3Key: s3Key,
+                awsS3Url: s3VideoUrl,
+                fileSize: videoBuffer.length,
+                metadata: metadata,
+              },
+            });
+            console.log("[Kling Multi-I2V] Video saved to vault");
+          }
 
           // Create GeneratedVideo record
           const video = await prisma.generatedVideo.create({
@@ -462,13 +565,8 @@ export async function GET(request: NextRequest) {
               jobId: job.id,
               filename: videoFilename,
               awsS3Url: s3VideoUrl,
-              awsS3Key: s3VideoUrl.split(".com/")[1],
-              metadata: {
-                prompt: (job.params as { prompt?: string })?.prompt,
-                model: (job.params as { model?: string })?.model,
-                duration: (job.params as { duration?: string })?.duration,
-                image_count: (job.params as { image_count?: number })?.image_count,
-              },
+              awsS3Key: s3Key,
+              metadata: metadata,
             },
           });
 

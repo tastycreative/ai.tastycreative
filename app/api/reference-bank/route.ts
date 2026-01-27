@@ -12,6 +12,9 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const profileId = searchParams.get("profileId");
+    const checkDuplicate = searchParams.get("checkDuplicate") === "true";
+    const fileSize = searchParams.get("fileSize");
+    const fileName = searchParams.get("fileName");
 
     if (!profileId) {
       return NextResponse.json(
@@ -33,6 +36,43 @@ export async function GET(req: NextRequest) {
         { error: "Profile not found" },
         { status: 404 }
       );
+    }
+
+// Check for duplicate by file size (and optionally name pattern)
+    if (checkDuplicate && fileSize) {
+      const fileSizeNum = parseInt(fileSize, 10);
+      // Allow for small variations in file size (within 1KB)
+      const sizeVariance = 1024;
+      
+      const existingItem = await prisma.reference_items.findFirst({
+        where: {
+          clerkId: userId,
+          profileId,
+          fileSize: {
+            gte: fileSizeNum - sizeVariance,
+            lte: fileSizeNum + sizeVariance,
+          },
+          // If filename provided, check for similar names (same base name)
+          ...(fileName ? {
+            name: {
+              contains: fileName.split('.')[0].split('-')[0], // Match base part of filename
+            },
+          } : {}),
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (existingItem) {
+        return NextResponse.json({
+          duplicate: true,
+          existingId: existingItem.id,
+          existingUrl: existingItem.awsS3Url,
+        });
+      }
+      
+      return NextResponse.json({ duplicate: false });
     }
 
     const items = await prisma.reference_items.findMany({

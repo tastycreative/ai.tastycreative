@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Info,
   Loader2,
+  Maximize2,
   Play,
   RefreshCw,
   RotateCcw,
@@ -149,10 +150,27 @@ interface GeneratedVideo {
   videoUrl: string;
   prompt: string;
   model: string;
+  mode?: string;
   duration: string;
+  aspectRatio?: string;
   imageCount: number;
+  cfgScale?: number;
+  negativePrompt?: string;
+  sourceImageUrls?: string[];
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  metadata?: {
+    prompt?: string;
+    negativePrompt?: string;
+    model?: string;
+    mode?: string;
+    duration?: string;
+    aspectRatio?: string;
+    imageCount?: number;
+    cfgScale?: number;
+    sourceImageUrls?: string[];
+    [key: string]: any;
+  };
 }
 
 interface UploadedImage {
@@ -199,6 +217,76 @@ export default function KlingMultiImageToVideo() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+    
+    // Check for reuse data from vault/sessionStorage
+    const reuseData = sessionStorage.getItem('kling-multi-i2v-reuse');
+    if (reuseData) {
+      const loadReuseData = async () => {
+        try {
+          const data = JSON.parse(reuseData);
+          
+          // Set prompt
+          if (data.prompt) setPrompt(data.prompt);
+          
+          // Set negative prompt
+          if (data.negativePrompt) setNegativePrompt(data.negativePrompt);
+          
+          // Set model
+          if (data.model) setModel(data.model);
+          
+          // Set mode
+          if (data.mode) setMode(data.mode);
+          
+          // Set duration
+          if (data.duration) setDuration(data.duration);
+          
+          // Set aspect ratio
+          if (data.aspectRatio) setAspectRatio(data.aspectRatio);
+          
+          // Load source images if available
+          const sourceUrls = data.sourceImageUrls || [];
+          if (sourceUrls.length > 0) {
+            setIsCompressing(true);
+            
+            try {
+              const loadedImages: UploadedImage[] = [];
+              for (let i = 0; i < sourceUrls.length; i++) {
+                const url = sourceUrls[i];
+                try {
+                  const response = await fetch(url);
+                  if (response.ok) {
+                    const blob = await response.blob();
+                    const file = new File([blob], `source-image-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' });
+                    const preview = URL.createObjectURL(blob);
+                    loadedImages.push({
+                      id: `reuse-${Date.now()}-${i}`,
+                      file,
+                      preview,
+                      fromReferenceBank: false,
+                    });
+                  }
+                } catch (imgErr) {
+                  console.warn(`[Kling Multi-I2V] Error loading source image ${i + 1}:`, imgErr);
+                }
+              }
+              
+              setUploadedImages(loadedImages);
+              console.log(`[Kling Multi-I2V] Loaded ${loadedImages.length} source images from vault reuse`);
+            } finally {
+              setIsCompressing(false);
+            }
+          }
+          
+          // Clear the reuse data after using it
+          sessionStorage.removeItem('kling-multi-i2v-reuse');
+        } catch (err) {
+          console.error('Failed to parse reuse data:', err);
+          sessionStorage.removeItem('kling-multi-i2v-reuse');
+        }
+      };
+      
+      loadReuseData();
+    }
   }, []);
 
   // Folder dropdown state
@@ -247,6 +335,7 @@ export default function KlingMultiImageToVideo() {
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(null);
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -295,10 +384,11 @@ export default function KlingMultiImageToVideo() {
     if (!apiClient) return;
     setIsLoadingHistory(true);
     try {
-      console.log("[Kling Multi-I2V Frontend] Loading generation history...");
-      const response = await apiClient.get(
-        "/api/generate/kling-multi-image-to-video?history=true"
-      );
+      console.log("[Kling Multi-I2V Frontend] Loading generation history...", "profileId:", globalProfileId);
+      const url = globalProfileId 
+        ? `/api/generate/kling-multi-image-to-video?history=true&profileId=${globalProfileId}`
+        : "/api/generate/kling-multi-image-to-video?history=true";
+      const response = await apiClient.get(url);
       if (response.ok) {
         const data = await response.json();
         const videos = data.videos || [];
@@ -313,7 +403,7 @@ export default function KlingMultiImageToVideo() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
   useEffect(() => {
     if (apiClient) {
@@ -322,7 +412,7 @@ export default function KlingMultiImageToVideo() {
       // Clear selected folder when profile changes
       setTargetFolder("");
     }
-  }, [apiClient, loadVaultData, loadGenerationHistory]);
+  }, [apiClient, loadVaultData, loadGenerationHistory, globalProfileId]);
 
   // Handle image upload with compression
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -409,7 +499,7 @@ export default function KlingMultiImageToVideo() {
   };
 
   // Save image to Reference Bank (for file-based uploads)
-  const saveToReferenceBank = async (file: File, imageBase64: string): Promise<string | null> => {
+  const saveToReferenceBank = async (file: File, imagePreview: string, skipIfExists?: boolean): Promise<string | null> => {
     if (!globalProfileId) return null;
     
     try {
@@ -417,22 +507,32 @@ export default function KlingMultiImageToVideo() {
       const extension = mimeType === 'image/png' ? 'png' : 'jpg';
       const fileName = file.name || `reference-${Date.now()}.${extension}`;
       
-      // Convert base64 to blob
-      const base64Data = imageBase64.split(',')[1];
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      // Use the file directly instead of converting from base64
+      // This handles both blob URLs and data URLs
+      const blob = file;
+      
+      // Check if a similar file already exists in Reference Bank (by size)
+      if (skipIfExists) {
+        try {
+          const existingCheck = await fetch(`/api/reference-bank?profileId=${globalProfileId}&checkDuplicate=true&fileSize=${blob.size}&fileName=${encodeURIComponent(fileName)}`);
+          if (existingCheck.ok) {
+            const existing = await existingCheck.json();
+            if (existing.duplicate) {
+              console.log('⏭️ Skipping duplicate - image already exists in Reference Bank:', existing.existingId);
+              return existing.existingId;
+            }
+          }
+        } catch (err) {
+          console.warn('Could not check for duplicates:', err);
+        }
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: mimeType });
       
       // Get dimensions from image
       const img = new Image();
       const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
         img.onload = () => resolve({ width: img.width, height: img.height });
         img.onerror = () => resolve({ width: 0, height: 0 });
-        img.src = imageBase64;
+        img.src = imagePreview;
       });
       const dimensions = await dimensionsPromise;
 
@@ -661,6 +761,10 @@ export default function KlingMultiImageToVideo() {
       setError("API client not available");
       return;
     }
+    if (!targetFolder) {
+      setError("Please select a vault folder to save your video");
+      return;
+    }
     if (uploadedImages.length < 2) {
       setError("Please upload at least 2 images");
       return;
@@ -682,8 +786,10 @@ export default function KlingMultiImageToVideo() {
         setIsSavingToReferenceBank(true);
         for (let i = 0; i < uploadedImages.length; i++) {
           const img = uploadedImages[i];
-          if (!img.fromReferenceBank) {
-            const newReferenceId = await saveToReferenceBank(img.file, img.preview);
+          // Only save if not already from Reference Bank and doesn't have a referenceId
+          if (!img.fromReferenceBank && !img.referenceId) {
+            // Pass skipIfExists: true to avoid creating duplicates
+            const newReferenceId = await saveToReferenceBank(img.file, img.preview, true);
             if (newReferenceId) {
               // Update the image to mark it as saved
               setUploadedImages(prev => prev.map((item, idx) => 
@@ -806,6 +912,91 @@ export default function KlingMultiImageToVideo() {
     setPollingStatus("");
   };
 
+  // Handle reuse settings from a selected video
+  const handleReuseSettings = async (video: GeneratedVideo) => {
+    // Set prompt
+    setPrompt(video.prompt || video.metadata?.prompt || '');
+    
+    // Set negative prompt
+    if (video.negativePrompt || video.metadata?.negativePrompt) {
+      setNegativePrompt(video.negativePrompt || video.metadata?.negativePrompt || '');
+    }
+    
+    // Set model
+    const videoModel = video.model || video.metadata?.model;
+    if (videoModel && MODEL_OPTIONS.find(m => m.value === videoModel)) {
+      setModel(videoModel);
+    }
+    
+    // Set mode
+    const videoMode = video.mode || video.metadata?.mode;
+    if (videoMode && MODE_OPTIONS.find(m => m.value === videoMode)) {
+      setMode(videoMode);
+    }
+    
+    // Set duration
+    const videoDuration = video.duration || video.metadata?.duration;
+    if (videoDuration && DURATION_OPTIONS.find(d => d.value === videoDuration)) {
+      setDuration(videoDuration);
+    }
+    
+    // Set aspect ratio
+    const videoAspectRatio = video.aspectRatio || video.metadata?.aspectRatio;
+    if (videoAspectRatio && ASPECT_RATIO_OPTIONS.find(a => a.value === videoAspectRatio)) {
+      setAspectRatio(videoAspectRatio);
+    }
+    
+    // Load source images if available
+    const sourceUrls = video.sourceImageUrls || video.metadata?.sourceImageUrls || [];
+    if (sourceUrls.length > 0) {
+      setIsCompressing(true);
+      setError(null);
+      
+      try {
+        // Clear existing images first
+        setUploadedImages([]);
+        
+        // Fetch and load each source image
+        const loadedImages: UploadedImage[] = [];
+        for (let i = 0; i < sourceUrls.length; i++) {
+          const url = sourceUrls[i];
+          try {
+            const response = await fetch(url);
+            if (response.ok) {
+              const blob = await response.blob();
+              const file = new File([blob], `source-image-${i + 1}.jpg`, { type: blob.type || 'image/jpeg' });
+              const preview = URL.createObjectURL(blob);
+              loadedImages.push({
+                id: `reuse-${Date.now()}-${i}`,
+                file,
+                preview,
+                fromReferenceBank: false,
+              });
+            } else {
+              console.warn(`[Kling Multi-I2V] Failed to fetch source image ${i + 1}:`, response.status);
+            }
+          } catch (imgErr) {
+            console.warn(`[Kling Multi-I2V] Error loading source image ${i + 1}:`, imgErr);
+          }
+        }
+        
+        setUploadedImages(loadedImages);
+        console.log(`[Kling Multi-I2V] Loaded ${loadedImages.length} source images for reuse`);
+      } catch (err) {
+        console.error("[Kling Multi-I2V] Error loading source images:", err);
+        setError("Failed to load some source images");
+      } finally {
+        setIsCompressing(false);
+      }
+    } else {
+      // No source images available, clear existing
+      setUploadedImages([]);
+    }
+    
+    // Close modal
+    setShowVideoModal(false);
+  };
+
   useEffect(() => {
     if (showVideoModal) {
       pauseAllPreviews();
@@ -823,6 +1014,7 @@ export default function KlingMultiImageToVideo() {
       if (event.key === "Escape") {
         setShowVideoModal(false);
         setShowHelpModal(false);
+        setShowHistoryModal(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -940,59 +1132,53 @@ export default function KlingMultiImageToVideo() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-semibold text-slate-100">Upload Images (2-4) <span className="text-red-400">*</span></label>
-                  <span className="text-xs text-slate-400">{uploadedImages.length}/{MAX_IMAGES}</span>
-                </div>
-                
-                {uploadedImages.length < MAX_IMAGES && (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => !isCompressing && fileInputRef.current?.click()}
-                      disabled={isGenerating || isCompressing}
-                      className="flex-1 py-6 border-2 border-dashed border-white/20 hover:border-violet-400/50 rounded-2xl bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isCompressing ? (
-                        <>
-                          <div className="p-3 bg-violet-500/10 rounded-full">
-                            <Loader2 className="h-6 w-6 text-violet-300 animate-spin" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-white font-medium">Compressing images...</p>
-                            <p className="text-xs text-slate-400 mt-1">Please wait</p>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="p-3 bg-violet-500/10 rounded-full group-hover:bg-violet-500/20 transition-colors">
-                            <Upload className="h-6 w-6 text-violet-300" />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-sm text-white font-medium">Click to upload images</p>
-                            <p className="text-xs text-slate-400 mt-1">
-                              {uploadedImages.length === 0 ? "Upload 2-4 images · Auto-compressed" : `Add ${MAX_IMAGES - uploadedImages.length} more`}
-                            </p>
-                          </div>
-                        </>
-                      )}
-                    </button>
-                    
+                  <div className="flex items-center gap-2">
                     {/* Reference Bank Button */}
                     {mounted && globalProfileId && (
                       <button
+                        type="button"
                         onClick={() => setShowReferenceBankSelector(true)}
-                        disabled={isGenerating || isCompressing}
-                        className="px-4 py-6 border-2 border-dashed border-cyan-500/30 hover:border-cyan-400/50 rounded-2xl bg-cyan-500/5 hover:bg-cyan-500/10 transition-all flex flex-col items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Select from Reference Bank"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 border border-violet-500/30 transition-all"
+                        disabled={isGenerating}
                       >
-                        <div className="p-3 bg-cyan-500/10 rounded-full group-hover:bg-cyan-500/20 transition-colors">
-                          <Library className="h-6 w-6 text-cyan-300" />
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm text-white font-medium">Reference Bank</p>
-                          <p className="text-xs text-slate-400 mt-1">Select saved</p>
-                        </div>
+                        <Library className="w-3.5 h-3.5" />
+                        Reference Bank
                       </button>
                     )}
+                    <span className="text-xs text-slate-400">{uploadedImages.length}/{MAX_IMAGES}</span>
                   </div>
+                </div>
+                
+                {uploadedImages.length < MAX_IMAGES && (
+                  <button
+                    onClick={() => !isCompressing && fileInputRef.current?.click()}
+                    disabled={isGenerating || isCompressing}
+                    className="w-full py-6 border-2 border-dashed border-white/20 hover:border-violet-400/50 rounded-2xl bg-white/5 hover:bg-white/10 transition-all flex flex-col items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCompressing ? (
+                      <>
+                        <div className="p-3 bg-violet-500/10 rounded-full">
+                          <Loader2 className="h-6 w-6 text-violet-300 animate-spin" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-white font-medium">Compressing images...</p>
+                          <p className="text-xs text-slate-400 mt-1">Please wait</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-3 bg-violet-500/10 rounded-full group-hover:bg-violet-500/20 transition-colors">
+                          <Upload className="h-6 w-6 text-violet-300" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-white font-medium">Click to upload images</p>
+                          <p className="text-xs text-slate-400 mt-1">
+                            {uploadedImages.length === 0 ? "Upload 2-4 images · Auto-compressed" : `Add ${MAX_IMAGES - uploadedImages.length} more`}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </button>
                 )}
 
                 <input
@@ -1410,16 +1596,28 @@ export default function KlingMultiImageToVideo() {
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-violet-900/30 backdrop-blur">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Recent</p>
-                  <h2 className="text-lg font-semibold text-white">History</h2>
+                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
+                  <h2 className="text-lg font-semibold text-white">Recent generations</h2>
                 </div>
-                <button
-                  onClick={() => loadGenerationHistory()}
-                  disabled={isLoadingHistory}
-                  className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition"
-                >
-                  <RefreshCw className={`w-4 h-4 text-slate-300 ${isLoadingHistory ? "animate-spin" : ""}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowHistoryModal(true)}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                  >
+                    <Maximize2 className="w-3 h-3" />
+                    View All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadGenerationHistory}
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white transition hover:-translate-y-0.5 hover:shadow"
+                    disabled={isLoadingHistory}
+                  >
+                    {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {generationHistory.length === 0 ? (
@@ -1428,34 +1626,36 @@ export default function KlingMultiImageToVideo() {
                   <p className="text-sm">No generation history yet.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[280px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[320px] overflow-y-auto pr-1">
                   {generationHistory.map((video) => (
                     <div
                       key={video.id}
                       role="button"
+                      aria-label="Open video"
                       tabIndex={0}
                       onClick={() => video.videoUrl && openVideoModal(video)}
-                      className="rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition cursor-pointer overflow-hidden max-w-[160px]"
+                      className="group overflow-hidden rounded-xl border border-white/10 bg-white/5 cursor-pointer max-w-[180px]"
                     >
-                      <div className="w-full h-20 bg-slate-800">
-                        {video.videoUrl ? (
-                          <video
-                            src={video.videoUrl}
-                            className="w-full h-full object-cover"
-                            muted
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-slate-800/50">
-                            <Video className="w-5 h-5 text-slate-500 opacity-50" />
+                      {video.videoUrl ? (
+                        <video
+                          data-role="preview"
+                          preload="metadata"
+                          src={video.videoUrl}
+                          className="w-full h-24 object-cover pointer-events-none"
+                          controlsList="nodownload noplaybackrate noremoteplayback"
+                        />
+                      ) : (
+                        <div className="w-full h-24 flex items-center justify-center bg-slate-800/50">
+                          <div className="text-center text-slate-400">
+                            <Video className="w-5 h-5 mx-auto mb-1 opacity-50" />
+                            <span className="text-[10px]">Unavailable</span>
                           </div>
-                        )}
-                      </div>
-                      <div className="px-2 py-1.5">
-                        <p className="text-[10px] text-white truncate">
-                          {video.prompt || "Multi-image"}
-                        </p>
-                        <p className="text-[9px] text-slate-400 truncate">
-                          {video.imageCount} imgs · {video.duration}s
+                        </div>
+                      )}
+                      <div className="px-2 py-2 text-[10px] text-slate-200">
+                        <p className="font-medium text-white truncate text-xs">{video.prompt || "Multi-image"}</p>
+                        <p className="text-slate-400 truncate">
+                          {video.imageCount} imgs · {video.duration}s · {video.aspectRatio || "16:9"}
                         </p>
                       </div>
                     </div>
@@ -1497,16 +1697,117 @@ export default function KlingMultiImageToVideo() {
               />
               <div className="p-4 text-sm text-slate-200">
                 <p className="font-semibold text-white mb-1">{selectedVideo.prompt || "Multi-image interpolation"}</p>
-                <p className="text-slate-400">
-                  {selectedVideo.imageCount} images · {selectedVideo.duration}s · {selectedVideo.model}
+                <p className="text-slate-400 mb-3">
+                  {selectedVideo.imageCount} images · {selectedVideo.duration}s · {selectedVideo.aspectRatio || "16:9"} · {selectedVideo.model}
                 </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleReuseSettings(selectedVideo)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/30 px-4 py-2 text-sm font-medium text-violet-300 transition"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reuse Settings
+                  </button>
+                  <button
+                    onClick={() => handleDownload(selectedVideo.videoUrl, `kling-multi-i2v-${selectedVideo.id}.mp4`)}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-4 py-2 text-sm font-medium text-white transition"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* View All History Modal */}
+      {showHistoryModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+            onClick={() => setShowHistoryModal(false)}
+          >
+            <div
+              className="relative w-full max-w-7xl max-h-[90vh] overflow-auto rounded-3xl border border-white/10 bg-slate-900 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-slate-900/95 backdrop-blur p-6">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-violet-200">Library</p>
+                  <h2 className="text-2xl font-bold text-white">All Recent Generations</h2>
+                  <p className="text-sm text-slate-400 mt-1">
+                    {generationHistory.length} video{generationHistory.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
                 <button
-                  onClick={() => handleDownload(selectedVideo.videoUrl, `kling-multi-i2v-${selectedVideo.id}.mp4`)}
-                  className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 via-purple-500 to-pink-600 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5"
+                  type="button"
+                  onClick={() => setShowHistoryModal(false)}
+                  className="rounded-full bg-white/10 p-2 text-slate-100 hover:bg-white/20 transition"
                 >
-                  <Download className="w-4 h-4" />
-                  Download Video
+                  <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              <div className="p-6">
+                {generationHistory.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                    <Clock className="w-12 h-12 mb-4 opacity-50" />
+                    <p className="text-lg">No generation history yet</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    {generationHistory.map((video) => (
+                      <div
+                        key={video.id}
+                        role="button"
+                        aria-label="Open video"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (video.videoUrl) {
+                            openVideoModal(video);
+                            setShowHistoryModal(false);
+                          }
+                        }}
+                        className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 cursor-pointer transition hover:border-violet-400/50 hover:shadow-lg hover:shadow-violet-900/20"
+                      >
+                        {video.videoUrl ? (
+                          <video
+                            data-role="preview"
+                            preload="metadata"
+                            src={video.videoUrl}
+                            className="w-full aspect-video object-cover pointer-events-none"
+                            controlsList="nodownload noplaybackrate noremoteplayback"
+                          />
+                        ) : (
+                          <div className="w-full aspect-video flex items-center justify-center bg-slate-800/50">
+                            <div className="text-center text-slate-400">
+                              <Video className="w-8 h-8 mx-auto mb-2" />
+                              <p className="text-xs">Processing...</p>
+                            </div>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3 text-white transform translate-y-full group-hover:translate-y-0 transition">
+                          <p className="text-xs font-medium line-clamp-2 mb-1">{video.prompt || "Multi-image"}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-300">
+                            <span>{video.imageCount} imgs</span>
+                            <span>•</span>
+                            <span>{video.duration}s</span>
+                            <span>•</span>
+                            <span>{video.aspectRatio || "16:9"}</span>
+                          </div>
+                        </div>
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
+                          <div className="rounded-full bg-violet-500/20 backdrop-blur-sm px-2 py-1 text-[10px] text-violet-200 border border-violet-400/30">
+                            {video.status === "completed" ? "✓ Ready" : "Processing"}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>,

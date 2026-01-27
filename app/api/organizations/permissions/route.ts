@@ -99,6 +99,7 @@ export async function GET(req: NextRequest) {
           hasAnalyticsTab: false,
           hasFeedTab: false,
           hasMarketplaceTab: false,
+          hasReferenceBank: false,
           // No generate features
           canTextToImage: false,
           canImageToVideo: false,

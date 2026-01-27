@@ -16,20 +16,31 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, description, instagramUsername, profileImageUrl, isDefault } = body;
+    const { name, description, instagramUsername, profileImageUrl, isDefault, shareWithOrganization } = body;
 
-    // Verify profile belongs to user
-    const existingProfile = await prisma.instagramProfile.findFirst({
-      where: {
-        id,
-        clerkId: userId,
-      },
+    // Get user's current organization
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { currentOrganizationId: true },
+    });
+
+    // Verify profile belongs to user (creator of the profile)
+    const existingProfile = await prisma.instagramProfile.findUnique({
+      where: { id },
     });
 
     if (!existingProfile) {
       return NextResponse.json(
         { error: 'Profile not found' },
         { status: 404 }
+      );
+    }
+
+    // Only the creator can edit the profile
+    if (existingProfile.clerkId !== userId) {
+      return NextResponse.json(
+        { error: 'You do not have permission to edit this profile' },
+        { status: 403 }
       );
     }
 
@@ -54,6 +65,9 @@ export async function PATCH(
         ...(instagramUsername !== undefined && { instagramUsername: instagramUsername?.trim() || null }),
         ...(profileImageUrl !== undefined && { profileImageUrl: profileImageUrl || null }),
         ...(isDefault !== undefined && { isDefault }),
+        ...(shareWithOrganization !== undefined && {
+          organizationId: shareWithOrganization && user?.currentOrganizationId ? user.currentOrganizationId : null
+        }),
       },
     });
 

@@ -703,19 +703,52 @@ export function VaultContent() {
       const JSZip = (await import('jszip')).default;
       const zip = new JSZip();
       
-      const selectedFiles = vaultItems.filter(item => selectedItems.has(item.id));
+      // Get the correct items source based on current view
+      const itemsSource = isViewingCreators 
+        ? contentCreatorItems 
+        : (selectedSharedFolder ? sharedFolderItems : vaultItems);
       
-      const promises = selectedFiles.map(async (item) => {
-        try {
-          const response = await fetch(item.awsS3Url);
-          const blob = await response.blob();
-          zip.file(item.fileName, blob);
-        } catch (error) {
-          console.error(`Failed to download ${item.fileName}:`, error);
-        }
-      });
+      const selectedFiles = itemsSource.filter(item => selectedItems.has(item.id));
       
-      await Promise.all(promises);
+      let successCount = 0;
+      let failCount = 0;
+      
+      // Process files in batches to avoid overwhelming the browser
+      const batchSize = 5;
+      for (let i = 0; i < selectedFiles.length; i += batchSize) {
+        const batch = selectedFiles.slice(i, i + batchSize);
+        
+        const promises = batch.map(async (item) => {
+          try {
+            // Use proxy endpoint to avoid CORS issues
+            const response = await fetch('/api/vault/proxy-download', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ url: item.awsS3Url }),
+            });
+            
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+              throw new Error(error.error || `HTTP ${response.status}`);
+            }
+            
+            const blob = await response.blob();
+            zip.file(item.fileName, blob);
+            successCount++;
+          } catch (error: any) {
+            console.error(`Failed to download ${item.fileName}:`, error);
+            failCount++;
+          }
+        });
+        
+        await Promise.all(promises);
+      }
+      
+      if (successCount === 0) {
+        throw new Error('Failed to download any files. Please check your connection and try again.');
+      }
       
       const content = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(content);
@@ -727,10 +760,14 @@ export function VaultContent() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      showToast(`Downloaded ${selectedFiles.length} file(s)`, "success");
-    } catch (error) {
+      if (failCount > 0) {
+        showToast(`Downloaded ${successCount} of ${selectedFiles.length} file(s)`, 'info');
+      } else {
+        showToast(`Downloaded ${successCount} file(s)`, 'success');
+      }
+    } catch (error: any) {
       console.error("Error creating zip:", error);
-      showToast("Failed to create ZIP file", "error");
+      showToast(error.message || "Failed to create ZIP file", "error");
     } finally {
       setIsDownloading(false);
     }
@@ -1351,6 +1388,116 @@ export function VaultContent() {
     
     // Navigate to SeeDream Image-to-Video page
     router.push('/workspace/generate-content/seedream-image-to-video');
+  };
+
+  // Handle reuse in Kling T2V - stores data in sessionStorage and navigates
+  const handleReuseInKlingT2V = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      negativePrompt: item.metadata.negativePrompt || '',
+      model: item.metadata.model || 'kling-v1-6',
+      mode: item.metadata.mode || 'std',
+      duration: item.metadata.duration || '5',
+      aspectRatio: item.metadata.aspectRatio || '16:9',
+      cfgScale: item.metadata.cfgScale || 0.5,
+      sound: item.metadata.sound || 'off',
+      cameraControl: item.metadata.cameraControl || null,
+    };
+    
+    // Store in sessionStorage for the Kling T2V page to pick up
+    sessionStorage.setItem('kling-t2v-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to Kling Text-to-Video page
+    router.push('/workspace/generate-content/kling-text-to-video');
+  };
+
+  // Handle reuse in Kling I2V - stores data in sessionStorage and navigates
+  const handleReuseInKlingI2V = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      negativePrompt: item.metadata.negativePrompt || '',
+      model: item.metadata.model || 'kling-v1-6',
+      mode: item.metadata.mode || 'std',
+      duration: item.metadata.duration || '5',
+      cfgScale: item.metadata.cfgScale || 0.5,
+      sound: item.metadata.sound || 'off',
+      imageMode: item.metadata.imageMode || 'normal',
+      cameraControl: item.metadata.cameraControl || null,
+      referenceImageUrl: item.metadata.referenceImageUrl || null, // Use the original reference image from metadata, not the video URL
+    };
+    
+    // Store in sessionStorage for the Kling I2V page to pick up
+    sessionStorage.setItem('kling-i2v-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to Kling Image-to-Video page
+    router.push('/workspace/generate-content/kling-image-to-video');
+  };
+
+  // Handle reuse in Kling Motion Control - stores data in sessionStorage and navigates
+  const handleReuseInKlingMotionControl = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      mode: item.metadata.mode || 'std',
+      characterOrientation: item.metadata.character_orientation || 'image',
+      keepOriginalSound: item.metadata.keep_original_sound === 'yes',
+      imageUrl: item.metadata.imageUrl || null, // Reference image URL
+      referenceVideoUrl: item.metadata.referenceVideoUrl || null, // Reference video URL
+    };
+    
+    // Store in sessionStorage for the Kling Motion Control page to pick up
+    sessionStorage.setItem('kling-motion-control-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to Kling Motion Control page
+    router.push('/workspace/generate-content/kling-motion-control');
+  };
+
+  // Handle reuse in Kling Multi-Image to Video - stores data in sessionStorage and navigates
+  const handleReuseInKlingMultiI2V = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      negativePrompt: item.metadata.negativePrompt || '',
+      model: item.metadata.model || 'kling-v1-6',
+      mode: item.metadata.mode || 'std',
+      duration: item.metadata.duration || '5',
+      aspectRatio: item.metadata.aspectRatio || '16:9',
+      cfgScale: item.metadata.cfgScale || 0.5,
+      imageCount: item.metadata.imageCount || 0,
+      sourceImageUrls: item.metadata.sourceImageUrls || [],
+    };
+    
+    // Store in sessionStorage for the Kling Multi-I2V page to pick up
+    sessionStorage.setItem('kling-multi-i2v-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to Kling Multi-Image to Video page
+    router.push('/workspace/generate-content/kling-multi-image-to-video');
   };
 
   // All filtered items (not paginated)
@@ -2002,6 +2149,46 @@ export function VaultContent() {
                 title="Reuse settings in SeeDream I2V"
               >
                 <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+              </button>
+            )}
+            {/* Reuse in Kling T2V button - only for kling-t2v source items */}
+            {previewItem.metadata?.source === 'kling-t2v' && (
+              <button 
+                onClick={() => handleReuseInKlingT2V(previewItem)}
+                className="p-1.5 sm:p-2 bg-violet-500/20 hover:bg-violet-500/30 rounded-full transition-colors"
+                title="Reuse settings in Kling T2V"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
+              </button>
+            )}
+            {/* Reuse in Kling I2V button - only for kling-i2v source items */}
+            {previewItem.metadata?.source === 'kling-i2v' && (
+              <button 
+                onClick={() => handleReuseInKlingI2V(previewItem)}
+                className="p-1.5 sm:p-2 bg-violet-500/20 hover:bg-violet-500/30 rounded-full transition-colors"
+                title="Reuse settings in Kling I2V"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
+              </button>
+            )}
+            {/* Reuse in Kling Motion Control button - only for kling-motion-control source items */}
+            {previewItem.metadata?.source === 'kling-motion-control' && (
+              <button 
+                onClick={() => handleReuseInKlingMotionControl(previewItem)}
+                className="p-1.5 sm:p-2 bg-violet-500/20 hover:bg-violet-500/30 rounded-full transition-colors"
+                title="Reuse settings in Kling Motion Control"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
+              </button>
+            )}
+            {/* Reuse in Kling Multi-I2V button - only for kling-multi-i2v source items */}
+            {previewItem.metadata?.source === 'kling-multi-i2v' && (
+              <button 
+                onClick={() => handleReuseInKlingMultiI2V(previewItem)}
+                className="p-1.5 sm:p-2 bg-violet-500/20 hover:bg-violet-500/30 rounded-full transition-colors"
+                title="Reuse settings in Kling Multi-Image to Video"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
               </button>
             )}
             <a href={previewItem.awsS3Url} download={previewItem.fileName} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></a>

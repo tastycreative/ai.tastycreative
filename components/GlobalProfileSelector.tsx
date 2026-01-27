@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useInstagramProfile, Profile } from '@/hooks/useInstagramProfile';
-import { ChevronDown, User, Check, Plus, Instagram, Loader2, Sparkles, Star, Users, ChevronUp } from 'lucide-react';
+import { ChevronDown, User, Check, Plus, Instagram, Loader2, Sparkles, Star, Users, ChevronUp, Building2 } from 'lucide-react';
 import Link from 'next/link';
 
 export function GlobalProfileSelector() {
@@ -161,10 +161,18 @@ export function GlobalProfileSelector() {
             <p className="text-sm font-semibold text-white truncate">
               {selectedProfile?.name || 'Select Profile'}
             </p>
-            <Sparkles className="w-3 h-3 text-amber-400 flex-shrink-0" />
+            {selectedProfile?.organization ? (
+              <Building2 className="w-3 h-3 text-blue-400 flex-shrink-0" />
+            ) : (
+              <Sparkles className="w-3 h-3 text-amber-400 flex-shrink-0" />
+            )}
           </div>
           <p className="text-[11px] text-white/40 truncate">
-            {selectedProfile?.instagramUsername ? `@${selectedProfile.instagramUsername}` : 'Active Creator'}
+            {selectedProfile?.instagramUsername
+              ? `@${selectedProfile.instagramUsername}`
+              : selectedProfile?.organization
+                ? `Shared · ${selectedProfile.organization.name}`
+                : 'Active Creator'}
           </p>
         </div>
         
@@ -241,7 +249,7 @@ export function GlobalProfileSelector() {
                 
                 {/* Profile Info */}
                 <div className="flex-1 text-left min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <p className={`font-medium text-sm truncate ${
                       profile.id === profileId ? 'text-white' : 'text-white/80'
                     }`}>
@@ -253,12 +261,22 @@ export function GlobalProfileSelector() {
                         DEFAULT
                       </span>
                     )}
+                    {profile.organization && (
+                      <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-full font-semibold border border-blue-500/30">
+                        <Building2 className="w-2 h-2" />
+                        SHARED
+                      </span>
+                    )}
                   </div>
-                  {profile.instagramUsername && (
+                  {profile.instagramUsername ? (
                     <p className="text-[10px] text-white/40 truncate">
                       @{profile.instagramUsername}
                     </p>
-                  )}
+                  ) : profile.organization ? (
+                    <p className="text-[10px] text-blue-400/60 truncate">
+                      {profile.organization.name}
+                    </p>
+                  ) : null}
                 </div>
                 
                 {/* Selected Check */}

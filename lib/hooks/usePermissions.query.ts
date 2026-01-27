@@ -15,6 +15,7 @@ export interface Permissions {
   hasAnalyticsTab: boolean;
   hasFeedTab: boolean;
   hasMarketplaceTab: boolean;
+  hasReferenceBank: boolean;
 
   // Generate Features
   canTextToImage: boolean;
@@ -116,6 +117,7 @@ const LOADING_PERMISSIONS: Permissions = {
   hasAnalyticsTab: false,
   hasFeedTab: false,
   hasMarketplaceTab: false,
+  hasReferenceBank: false,
   canTextToImage: false,
   canImageToVideo: false,
   canImageToImage: false,
