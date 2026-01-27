@@ -117,7 +117,7 @@ export default function DashboardLayout({
     },
     {
       name: "OF Models",
-      href: "/workspace/of-models",
+      href: "/of-models",
       icon: UserCheck,
     },
     {
