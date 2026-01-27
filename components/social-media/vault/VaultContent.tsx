@@ -503,8 +503,8 @@ export function VaultContent() {
   // Router for navigation
   const router = useRouter();
   
-  // Use global profile selector
-  const { profileId: globalProfileId, profiles: globalProfiles, loadingProfiles } = useInstagramProfile();
+  // Use global profile selector - now includes isAllProfiles
+  const { profileId: globalProfileId, profiles: globalProfiles, loadingProfiles, isAllProfiles } = useInstagramProfile();
   
   // Admin state
   const { isAdmin, loading: adminLoading } = useIsAdmin();
@@ -525,8 +525,8 @@ export function VaultContent() {
   const [creatorProfiles, setCreatorProfiles] = useState<Array<{ id: string; name: string; instagramUsername?: string | null }>>([]);
   const [selectedCreatorFolderId, setSelectedCreatorFolderId] = useState<string | null>(null);
   
-  // Local state derived from global profile
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  // Local state derived from global profile - sync with global selector
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(globalProfileId);
   const profiles = useMemo(() => 
     [...globalProfiles].sort((a, b) => 
       (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
@@ -822,6 +822,7 @@ export function VaultContent() {
   useEffect(() => {
     if (globalProfileId && globalProfileId !== selectedProfileId) {
       setSelectedProfileId(globalProfileId);
+      setSelectedFolderId(null); // Reset folder selection when profile changes
       setSelectedSharedFolder(null);
       setSharedFolderItems([]);
     }
@@ -833,6 +834,7 @@ export function VaultContent() {
       const newProfileId = event.detail.profileId;
       if (newProfileId && newProfileId !== selectedProfileId) {
         setSelectedProfileId(newProfileId);
+        setSelectedFolderId(null); // Reset folder selection when profile changes
         setSelectedSharedFolder(null);
         setSharedFolderItems([]);
       }
@@ -843,7 +845,10 @@ export function VaultContent() {
   }, [selectedProfileId]);
 
   useEffect(() => {
-    if (selectedProfileId) {
+    if (selectedProfileId === 'all') {
+      // When viewing all profiles, load all folders
+      loadAllFolders();
+    } else if (selectedProfileId) {
       loadFolders();
     }
   }, [selectedProfileId]);
@@ -859,13 +864,13 @@ export function VaultContent() {
   }, [profiles]);
 
   useEffect(() => {
-    if (selectedFolderId && selectedProfileId) {
+    if (selectedProfileId === 'all' || (selectedFolderId && selectedProfileId)) {
       loadItems();
     }
   }, [selectedFolderId, selectedProfileId, folders]);
 
   const loadFolders = async () => {
-    if (!selectedProfileId) return;
+    if (!selectedProfileId || selectedProfileId === 'all') return;
 
     try {
       const response = await fetch(`/api/vault/folders?profileId=${selectedProfileId}`);
@@ -891,6 +896,10 @@ export function VaultContent() {
 
       const data = await response.json();
       setAllFolders(data);
+      // When viewing all profiles, also set folders for display
+      if (selectedProfileId === 'all') {
+        setFolders(data);
+      }
     } catch (error) {
       console.error("Error loading all folders:", error);
     }
@@ -922,6 +931,28 @@ export function VaultContent() {
   };
 
   const loadItems = async () => {
+    // When viewing all profiles, we need either a selected folder or just load all items
+    if (selectedProfileId === 'all') {
+      // Load all items across all profiles
+      setLoadingItems(true);
+      try {
+        const response = await fetch('/api/vault/items');
+        if (!response.ok) throw new Error("Failed to load items");
+
+        const data = await response.json();
+        setVaultItems(data.map((item: any) => ({
+          ...item,
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+        })));
+      } catch (error) {
+        console.error("Error loading items:", error);
+      } finally {
+        setLoadingItems(false);
+      }
+      return;
+    }
+    
     if (!selectedFolderId || !selectedProfileId) return;
 
     setLoadingItems(true);
@@ -1339,6 +1370,72 @@ export function VaultContent() {
     router.push('/workspace/generate-content/seedream-text-to-image');
   };
 
+  // Handle reuse in FLUX T2I - stores data in sessionStorage and navigates
+  const handleReuseInFluxT2I = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data matching the format expected by the FLUX T2I page
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      negativePrompt: item.metadata.negativePrompt || '',
+      width: item.metadata.width || 832,
+      height: item.metadata.height || 1216,
+      steps: item.metadata.steps || 40,
+      cfg: item.metadata.cfg || 1,
+      guidance: item.metadata.guidance || 4,
+      samplerName: item.metadata.samplerName || 'euler',
+      scheduler: item.metadata.scheduler || 'beta',
+      seed: item.metadata.seed || null,
+      loras: item.metadata.loras || [],
+    };
+    
+    // Store in sessionStorage for the FLUX T2I page to pick up
+    sessionStorage.setItem('flux-t2i-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to FLUX Text-to-Image page
+    router.push('/workspace/generate-content/text-to-image');
+  };
+
+  // Handle reuse in FLUX Style Transfer - stores data in sessionStorage and navigates
+  const handleReuseInFluxStyleTransfer = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data matching the format expected by the FLUX Style Transfer page
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      width: item.metadata.width || 832,
+      height: item.metadata.height || 1216,
+      steps: item.metadata.steps || 40,
+      cfg: item.metadata.cfg || 1,
+      guidance: item.metadata.guidance || 3.5,
+      samplerName: item.metadata.samplerName || 'euler',
+      scheduler: item.metadata.scheduler || 'beta',
+      seed: item.metadata.seed || null,
+      loraStrength: item.metadata.loraStrength || 0.95,
+      selectedLora: item.metadata.selectedLora || 'AI MODEL 3.safetensors',
+      weight: item.metadata.weight || 0.8,
+      mode: item.metadata.mode || 'center crop (square)',
+      downsamplingFactor: item.metadata.downsamplingFactor || 1,
+      downsamplingFunction: item.metadata.downsamplingFunction || 'area',
+      autocropMargin: item.metadata.autocropMargin || 0.1,
+      referenceImageUrl: item.metadata.referenceImageUrl || null,
+    };
+    
+    // Store in sessionStorage for the FLUX Style Transfer page to pick up
+    sessionStorage.setItem('flux-style-transfer-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to FLUX Style Transfer page
+    router.push('/workspace/generate-content/style-transfer');
+  };
+
   // Handle reuse in SeeDream T2V - stores data in sessionStorage and navigates
   const handleReuseInSeeDreamT2V = (item: VaultItem) => {
     if (!item.metadata) return;
@@ -1571,11 +1668,32 @@ export function VaultContent() {
 
     const currentFolder = folders.find(f => f.id === selectedFolderId);
     const isDefaultFolder = currentFolder?.isDefault === true;
+    const viewingAllProfiles = selectedProfileId === 'all';
 
     return vaultItems
       .filter((item) => {
-        if (item.profileId !== selectedProfileId) return false;
-        if (!isDefaultFolder && item.folderId !== selectedFolderId) return false;
+        // When viewing all profiles with no folder selected, show all items
+        if (viewingAllProfiles && !selectedFolderId) return true;
+        
+        // When viewing all profiles with a folder selected
+        if (viewingAllProfiles && selectedFolderId) {
+          // If it's a default folder (like "All Media"), show all items from that profile
+          if (isDefaultFolder && currentFolder) {
+            return item.profileId === currentFolder.profileId;
+          }
+          // Otherwise filter by the specific folder
+          return item.folderId === selectedFolderId;
+        }
+        
+        // When viewing a specific profile
+        if (!viewingAllProfiles) {
+          if (item.profileId !== selectedProfileId) return false;
+          // Default folder shows all items from that profile
+          if (isDefaultFolder) return true;
+          // Non-default folder shows only items in that folder
+          return item.folderId === selectedFolderId;
+        }
+        
         return true;
       })
       .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
@@ -1701,25 +1819,38 @@ export function VaultContent() {
     }
   }, [hasMoreItems, loadMoreItems]);
 
-  const visibleFolders = folders.filter((folder) => folder.profileId === selectedProfileId);
-  const selectedProfile = profiles.find((p) => p.id === selectedProfileId) || null;
+  // isAllProfiles comes from the useInstagramProfile hook
+  const visibleFolders = isAllProfiles 
+    ? folders 
+    : folders.filter((folder) => folder.profileId === selectedProfileId);
+  const selectedProfile = isAllProfiles 
+    ? { id: 'all', name: 'All Profiles', instagramUsername: null, isDefault: false } as InstagramProfile
+    : profiles.find((p) => p.id === selectedProfileId) || null;
   const selectedFolder = selectedSharedFolder 
     ? { id: selectedSharedFolder.folderId, name: selectedSharedFolder.folderName, profileId: selectedSharedFolder.profileId, isDefault: selectedSharedFolder.isDefault }
     : visibleFolders.find((folder) => folder.id === selectedFolderId) || null;
+  
+  // Helper to get profile name for a folder
+  const getProfileNameForFolder = (profileId: string) => {
+    const profile = profiles.find(p => p.id === profileId);
+    return profile?.name || 'Unknown';
+  };
   
   const isViewingShared = selectedSharedFolder !== null;
   const isViewingCreators = isAdmin && adminViewMode === 'creators';
   const canEdit = (!isViewingShared && !isViewingCreators) || selectedSharedFolder?.permission === 'EDIT';
 
-  const totalItems = vaultItems.filter(item => item.profileId === selectedProfileId).length;
-  const totalSize = vaultItems
-    .filter(item => item.profileId === selectedProfileId)
-    .reduce((acc, item) => acc + item.fileSize, 0);
+  const totalItems = isAllProfiles 
+    ? vaultItems.length 
+    : vaultItems.filter(item => item.profileId === selectedProfileId).length;
+  const totalSize = isAllProfiles
+    ? vaultItems.reduce((acc, item) => acc + item.fileSize, 0)
+    : vaultItems.filter(item => item.profileId === selectedProfileId).reduce((acc, item) => acc + item.fileSize, 0);
   const imageCount = vaultItems.filter(item => 
-    item.profileId === selectedProfileId && item.fileType.startsWith('image/')
+    (isAllProfiles || item.profileId === selectedProfileId) && item.fileType.startsWith('image/')
   ).length;
   const videoCount = vaultItems.filter(item => 
-    item.profileId === selectedProfileId && item.fileType.startsWith('video/')
+    (isAllProfiles || item.profileId === selectedProfileId) && item.fileType.startsWith('video/')
   ).length;
 
   // Creator items stats
@@ -2131,6 +2262,26 @@ export function VaultContent() {
                 <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
               </button>
             )}
+            {/* Reuse in FLUX T2I button - only for flux-t2i source items */}
+            {previewItem.metadata?.source === 'flux-t2i' && (
+              <button 
+                onClick={() => handleReuseInFluxT2I(previewItem)}
+                className="p-1.5 sm:p-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-full transition-colors"
+                title="Reuse settings in FLUX T2I"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-purple-400" />
+              </button>
+            )}
+            {/* Reuse in FLUX Style Transfer button - only for flux-style-transfer source items */}
+            {previewItem.metadata?.source === 'flux-style-transfer' && (
+              <button 
+                onClick={() => handleReuseInFluxStyleTransfer(previewItem)}
+                className="p-1.5 sm:p-2 bg-pink-500/20 hover:bg-pink-500/30 rounded-full transition-colors"
+                title="Reuse settings in FLUX Style Transfer"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-pink-400" />
+              </button>
+            )}
             {/* Reuse in SeeDream T2V button - only for seedream-t2v source items */}
             {previewItem.metadata?.source === 'seedream-t2v' && (
               <button 
@@ -2380,14 +2531,28 @@ export function VaultContent() {
             </div>
           )}
 
-          {/* Current Profile Display (read-only, controlled by global selector) */}
-          {selectedProfile && adminViewMode === 'personal' && (
+          {/* Current Profile Display - controlled by global sidebar selector */}
+          {adminViewMode === 'personal' && selectedProfileId && (
             <div className="px-4 py-3 border-b border-white/[0.06]">
               <div className="flex items-center gap-3 px-3 py-2.5 bg-white/5 rounded-xl">
-                <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg flex items-center justify-center">
-                  <span className="text-sm font-medium text-white">{selectedProfile?.name?.charAt(0) || '?'}</span>
-                </div>
-                <span className="text-sm font-medium text-gray-200 truncate">{selectedProfile?.name}</span>
+                {isAllProfiles ? (
+                  <>
+                    <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center">
+                      <FolderOpen className="w-4 h-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-gray-200 truncate block">All Profiles</span>
+                      <span className="text-[10px] text-gray-500">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-lg flex items-center justify-center">
+                      <span className="text-sm font-medium text-white">{selectedProfile?.name?.charAt(0) || '?'}</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-200 truncate">{selectedProfile?.name}</span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -2397,7 +2562,7 @@ export function VaultContent() {
               <>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Folders</span>
-                  <button onClick={() => setShowNewFolderInput(true)} disabled={!selectedProfileId} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50">
+                  <button onClick={() => setShowNewFolderInput(true)} disabled={!selectedProfileId || isAllProfiles} className="p-1.5 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50" title={isAllProfiles ? 'Select a specific profile to create folders' : undefined}>
                     <Plus className="w-4 h-4 text-gray-400" />
                   </button>
                 </div>
@@ -2411,36 +2576,94 @@ export function VaultContent() {
                 )}
 
                 <div className="space-y-1">
-                  {visibleFolders.map((folder) => {
-                    const isActive = folder.id === selectedFolderId && !selectedSharedFolder && adminViewMode === 'personal';
-                    const itemCount = folder.isDefault ? vaultItems.filter((item) => item.profileId === selectedProfileId).length : vaultItems.filter((item) => item.folderId === folder.id && item.profileId === selectedProfileId).length;
-                    return (
-                      <div key={folder.id} className="group">
-                        {editingFolderId === folder.id ? (
-                          <div className="flex items-center gap-2 px-2">
-                            <input value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" />
-                            <button onClick={handleUpdateFolder} className="p-1.5 text-emerald-400"><Check className="w-4 h-4" /></button>
-                            <button onClick={() => { setEditingFolderId(null); setEditingFolderName(''); }} className="p-1.5 text-gray-500"><X className="w-4 h-4" /></button>
-                          </div>
-                        ) : (
-                          <div onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolder(null); setSharedFolderItems([]); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'}`}>
-                            {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
-                            <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>{itemCount}</span>
-                            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
-                              <button onClick={(e) => { e.stopPropagation(); handleOpenShareModal(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Share"><Share2 className="w-3.5 h-3.5 text-gray-500" /></button>
-                              {!folder.isDefault && (
-                                <>
-                                  <button onClick={(e) => { e.stopPropagation(); startEditFolder(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Rename"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
-                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="p-1 hover:bg-white/10 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
-                                </>
-                              )}
+                  {/* Group folders by profile when viewing all profiles */}
+                  {isAllProfiles ? (
+                    // Group folders by profile
+                    profiles.map(profile => {
+                      const profileFolders = visibleFolders.filter(f => f.profileId === profile.id);
+                      if (profileFolders.length === 0) return null;
+                      
+                      return (
+                        <div key={profile.id} className="mb-3">
+                          <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500 border-b border-white/5 mb-1">
+                            <div className="w-5 h-5 bg-gradient-to-br from-violet-500/50 to-fuchsia-500/50 rounded flex items-center justify-center">
+                              <span className="text-[10px] font-medium text-white">{profile.name?.charAt(0) || '?'}</span>
                             </div>
+                            <span className="truncate font-medium">{profile.name}</span>
+                            {profile.instagramUsername && (
+                              <span className="text-gray-600">@{profile.instagramUsername}</span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          <div className="space-y-1 pl-2">
+                            {profileFolders.map((folder) => {
+                              const isActive = folder.id === selectedFolderId && !selectedSharedFolder && adminViewMode === 'personal';
+                              const itemCount = folder.isDefault 
+                                ? vaultItems.filter((item) => item.profileId === folder.profileId).length 
+                                : vaultItems.filter((item) => item.folderId === folder.id).length;
+                              return (
+                                <div key={folder.id} className="group">
+                                  {editingFolderId === folder.id ? (
+                                    <div className="flex items-center gap-2 px-2">
+                                      <input value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" />
+                                      <button onClick={handleUpdateFolder} className="p-1.5 text-emerald-400"><Check className="w-4 h-4" /></button>
+                                      <button onClick={() => { setEditingFolderId(null); setEditingFolderName(''); }} className="p-1.5 text-gray-500"><X className="w-4 h-4" /></button>
+                                    </div>
+                                  ) : (
+                                    <div onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolder(null); setSharedFolderItems([]); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'}`}>
+                                      {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
+                                      <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
+                                      <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>{itemCount}</span>
+                                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                                        <button onClick={(e) => { e.stopPropagation(); handleOpenShareModal(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Share"><Share2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                                        {!folder.isDefault && (
+                                          <>
+                                            <button onClick={(e) => { e.stopPropagation(); startEditFolder(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Rename"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="p-1 hover:bg-white/10 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    // Single profile view - original behavior
+                    visibleFolders.map((folder) => {
+                      const isActive = folder.id === selectedFolderId && !selectedSharedFolder && adminViewMode === 'personal';
+                      const itemCount = folder.isDefault ? vaultItems.filter((item) => item.profileId === selectedProfileId).length : vaultItems.filter((item) => item.folderId === folder.id && item.profileId === selectedProfileId).length;
+                      return (
+                        <div key={folder.id} className="group">
+                          {editingFolderId === folder.id ? (
+                            <div className="flex items-center gap-2 px-2">
+                              <input value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" />
+                              <button onClick={handleUpdateFolder} className="p-1.5 text-emerald-400"><Check className="w-4 h-4" /></button>
+                              <button onClick={() => { setEditingFolderId(null); setEditingFolderName(''); }} className="p-1.5 text-gray-500"><X className="w-4 h-4" /></button>
+                            </div>
+                          ) : (
+                            <div onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolder(null); setSharedFolderItems([]); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'}`}>
+                              {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
+                              <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>{itemCount}</span>
+                              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                                <button onClick={(e) => { e.stopPropagation(); handleOpenShareModal(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Share"><Share2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                                {!folder.isDefault && (
+                                  <>
+                                    <button onClick={(e) => { e.stopPropagation(); startEditFolder(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Rename"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="p-1 hover:bg-white/10 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
 
                 {sharedFolders.length > 0 && (
@@ -2587,7 +2810,9 @@ export function VaultContent() {
           {/* Storage Stats Footer */}
           {adminViewMode === 'personal' && selectedProfileId && (
             <div className="p-4 border-t border-white/[0.06]">
-              <div className="text-xs text-gray-400 mb-2">Storage used</div>
+              <div className="text-xs text-gray-400 mb-2">
+                {isAllProfiles ? 'Total storage (all profiles)' : 'Storage used'}
+              </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-lg font-semibold text-white">{formatFileSize(totalSize)}</span>
               </div>
@@ -2595,6 +2820,7 @@ export function VaultContent() {
                 <span className="flex items-center gap-1"><ImageIcon className="w-3 h-3" /> {imageCount}</span>
                 <span className="flex items-center gap-1"><VideoIcon className="w-3 h-3" /> {videoCount}</span>
                 <span className="flex items-center gap-1"><FileIcon className="w-3 h-3" /> {totalItems}</span>
+                {isAllProfiles && <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {profiles.length} profiles</span>}
               </div>
             </div>
           )}
@@ -2613,10 +2839,12 @@ export function VaultContent() {
                   ? (selectedContentCreator 
                       ? `${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Creator Files'
                       : 'All Creator Files')
-                  : (selectedFolder?.name || 'Select a folder')}
+                  : isAllProfiles 
+                    ? (selectedFolder ? `${selectedFolder.name}` : 'All Profiles')
+                    : (selectedFolder?.name || 'Select a folder')}
               </h1>
               {!isViewingShared && !isViewingCreators && (
-                <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || !selectedFolderId} className="p-2 bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white rounded-xl transition-colors disabled:opacity-50 shadow-lg shadow-violet-500/25">
+                <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="p-2 bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white rounded-xl transition-colors disabled:opacity-50 shadow-lg shadow-violet-500/25" title={selectedProfileId === 'all' ? 'Select a specific profile to upload' : undefined}>
                   <Upload className="w-5 h-5" />
                 </button>
               )}
@@ -2640,8 +2868,15 @@ export function VaultContent() {
                     ? (selectedContentCreator 
                         ? `${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Creator Files'
                         : 'All Creator Files')
-                    : (selectedFolder?.name || 'Select a folder')}
+                    : isAllProfiles 
+                      ? (selectedFolder ? `${selectedFolder.name} (${getProfileNameForFolder(selectedFolder.profileId)})` : 'All Profiles')
+                      : (selectedFolder?.name || 'Select a folder')}
                 </h1>
+                {isAllProfiles && !selectedFolder && (
+                  <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5">
+                    <Users className="w-3.5 h-3.5" /> Viewing all {profiles.length} profiles
+                  </p>
+                )}
                 {isViewingShared && selectedSharedFolder && (
                   <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5">
                     <Share2 className="w-3.5 h-3.5" /> Shared by {selectedSharedFolder.sharedBy}
@@ -2666,7 +2901,7 @@ export function VaultContent() {
                   <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
                 </div>
                 {!isViewingShared && !isViewingCreators && (
-                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || !selectedFolderId} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25">
+                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25" title={selectedProfileId === 'all' ? 'Select a specific profile to upload' : undefined}>
                     <Upload className="w-4 h-4" /> Upload
                   </button>
                 )}
@@ -2786,8 +3021,10 @@ export function VaultContent() {
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
                 <div className="w-16 h-16 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 rounded-2xl flex items-center justify-center mb-4 border border-violet-500/30"><FileIcon className="w-8 h-8 text-violet-400" /></div>
                 <h3 className="text-lg font-medium text-white mb-1">No files yet</h3>
-                <p className="text-sm text-gray-400 mb-4">Upload some files to get started</p>
-                {!isViewingShared && !isViewingCreators && <button onClick={() => setIsAddingNew(true)} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-violet-500/25"><Upload className="w-4 h-4" /> Upload files</button>}
+                <p className="text-sm text-gray-400 mb-4">
+                  {isAllProfiles ? 'Select a specific profile to upload files' : 'Upload some files to get started'}
+                </p>
+                {!isViewingShared && !isViewingCreators && !isAllProfiles && <button onClick={() => setIsAddingNew(true)} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-violet-500/25"><Upload className="w-4 h-4" /> Upload files</button>}
               </div>
             ) : viewMode === 'grid' ? (
               <>

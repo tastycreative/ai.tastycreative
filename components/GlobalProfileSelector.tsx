@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useInstagramProfile, Profile } from '@/hooks/useInstagramProfile';
-import { ChevronDown, User, Check, Plus, Instagram, Loader2, Sparkles, Star, Users, ChevronUp, Building2 } from 'lucide-react';
+import { useInstagramProfile, Profile, ALL_PROFILES_OPTION } from '@/hooks/useInstagramProfile';
+import { ChevronDown, User, Check, Plus, Instagram, Loader2, Sparkles, Star, Users, ChevronUp, Building2, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 
 export function GlobalProfileSelector() {
@@ -13,6 +13,7 @@ export function GlobalProfileSelector() {
     profiles,
     selectedProfile,
     loadingProfiles,
+    isAllProfiles,
   } = useInstagramProfile();
 
   // Sort profiles by name
@@ -76,7 +77,7 @@ export function GlobalProfileSelector() {
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
 
-  const handleProfileSelect = (profile: Profile) => {
+  const handleProfileSelect = (profile: Profile | typeof ALL_PROFILES_OPTION) => {
     setProfileId(profile.id);
     setIsOpen(false);
     
@@ -139,7 +140,11 @@ export function GlobalProfileSelector() {
             w-11 h-11 rounded-xl overflow-hidden transition-all
             ${isOpen ? 'ring-2 ring-violet-400/40' : 'ring-1 ring-white/10 group-hover:ring-white/20'}
           `}>
-            {selectedProfile?.profileImageUrl ? (
+            {isAllProfiles ? (
+              <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                <FolderOpen className="w-5 h-5 text-white" />
+              </div>
+            ) : selectedProfile?.profileImageUrl ? (
               <img
                 src={selectedProfile.profileImageUrl}
                 alt={selectedProfile.name}
@@ -151,8 +156,10 @@ export function GlobalProfileSelector() {
               </div>
             )}
           </div>
-          {/* Online indicator */}
-          <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-[#0d0d12]" />
+          {/* Online indicator - hide for All Profiles */}
+          {!isAllProfiles && (
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-[#0d0d12]" />
+          )}
         </div>
         
         {/* Profile Info */}
@@ -163,16 +170,18 @@ export function GlobalProfileSelector() {
             </p>
             {selectedProfile?.organization ? (
               <Building2 className="w-3 h-3 text-blue-400 flex-shrink-0" />
-            ) : (
+            ) : !isAllProfiles ? (
               <Sparkles className="w-3 h-3 text-amber-400 flex-shrink-0" />
-            )}
+            ) : null}
           </div>
           <p className="text-[11px] text-white/40 truncate">
-            {selectedProfile?.instagramUsername
-              ? `@${selectedProfile.instagramUsername}`
-              : selectedProfile?.organization
-                ? `Shared · ${selectedProfile.organization.name}`
-                : 'Active Creator'}
+            {isAllProfiles 
+              ? `${profiles.length} profile${profiles.length !== 1 ? 's' : ''}`
+              : selectedProfile?.instagramUsername
+                ? `@${selectedProfile.instagramUsername}`
+                : selectedProfile?.organization
+                  ? `Shared · ${selectedProfile.organization.name}`
+                  : 'Active Creator'}
           </p>
         </div>
         
@@ -211,6 +220,62 @@ export function GlobalProfileSelector() {
           
           {/* Profile List */}
           <div className="max-h-64 overflow-y-auto py-2 px-2">
+            {/* All Profiles Option */}
+            <button
+              onClick={() => handleProfileSelect(ALL_PROFILES_OPTION)}
+              className={`
+                w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-2
+                ${isAllProfiles
+                  ? 'bg-emerald-500/15 border border-emerald-500/25'
+                  : 'hover:bg-white/5 border border-transparent'
+                }
+              `}
+            >
+              {/* All Profiles Icon */}
+              <div className="relative flex-shrink-0">
+                <div className={`
+                  w-10 h-10 rounded-xl overflow-hidden
+                  ${isAllProfiles ? 'ring-2 ring-emerald-400/40' : 'ring-1 ring-white/10'}
+                `}>
+                  <div className={`w-full h-full flex items-center justify-center ${
+                    isAllProfiles
+                      ? 'bg-gradient-to-br from-emerald-500 to-teal-500'
+                      : 'bg-gradient-to-br from-gray-600 to-gray-700'
+                  }`}>
+                    <FolderOpen className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+              </div>
+              
+              {/* All Profiles Info */}
+              <div className="flex-1 text-left min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className={`font-medium text-sm truncate ${
+                    isAllProfiles ? 'text-white' : 'text-white/80'
+                  }`}>
+                    All Profiles
+                  </p>
+                  <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full font-semibold border border-emerald-500/30">
+                    {profiles.length}
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/40 truncate">
+                  View all profile folders
+                </p>
+              </div>
+              
+              {/* Selected Check */}
+              {isAllProfiles && (
+                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-3 h-3 text-white" />
+                </div>
+              )}
+            </button>
+
+            {/* Divider */}
+            <div className="mx-2 my-2 border-t border-white/[0.06]" />
+
+            {/* Individual Profiles */}
             {sortedProfiles.map((profile) => (
               <button
                 key={profile.id}

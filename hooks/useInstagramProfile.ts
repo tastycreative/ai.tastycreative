@@ -22,13 +22,22 @@ export interface Profile {
 
 const STORAGE_KEY = 'selectedInstagramProfileId';
 
+// Special profile object for "All Profiles" selection
+export const ALL_PROFILES_OPTION: Profile = {
+  id: 'all',
+  name: 'All Profiles',
+  isDefault: false,
+};
+
 export function useInstagramProfile() {
   const { user, isLoaded } = useUser();
   const [profileId, setProfileIdState] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY);
+      // Default to 'all' if nothing stored
+      return stored || 'all';
     }
-    return null;
+    return 'all';
   });
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
@@ -42,13 +51,11 @@ export function useInstagramProfile() {
       if (data.profiles) {
         setProfiles(data.profiles);
         
-        // Auto-select profile if none selected
+        // Auto-select 'all' if nothing is stored yet
         const currentProfileId = localStorage.getItem(STORAGE_KEY);
-        if (!currentProfileId && data.profiles.length > 0) {
-          const defaultProfile = data.profiles.find((p: Profile) => p.isDefault);
-          const selectedProfile = defaultProfile || data.profiles[0];
-          setProfileIdState(selectedProfile.id);
-          localStorage.setItem(STORAGE_KEY, selectedProfile.id);
+        if (!currentProfileId) {
+          setProfileIdState('all');
+          localStorage.setItem(STORAGE_KEY, 'all');
         }
       }
     } catch (error) {
@@ -81,7 +88,8 @@ export function useInstagramProfile() {
     window.dispatchEvent(new Event('storage'));
   }, []);
 
-  const selectedProfile = profiles.find(p => p.id === profileId);
+  const selectedProfile = profileId === 'all' ? ALL_PROFILES_OPTION : profiles.find(p => p.id === profileId);
+  const isAllProfiles = profileId === 'all';
 
   return {
     profileId,
@@ -90,5 +98,6 @@ export function useInstagramProfile() {
     selectedProfile,
     loadingProfiles,
     fetchProfiles,
+    isAllProfiles,
   };
 }

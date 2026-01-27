@@ -25,6 +25,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const isAllProfiles = !profileId || profileId === "all";
+
+    // Build profile map for "all profiles" mode
+    let profileMap: Record<string, string> = {};
+    if (isAllProfiles) {
+      const profiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: user.id },
+        select: { id: true, name: true },
+      });
+      profileMap = profiles.reduce((acc, p) => {
+        acc[p.id] = p.name;
+        return acc;
+      }, {} as Record<string, string>);
+    }
+
     const whereClause: any = {
       clerkId: user.id,
       date: {
@@ -33,7 +48,7 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    if (profileId && profileId !== "all") {
+    if (!isAllProfiles) {
       whereClause.profileId = profileId;
     }
 
@@ -56,7 +71,13 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    return NextResponse.json({ slots });
+    // Add profileName to each slot when in "all profiles" mode
+    const slotsWithProfileName = slots.map((slot) => ({
+      ...slot,
+      profileName: isAllProfiles && slot.profileId ? profileMap[slot.profileId] || "Unknown" : undefined,
+    }));
+
+    return NextResponse.json({ slots: slotsWithProfileName });
   } catch (error) {
     console.error("Error fetching reel slots:", error);
     return NextResponse.json(

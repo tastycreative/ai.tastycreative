@@ -1,9 +1,32 @@
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { Upload, X, Download, Wand2, Loader2, Image as ImageIcon, AlertCircle, Share2, ChevronLeft, ChevronRight, ZoomIn, MessageCircle, Send, Sparkles, Brain, Copy, Check, ChevronDown, Archive } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  Upload,
+  Loader2,
+  X,
+  Download,
+  Image as ImageIcon,
+  AlertCircle,
+  Sparkles,
+  MessageSquare,
+  Send,
+  Settings,
+  FolderOpen,
+  ChevronDown,
+  Check,
+  RefreshCw,
+  RotateCcw,
+  Library,
+  Zap,
+  Wand2
+} from 'lucide-react';
 import { useApiClient } from '@/lib/apiClient';
+import { useInstagramProfile } from '@/hooks/useInstagramProfile';
+import { ReferenceSelector } from '@/components/reference-bank/ReferenceSelector';
+import { ReferenceItem } from '@/hooks/useReferenceBank';
 
 interface JobStatus {
   id: string;
@@ -16,12 +39,14 @@ interface JobStatus {
 }
 
 interface ImageFile {
-  file: File;
+  file?: File;
   preview: string;
   id: string;
+  fromReferenceBank?: boolean;
+  referenceId?: string;
+  url?: string;
 }
 
-// Database image interface for fetching from database
 interface DatabaseImage {
   id: string;
   filename: string;
@@ -40,38 +65,30 @@ interface DatabaseImage {
   createdAt: Date | string;
 }
 
-// Vault interfaces
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername: string | null;
-  isDefault: boolean;
-}
-
 interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
   isDefault: boolean;
+  profileName?: string;
 }
 
-const PROGRESS_STAGES: Array<{ key: 'queued' | 'processing' | 'saving'; label: string; description: string }> = [
-  {
-    key: 'queued',
-    label: 'Queued',
-    description: 'Job received and preparing workflow'
-  },
-  {
-    key: 'processing',
-    label: 'Processing',
-    description: 'AI transforming images with Flux Kontext'
-  },
-  {
-    key: 'saving',
-    label: 'Saving',
-    description: 'Uploading result to your library'
-  }
-];
+interface GeneratedImage {
+  id: string;
+  imageUrl: string;
+  prompt: string;
+  createdAt: string;
+  status: "completed" | "processing" | "failed";
+  profileId?: string;
+  profileName?: string;
+  metadata?: {
+    seed?: number;
+    steps?: number;
+    guidance?: number;
+    referenceImageUrl?: string;
+    referenceImageUrls?: string[];
+  };
+}
 
 const formatDuration = (milliseconds: number) => {
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));
@@ -102,10 +119,29 @@ export default function FluxKontextPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
 
+  // Use global profile from header
+  const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
+
   // Vault folder states
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Reference Bank Selector State
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+
+  // Generation History State
+  const [generationHistory, setGenerationHistory] = useState<GeneratedImage[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Modal states
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Hydration fix
+  const [mounted, setMounted] = useState(false);
 
   // Chat assistant states
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -119,7 +155,7 @@ export default function FluxKontextPage() {
   const chatFileInputRef = useRef<HTMLInputElement>(null);
 
   // Fixed values from workflow
-  const FIXED_VALUES = {
+  const FIXED_VALUES = useMemo(() => ({
     clipName1: 'clip_l.safetensors',
     clipName2: 't5xxl_fp16.safetensors',
     unetName: 'flux1-dev-kontext_fp8_scaled.safetensors',
@@ -131,76 +167,96 @@ export default function FluxKontextPage() {
     scheduler: 'simple',
     denoise: 1.0,
     seed: Math.floor(Math.random() * 1000000000000)
-  };
+  }), []);
+
+  // Mount effect
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Close folder dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Get display text for the selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return 'Select a vault folder to save your output';
+    if (!targetFolder || !globalProfileId) return 'Please select a vault folder to save your images';
     
-    if (targetFolder.startsWith('vault:')) {
-      const parts = targetFolder.replace('vault:', '').split(':');
-      const profileId = parts[0];
-      const folderId = parts[1];
-      const profile = vaultProfiles.find(p => p.id === profileId);
-      const folders = vaultFoldersByProfile[profileId] || [];
-      const folder = folders.find(f => f.id === folderId);
-      return `Saving to Vault: ${profile?.name || 'Profile'} / ${folder?.name || 'Folder'}`;
+    const folder = vaultFolders.find(f => f.id === targetFolder);
+    if (folder) {
+      if (isAllProfiles && folder.profileName) {
+        return `Saving to: ${folder.profileName} / ${folder.name}`;
+      }
+      if (selectedProfile) {
+        const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+        return `Saving to: ${profileDisplay} / ${folder.name}`;
+      }
     }
-    
-    return 'Select a vault folder to save your output';
+    return 'Please select a vault folder';
   };
 
-  // Load vault data (profiles and folders)
-  useEffect(() => {
-    const loadVaultData = async () => {
-      if (!apiClient || !user) return;
-      
-      setIsLoadingVaultData(true);
-      try {
-        // Load profiles - use /api/instagram/profiles which returns array directly
-        const profilesResponse = await fetch('/api/instagram/profiles');
-        if (profilesResponse.ok) {
-          const profilesData = await profilesResponse.json();
-          // API returns array directly, not { profiles: [...] }
-          const profileList: InstagramProfile[] = Array.isArray(profilesData) 
-            ? profilesData 
-            : profilesData.profiles || [];
-          
-          // Sort profiles alphabetically
-          const sortedProfiles = [...profileList].sort((a, b) =>
-            (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
-          );
-          
-          setVaultProfiles(sortedProfiles);
-          
-          // Load folders for each profile
-          const foldersByProfile: Record<string, VaultFolder[]> = {};
-          await Promise.all(
-            sortedProfiles.map(async (profile) => {
-              try {
-                const foldersResponse = await fetch(`/api/vault/folders?profileId=${profile.id}`);
-                if (foldersResponse.ok) {
-                  // API returns array directly, not { folders: [...] }
-                  const foldersData = await foldersResponse.json();
-                  foldersByProfile[profile.id] = Array.isArray(foldersData) ? foldersData : [];
-                }
-              } catch (error) {
-                console.error(`Failed to load folders for profile ${profile.id}:`, error);
-                foldersByProfile[profile.id] = [];
-              }
-            })
-          );
-          setVaultFoldersByProfile(foldersByProfile);
-        }
-      } catch (error) {
-        console.error('Error loading vault data:', error);
-      } finally {
-        setIsLoadingVaultData(false);
+  // Load vault folders for the selected profile
+  const loadVaultData = useCallback(async () => {
+    if (!apiClient || !globalProfileId) return;
+
+    setIsLoadingVaultData(true);
+    try {
+      const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
+      if (foldersResponse.ok) {
+        const folders = await foldersResponse.json();
+        setVaultFolders(folders);
       }
-    };
-    
+    } catch (error) {
+      console.error('Failed to load vault folders:', error);
+      setVaultFolders([]);
+    } finally {
+      setIsLoadingVaultData(false);
+    }
+  }, [apiClient, globalProfileId]);
+
+  // Load vault data when profile changes
+  useEffect(() => {
     loadVaultData();
-  }, [apiClient, user]);
+    setTargetFolder("");
+  }, [loadVaultData]);
+
+  // Load generation history
+  const loadGenerationHistory = useCallback(async () => {
+    if (!apiClient) return;
+    setIsLoadingHistory(true);
+    try {
+      const url = globalProfileId 
+        ? `/api/generate/flux-kontext?profileId=${globalProfileId}`
+        : "/api/generate/flux-kontext";
+      const response = await apiClient.get(url);
+      if (response.ok) {
+        const data = await response.json();
+        const images = data.images || [];
+        console.log('📋 Loaded Flux Kontext history:', images.length, 'images');
+        setGenerationHistory(images);
+      } else {
+        console.error('Failed to load history:', response.status);
+      }
+    } catch (error) {
+      console.error('Error loading history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [apiClient, globalProfileId]);
+
+  // Load history when apiClient or profile changes
+  useEffect(() => {
+    if (apiClient) {
+      loadGenerationHistory();
+    }
+  }, [apiClient, globalProfileId, loadGenerationHistory]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -231,45 +287,24 @@ export default function FluxKontextPage() {
     };
   }, [jobStartTime, currentJob]);
 
-  const activeStageIndex = useMemo(() => {
-    if (!currentJob) return -1;
-    const status = currentJob.status.toUpperCase();
-    if (status === 'PENDING') return 0;
-    if (status === 'PROCESSING') return 1;
-    if (status === 'COMPLETED') return 2;
-    return -1;
-  }, [currentJob]);
-
   const formattedElapsed = useMemo(() => {
     return formatDuration(elapsedSeconds * 1000);
   }, [elapsedSeconds]);
-
-  const describeImageSource = useCallback((image: DatabaseImage) => {
-    if (image.awsS3Url) return 'AWS S3';
-    if (image.s3Key) return 'RunPod S3';
-    if (image.networkVolumePath) return 'Network Volume';
-    if (image.dataUrl) return 'Database';
-    return 'Unknown';
-  }, []);
 
   const fetchJobImages = useCallback(async (jobId: string): Promise<DatabaseImage[] | null> => {
     if (!apiClient) return null;
     
     try {
-      console.log('🖼️ Fetching images for job:', jobId);
       const response = await apiClient.get(`/api/jobs/${jobId}/images`);
       
       if (!response.ok) {
-        console.error('❌ Failed to fetch job images:', response.statusText);
         return null;
       }
 
       const data = await response.json();
-      console.log('✅ Fetched images:', data.images);
-      console.log('📊 Image count:', data.images?.length || 0);
       return data.images || [];
     } catch (error) {
-      console.error('❌ Error fetching job images:', error);
+      console.error('Error fetching job images:', error);
       return null;
     }
   }, [apiClient]);
@@ -304,15 +339,90 @@ export default function FluxKontextPage() {
     }
   };
 
-  const shareImage = (image: DatabaseImage) => {
-    const shareUrl = image.awsS3Url || image.url || image.dataUrl;
-    if (shareUrl && navigator.clipboard) {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        alert('Image URL copied to clipboard!');
-      }).catch(() => {
-        alert('Failed to copy URL');
-      });
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    try {
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        const newImage: ImageFile = {
+          id: `ref-${item.id}-${Date.now()}`,
+          preview: item.awsS3Url,
+          fromReferenceBank: true,
+          referenceId: item.id,
+          url: item.awsS3Url,
+        };
+        
+        setSelectedImages([newImage]);
+        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+        setShowReferenceBankSelector(false);
+        return;
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        
+        const newImage: ImageFile = {
+          id: `ref-${item.id}-${Date.now()}`,
+          preview: base64,
+          fromReferenceBank: true,
+          referenceId: item.id,
+          url: item.awsS3Url,
+        };
+        
+        setSelectedImages([newImage]);
+        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      console.error('Error loading reference image:', err);
+      setError('Failed to load reference image. Please try again.');
     }
+
+    setShowReferenceBankSelector(false);
+  };
+
+  // Handle reusing generation parameters
+  const handleReuseGeneration = async (image: GeneratedImage) => {
+    if (image.prompt) {
+      setPrompt(image.prompt);
+    }
+
+    const referenceUrl = image.metadata?.referenceImageUrl || 
+                         (image.metadata?.referenceImageUrls && image.metadata.referenceImageUrls[0]);
+    
+    if (referenceUrl) {
+      try {
+        const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(referenceUrl)}`);
+        if (proxyResponse.ok) {
+          const blob = await proxyResponse.blob();
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          const base64 = await base64Promise;
+
+          const newImage: ImageFile = {
+            id: `reuse-${Date.now()}`,
+            preview: base64,
+            fromReferenceBank: true,
+            url: referenceUrl,
+          };
+          setSelectedImages([newImage]);
+        }
+      } catch (err) {
+        console.warn('Failed to load reference image:', referenceUrl, err);
+      }
+    }
+
+    setShowImageModal(false);
+    setSelectedImage(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -334,7 +444,7 @@ export default function FluxKontextPage() {
       id: Math.random().toString(36).substring(7)
     };
 
-    setSelectedImages([newImage]); // Replace with single image
+    setSelectedImages([newImage]);
     setError(null);
   }, []);
 
@@ -373,12 +483,8 @@ export default function FluxKontextPage() {
     });
   }, []);
 
-  const createWorkflowForFluxKontext = useCallback((
-    imageBase64: string
-  ) => {
-    // Use temporary path for vault storage - vault path handled by webhook
+  const createWorkflowForFluxKontext = useCallback((imageBase64: string) => {
     const normalizedTargetFolder = `outputs/${user?.id}/`;
-    console.log("💾 Using temporary path for vault storage:", normalizedTargetFolder);
     
     return {
       "37": {
@@ -479,7 +585,7 @@ export default function FluxKontextPage() {
         "class_type": "SaveImage"
       }
     };
-  }, [prompt, targetFolder, FIXED_VALUES]);
+  }, [prompt, FIXED_VALUES, user?.id]);
 
   const convertImageToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -522,30 +628,32 @@ export default function FluxKontextPage() {
       setJobStartTime(Date.now());
       setElapsedSeconds(0);
 
-      const imageBase64 = await convertImageToBase64(image.file);
+      let imageBase64: string;
+      if (image.file) {
+        imageBase64 = await convertImageToBase64(image.file);
+      } else if (image.preview) {
+        imageBase64 = image.preview;
+      } else {
+        throw new Error('No image data available');
+      }
 
       const workflow = createWorkflowForFluxKontext(imageBase64);
 
-      // Parse vault folder
-      const parts = targetFolder.replace('vault:', '').split(':');
-      const profileId = parts[0];
-      const folderId = parts[1];
-      
-      console.log('📁 Vault folder info:', {
-        targetFolder,
-        profileId,
-        folderId
-      });
+      const selectedFolder = vaultFolders.find(f => f.id === targetFolder);
+      const folderProfileId = selectedFolder?.profileId || globalProfileId;
+
+      const referenceImageUrl = image.url || image.preview;
 
       const response = await apiClient.post('/api/jobs/flux-kontext', {
         workflow,
         userId: user.id,
         prompt,
         params: FIXED_VALUES,
-        // Vault parameters
         saveToVault: true,
-        vaultProfileId: profileId,
-        vaultFolderId: folderId,
+        vaultProfileId: folderProfileId,
+        vaultFolderId: targetFolder,
+        referenceImageUrl: referenceImageUrl,
+        referenceImageUrls: referenceImageUrl ? [referenceImageUrl] : [],
       });
 
       if (!response.ok) {
@@ -561,7 +669,7 @@ export default function FluxKontextPage() {
       setIsProcessing(false);
       setJobStartTime(null);
     }
-  }, [user, selectedImages, createWorkflowForFluxKontext, prompt, FIXED_VALUES, apiClient, targetFolder, vaultProfiles]);
+  }, [user, selectedImages, createWorkflowForFluxKontext, prompt, FIXED_VALUES, apiClient, targetFolder, vaultFolders, globalProfileId]);
 
   // Poll for job updates
   useEffect(() => {
@@ -574,53 +682,45 @@ export default function FluxKontextPage() {
         const response = await apiClient.get(`/api/jobs/${currentJob.id}`);
         
         if (!response.ok) {
-          throw new Error('Failed to fetch job status');
+          console.error('Failed to fetch job status');
+          return;
         }
 
-        const updatedJob = await response.json();
-        setCurrentJob(updatedJob);
+        const job = await response.json();
+        setCurrentJob(job);
 
-        if (updatedJob.status === 'completed' || updatedJob.status === 'COMPLETED') {
-          console.log('✅ Job completed, fetching images...');
+        const status = job.status.toUpperCase();
+        
+        if (status === 'COMPLETED') {
+          const duration = jobStartTime ? formatDuration(Date.now() - jobStartTime) : null;
+          setLastJobDuration(duration);
           setIsProcessing(false);
-          if (jobStartTime) {
-            const duration = Date.now() - jobStartTime;
-            setLastJobDuration(formatDuration(duration));
-          }
           setJobStartTime(null);
 
-          const images = await fetchJobImages(updatedJob.id);
-          console.log('📸 Images received:', images);
-          if (images && images.length > 0) {
-            console.log('💾 Storing images in state for job:', updatedJob.id);
-            setJobImages(prev => ({ ...prev, [updatedJob.id]: images }));
-          } else {
-            console.warn('⚠️ No images returned for completed job');
+          if (job.resultUrls && job.resultUrls.length > 0) {
+            setResultImages(job.resultUrls);
           }
-        } else if (updatedJob.status === 'failed' || updatedJob.status === 'FAILED') {
+
+          const images = await fetchJobImages(job.id);
+          if (images && images.length > 0) {
+            setJobImages(prev => ({ ...prev, [job.id]: images }));
+          }
+
+          // Reload history
+          loadGenerationHistory();
+        } else if (status === 'FAILED') {
+          setError(job.error || 'Generation failed');
           setIsProcessing(false);
-          setError(updatedJob.error || 'Generation failed');
           setJobStartTime(null);
         }
       } catch (err) {
-        console.error('Polling error:', err);
+        console.error('Poll error:', err);
       }
     };
 
     const interval = setInterval(pollJob, 2000);
     return () => clearInterval(interval);
-  }, [currentJob?.id, apiClient, jobStartTime, fetchJobImages]);
-
-  // Debug: Log jobImages state changes
-  useEffect(() => {
-    console.log('🎨 JobImages state updated:', jobImages);
-    console.log('🎯 Current job ID:', currentJob?.id);
-    console.log('📦 Images for current job:', currentJob?.id ? jobImages[currentJob.id] : 'No current job');
-  }, [jobImages, currentJob?.id]);
-
-  const generateRandomSeed = useCallback(() => {
-    FIXED_VALUES.seed = Math.floor(Math.random() * 1000000000000);
-  }, [FIXED_VALUES]);
+  }, [currentJob?.id, apiClient, jobStartTime, fetchJobImages, loadGenerationHistory]);
 
   const resetForm = useCallback(() => {
     selectedImages.forEach(img => URL.revokeObjectURL(img.preview));
@@ -631,15 +731,50 @@ export default function FluxKontextPage() {
     setIsProcessing(false);
     setJobStartTime(null);
     setElapsedSeconds(0);
-    generateRandomSeed();
-  }, [selectedImages, generateRandomSeed]);
+  }, [selectedImages]);
 
-  const openLightbox = useCallback((imageUrl: string, title: string) => {
-    setLightboxImage(imageUrl);
-    setLightboxTitle(title);
-  }, []);
+  const handleDownload = async (imageUrl: string, filename: string) => {
+    try {
+      if (!imageUrl) {
+        throw new Error('No image URL');
+      }
+      
+      let blobUrl: string;
+      
+      if (imageUrl.startsWith('data:')) {
+        blobUrl = imageUrl;
+      } else {
+        const proxyUrl = `/api/download/image?url=${encodeURIComponent(imageUrl)}`;
+        const response = await fetch(proxyUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to download: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        blobUrl = window.URL.createObjectURL(blob);
+      }
+      
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      
+      setTimeout(() => {
+        document.body.removeChild(a);
+        if (!imageUrl.startsWith('data:')) {
+          window.URL.revokeObjectURL(blobUrl);
+        }
+      }, 100);
+    } catch (error) {
+      console.error("Download failed:", error);
+      setError("Failed to download image. Please try again.");
+    }
+  };
 
-  // Chat assistant functions
+  // Chat functions
   useEffect(() => {
     if (isChatOpen) {
       chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -656,68 +791,6 @@ export default function FluxKontextPage() {
       }]);
     }
   }, [isChatOpen, chatMessages.length]);
-
-  const generateChatResponse = async (userMessage: string): Promise<string> => {
-    try {
-      const response = await fetch("/api/flux-kontext-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage,
-          conversationHistory: chatMessages.slice(-6),
-          currentPrompt: prompt || undefined
-        }),
-      });
-
-      if (!response.ok) throw new Error(`Failed: ${response.statusText}`);
-      const data = await response.json();
-      return data.response || "I apologize, but I couldn't generate a response. Please try again.";
-    } catch (error) {
-      console.error("Chat error:", error);
-      throw new Error("Failed to generate response. Please try again.");
-    }
-  };
-
-  const generateChatResponseWithImage = async (userMessage: string, imageBase64?: string): Promise<string> => {
-    try {
-      const response = await fetch("/api/flux-kontext-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userMessage,
-          image: imageBase64,
-          conversationHistory: chatMessages.slice(-6),
-          currentPrompt: prompt || undefined
-        }),
-      });
-
-      if (!response.ok) throw new Error(`Failed: ${response.statusText}`);
-      const data = await response.json();
-      return data.response || "I apologize, but I couldn't generate a response. Please try again.";
-    } catch (error) {
-      console.error("Chat error:", error);
-      throw new Error("Failed to generate response. Please try again.");
-    }
-  };
-
-  const handleChatImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const result = e.target?.result as string;
-        setChatUploadedImage(result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleRemoveChatImage = () => {
-    setChatUploadedImage(null);
-    if (chatFileInputRef.current) {
-      chatFileInputRef.current.value = "";
-    }
-  };
 
   const handleSendChat = async () => {
     const messageText = chatInput.trim();
@@ -740,32 +813,27 @@ export default function FluxKontextPage() {
     try {
       setChatLoadingStep("Thinking...");
       
-      if (currentImage) {
-        setChatLoadingStep("Analyzing image...");
-        const imageBase64 = currentImage.split(",")[1];
-        const aiResponse = await generateChatResponseWithImage(userMessage.content, imageBase64);
-        
-        const assistantMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant' as const,
-          content: aiResponse,
-          timestamp: new Date()
-        };
-        
-        setChatMessages(prev => [...prev, assistantMessage]);
-      } else {
-        const aiResponse = await generateChatResponse(messageText);
+      const response = await fetch("/api/flux-kontext-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: messageText,
+          image: currentImage,
+          conversationHistory: chatMessages.slice(-6),
+          currentPrompt: prompt || undefined
+        }),
+      });
 
-        const assistantMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant' as const,
-          content: aiResponse,
-          timestamp: new Date()
-        };
-
-        setChatMessages(prev => [...prev, assistantMessage]);
-      }
-    } catch (error: any) {
+      if (!response.ok) throw new Error('Chat request failed');
+      const data = await response.json();
+      
+      setChatMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant' as const,
+        content: data.response || "I couldn't generate a response. Please try again.",
+        timestamp: new Date()
+      }]);
+    } catch (error: unknown) {
       setChatMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
         role: 'assistant' as const,
@@ -785,379 +853,562 @@ export default function FluxKontextPage() {
     }
   };
 
-  const copyToClipboard = async (text: string) => {
-    await navigator.clipboard.writeText(text);
+  const handleChatImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setChatUploadedImage(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="relative min-h-screen bg-slate-950 text-slate-50">
+      {/* Background Effects */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-pink-400/10 blur-3xl" />
+        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         {/* Header */}
-        <div className="mb-6 sm:mb-8 md:mb-10 text-center">
-          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
-              <Wand2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-white" />
+        <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-center">
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-purple-900/30 backdrop-blur">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-rose-600 shadow-lg shadow-purple-900/50">
+                <Wand2 className="w-6 h-6 text-white" />
+                <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-purple-200">Live Studio</p>
+                <h1 className="text-3xl sm:text-4xl font-black text-white">Flux Kontext</h1>
+              </div>
             </div>
-            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
-              Flux Kontext Studio
-            </h1>
+            <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
+              Transform your images with AI-powered editing. Upload an image and describe your changes using natural language.
+            </p>
+
+            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/20 text-purple-200"><Upload className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-slate-300">Input</p>
+                  <p className="text-sm font-semibold text-white">1 image</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500/20 text-pink-200"><Settings className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-slate-300">Model</p>
+                  <p className="text-sm font-semibold text-white">FLUX Dev</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-200"><Download className="w-5 h-5" /></div>
+                <div>
+                  <p className="text-xs text-slate-300">Output</p>
+                  <p className="text-sm font-semibold text-white">High Quality</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-2">
-            Transform your images with AI-powered magic ✨ Create stunning scene modifications with advanced Flux Kontext technology
-          </p>
+
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <p className="text-xs text-slate-300">Steps</p>
+                <p className="text-lg font-semibold text-white">{FIXED_VALUES.steps}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                <p className="text-xs text-slate-300">Guidance</p>
+                <p className="text-lg font-semibold text-white">{FIXED_VALUES.guidance}</p>
+              </div>
+            </div>
+            {isProcessing && (
+              <div className="rounded-2xl border border-purple-400/30 bg-purple-500/10 px-4 py-3">
+                <p className="text-xs text-purple-300">Processing Time</p>
+                <p className="text-lg font-semibold text-white">{formattedElapsed}</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-xl sm:rounded-2xl flex items-start gap-2 sm:gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
-              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-red-900 dark:text-red-100 text-sm sm:text-base md:text-lg">Oops! Something went wrong</h3>
-              <p className="text-xs sm:text-sm text-red-700 dark:text-red-300 mt-0.5 sm:mt-1">{error}</p>
-            </div>
-            <button
-              onClick={() => setError(null)}
-              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg active:scale-95"
-            >
-              <X className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Panel - Generation Controls */}
+          <div className="lg:col-span-1">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-purple-900/30 backdrop-blur space-y-6">
+              {/* Image Upload */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-white">Reference Image</label>
+                  <div className="flex items-center gap-2">
+                    {mounted && (
+                      <button
+                        type="button"
+                        onClick={() => setShowReferenceBankSelector(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 transition-all"
+                        disabled={isProcessing}
+                      >
+                        <Library className="w-3.5 h-3.5" />
+                        Reference Bank
+                      </button>
+                    )}
+                    {selectedImages.length > 0 && (
+                      <span className="rounded-full bg-purple-500/20 px-3 py-1 text-[11px] font-semibold text-purple-100">1 added</span>
+                    )}
+                  </div>
+                </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
-          {/* Left Panel - Input */}
-          <div className="space-y-3 sm:space-y-4 md:space-y-6">
-            {/* Image Upload Section */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
-                  Upload Your Image
-                </h2>
-              </div>
-
-              {/* Single Image Upload */}
-              <div>
-                <label className="block text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3">
-                  Source Image to Transform ✨
-                </label>
-                {selectedImages[0] ? (
+                {/* Uploaded Image Preview */}
+                {selectedImages.length > 0 && (
                   <div className="relative group">
-                    <div className="relative w-full h-48 xs:h-56 sm:h-64 md:h-80 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden border-2 border-purple-200 dark:border-purple-800 shadow-lg">
+                    <div className={`relative overflow-hidden rounded-xl border ${selectedImages[0].fromReferenceBank ? 'border-violet-500/30' : 'border-white/10'} bg-white/5 shadow-lg shadow-purple-900/30 transition hover:-translate-y-1 hover:shadow-2xl`}>
                       <img
                         src={selectedImages[0].preview}
-                        alt="Image preview"
-                        className="w-full h-full object-contain"
+                        alt="Reference"
+                        className="w-full h-48 object-contain p-2"
                       />
-                    </div>
-                    <button
-                      onClick={removeImage}
-                      className="absolute top-2 sm:top-3 right-2 sm:right-3 p-1.5 sm:p-2 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg hover:scale-110 transform duration-200 active:scale-95"
-                    >
-                      <X className="w-4 h-4 sm:w-5 sm:h-5" />
-                    </button>
-                    <div className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 px-2 xs:px-3 py-0.5 xs:py-1 bg-black/60 backdrop-blur-sm text-white text-[10px] xs:text-xs rounded-full">
-                      {selectedImages[0].file.name}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-0 transition group-hover:opacity-100" />
+                      <button
+                        onClick={removeImage}
+                        disabled={isProcessing}
+                        className="absolute top-2 right-2 rounded-full bg-white/10 p-1.5 text-white opacity-0 transition hover:bg-red-500/80 group-hover:opacity-100"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                      {selectedImages[0].fromReferenceBank && (
+                        <div className="absolute top-2 left-2">
+                          <span className="rounded-full bg-violet-500/90 p-1.5 shadow" title="From Reference Bank">
+                            <Library className="w-3 h-3 text-white" />
+                          </span>
+                        </div>
+                      )}
+                      <div className="absolute bottom-2 left-2">
+                        <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-900 shadow">
+                          Source Image
+                        </span>
+                      </div>
                     </div>
                   </div>
-                ) : (
-                  <div
+                )}
+
+                {/* Upload New Image Button */}
+                {selectedImages.length === 0 && (
+                  <label 
+                    className={`group flex flex-col items-center justify-center w-full h-40 rounded-xl border border-dashed border-white/20 bg-slate-950/60 transition hover:border-purple-200/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-purple-900/30 ${isDragging ? 'border-purple-400 bg-purple-500/10' : ''} ${isProcessing ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-8 xs:p-10 sm:p-12 md:p-16 text-center cursor-pointer transition-all duration-300 ${
-                      isDragging
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 scale-105 shadow-xl'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/10'
-                    }`}
                   >
-                    <div className="flex flex-col items-center gap-3 sm:gap-4">
-                      <div className={`p-3 sm:p-4 rounded-full ${isDragging ? 'bg-purple-100 dark:bg-purple-900/40' : 'bg-gray-100 dark:bg-gray-800'} transition-colors`}>
-                        <Upload className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 ${isDragging ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'} transition-colors`} />
+                    <div className="flex flex-col items-center justify-center py-4">
+                      <div className="relative mb-2">
+                        <div className="absolute inset-0 bg-purple-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                        <Upload className="relative w-8 h-8 text-purple-200 group-hover:scale-110 transition-transform" />
                       </div>
-                      <div>
-                        <p className="text-sm sm:text-base md:text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          {isDragging ? 'Drop it here! 🎯' : 'Click or drag image here'}
-                        </p>
-                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                          PNG, JPG, WEBP up to 10MB
-                        </p>
-                      </div>
+                      <p className="text-sm text-white">
+                        <span className="font-semibold text-purple-100">Upload your image</span>
+                      </p>
+                      <p className="text-[11px] text-slate-300 mt-1">
+                        PNG, JPG, WEBP • Drag & drop
+                      </p>
                     </div>
-                  </div>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </div>
-            </div>
-
-            {/* Folder Selection */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                <Archive className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
-                  Save to Vault
-                </h2>
-                {isLoadingVaultData && (
-                  <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-purple-400" />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={isProcessing}
+                    />
+                  </label>
                 )}
               </div>
-              <div className="relative">
-                <select
-                  value={targetFolder}
-                  onChange={(e) => setTargetFolder(e.target.value)}
-                  disabled={isProcessing || isLoadingVaultData}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-gray-800 border-2 border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-inner text-sm sm:text-base [&>option]:bg-gray-800 [&>option]:text-white [&>optgroup]:bg-gray-800 [&>optgroup]:text-gray-400"
-                >
-                  <option value="">📁 Select a vault folder...</option>
-                  
-                  {/* Vault Folders by Profile */}
-                  {vaultProfiles.map((profile) => {
-                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                    if (folders.length === 0) return null;
-                    
-                    return (
-                      <optgroup 
-                        key={profile.id} 
-                        label={`📸 ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                      >
-                        {folders.map((folder) => (
-                          <option 
-                            key={folder.id} 
-                            value={`vault:${profile.id}:${folder.id}`}
-                          >
-                            📁 {folder.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-              </div>
-              
-              {/* Folder indicator */}
-              <div className="flex items-center gap-2 mt-2">
-                {targetFolder && (
-                  <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-600 dark:text-purple-300">
-                    <Archive className="w-3 h-3" />
-                    <span>Vault Storage</span>
-                  </div>
-                )}
-                <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 flex-1">
-                  {getSelectedFolderDisplay()}
-                </p>
-              </div>
-            </div>
 
-            {/* Prompt Section */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 text-pink-600 dark:text-pink-400" />
-                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
-                  Transformation Magic ✨
-                </h2>
+              {/* Prompt Input */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-white">Prompt</label>
+                  <span className="rounded-full bg-purple-500/20 px-3 py-1 text-[11px] font-semibold text-purple-100">Required</span>
+                </div>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Describe the changes you want to make to the image..."
+                    className="relative w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-4 text-sm text-white placeholder-slate-400 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-400/40"
+                    rows={4}
+                    disabled={isProcessing}
+                  />
+                </div>
+                <p className="text-xs text-slate-300">Be specific about what should change vs. stay the same.</p>
               </div>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 border-2 border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900/50 dark:text-white resize-none transition-all shadow-inner text-sm sm:text-base"
-                rows={5}
-                placeholder="Describe your vision... (e.g., 'Transform into a magical nighttime scene with stars and soft lighting')"
-              />
-              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2">
-                💡 Tip: Be specific and descriptive for best results!
-              </p>
-            </div>
 
-            {/* Generate Button */}
-            <button
-              onClick={handleGenerate}
-              disabled={isProcessing || selectedImages.length === 0 || !targetFolder}
-              className="group w-full py-3 sm:py-4 md:py-5 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white font-bold text-sm sm:text-base md:text-lg rounded-xl sm:rounded-2xl hover:from-purple-700 hover:via-pink-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 sm:gap-3 relative overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-              {isProcessing ? (
-                <>
-                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 animate-spin" />
-                  <span>Creating Magic...</span>
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 group-hover:rotate-12 transition-transform duration-300" />
-                  <span>Transform Image ✨</span>
-                </>
-              )}
-            </button>
-            
-            {(selectedImages.length === 0 || !targetFolder) && (
-              <p className="text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400 -mt-1 sm:-mt-2">
-                {selectedImages.length === 0 && "Please upload an image first"}
-                {selectedImages.length > 0 && !targetFolder && "Please select a folder"}
-              </p>
-            )}
-          </div>
-
-          {/* Right Panel - Progress & Results */}
-          <div className="space-y-3 sm:space-y-4 md:space-y-6">
-            {/* Progress Section */}
-            {isProcessing && currentJob && (
-              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right">
-                <div className="flex items-center gap-1.5 sm:gap-2 mb-4 sm:mb-6">
-                  <div className="relative">
-                    <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400 animate-spin" />
-                    <div className="absolute inset-0 bg-purple-500/20 rounded-full animate-ping"></div>
-                  </div>
-                  <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
-                    AI is Working Magic 🎨
-                  </h2>
+              {/* Folder Selection */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="w-4 h-4 text-purple-300" />
+                  <p className="text-sm font-semibold text-white">Save to Vault</p>
+                  {isLoadingVaultData && (
+                    <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
+                  )}
                 </div>
                 
-                <div className="space-y-4 sm:space-y-6">
-                  {PROGRESS_STAGES.map((stage, index) => {
-                    const isActive = index === activeStageIndex;
-                    const isComplete = index < activeStageIndex;
-                    
-                    return (
-                      <div key={stage.key} className="relative">
-                        <div className="flex items-start gap-3 sm:gap-4">
-                          <div className={`relative flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-500 transform ${
-                            isComplete ? 'bg-gradient-to-br from-green-400 to-green-600 scale-110 shadow-lg' : 
-                            isActive ? 'bg-gradient-to-br from-purple-500 to-pink-600 scale-110 shadow-lg animate-pulse' : 
-                            'bg-gray-300 dark:bg-gray-600 scale-100'
-                          }`}>
-                            {isComplete ? (
-                              <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            ) : isActive ? (
-                              <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 text-white animate-spin" />
-                            ) : (
-                              <span className="text-xs sm:text-sm font-bold text-white">{index + 1}</span>
-                            )}
-                            {isActive && (
-                              <div className="absolute inset-0 rounded-full bg-purple-400 animate-ping opacity-75"></div>
-                            )}
-                          </div>
-                          <div className="flex-1 pt-0.5 sm:pt-1">
-                            <h3 className={`font-bold text-sm sm:text-base md:text-lg transition-colors ${
-                              isActive ? 'text-purple-600 dark:text-purple-400' : 
-                              isComplete ? 'text-green-600 dark:text-green-400' :
-                              'text-gray-500 dark:text-gray-400'
-                            }`}>
-                              {stage.label}
-                              {isActive && ' 🚀'}
-                              {isComplete && ' ✓'}
-                            </h3>
-                            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-0.5 sm:mt-1">{stage.description}</p>
-                          </div>
-                        </div>
-                        {index < PROGRESS_STAGES.length - 1 && (
-                          <div className={`absolute left-4 sm:left-4.5 md:left-5 top-10 sm:top-11 md:top-12 w-0.5 h-4 sm:h-5 md:h-6 transition-colors duration-500 ${
-                            isComplete ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                          }`}></div>
+                {/* Modern Custom Dropdown */}
+                <div ref={folderDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => !(!mounted || isLoadingVaultData || isProcessing || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    disabled={!mounted || isLoadingVaultData || isProcessing || !globalProfileId}
+                    className={`
+                      w-full flex items-center justify-between gap-3 px-4 py-3.5
+                      rounded-2xl border transition-all duration-200
+                      ${folderDropdownOpen 
+                        ? 'border-purple-400 bg-purple-500/10 ring-2 ring-purple-400/30' 
+                        : 'border-white/10 bg-slate-800/80 hover:border-purple-400/50 hover:bg-slate-800'
+                      }
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                    `}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`
+                        flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
+                        ${targetFolder 
+                          ? 'bg-gradient-to-br from-purple-500/30 to-pink-500/30 border border-purple-400/30' 
+                          : 'bg-slate-700/50 border border-white/5'
+                        }
+                      `}>
+                        <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-purple-300' : 'text-slate-400'}`} />
+                      </div>
+                      <div className="text-left min-w-0">
+                        <p className={`text-sm font-medium truncate ${targetFolder ? 'text-white' : 'text-slate-400'}`}>
+                          {targetFolder 
+                            ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
+                            : 'Select a folder...'
+                          }
+                        </p>
+                        {targetFolder && selectedProfile && (
+                          <p className="text-[11px] text-purple-300/70 truncate">
+                            {selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name}
+                          </p>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-
-                {jobStartTime && (
-                  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t-2 border-gray-200 dark:border-gray-700">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs sm:text-sm font-semibold text-gray-600 dark:text-gray-400">⏱️ Elapsed Time:</span>
-                      <span className="text-lg xs:text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">{formattedElapsed}</span>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
 
-            {/* Results Section */}
-            {(currentJob?.status === 'completed' || currentJob?.status === 'COMPLETED') && jobImages[currentJob.id] && (
-              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300 animate-in fade-in zoom-in">
-                <div className="flex items-center justify-between mb-4 sm:mb-6">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="p-1.5 sm:p-2 bg-gradient-to-br from-green-400 to-green-600 rounded-lg sm:rounded-xl shadow-lg">
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
-                      Your Masterpiece is Ready! 🎉
-                    </h2>
-                  </div>
-                  {lastJobDuration && (
-                    <div className="px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 rounded-full border border-green-200 dark:border-green-700">
-                      <span className="text-[10px] xs:text-xs sm:text-sm font-semibold text-green-700 dark:text-green-300">
-                        ⚡ {lastJobDuration}
-                      </span>
+                  {/* Dropdown Menu */}
+                  {folderDropdownOpen && mounted && (
+                    <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/40 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetFolder('');
+                          setFolderDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                          <X className="w-4 h-4 text-slate-400" />
+                        </div>
+                        <span className="text-sm text-slate-400">No folder selected</span>
+                        {!targetFolder && <Check className="w-4 h-4 text-purple-400 ml-auto" />}
+                      </button>
+
+                      {vaultFolders.filter(f => !f.isDefault).length > 0 && (
+                        <div className="my-2 mx-3 h-px bg-white/5" />
+                      )}
+
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {isAllProfiles ? (
+                          Object.entries(
+                            vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
+                              const profileName = folder.profileName || 'Unknown Profile';
+                              if (!acc[profileName]) acc[profileName] = [];
+                              acc[profileName].push(folder);
+                              return acc;
+                            }, {} as Record<string, VaultFolder[]>)
+                          ).map(([profileName, folders]) => (
+                            <div key={profileName}>
+                              <div className="px-4 py-2 text-xs font-medium text-purple-300 bg-purple-500/10 border-b border-purple-500/20">
+                                {profileName}
+                              </div>
+                              {folders.map((folder) => (
+                                <button
+                                  key={folder.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetFolder(folder.id);
+                                    setFolderDropdownOpen(false);
+                                  }}
+                                  className={`
+                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                                    ${targetFolder === folder.id ? 'bg-purple-500/15' : 'hover:bg-white/5'}
+                                  `}
+                                >
+                                  <div className={`
+                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-gradient-to-br from-purple-500/40 to-pink-500/40 border border-purple-400/40' 
+                                      : 'bg-slate-700/50 border border-white/5'
+                                    }
+                                  `}>
+                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-300' : 'text-slate-400'}`} />
+                                  </div>
+                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                    {folder.name}
+                                  </span>
+                                  {targetFolder === folder.id && (
+                                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        ) : (
+                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                            <button
+                              key={folder.id}
+                              type="button"
+                              onClick={() => {
+                                setTargetFolder(folder.id);
+                                setFolderDropdownOpen(false);
+                              }}
+                              className={`
+                                w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                                ${targetFolder === folder.id ? 'bg-purple-500/15' : 'hover:bg-white/5'}
+                              `}
+                            >
+                              <div className={`
+                                w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                ${targetFolder === folder.id 
+                                  ? 'bg-gradient-to-br from-purple-500/40 to-pink-500/40 border border-purple-400/40' 
+                                  : 'bg-slate-700/50 border border-white/5'
+                                }
+                              `}>
+                                <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-300' : 'text-slate-400'}`} />
+                              </div>
+                              <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                {folder.name}
+                              </span>
+                              {targetFolder === folder.id && (
+                                <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+
+                      {vaultFolders.filter(f => !f.isDefault).length === 0 && (
+                        <div className="px-4 py-6 text-center">
+                          <FolderOpen className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm text-slate-400">No folders available</p>
+                          <p className="text-xs text-slate-500 mt-1">Create folders in the Vault tab</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-3 sm:space-y-4">
+                {/* Status Indicator */}
+                {targetFolder && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                    <p className="text-xs text-purple-200 flex-1 truncate">
+                      {getSelectedFolderDisplay()}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Error Display */}
+              {error && (
+                <div className="flex items-start gap-3 rounded-2xl border border-red-500/40 bg-red-500/10 p-4">
+                  <AlertCircle className="h-5 w-5 text-red-200" />
+                  <p className="text-sm text-red-50">{error}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-[1.6fr_0.4fr] gap-3">
+                <button
+                  onClick={handleGenerate}
+                  disabled={isProcessing || !prompt.trim() || selectedImages.length === 0 || !targetFolder}
+                  className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-400 via-pink-500 to-rose-600 px-6 py-3 font-semibold text-white shadow-xl shadow-purple-900/40 transition hover:-translate-y-0.5 disabled:from-slate-500 disabled:to-slate-500 disabled:shadow-none"
+                >
+                  <div className="absolute inset-0 bg-white/10 opacity-0 transition group-hover:opacity-10" />
+                  <div className="relative flex items-center justify-center gap-2">
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Generating</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-5 h-5" />
+                        <span>Generate</span>
+                      </>
+                    )}
+                  </div>
+                </button>
+                <button
+                  onClick={resetForm}
+                  disabled={isProcessing}
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-purple-200/40 disabled:opacity-60"
+                  title="Reset form"
+                >
+                  <RotateCcw className="w-4 h-4 inline mr-2" />
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel - Results */}
+          <div className="lg:col-span-2">
+            <div className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-2xl shadow-purple-900/30 backdrop-blur">
+              <div className="flex flex-wrap items-center gap-3 mb-6">
+                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white">
+                  <ImageIcon className="w-4 h-4" />
+                  Generated Images
+                </div>
+                {currentJob?.id && jobImages[currentJob.id]?.length > 0 && (
+                  <div className="rounded-full bg-white/10 px-3 py-1 text-xs text-slate-200">
+                    {jobImages[currentJob.id].length} {jobImages[currentJob.id].length === 1 ? 'image' : 'images'} ready
+                  </div>
+                )}
+                {lastJobDuration && (
+                  <div className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs text-emerald-200">
+                    Completed in {lastJobDuration}
+                  </div>
+                )}
+              </div>
+
+              {/* Generated Images Grid */}
+              {currentJob?.id && jobImages[currentJob.id]?.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                   {jobImages[currentJob.id].map((image) => (
-                    <div key={image.id} className="relative group">
-                      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border-2 border-purple-200 dark:border-purple-800 shadow-lg hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-1.5 sm:p-2">
-                        <div className="relative w-full h-64 xs:h-72 sm:h-80 md:h-96 bg-gray-100 dark:bg-gray-900 rounded-lg sm:rounded-xl overflow-hidden">
-                          <img
-                            src={image.awsS3Url || image.url || image.dataUrl || ''}
-                            alt={image.filename}
-                            className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform duration-500"
-                            onClick={() => openLightbox(image.awsS3Url || image.url || image.dataUrl || '', image.filename)}
-                          />
+                    <div
+                      key={image.id}
+                      className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-lg shadow-purple-900/30 transition hover:-translate-y-1 hover:shadow-2xl"
+                    >
+                      <div className="relative">
+                        <img
+                          src={image.awsS3Url || image.url || image.dataUrl || ''}
+                          alt={image.filename}
+                          className="w-full h-full object-cover transition duration-700 group-hover:scale-[1.02]"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
+                        <div className="absolute bottom-0 left-0 right-0 p-4 opacity-0 transition duration-300 group-hover:opacity-100">
+                          <div className="mb-3 text-xs text-slate-200 line-clamp-2">{prompt}</div>
+                          <button
+                            onClick={() => downloadDatabaseImage(image)}
+                            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white/90 px-4 py-2 text-sm font-semibold text-slate-900 shadow-md transition hover:bg-white"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download
+                          </button>
                         </div>
-                      </div>
-                      <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex gap-1.5 sm:gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                        <button
-                          onClick={() => downloadDatabaseImage(image)}
-                          className="p-2 sm:p-3 bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700 active:scale-95"
-                          title="Download"
-                        >
-                          <Download className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                        <button
-                          onClick={() => shareImage(image)}
-                          className="p-2 sm:p-3 bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-purple-500 hover:to-pink-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700 active:scale-95"
-                          title="Share"
-                        >
-                          <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                        <button
-                          onClick={() => openLightbox(image.awsS3Url || image.url || image.dataUrl || '', image.filename)}
-                          className="p-2 sm:p-3 bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg hover:bg-gradient-to-br hover:from-green-500 hover:to-green-600 hover:text-white transition-all hover:scale-110 transform duration-200 border border-gray-200 dark:border-gray-700 active:scale-95"
-                          title="View Full Size"
-                        >
-                          <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />
-                        </button>
-                      </div>
-                      <div className="absolute bottom-3 sm:bottom-4 left-3 sm:left-4 px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 bg-black/70 backdrop-blur-md text-white text-[10px] xs:text-xs sm:text-sm rounded-lg sm:rounded-xl border border-white/20 shadow-lg">
-                        <span className="font-semibold">📁 {image.filename}</span>
                       </div>
                     </div>
                   ))}
                 </div>
+              ) : isProcessing ? (
+                <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-purple-500/30 bg-purple-500/5 py-16">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-purple-500 blur-2xl opacity-30 animate-pulse" />
+                    <Loader2 className="relative w-12 h-12 text-purple-300 animate-spin" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-white">Generating your image...</p>
+                    <p className="text-xs text-slate-400 mt-1">{formattedElapsed} elapsed</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/5 py-16">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
+                    <ImageIcon className="w-7 h-7 text-purple-200" />
+                  </div>
+                  <p className="text-sm text-slate-200/80">
+                    Your outputs will land here.
+                  </p>
+                </div>
+              )}
 
-                <button
-                  onClick={resetForm}
-                  className="group w-full mt-4 sm:mt-6 py-3 sm:py-4 bg-gradient-to-r from-gray-700 via-gray-800 to-gray-900 dark:from-gray-600 dark:via-gray-700 dark:to-gray-800 text-white font-bold text-sm sm:text-base rounded-xl hover:from-purple-600 hover:via-pink-600 hover:to-blue-600 transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1.5 sm:gap-2 relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                  <Wand2 className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-12 transition-transform duration-300" />
-                  <span>Create Another Masterpiece ✨</span>
-                </button>
+              {/* Generation History */}
+              <div className="mt-8 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-white">
+                    <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                    <h3 className="text-sm font-semibold">Recent Generations</h3>
+                    {generationHistory.length > 0 && (
+                      <span className="text-xs text-slate-400">({generationHistory.length})</span>
+                    )}
+                  </div>
+                  {generationHistory.length > 8 && (
+                    <button
+                      onClick={() => setShowHistoryModal(true)}
+                      className="text-xs text-purple-300 hover:text-purple-200 transition flex items-center gap-1"
+                    >
+                      View All
+                      <span className="bg-purple-500/20 rounded-full px-2 py-0.5">{generationHistory.length}</span>
+                    </button>
+                  )}
+                </div>
+                {generationHistory.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {generationHistory.slice(0, 8).map((image) => (
+                      <button
+                        key={image.id}
+                        className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md shadow-purple-900/20 transition hover:-translate-y-1 hover:border-purple-200/40"
+                        onClick={() => {
+                          setSelectedImage(image);
+                          setShowImageModal(true);
+                        }}
+                      >
+                        {image.imageUrl ? (
+                          <img
+                            src={image.imageUrl}
+                            alt={image.prompt}
+                            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const placeholder = target.nextElementSibling as HTMLElement;
+                              if (placeholder) placeholder.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className={`absolute inset-0 flex flex-col items-center justify-center bg-slate-800/50 ${image.imageUrl ? 'hidden' : 'flex'}`}
+                        >
+                          <ImageIcon className="w-8 h-8 text-slate-400 mb-2" />
+                          <span className="text-xs text-slate-400 px-2 text-center line-clamp-2">{image.prompt?.slice(0, 50) || 'Image'}</span>
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 transition group-hover:opacity-100" />
+                        <div className="absolute bottom-2 left-2 right-2 text-left text-[11px] text-slate-100 line-clamp-2 opacity-0 transition group-hover:opacity-100">
+                          {image.prompt}
+                        </div>
+                        {isAllProfiles && image.profileName && (
+                          <div className="absolute top-2 left-2 text-[9px] text-purple-200 bg-purple-600/60 rounded px-1.5 py-0.5">
+                            {image.profileName}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200">
+                    <span>{isLoadingHistory ? 'Loading history...' : 'No previous generations yet'}</span>
+                    {isLoadingHistory && <RefreshCw className="w-4 h-4 animate-spin text-purple-200" />}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
@@ -1165,146 +1416,83 @@ export default function FluxKontextPage() {
       {/* Lightbox */}
       {lightboxImage && (
         <div
-          className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-300"
+          className="fixed inset-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center p-4"
           onClick={() => setLightboxImage(null)}
         >
-          <div className="relative max-w-[95vw] sm:max-w-7xl max-h-full w-full">
-            <div className="relative bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-blue-900/20 rounded-2xl sm:rounded-3xl p-2 xs:p-3 sm:p-4 border border-white/10 shadow-2xl">
-              <img
-                src={lightboxImage}
-                alt={lightboxTitle}
-                className="max-w-full max-h-[80vh] sm:max-h-[85vh] object-contain mx-auto rounded-xl sm:rounded-2xl shadow-2xl"
-              />
-              <div className="absolute bottom-4 xs:bottom-6 sm:bottom-8 left-1/2 transform -translate-x-1/2 px-3 xs:px-4 sm:px-6 py-1.5 xs:py-2 sm:py-3 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl">
-                <span className="font-semibold text-[10px] xs:text-xs sm:text-sm">📁 {lightboxTitle}</span>
-              </div>
-            </div>
-            <button
-              onClick={() => setLightboxImage(null)}
-              className="absolute top-4 xs:top-6 sm:top-8 right-4 xs:right-6 sm:right-8 p-2 xs:p-2.5 sm:p-3 bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full hover:from-red-600 hover:to-red-700 transition-all shadow-xl hover:scale-110 transform duration-200 active:scale-95"
-              title="Close (ESC)"
-            >
-              <X className="w-5 h-5 sm:w-6 sm:h-6" />
-            </button>
-            <div className="absolute top-4 xs:top-6 sm:top-8 left-4 xs:left-6 sm:left-8 px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 bg-black/80 backdrop-blur-md text-white rounded-full border border-white/20 shadow-xl hidden xs:block">
-              <span className="text-[10px] xs:text-xs sm:text-sm font-semibold">Press ESC to close</span>
-            </div>
-          </div>
+          <button
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition"
+            onClick={() => setLightboxImage(null)}
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <img
+            src={lightboxImage}
+            alt={lightboxTitle}
+            className="max-w-full max-h-[90vh] object-contain rounded-lg"
+          />
         </div>
       )}
 
       {/* Floating Chat Assistant */}
       <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 z-50">
-        {/* Chat Bubble Button */}
         {!isChatOpen && (
           <button
             onClick={() => setIsChatOpen(true)}
-            className="group relative p-3 sm:p-4 bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 hover:scale-110 transition-all duration-300 animate-bounce active:scale-95"
+            className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-r from-purple-500 to-pink-600 shadow-lg shadow-purple-500/30 transition hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105"
           >
-            <MessageCircle className="w-6 h-6 sm:w-7 sm:h-7" />
-            <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold animate-pulse">
+            <MessageSquare className="w-6 h-6 text-white" />
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-400 text-[10px] font-bold text-slate-900">
               AI
-            </div>
-            <div className="absolute bottom-full right-0 mb-2 px-3 py-1 bg-black/80 backdrop-blur-md text-white text-sm rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-              Ask AI Assistant ✨
-            </div>
+            </span>
           </button>
         )}
 
-        {/* Chat Window */}
         {isChatOpen && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-[calc(100vw-2rem)] xs:w-80 sm:w-96 h-[500px] xs:h-[550px] sm:h-[600px] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+          <div className="flex flex-col w-[350px] sm:w-[400px] h-[500px] rounded-3xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl overflow-hidden">
             {/* Chat Header */}
-            <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 p-3 sm:p-4 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <div className="p-1.5 sm:p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                  <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gradient-to-r from-purple-500/20 to-pink-500/20">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-pink-600">
+                  <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm sm:text-base text-white">AI Assistant</h3>
-                  <p className="text-[10px] sm:text-xs text-purple-100">Flux Kontext Helper</p>
+                  <p className="text-sm font-semibold text-white">Flux Kontext Assistant</p>
+                  <p className="text-[10px] text-slate-300">Powered by AI</p>
                 </div>
               </div>
               <button
                 onClick={() => setIsChatOpen(false)}
-                className="p-1.5 sm:p-2 hover:bg-white/20 rounded-lg transition-colors active:scale-95"
+                className="rounded-full p-1.5 hover:bg-white/10 transition"
               >
-                <X className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <X className="w-5 h-5 text-slate-300" />
               </button>
             </div>
 
             {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-50 dark:bg-gray-900/50">
-              {chatMessages.map((message) => (
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {chatMessages.map((msg) => (
                 <div
-                  key={message.id}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  key={msg.id}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[85%] xs:max-w-[88%] sm:max-w-[90%] rounded-xl sm:rounded-2xl px-2 xs:px-3 sm:px-4 py-2 xs:py-2.5 sm:py-3 ${
-                      message.role === 'user'
-                        ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
-                        : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+                    className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${
+                      msg.role === 'user'
+                        ? 'bg-purple-500 text-white'
+                        : 'bg-white/10 text-slate-100'
                     }`}
                   >
-                    {message.role === 'assistant' && (
-                      <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 mb-1 xs:mb-1.5 sm:mb-2">
-                        <Brain className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
-                        <span className="text-[10px] xs:text-xs font-semibold text-purple-600 dark:text-purple-400">AI Assistant</span>
-                      </div>
+                    {msg.image && (
+                      <img src={msg.image} alt="Uploaded" className="w-full max-h-32 object-contain rounded-lg mb-2" />
                     )}
-                    {message.image && (
-                      <div className="mb-1 xs:mb-1.5 sm:mb-2">
-                        <img
-                          src={message.image}
-                          alt="Uploaded"
-                          className="max-w-full h-24 xs:h-28 sm:h-32 object-cover rounded-md sm:rounded-lg border-2 border-white/20"
-                        />
-                      </div>
-                    )}
-                    <div className="text-xs xs:text-sm whitespace-pre-wrap leading-relaxed">
-                      {message.content.split(/(\*\*.*?\*\*|```[\s\S]*?```)/g).map((part, idx) => {
-                        if (part.startsWith('**') && part.endsWith('**')) {
-                          return <strong key={idx} className="font-bold">{part.slice(2, -2)}</strong>;
-                        } else if (part.startsWith('```') && part.endsWith('```')) {
-                          const code = part.slice(3, -3).trim();
-                          return (
-                            <div key={idx} className="my-1 xs:my-1.5 sm:my-2 relative group">
-                              <pre className="bg-gray-900 text-gray-100 p-2 xs:p-2.5 sm:p-3 rounded-md sm:rounded-lg text-[10px] xs:text-xs overflow-x-auto">
-                                {code}
-                              </pre>
-                              <button
-                                onClick={() => copyToClipboard(code)}
-                                className="absolute top-1 xs:top-1.5 sm:top-2 right-1 xs:right-1.5 sm:right-2 p-0.5 xs:p-1 bg-gray-700 hover:bg-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity active:scale-95"
-                              >
-                                <Copy className="w-2.5 h-2.5 xs:w-3 xs:h-3 text-white" />
-                              </button>
-                            </div>
-                          );
-                        }
-                        return <span key={idx}>{part}</span>;
-                      })}
-                    </div>
-                    {message.role === 'user' && (
-                      <div className="text-[10px] xs:text-xs text-purple-100 mt-0.5 xs:mt-1 text-right">
-                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    )}
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
                   </div>
                 </div>
               ))}
-              
               {isChatGenerating && (
                 <div className="flex justify-start">
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl sm:rounded-2xl px-2 xs:px-3 sm:px-4 py-2 xs:py-2.5 sm:py-3 max-w-[85%]">
-                    <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2 mb-1 xs:mb-1.5 sm:mb-2">
-                      <Brain className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
-                      <span className="text-[10px] xs:text-xs font-semibold text-purple-600 dark:text-purple-400">{chatLoadingStep}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <Loader2 className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 animate-spin text-purple-600 dark:text-purple-400" />
-                      <span className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">Generating response...</span>
-                    </div>
+                  <div className="bg-white/10 rounded-2xl px-4 py-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-purple-300" />
                   </div>
                 </div>
               )}
@@ -1312,62 +1500,252 @@ export default function FluxKontextPage() {
             </div>
 
             {/* Chat Input */}
-            <div className="p-2 xs:p-3 sm:p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+            <div className="p-3 border-t border-white/10">
               {chatUploadedImage && (
-                <div className="mb-2 xs:mb-2.5 sm:mb-3 relative inline-block group">
-                  <img
-                    src={chatUploadedImage}
-                    alt="Preview"
-                    className="h-16 xs:h-18 sm:h-20 w-16 xs:w-18 sm:w-20 object-cover rounded-md sm:rounded-lg border-2 border-purple-300 dark:border-purple-600 shadow-md"
-                  />
+                <div className="relative mb-2 inline-block">
+                  <img src={chatUploadedImage} alt="Upload" className="h-16 w-16 object-cover rounded-lg" />
                   <button
-                    onClick={handleRemoveChatImage}
-                    className="absolute -top-1 xs:-top-1.5 sm:-top-2 -right-1 xs:-right-1.5 sm:-right-2 p-0.5 xs:p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-all shadow-lg opacity-100 group-hover:scale-110 active:scale-95"
+                    onClick={() => setChatUploadedImage(null)}
+                    className="absolute -top-1 -right-1 rounded-full bg-red-500 p-0.5"
                   >
-                    <X className="w-2.5 h-2.5 xs:w-3 xs:h-3" />
+                    <X className="w-3 h-3 text-white" />
                   </button>
                 </div>
               )}
-              <div className="flex gap-1.5 sm:gap-2">
-                <button
-                  onClick={() => chatFileInputRef.current?.click()}
-                  className="p-1.5 xs:p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md sm:rounded-lg transition-colors active:scale-95"
-                  title="Upload image"
-                >
-                  <ImageIcon className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 text-gray-600 dark:text-gray-300" />
-                </button>
+              <div className="flex items-end gap-2">
+                <label className="flex-shrink-0 p-2 rounded-xl hover:bg-white/10 cursor-pointer transition">
+                  <Upload className="w-5 h-5 text-slate-300" />
+                  <input
+                    ref={chatFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleChatImageUpload}
+                    className="hidden"
+                  />
+                </label>
                 <textarea
                   ref={chatInputRef}
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={handleChatKeyPress}
                   placeholder="Ask me anything..."
-                  className="flex-1 px-2 xs:px-3 py-1.5 xs:py-2 border border-gray-300 dark:border-gray-600 rounded-md sm:rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-900 dark:text-white resize-none text-xs xs:text-sm"
-                  rows={2}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:border-purple-400 resize-none"
+                  rows={1}
                   disabled={isChatGenerating}
                 />
                 <button
                   onClick={handleSendChat}
-                  disabled={(!chatInput.trim() && !chatUploadedImage) || isChatGenerating}
-                  className="px-2 xs:px-3 sm:px-4 py-1.5 xs:py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-md sm:rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl active:scale-95"
+                  disabled={isChatGenerating || (!chatInput.trim() && !chatUploadedImage)}
+                  className="flex-shrink-0 p-2 rounded-xl bg-purple-500 hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
-                  <Send className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5" />
+                  <Send className="w-5 h-5 text-white" />
                 </button>
               </div>
-              <p className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 mt-1 xs:mt-1.5 sm:mt-2">
+              <p className="text-[10px] text-slate-400 mt-1.5">
                 💡 Press Enter to send, Shift+Enter for new line
               </p>
-              <input
-                ref={chatFileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleChatImageUpload}
-                className="hidden"
-              />
             </div>
           </div>
         )}
       </div>
+
+      {/* Image Modal */}
+      {showImageModal && selectedImage && mounted && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => {
+            setShowImageModal(false);
+            setSelectedImage(null);
+          }}
+        >
+          <div 
+            className="relative w-full max-w-3xl max-h-[85vh] overflow-auto rounded-3xl border border-white/10 bg-slate-900/95 shadow-2xl backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => {
+                setShowImageModal(false);
+                setSelectedImage(null);
+              }}
+              className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="p-6 space-y-4 text-slate-100">
+              <div className="rounded-2xl border border-white/10 bg-slate-800 overflow-hidden max-h-[50vh] flex items-center justify-center">
+                <img
+                  src={selectedImage.imageUrl}
+                  alt={selectedImage.prompt}
+                  className="w-full h-auto max-h-[50vh] object-contain"
+                />
+              </div>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-2 text-purple-300">
+                  <Sparkles className="w-4 h-4" />
+                  <h3 className="text-base font-semibold">Image Details</h3>
+                </div>
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-800/50 p-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-1">Prompt</p>
+                    <p className="text-sm text-slate-100 leading-relaxed">{selectedImage.prompt}</p>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                    <span className="rounded-full bg-white/10 px-3 py-1">Flux Kontext</span>
+                    {selectedImage.metadata?.steps && (
+                      <span className="rounded-full bg-purple-500/20 px-3 py-1 text-purple-200">
+                        Steps: {selectedImage.metadata.steps}
+                      </span>
+                    )}
+                    {selectedImage.metadata?.guidance && (
+                      <span className="rounded-full bg-purple-500/20 px-3 py-1 text-purple-200">
+                        Guidance: {selectedImage.metadata.guidance}
+                      </span>
+                    )}
+                  </div>
+
+                  {(selectedImage.metadata?.referenceImageUrl || selectedImage.metadata?.referenceImageUrls?.[0]) && (
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400 mb-2">Reference Image</p>
+                      <div className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 bg-slate-800">
+                        <img 
+                          src={selectedImage.metadata.referenceImageUrl || selectedImage.metadata.referenceImageUrls?.[0]} 
+                          alt="Reference"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="gray"><rect width="24" height="24"/></svg>';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-[11px] text-slate-400">
+                    Created: {new Date(selectedImage.createdAt).toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleReuseGeneration(selectedImage)}
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-purple-400/30 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-purple-200 transition hover:bg-purple-500/20 hover:-translate-y-0.5"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reuse Settings
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(selectedImage.imageUrl, `flux-kontext-${selectedImage.id}.png`)}
+                    className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* View All History Modal */}
+      {showHistoryModal && mounted && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => setShowHistoryModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-3xl border border-white/10 bg-slate-900/95 shadow-2xl backdrop-blur"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-900/95 backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20">
+                  <RefreshCw className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Generation History</h2>
+                  <p className="text-xs text-slate-400">{generationHistory.length} images generated</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {generationHistory.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {generationHistory.map((image) => (
+                    <button
+                      key={image.id}
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-md transition hover:-translate-y-1 hover:border-purple-400/40"
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        setSelectedImage(image);
+                        setShowImageModal(true);
+                      }}
+                    >
+                      {image.imageUrl ? (
+                        <img
+                          src={image.imageUrl}
+                          alt={image.prompt}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800/50">
+                          <ImageIcon className="w-8 h-8 text-slate-400 mb-2" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition group-hover:opacity-100" />
+                      <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 transition group-hover:opacity-100">
+                        <p className="text-[11px] text-white line-clamp-2 mb-1">{image.prompt}</p>
+                      </div>
+                      {isAllProfiles && image.profileName && (
+                        <div className="absolute top-2 left-2 text-[9px] text-purple-200 bg-purple-600/60 rounded px-1.5 py-0.5">
+                          {image.profileName}
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
+                        {new Date(image.createdAt).toLocaleDateString()}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+                  <ImageIcon className="w-12 h-12 mb-3 opacity-50" />
+                  <p>No generation history yet</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reference Bank Selector */}
+      {showReferenceBankSelector && globalProfileId && (
+        <ReferenceSelector
+          profileId={globalProfileId}
+          onSelect={handleReferenceBankSelect}
+          onClose={() => setShowReferenceBankSelector(false)}
+          filterType="image"
+          isOpen={true}
+        />
+      )}
     </div>
   );
 }

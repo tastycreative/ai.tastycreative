@@ -13,6 +13,42 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get("profileId");
 
+    // Handle "all" profiles case - return folders from all profiles with profile names
+    if (profileId === "all") {
+      // Get all profiles for the user
+      const userProfiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: userId },
+        select: { id: true, name: true, instagramUsername: true },
+      });
+
+      // Create a map of profile IDs to profile info
+      const profileMap = Object.fromEntries(
+        userProfiles.map((p) => [p.id, { name: p.name, username: p.instagramUsername }])
+      );
+
+      // Get all folders for the user
+      const folders = await prisma.vaultFolder.findMany({
+        where: { clerkId: userId },
+        include: {
+          _count: {
+            select: { items: true },
+          },
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+
+      // Add profile name to each folder
+      const foldersWithProfileName = folders.map((folder) => ({
+        ...folder,
+        profileName: profileMap[folder.profileId]?.name || "Unknown Profile",
+        profileUsername: profileMap[folder.profileId]?.username || null,
+      }));
+
+      return NextResponse.json(foldersWithProfileName);
+    }
+
     // Build where clause - if profileId provided, filter by it; otherwise get all user folders
     const whereClause: { clerkId: string; profileId?: string } = {
       clerkId: userId,

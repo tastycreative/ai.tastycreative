@@ -17,6 +17,8 @@ import {
   Activity,
   X,
   Save,
+  User,
+  Info,
 } from "lucide-react";
 import { format, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { useUser } from "@clerk/nextjs";
@@ -44,6 +46,7 @@ interface PerformanceMetric {
   followersLost: number;
   engagementRate?: number;
   averageViews?: number;
+  profileName?: string;
 }
 
 interface WeeklySummary {
@@ -62,6 +65,9 @@ export default function PerformanceTrackerView({ profileId }: PerformanceTracker
   const [showModal, setShowModal] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  
+  // All Profiles mode
+  const isAllProfiles = profileId === "all";
   const [formData, setFormData] = useState({
     reelsPosted: 0,
     storiesPosted: 0,
@@ -97,7 +103,7 @@ export default function PerformanceTrackerView({ profileId }: PerformanceTracker
         endDate: format(weekEnd, "yyyy-MM-dd"),
       });
       
-      if (profileId && profileId !== "all") {
+      if (profileId) {
         params.append("profileId", profileId);
       }
 
@@ -276,21 +282,39 @@ export default function PerformanceTrackerView({ profileId }: PerformanceTracker
               <Activity className="w-7 h-7 text-blue-400" />
             </div>
             Performance Tracker
+            {isAllProfiles && (
+              <span className="ml-2 px-3 py-1 bg-pink-600/20 border border-pink-500/30 rounded-full text-sm font-medium text-pink-400 flex items-center gap-1">
+                <Users className="w-4 h-4" />
+                All Profiles
+              </span>
+            )}
           </h2>
           <p className="text-gray-400 mt-2">
             Track your weekly Instagram performance metrics
           </p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30"
-        >
-          <Plus className="w-5 h-5" />
-          Add Metrics
-        </motion.button>
+        {!isAllProfiles && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30"
+          >
+            <Plus className="w-5 h-5" />
+            Add Metrics
+          </motion.button>
+        )}
       </div>
+
+      {/* All Profiles Info Banner */}
+      {isAllProfiles && (
+        <div className="bg-gradient-to-r from-pink-600/10 via-purple-600/10 to-blue-600/10 border border-pink-500/30 rounded-xl p-4 flex items-center gap-3">
+          <Info className="w-5 h-5 text-pink-400 flex-shrink-0" />
+          <p className="text-sm text-gray-300">
+            <span className="font-medium text-pink-400">All Profiles Mode:</span> Viewing aggregated metrics from all profiles. Select a specific profile to add new metrics.
+          </p>
+        </div>
+      )}
 
       {/* Weekly Summary Cards */}
       {loading && !weeklySummary ? (
@@ -312,6 +336,11 @@ export default function PerformanceTrackerView({ profileId }: PerformanceTracker
                 <Calendar className="w-6 h-6 text-blue-400" />
               </div>
               <span className="text-white font-bold text-lg">This Week's Summary</span>
+              {isAllProfiles && (
+                <span className="px-2 py-1 bg-pink-600/20 rounded-lg text-xs text-pink-400 font-medium">
+                  All Profiles Combined
+                </span>
+              )}
               <span className="text-gray-400">
                 {format(startOfWeek(new Date(), { weekStartsOn: 1 }), "MMM d")} -{" "}
                 {format(endOfWeek(new Date(), { weekStartsOn: 1 }), "MMM d")}
@@ -365,16 +394,20 @@ export default function PerformanceTrackerView({ profileId }: PerformanceTracker
             No metrics yet
           </h3>
           <p className="text-gray-400 mb-8 text-lg">
-            Start tracking your Instagram performance by adding your first metrics
+            {isAllProfiles 
+              ? "No performance metrics found for any profile. Select a specific profile to add metrics."
+              : "Start tracking your Instagram performance by adding your first metrics"}
           </p>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setShowModal(true)}
-            className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30 font-semibold"
-          >
-            Add First Metrics
-          </motion.button>
+          {!isAllProfiles && (
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowModal(true)}
+              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white rounded-xl transition-all shadow-lg shadow-blue-600/30 font-semibold"
+            >
+              Add First Metrics
+            </motion.button>
+          )}
         </div>
       )}
 
@@ -385,12 +418,22 @@ export default function PerformanceTrackerView({ profileId }: PerformanceTracker
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-blue-400" />
               Daily Breakdown
+              {isAllProfiles && (
+                <span className="ml-2 px-2 py-1 bg-pink-600/20 rounded-lg text-xs text-pink-400 font-medium">
+                  All Profiles
+                </span>
+              )}
             </h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gradient-to-r from-[#2a2a2a] to-[#252525]">
                 <tr>
+                  {isAllProfiles && (
+                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-300 uppercase tracking-wider">
+                      Profile
+                    </th>
+                  )}
                   <th className="px-6 py-4 text-left text-sm font-bold text-gray-300 uppercase tracking-wider">
                     Date
                   </th>
@@ -414,6 +457,14 @@ export default function PerformanceTrackerView({ profileId }: PerformanceTracker
               <tbody className="divide-y divide-[#2a2a2a]">
                 {metrics.map((metric) => (
                   <tr key={metric.id} className="hover:bg-gradient-to-r hover:from-blue-600/5 hover:to-purple-600/5 transition-all">
+                    {isAllProfiles && (
+                      <td className="px-4 py-3 text-sm">
+                        <span className="flex items-center gap-1.5 text-pink-400">
+                          <User className="w-3.5 h-3.5" />
+                          {metric.profileName || "Unknown"}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-sm text-white">
                       {format(metric.date, "MMM d, yyyy")}
                     </td>

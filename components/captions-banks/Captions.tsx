@@ -13,6 +13,7 @@ import {
   Check,
   Star,
   User,
+  Users,
   FileText,
   AlertCircle,
   Clock,
@@ -30,6 +31,7 @@ import {
   SortAsc,
   Folder,
   TrendingUp,
+  Info,
 } from "lucide-react";
 
 interface Caption {
@@ -46,6 +48,7 @@ interface Caption {
   notes: string | null;
   tags: string | null;
   createdAt: string;
+  profileName?: string;
 }
 
 interface DuplicateGroup {
@@ -134,6 +137,9 @@ export function Captions() {
 
   // View mode
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // All Profiles mode
+  const isAllProfiles = selectedProfileId === "all";
 
   const captionCategories = [
     "Dick rating", "Solo DILDO", "Solo FINGERS", "Solo VIBRATOR", "JOI",
@@ -786,11 +792,20 @@ export function Captions() {
         <div className="mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
                 Caption Bank
+                {isAllProfiles && (
+                  <span className="px-3 py-1 bg-pink-100 dark:bg-pink-900/30 border border-pink-200 dark:border-pink-800 rounded-full text-sm font-medium text-pink-600 dark:text-pink-400 flex items-center gap-1">
+                    <Users className="w-4 h-4" />
+                    All Profiles
+                  </span>
+                )}
               </h1>
               <p className="mt-1 text-gray-500 dark:text-gray-400">
-                Manage captions for <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedProfile?.name}</span>
+                {isAllProfiles 
+                  ? "Viewing captions from all profiles"
+                  : <>Manage captions for <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedProfile?.name}</span></>
+                }
               </p>
             </div>
 
@@ -798,19 +813,22 @@ export function Captions() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => { fetchStats(); setShowStatsModal(true); }}
-                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"
+                disabled={isAllProfiles}
+                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <BarChart3 className="w-4 h-4" />
                 <span className="hidden sm:inline">Stats</span>
               </button>
 
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                <span className="hidden sm:inline">Import</span>
-              </button>
+              {!isAllProfiles && (
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span className="hidden sm:inline">Import</span>
+                </button>
+              )}
 
               <button
                 onClick={() => handleExportCaptions('csv')}
@@ -822,8 +840,8 @@ export function Captions() {
 
               <button
                 onClick={findDuplicates}
-                disabled={isCheckingDuplicates || captions.length < 2}
-                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50"
+                disabled={isCheckingDuplicates || captions.length < 2 || isAllProfiles}
+                className="h-10 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCheckingDuplicates ? (
                   <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
@@ -833,16 +851,28 @@ export function Captions() {
                 <span className="hidden sm:inline">Duplicates</span>
               </button>
 
-              <button
-                onClick={() => setShowNewCaptionModal(true)}
-                className="h-10 px-5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 shadow-lg shadow-violet-500/25"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Caption</span>
-              </button>
+              {!isAllProfiles && (
+                <button
+                  onClick={() => setShowNewCaptionModal(true)}
+                  className="h-10 px-5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 shadow-lg shadow-violet-500/25"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Caption</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
+
+        {/* All Profiles Info Banner */}
+        {isAllProfiles && (
+          <div className="mb-6 bg-gradient-to-r from-pink-50 via-violet-50 to-blue-50 dark:from-pink-900/20 dark:via-violet-900/20 dark:to-blue-900/20 border border-pink-200 dark:border-pink-800 rounded-xl p-4 flex items-center gap-3">
+            <Info className="w-5 h-5 text-pink-500 flex-shrink-0" />
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="font-medium text-pink-600 dark:text-pink-400">All Profiles Mode:</span> Viewing captions from all profiles. Select a specific profile to add, edit, or delete captions.
+            </p>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -1038,7 +1068,7 @@ export function Captions() {
         </div>
 
         {/* Bulk Actions Bar */}
-        {selectedCaptions.size > 0 && (
+        {selectedCaptions.size > 0 && !isAllProfiles && (
           <div className="bg-violet-600 rounded-2xl p-4 mb-6 flex items-center justify-between shadow-lg shadow-violet-500/20">
             <div className="flex items-center gap-3 text-white">
               <CheckSquare className="w-5 h-5" />
@@ -1078,8 +1108,9 @@ export function Captions() {
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {filteredCaptions.length} caption{filteredCaptions.length !== 1 ? 's' : ''}
             {searchDebounce && ` matching "${searchDebounce}"`}
+            {isAllProfiles && " (All Profiles)"}
           </p>
-          {filteredCaptions.length > 0 && (
+          {filteredCaptions.length > 0 && !isAllProfiles && (
             <button
               onClick={() => selectedCaptions.size === filteredCaptions.length ? clearSelection() : selectAllVisible()}
               className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
@@ -1133,16 +1164,24 @@ export function Captions() {
                   {/* Card Header */}
                   <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
                     <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => toggleCaptionSelection(caption.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        {isSelected ? (
-                          <CheckSquare className="w-5 h-5 text-violet-600" />
-                        ) : (
-                          <Square className="w-5 h-5 text-gray-400" />
-                        )}
-                      </button>
+                      {!isAllProfiles && (
+                        <button
+                          onClick={() => toggleCaptionSelection(caption.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-5 h-5 text-violet-600" />
+                          ) : (
+                            <Square className="w-5 h-5 text-gray-400" />
+                          )}
+                        </button>
+                      )}
+                      {isAllProfiles && caption.profileName && (
+                        <span className="flex items-center gap-1 px-2 py-1 bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 text-xs font-medium rounded-lg">
+                          <User className="w-3 h-3" />
+                          {caption.profileName}
+                        </span>
+                      )}
                       <span className="px-2.5 py-1 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-xs font-semibold rounded-lg">
                         {caption.captionCategory}
                       </span>
@@ -1153,14 +1192,19 @@ export function Captions() {
                         </span>
                       )}
                     </div>
-                    <button
-                      onClick={() => handleToggleFavorite(caption.id)}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        caption.isFavorite ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500'
-                      }`}
-                    >
-                      <Star className={`w-5 h-5 ${caption.isFavorite ? 'fill-current' : ''}`} />
-                    </button>
+                    {!isAllProfiles && (
+                      <button
+                        onClick={() => handleToggleFavorite(caption.id)}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          caption.isFavorite ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500'
+                        }`}
+                      >
+                        <Star className={`w-5 h-5 ${caption.isFavorite ? 'fill-current' : ''}`} />
+                      </button>
+                    )}
+                    {isAllProfiles && caption.isFavorite && (
+                      <Star className="w-5 h-5 text-amber-500 fill-current" />
+                    )}
                   </div>
 
                   {/* Card Body */}
@@ -1223,20 +1267,24 @@ export function Captions() {
                       >
                         {copiedId === caption.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       </button>
-                      <button
-                        onClick={() => openEditModal(caption)}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCaption(caption.id)}
-                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-600 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {!isAllProfiles && (
+                        <>
+                          <button
+                            onClick={() => openEditModal(caption)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCaption(caption.id)}
+                            className="p-2 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-600 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1249,18 +1297,23 @@ export function Captions() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                  <th className="w-12 px-4 py-3">
-                    <button
-                      onClick={() => selectedCaptions.size === filteredCaptions.length ? clearSelection() : selectAllVisible()}
-                      className="p-1"
-                    >
-                      {selectedCaptions.size === filteredCaptions.length && filteredCaptions.length > 0 ? (
-                        <CheckSquare className="w-5 h-5 text-violet-600" />
-                      ) : (
-                        <Square className="w-5 h-5 text-gray-400" />
-                      )}
-                    </button>
-                  </th>
+                  {!isAllProfiles && (
+                    <th className="w-12 px-4 py-3">
+                      <button
+                        onClick={() => selectedCaptions.size === filteredCaptions.length ? clearSelection() : selectAllVisible()}
+                        className="p-1"
+                      >
+                        {selectedCaptions.size === filteredCaptions.length && filteredCaptions.length > 0 ? (
+                          <CheckSquare className="w-5 h-5 text-violet-600" />
+                        ) : (
+                          <Square className="w-5 h-5 text-gray-400" />
+                        )}
+                      </button>
+                    </th>
+                  )}
+                  {isAllProfiles && (
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Profile</th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Caption</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Used</th>
@@ -1278,25 +1331,41 @@ export function Captions() {
                       key={caption.id}
                       className={`group transition-colors ${isSelected ? 'bg-violet-50 dark:bg-violet-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}
                     >
-                      <td className="px-4 py-4">
-                        <button onClick={() => toggleCaptionSelection(caption.id)} className="p-1">
-                          {isSelected ? (
-                            <CheckSquare className="w-5 h-5 text-violet-600" />
-                          ) : (
-                            <Square className="w-5 h-5 text-gray-300 group-hover:text-gray-400" />
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-4 py-4" onDoubleClick={() => !isEditing && startInlineEdit(caption)}>
-                        <div className="flex items-start gap-3">
-                          <button
-                            onClick={() => handleToggleFavorite(caption.id)}
-                            className={`flex-shrink-0 mt-0.5 ${caption.isFavorite ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500'}`}
-                          >
-                            <Star className={`w-4 h-4 ${caption.isFavorite ? 'fill-current' : ''}`} />
+                      {!isAllProfiles && (
+                        <td className="px-4 py-4">
+                          <button onClick={() => toggleCaptionSelection(caption.id)} className="p-1">
+                            {isSelected ? (
+                              <CheckSquare className="w-5 h-5 text-violet-600" />
+                            ) : (
+                              <Square className="w-5 h-5 text-gray-300 group-hover:text-gray-400" />
+                            )}
                           </button>
+                        </td>
+                      )}
+                      {isAllProfiles && (
+                        <td className="px-4 py-4">
+                          {caption.profileName && (
+                            <span className="flex items-center gap-1 px-2 py-1 bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 text-xs font-medium rounded-lg whitespace-nowrap">
+                              <User className="w-3 h-3" />
+                              {caption.profileName}
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td className="px-4 py-4" onDoubleClick={() => !isEditing && !isAllProfiles && startInlineEdit(caption)}>
+                        <div className="flex items-start gap-3">
+                          {!isAllProfiles ? (
+                            <button
+                              onClick={() => handleToggleFavorite(caption.id)}
+                              className={`flex-shrink-0 mt-0.5 ${caption.isFavorite ? 'text-amber-500' : 'text-gray-300 hover:text-amber-500'}`}
+                            >
+                              <Star className={`w-4 h-4 ${caption.isFavorite ? 'fill-current' : ''}`} />
+                            </button>
+                          ) : caption.isFavorite ? (
+                            <Star className="w-4 h-4 text-amber-500 fill-current flex-shrink-0 mt-0.5" />
+                          ) : null}
                           <div className="flex-1 min-w-0">
-                            {isEditing ? (
+                            {isEditing && !isAllProfiles ? (
                               <div className="space-y-2">
                                 <textarea
                                   ref={inlineEditRef}
@@ -1314,7 +1383,7 @@ export function Captions() {
                               </div>
                             ) : (
                               <>
-                                <p className="text-sm text-gray-900 dark:text-white line-clamp-2 cursor-pointer" title="Double-click to edit">{caption.caption}</p>
+                                <p className={`text-sm text-gray-900 dark:text-white line-clamp-2 ${!isAllProfiles ? 'cursor-pointer' : ''}`} title={!isAllProfiles ? "Double-click to edit" : undefined}>{caption.caption}</p>
                                 {cooldownStatus.inCooldown && (
                                   <span className="inline-flex items-center gap-1 mt-1 text-xs text-amber-600 dark:text-amber-400">
                                     <Clock className="w-3 h-3" />
@@ -1344,12 +1413,16 @@ export function Captions() {
                           >
                             {copiedId === caption.id ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                           </button>
-                          <button onClick={() => openEditModal(caption)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 rounded-lg">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDeleteCaption(caption.id)} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-600 rounded-lg">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {!isAllProfiles && (
+                            <>
+                              <button onClick={() => openEditModal(caption)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 rounded-lg">
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => handleDeleteCaption(caption.id)} className="p-2 hover:bg-red-100 dark:hover:bg-red-900/40 text-gray-500 hover:text-red-600 rounded-lg">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

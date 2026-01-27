@@ -377,8 +377,22 @@ export async function GET(request: NextRequest) {
     // Get profileId from query params to filter by profile
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
+    const isAllProfiles = profileId === 'all';
 
-    console.log('📋 Fetching SeeDream I2I history for user:', userId, 'profileId:', profileId);
+    console.log('📋 Fetching SeeDream I2I history for user:', userId, 'profileId:', profileId, 'isAllProfiles:', isAllProfiles);
+
+    // If viewing all profiles, get profile map for name lookups
+    let profileMap: Record<string, string> = {};
+    if (isAllProfiles) {
+      const profiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: userId },
+        select: { id: true, name: true, instagramUsername: true },
+      });
+      profileMap = profiles.reduce((acc, p) => {
+        acc[p.id] = p.instagramUsername ? `@${p.instagramUsername}` : p.name;
+        return acc;
+      }, {} as Record<string, string>);
+    }
 
     // First get generation jobs that are SeeDream I2I type
     const recentJobs = await prisma.generationJob.findMany({
@@ -402,8 +416,8 @@ export async function GET(request: NextRequest) {
       .filter((job) => {
         const params = job.params as any;
         const isSeeDreamI2I = params?.source === 'seedream-i2i';
-        // If profileId is provided, filter to only jobs for that profile
-        if (profileId && params?.vaultProfileId) {
+        // If profileId is provided (and not "all"), filter to only jobs for that profile
+        if (profileId && !isAllProfiles && params?.vaultProfileId) {
           return isSeeDreamI2I && params.vaultProfileId === profileId;
         }
         return isSeeDreamI2I;
@@ -431,8 +445,8 @@ export async function GET(request: NextRequest) {
         take: 50,
       });
       
-      // Filter by profileId from metadata if provided
-      if (profileId) {
+      // Filter by profileId from metadata if provided (and not "all")
+      if (profileId && !isAllProfiles) {
         generatedImages = generatedImages.filter((img) => {
           const metadata = img.metadata as any;
           return metadata?.vaultProfileId === profileId;
@@ -448,8 +462,8 @@ export async function GET(request: NextRequest) {
       fileType: 'image/png',
     };
     
-    // Filter by profileId if provided
-    if (profileId) {
+    // Filter by profileId if provided (and not "all")
+    if (profileId && !isAllProfiles) {
       vaultWhere.profileId = profileId;
     }
     
@@ -472,6 +486,7 @@ export async function GET(request: NextRequest) {
     // Map generated images with full metadata for reuse
     const mappedGeneratedImages = generatedImages.map((img) => {
       const metadata = img.metadata as any;
+      const imgProfileId = metadata?.vaultProfileId || null;
       return {
         id: img.id,
         imageUrl: img.awsS3Url || '',
@@ -481,6 +496,7 @@ export async function GET(request: NextRequest) {
         createdAt: img.createdAt.toISOString(),
         status: 'completed' as const,
         source: 'generated' as const,
+        profileName: isAllProfiles && imgProfileId ? profileMap[imgProfileId] || null : null,
         // Include full metadata for reuse functionality
         metadata: {
           resolution: metadata?.resolution || '2K',
@@ -488,7 +504,7 @@ export async function GET(request: NextRequest) {
           watermark: metadata?.watermark || false,
           numReferenceImages: metadata?.numReferenceImages || 1,
           referenceImageUrls: metadata?.referenceImageUrls || [],
-          profileId: metadata?.vaultProfileId || null,
+          profileId: imgProfileId,
         },
       };
     });
@@ -506,6 +522,7 @@ export async function GET(request: NextRequest) {
         status: 'completed' as const,
         source: 'vault' as const,
         profileId: img.profileId,
+        profileName: isAllProfiles && img.profileId ? profileMap[img.profileId] || null : null,
         // Include full metadata for reuse functionality
         metadata: {
           resolution: metadata?.resolution || '2K',

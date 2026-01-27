@@ -27,29 +27,47 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify profile belongs to user
-    const profile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        clerkId: userId,
-      },
-    });
+    const isAllProfiles = profileId === "all";
 
-    if (!profile) {
-      return NextResponse.json(
-        { error: "Profile not found or unauthorized" },
-        { status: 404 }
-      );
+    // Build profile map for All Profiles mode
+    let profileMap: Record<string, string> = {};
+    if (isAllProfiles) {
+      const profiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: userId },
+        select: { id: true, name: true },
+      });
+      profileMap = profiles.reduce((acc, profile) => {
+        acc[profile.id] = profile.name;
+        return acc;
+      }, {} as Record<string, string>);
+    } else {
+      // Verify profile belongs to user
+      const profile = await prisma.instagramProfile.findFirst({
+        where: {
+          id: profileId,
+          clerkId: userId,
+        },
+      });
+
+      if (!profile) {
+        return NextResponse.json(
+          { error: "Profile not found or unauthorized" },
+          { status: 404 }
+        );
+      }
     }
 
     const where: {
-      profileId: string;
+      profileId?: string;
       clerkId: string;
       isFavorite?: boolean;
     } = {
-      profileId,
       clerkId: userId,
     };
+
+    if (!isAllProfiles) {
+      where.profileId = profileId;
+    }
 
     if (favoritesOnly) {
       where.isFavorite = true;
@@ -69,7 +87,15 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    return NextResponse.json(captions);
+    // Add profileName to each caption if in all profiles mode
+    const captionsWithProfile = isAllProfiles
+      ? captions.map((caption) => ({
+          ...caption,
+          profileName: profileMap[caption.profileId] || "Unknown Profile",
+        }))
+      : captions;
+
+    return NextResponse.json(captionsWithProfile);
   } catch (error) {
     console.error("Error fetching captions:", error);
     return NextResponse.json(

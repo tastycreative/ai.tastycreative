@@ -158,6 +158,7 @@ interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
+  profileName?: string;
   isDefault?: boolean;
 }
 
@@ -173,6 +174,7 @@ interface GeneratedVideo {
   createdAt: string;
   status: "processing" | "completed" | "failed";
   savedToVault?: boolean;
+  profileName?: string;
   metadata?: {
     prompt?: string;
     mode?: string;
@@ -200,7 +202,10 @@ export default function KlingMotionControl() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
-  const { profileId, selectedProfile } = useInstagramProfile();
+  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+  
+  // Check if "All Profiles" is selected
+  const isAllProfiles = globalProfileId === "all";
 
   // Hydration fix
   const [mounted, setMounted] = useState(false);
@@ -268,19 +273,23 @@ export default function KlingMotionControl() {
 
   // Load vault folders for selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient || !user || !profileId) {
+    if (!apiClient || !user || !globalProfileId) {
       setVaultFolders([]);
       return;
     }
     setIsLoadingVaultData(true);
     try {
       const foldersResponse = await apiClient.get(
-        `/api/vault/folders?profileId=${profileId}`
+        `/api/vault/folders?profileId=${globalProfileId}`
       );
       if (foldersResponse.ok) {
         const foldersData = await foldersResponse.json();
         const folders = Array.isArray(foldersData) ? foldersData : (foldersData.folders || []);
-        setVaultFolders(folders);
+        // Add profileName from response if available (for "all" profiles view)
+        setVaultFolders(folders.map((f: any) => ({
+          ...f,
+          profileName: f.profileName || null
+        })));
       } else {
         setVaultFolders([]);
       }
@@ -290,16 +299,24 @@ export default function KlingMotionControl() {
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient, user, profileId]);
+  }, [apiClient, user, globalProfileId]);
 
   // Get display name for selected folder
   const getSelectedFolderDisplay = (): string => {
     if (!targetFolder) return "Please select a vault folder to save your video";
 
     const folder = vaultFolders.find((f) => f.id === targetFolder);
-    if (folder && selectedProfile) {
-      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-      return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
+    if (folder) {
+      // When viewing all profiles, use folder's profileName
+      if (isAllProfiles && folder.profileName) {
+        return `Videos save to vault: ${folder.profileName} / ${folder.name}`;
+      }
+      // When viewing specific profile, use selectedProfile
+      if (selectedProfile) {
+        const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+        return `Videos save to vault: ${profileDisplay} / ${folder.name}`;
+      }
+      return `Videos save to vault: ${folder.name}`;
     }
     return "Please select a vault folder";
   };
@@ -309,10 +326,10 @@ export default function KlingMotionControl() {
     if (!apiClient || !user) return;
     setIsLoadingHistory(true);
     try {
-      console.log("[Kling Motion Control Frontend] Loading generation history for profileId:", profileId);
+      console.log("[Kling Motion Control Frontend] Loading generation history for profileId:", globalProfileId);
       // Add profileId to filter by selected profile
-      const url = profileId
-        ? `/api/generate/kling-motion-control?history=true&profileId=${profileId}`
+      const url = globalProfileId
+        ? `/api/generate/kling-motion-control?history=true&profileId=${globalProfileId}`
         : "/api/generate/kling-motion-control?history=true";
       const response = await apiClient.get(url);
       if (response.ok) {
@@ -336,7 +353,7 @@ export default function KlingMotionControl() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [apiClient, user, profileId]);
+  }, [apiClient, user, globalProfileId]);
 
   // Initial data load
   useEffect(() => {
@@ -450,14 +467,14 @@ export default function KlingMotionControl() {
   // Clear target folder when profile changes
   useEffect(() => {
     setTargetFolder("");
-  }, [profileId]);
+  }, [globalProfileId]);
 
   // Reload generation history when profile changes
   useEffect(() => {
-    if (user && apiClient && profileId) {
+    if (user && apiClient && globalProfileId) {
       loadGenerationHistory();
     }
-  }, [profileId, loadGenerationHistory, user, apiClient]);
+  }, [globalProfileId, loadGenerationHistory, user, apiClient]);
 
   // Click outside handler for folder dropdown
   useEffect(() => {
@@ -587,7 +604,7 @@ export default function KlingMotionControl() {
 
   // Save image to Reference Bank (for file-based uploads)
   const saveToReferenceBank = async (file: File, imageBase64: string, skipIfExists?: boolean): Promise<string | null> => {
-    if (!profileId) return null;
+    if (!globalProfileId || globalProfileId === "all") return null;
     
     try {
       const mimeType = file.type || 'image/jpeg';
@@ -607,7 +624,7 @@ export default function KlingMotionControl() {
       // Check if a similar file already exists in Reference Bank (by size)
       if (skipIfExists) {
         try {
-          const existingCheck = await fetch(`/api/reference-bank?profileId=${profileId}&checkDuplicate=true&fileSize=${blob.size}&fileName=${encodeURIComponent(fileName)}`);
+          const existingCheck = await fetch(`/api/reference-bank?profileId=${globalProfileId}&checkDuplicate=true&fileSize=${blob.size}&fileName=${encodeURIComponent(fileName)}`);
           if (existingCheck.ok) {
             const existing = await existingCheck.json();
             if (existing.duplicate) {
@@ -633,7 +650,7 @@ export default function KlingMotionControl() {
       const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, fileType: mimeType, profileId }),
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId: globalProfileId }),
       });
 
       if (!presignedResponse.ok) return null;
@@ -654,7 +671,7 @@ export default function KlingMotionControl() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          profileId,
+          profileId: globalProfileId,
           name: fileName,
           fileType: 'image',
           mimeType,
@@ -679,7 +696,7 @@ export default function KlingMotionControl() {
 
   // Save video to Reference Bank
   const saveVideoToReferenceBank = async (file: File, skipIfExists?: boolean): Promise<string | null> => {
-    if (!profileId) return null;
+    if (!globalProfileId || globalProfileId === "all") return null;
     
     try {
       const mimeType = file.type || 'video/mp4';
@@ -689,7 +706,7 @@ export default function KlingMotionControl() {
       // Check if a similar file already exists in Reference Bank (by size)
       if (skipIfExists) {
         try {
-          const existingCheck = await fetch(`/api/reference-bank?profileId=${profileId}&checkDuplicate=true&fileSize=${file.size}&fileName=${encodeURIComponent(fileName)}`);
+          const existingCheck = await fetch(`/api/reference-bank?profileId=${globalProfileId}&checkDuplicate=true&fileSize=${file.size}&fileName=${encodeURIComponent(fileName)}`);
           if (existingCheck.ok) {
             const existing = await existingCheck.json();
             if (existing.duplicate) {
@@ -706,7 +723,7 @@ export default function KlingMotionControl() {
       const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName, fileType: mimeType, profileId }),
+        body: JSON.stringify({ fileName, fileType: mimeType, profileId: globalProfileId }),
       });
 
       if (!presignedResponse.ok) return null;
@@ -727,7 +744,7 @@ export default function KlingMotionControl() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          profileId,
+          profileId: globalProfileId,
           name: fileName,
           fileType: 'video',
           mimeType,
@@ -970,7 +987,7 @@ export default function KlingMotionControl() {
     const localTaskId = `kling-mc-${Date.now()}`;
 
     // Save to Reference Bank before generating (only for new uploads, not from Reference Bank)
-    if (profileId && !fromReferenceBank && imageFile && imagePreview) {
+    if (globalProfileId && globalProfileId !== "all" && !fromReferenceBank && imageFile && imagePreview) {
       setIsSavingToReferenceBank(true);
       try {
         // Pass skipIfExists: true to avoid creating duplicates
@@ -988,7 +1005,7 @@ export default function KlingMotionControl() {
     }
 
     // Save video to Reference Bank before generating (only for new uploads)
-    if (profileId && !videoFromReferenceBank && videoFile) {
+    if (globalProfileId && globalProfileId !== "all" && !videoFromReferenceBank && videoFile) {
       try {
         // Pass skipIfExists: true to avoid creating duplicates
         const newVideoReferenceId = await saveVideoToReferenceBank(videoFile, true);
@@ -1024,9 +1041,13 @@ export default function KlingMotionControl() {
       }
 
       // Add folder selection data - simplified vault folder approach
-      if (targetFolder && profileId) {
+      if (targetFolder && globalProfileId) {
         formData.append("saveToVault", "true");
-        formData.append("vaultProfileId", profileId);
+        // Use folder's profileId for proper association (works for both single and all profiles views)
+        const folderProfileId = vaultFolders.find(f => f.id === targetFolder)?.profileId || globalProfileId;
+        if (folderProfileId && folderProfileId !== "all") {
+          formData.append("vaultProfileId", folderProfileId);
+        }
         formData.append("vaultFolderId", targetFolder);
       }
 
@@ -1340,7 +1361,7 @@ export default function KlingMotionControl() {
                     <label className="text-sm font-semibold text-slate-100">Reference Image (Character) *</label>
                   </div>
                   {/* Reference Bank Button */}
-                  {mounted && profileId && (
+                  {mounted && globalProfileId && (
                     <button
                       type="button"
                       onClick={() => setShowReferenceBankSelector(true)}
@@ -1422,7 +1443,7 @@ export default function KlingMotionControl() {
                     <label className="text-sm font-semibold text-slate-100">Reference Video (Motion) *</label>
                   </div>
                   {/* Reference Bank Button for Video */}
-                  {mounted && profileId && (
+                  {mounted && globalProfileId && (
                     <button
                       type="button"
                       onClick={() => setShowVideoReferenceBankSelector(true)}
@@ -1611,14 +1632,24 @@ export default function KlingMotionControl() {
                     <button
                       type="button"
                       onClick={() => setFolderDropdownOpen(!folderDropdownOpen)}
-                      disabled={isLoadingVaultData || isGenerating || !profileId}
+                      disabled={isLoadingVaultData || isGenerating || !globalProfileId}
                       className="w-full flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-violet-500/50 disabled:opacity-50"
                     >
                       <span className="flex items-center gap-2">
                         <FolderOpen className="w-4 h-4 text-violet-300" />
-                        {targetFolder
-                          ? vaultFolders.find((f) => f.id === targetFolder)?.name || "Select folder..."
-                          : "Select a vault folder..."}
+                        <div className="text-left">
+                          <span>{targetFolder
+                            ? vaultFolders.find((f) => f.id === targetFolder)?.name || "Select folder..."
+                            : "Select a vault folder..."}</span>
+                          {targetFolder && (
+                            <span className="block text-[11px] text-violet-300/70">
+                              {isAllProfiles 
+                                ? vaultFolders.find(f => f.id === targetFolder)?.profileName || ''
+                                : selectedProfile?.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile?.name || ''
+                              }
+                            </span>
+                          )}
+                        </div>
                       </span>
                       <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${folderDropdownOpen ? "rotate-180" : ""}`} />
                     </button>
@@ -1629,7 +1660,45 @@ export default function KlingMotionControl() {
                             <div className="px-4 py-3 text-sm text-slate-400">
                               No folders available for this profile
                             </div>
+                          ) : isAllProfiles ? (
+                            // Group folders by profile
+                            Object.entries(
+                              vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
+                                const profileKey = folder.profileName || 'Unknown Profile';
+                                if (!acc[profileKey]) acc[profileKey] = [];
+                                acc[profileKey].push(folder);
+                                return acc;
+                              }, {} as Record<string, VaultFolder[]>)
+                            ).map(([profileName, folders]) => (
+                              <div key={profileName}>
+                                <div className="px-4 py-2 text-xs font-semibold text-violet-300 uppercase tracking-wider bg-violet-500/10 sticky top-0">
+                                  {profileName}
+                                </div>
+                                {folders.map((folder) => (
+                                  <button
+                                    key={folder.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setTargetFolder(folder.id);
+                                      setFolderDropdownOpen(false);
+                                    }}
+                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-white/10 ${
+                                      targetFolder === folder.id
+                                        ? "bg-violet-500/20 text-violet-200"
+                                        : "text-slate-200"
+                                    }`}
+                                  >
+                                    <FolderOpen className="w-4 h-4 text-violet-300" />
+                                    <span className="flex-1 text-left">{folder.name}</span>
+                                    {targetFolder === folder.id && (
+                                      <Check className="w-4 h-4 text-violet-400" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            ))
                           ) : (
+                            // Single profile view - flat list
                             vaultFolders
                               .filter((f) => !f.isDefault)
                               .map((folder) => (
@@ -1987,6 +2056,14 @@ export default function KlingMotionControl() {
                             {video.status === "completed" ? "✓ Ready" : "Processing"}
                           </div>
                         </div>
+                        {/* Profile badge when viewing all profiles */}
+                        {isAllProfiles && video.profileName && (
+                          <div className="absolute top-2 left-2">
+                            <div className="rounded-full bg-slate-900/80 backdrop-blur-sm px-2 py-1 text-[10px] text-violet-200 border border-violet-400/30">
+                              {video.profileName}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2082,24 +2159,24 @@ export default function KlingMotionControl() {
         )}
 
       {/* Reference Bank Selector for Images */}
-      {mounted && profileId && (
+      {mounted && globalProfileId && (
         <ReferenceSelector
           isOpen={showReferenceBankSelector}
           onClose={() => setShowReferenceBankSelector(false)}
           onSelect={handleReferenceBankSelect}
           filterType="image"
-          profileId={profileId}
+          profileId={globalProfileId}
         />
       )}
 
       {/* Reference Bank Selector for Videos */}
-      {mounted && profileId && (
+      {mounted && globalProfileId && (
         <ReferenceSelector
           isOpen={showVideoReferenceBankSelector}
           onClose={() => setShowVideoReferenceBankSelector(false)}
           onSelect={handleVideoReferenceBankSelect}
           filterType="video"
-          profileId={profileId}
+          profileId={globalProfileId}
         />
       )}
     </div>

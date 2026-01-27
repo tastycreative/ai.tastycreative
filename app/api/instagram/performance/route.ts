@@ -33,8 +33,23 @@ export async function GET(request: NextRequest) {
       },
     };
 
+    const isAllProfiles = !profileId || profileId === "all";
+
     if (profileId && profileId !== "all") {
       whereClause.profileId = profileId;
+    }
+
+    // If fetching all profiles, build a profile map for names
+    let profileMap: Record<string, string> = {};
+    if (isAllProfiles) {
+      const profiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: user.id },
+        select: { id: true, name: true },
+      });
+      profileMap = profiles.reduce((acc, profile) => {
+        acc[profile.id] = profile.name;
+        return acc;
+      }, {} as Record<string, string>);
     }
 
     const metrics = await prisma.performanceMetric.findMany({
@@ -42,7 +57,15 @@ export async function GET(request: NextRequest) {
       orderBy: { date: "desc" },
     });
 
-    return NextResponse.json({ metrics });
+    // Add profileName to each metric if in all profiles mode
+    const metricsWithProfile = isAllProfiles
+      ? metrics.map((metric) => ({
+          ...metric,
+          profileName: profileMap[metric.profileId] || "Unknown Profile",
+        }))
+      : metrics;
+
+    return NextResponse.json({ metrics: metricsWithProfile });
   } catch (error) {
     console.error("Error fetching performance metrics:", error);
     return NextResponse.json(

@@ -147,6 +147,7 @@ interface VaultFolder {
   name: string;
   profileId: string;
   isDefault?: boolean;
+  profileName?: string;
 }
 
 interface GeneratedImage {
@@ -159,6 +160,7 @@ interface GeneratedImage {
   status: "completed" | "processing" | "failed";
   source?: "generated" | "vault";
   profileId?: string;
+  profileName?: string;
   // Metadata for reuse functionality
   metadata?: {
     resolution?: "2K" | "4K";
@@ -169,6 +171,9 @@ interface GeneratedImage {
     profileId?: string;
   };
 }
+
+// Maximum number of reference images that can be uploaded (0 = unlimited)
+const MAX_REFERENCE_IMAGES = 0;
 
 export default function SeeDreamImageToImage() {
   const apiClient = useApiClient();
@@ -221,7 +226,7 @@ export default function SeeDreamImageToImage() {
   const [targetFolder, setTargetFolder] = useState<string>("");
 
   // Use global profile from header
-  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+  const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
@@ -413,9 +418,16 @@ export default function SeeDreamImageToImage() {
     if (!targetFolder || !globalProfileId) return 'Please select a vault folder to save your images';
     
     const folder = vaultFolders.find(f => f.id === targetFolder);
-    if (folder && selectedProfile) {
-      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+    if (folder) {
+      // If viewing all profiles, use the folder's profileName
+      if (isAllProfiles && folder.profileName) {
+        return `Saving to Vault: ${folder.profileName} / ${folder.name}`;
+      }
+      // Otherwise use the selected profile
+      if (selectedProfile) {
+        const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+      }
     }
     return 'Please select a vault folder';
   };
@@ -529,69 +541,84 @@ export default function SeeDreamImageToImage() {
     }
   };
 
-  // Handle selection from Reference Bank
+  // Handle single selection from Reference Bank (legacy support)
   const handleReferenceBankSelect = async (item: ReferenceItem) => {
-    if (uploadedImages.length >= maxImages) {
-      setError(`Maximum of ${maxImages} reference image${maxImages > 1 ? 's' : ''} allowed`);
+    await handleReferenceBankMultiSelect([item]);
+  };
+
+  // Handle multi-selection from Reference Bank
+  const handleReferenceBankMultiSelect = async (items: ReferenceItem[]) => {
+    if (items.length === 0) {
+      setShowReferenceBankSelector(false);
       return;
     }
 
-    // Check if this reference is already added
-    const alreadyAdded = uploadedImages.some(img => img.referenceId === item.id);
-    if (alreadyAdded) {
-      setError('This reference image is already added');
+    // Filter out already added items
+    const existingReferenceIds = new Set(uploadedImages.map(img => img.referenceId).filter(Boolean));
+    const newItems = items.filter(item => !existingReferenceIds.has(item.id));
+
+    if (newItems.length === 0) {
+      setError('All selected images are already added');
+      setShowReferenceBankSelector(false);
       return;
     }
 
-    try {
-      // Use a proxy to fetch the image to avoid CORS issues
-      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
-      
-      if (!proxyResponse.ok) {
-        // Fallback: use the URL directly without base64 conversion
-        const newImage = {
-          id: `ref-${item.id}-${Date.now()}`,
-          base64: item.awsS3Url, // Use URL as fallback
-          wasCompressed: false,
-          fromReferenceBank: true,
-          referenceId: item.id,
-          url: item.awsS3Url,
-        };
+    setIsCompressing(true);
+    const loadedImages: Array<{
+      id: string;
+      base64: string;
+      wasCompressed: boolean;
+      fromReferenceBank: boolean;
+      referenceId: string;
+      url: string;
+    }> = [];
+
+    for (const item of newItems) {
+      try {
+        // Use a proxy to fetch the image to avoid CORS issues
+        const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
         
-        setUploadedImages((prev) => [...prev, newImage]);
+        if (!proxyResponse.ok) {
+          // Fallback: use the URL directly without base64 conversion
+          loadedImages.push({
+            id: `ref-${item.id}-${Date.now()}`,
+            base64: item.awsS3Url, // Use URL as fallback
+            wasCompressed: false,
+            fromReferenceBank: true,
+            referenceId: item.id,
+            url: item.awsS3Url,
+          });
+          continue;
+        }
         
-        // Track usage
-        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
-        setShowReferenceBankSelector(false);
-        return;
-      }
-      
-      const blob = await proxyResponse.blob();
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
+        const blob = await proxyResponse.blob();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
         
-        const newImage = {
+        loadedImages.push({
           id: `ref-${item.id}-${Date.now()}`,
           base64,
           wasCompressed: false,
           fromReferenceBank: true,
           referenceId: item.id,
           url: item.awsS3Url,
-        };
-        
-        setUploadedImages((prev) => [...prev, newImage]);
-        
-        // Track usage
-        fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
-      };
-      reader.readAsDataURL(blob);
-    } catch (err) {
-      console.error('Error loading reference image:', err);
-      setError('Failed to load reference image. Please try again.');
+        });
+      } catch (err) {
+        console.error('Error loading reference image:', item.name, err);
+      }
     }
 
+    if (loadedImages.length > 0) {
+      setUploadedImages((prev) => [...prev, ...loadedImages]);
+    } else {
+      setError('Failed to load selected images. Please try again.');
+    }
+
+    setIsCompressing(false);
     setShowReferenceBankSelector(false);
   };
 
@@ -785,16 +812,20 @@ export default function SeeDreamImageToImage() {
         referenceImageUrls: referenceImageUrls,
       };
 
+      // Get profileId from the selected folder
+      const selectedFolder = vaultFolders.find(f => f.id === targetFolder);
+      const folderProfileId = selectedFolder?.profileId || globalProfileId;
+
       // Handle folder selection
-      if (targetFolder && globalProfileId) {
+      if (targetFolder && folderProfileId) {
         payload.saveToVault = true;
-        payload.vaultProfileId = globalProfileId;
+        payload.vaultProfileId = folderProfileId;
         payload.vaultFolderId = targetFolder;
       }
       
       // Also include profileId even if not saving to vault (for filtering history)
-      if (globalProfileId) {
-        payload.vaultProfileId = globalProfileId;
+      if (folderProfileId) {
+        payload.vaultProfileId = folderProfileId;
       }
 
       // Add batch generation config
@@ -1120,7 +1151,7 @@ export default function SeeDreamImageToImage() {
                   <label className="text-sm font-semibold text-white">Reference Images</label>
                   <div className="flex items-center gap-2">
                     {/* Reference Bank Button */}
-                    {mounted && globalProfileId && (
+                    {mounted && (
                       <button
                         type="button"
                         onClick={() => setShowReferenceBankSelector(true)}
@@ -1383,7 +1414,58 @@ export default function SeeDreamImageToImage() {
 
                       {/* Folder Options */}
                       <div className="max-h-[200px] overflow-y-auto">
-                        {vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                        {isAllProfiles ? (
+                          // Group folders by profile when viewing all profiles
+                          Object.entries(
+                            vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
+                              const profileName = folder.profileName || 'Unknown Profile';
+                              if (!acc[profileName]) acc[profileName] = [];
+                              acc[profileName].push(folder);
+                              return acc;
+                            }, {} as Record<string, VaultFolder[]>)
+                          ).map(([profileName, folders]) => (
+                            <div key={profileName}>
+                              <div className="px-4 py-2 text-xs font-medium text-cyan-300 bg-cyan-500/10 border-b border-cyan-500/20">
+                                {profileName}
+                              </div>
+                              {folders.map((folder) => (
+                                <button
+                                  key={folder.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetFolder(folder.id);
+                                    setFolderDropdownOpen(false);
+                                  }}
+                                  className={`
+                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-cyan-500/15' 
+                                      : 'hover:bg-white/5'
+                                    }
+                                  `}
+                                >
+                                  <div className={`
+                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-gradient-to-br from-cyan-500/40 to-blue-500/40 border border-cyan-400/40' 
+                                      : 'bg-slate-700/50 border border-white/5'
+                                    }
+                                  `}>
+                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-cyan-300' : 'text-slate-400'}`} />
+                                  </div>
+                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                    {folder.name}
+                                  </span>
+                                  {targetFolder === folder.id && (
+                                    <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        ) : (
+                          // Normal folder list for single profile
+                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
                           <button
                             key={folder.id}
                             type="button"
@@ -1415,7 +1497,8 @@ export default function SeeDreamImageToImage() {
                               <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" />
                             )}
                           </button>
-                        ))}
+                        ))
+                        )}
                       </div>
 
                       {vaultFolders.filter(f => !f.isDefault).length === 0 && (
@@ -2018,8 +2101,17 @@ export default function SeeDreamImageToImage() {
                           {image.metadata?.resolution && (
                             <span className="bg-cyan-500/30 rounded px-1.5 py-0.5">{image.metadata.resolution}</span>
                           )}
+                          {isAllProfiles && image.profileName && (
+                            <span className="bg-cyan-600/40 rounded px-1.5 py-0.5 text-cyan-200">{image.profileName}</span>
+                          )}
                         </div>
                       </div>
+                      {/* Profile badge for all profiles view */}
+                      {isAllProfiles && image.profileName && (
+                        <div className="absolute top-2 left-2 text-[9px] text-cyan-200 bg-cyan-600/60 rounded px-1.5 py-0.5">
+                          {image.profileName}
+                        </div>
+                      )}
                       {/* Date badge */}
                       <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
                         {new Date(image.createdAt).toLocaleDateString()}
@@ -2039,14 +2131,17 @@ export default function SeeDreamImageToImage() {
         document.body
       )}
 
-      {/* Reference Bank Selector */}
-      {showReferenceBankSelector && globalProfileId && (
+      {/* Reference Bank Selector with Multi-Select */}
+      {showReferenceBankSelector && (
         <ReferenceSelector
-          profileId={globalProfileId}
           onSelect={handleReferenceBankSelect}
+          onSelectMultiple={handleReferenceBankMultiSelect}
           onClose={() => setShowReferenceBankSelector(false)}
           filterType="image"
           isOpen={true}
+          multiSelect={true}
+          maxSelect={0}
+          selectedItemIds={uploadedImages.filter(img => img.referenceId).map(img => img.referenceId!)}
         />
       )}
     </div>

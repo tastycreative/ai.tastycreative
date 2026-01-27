@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 
-// GET - List all reference items for a profile
+// GET - List all reference items for a user (universal, no profile dependency)
 export async function GET(req: NextRequest) {
   try {
     const { userId } = await auth();
@@ -11,81 +11,105 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const profileId = searchParams.get("profileId");
-    const checkDuplicate = searchParams.get("checkDuplicate") === "true";
-    const fileSize = searchParams.get("fileSize");
-    const fileName = searchParams.get("fileName");
+    const folderId = searchParams.get("folderId");
+    const favoritesOnly = searchParams.get("favorites") === "true";
+    const fileType = searchParams.get("fileType");
+    const search = searchParams.get("search");
 
-    if (!profileId) {
-      return NextResponse.json(
-        { error: "Profile ID is required" },
-        { status: 400 }
-      );
+    // Build where clause
+    const whereClause: any = {
+      clerkId: userId,
+    };
+
+    // Filter by folder (null means root/unfiled items)
+    if (folderId === "root") {
+      whereClause.folderId = null;
+    } else if (folderId) {
+      whereClause.folderId = folderId;
     }
 
-    // Verify the profile belongs to the user
-    const profile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        clerkId: userId,
-      },
-    });
-
-    if (!profile) {
-      return NextResponse.json(
-        { error: "Profile not found" },
-        { status: 404 }
-      );
+    // Filter by favorites
+    if (favoritesOnly) {
+      whereClause.isFavorite = true;
     }
 
-// Check for duplicate by file size (and optionally name pattern)
-    if (checkDuplicate && fileSize) {
-      const fileSizeNum = parseInt(fileSize, 10);
-      // Allow for small variations in file size (within 1KB)
-      const sizeVariance = 1024;
-      
-      const existingItem = await prisma.reference_items.findFirst({
-        where: {
-          clerkId: userId,
-          profileId,
-          fileSize: {
-            gte: fileSizeNum - sizeVariance,
-            lte: fileSizeNum + sizeVariance,
-          },
-          // If filename provided, check for similar names (same base name)
-          ...(fileName ? {
-            name: {
-              contains: fileName.split('.')[0].split('-')[0], // Match base part of filename
-            },
-          } : {}),
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
+    // Filter by file type
+    if (fileType && fileType !== "all") {
+      whereClause.fileType = fileType;
+    }
 
-      if (existingItem) {
-        return NextResponse.json({
-          duplicate: true,
-          existingId: existingItem.id,
-          existingUrl: existingItem.awsS3Url,
-        });
-      }
-      
-      return NextResponse.json({ duplicate: false });
+    // Search filter
+    if (search) {
+      whereClause.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { description: { contains: search, mode: "insensitive" } },
+        { tags: { hasSome: [search] } },
+      ];
     }
 
     const items = await prisma.reference_items.findMany({
-      where: {
-        clerkId: userId,
-        profileId,
+      where: whereClause,
+      include: {
+        folder: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
     });
 
-    return NextResponse.json({ items });
+    // Get folders for sidebar
+    const folders = await prisma.reference_folders.findMany({
+      where: {
+        clerkId: userId,
+      },
+      include: {
+        _count: {
+          select: { items: true },
+        },
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+
+    // Get counts
+    const totalCount = await prisma.reference_items.count({
+      where: { clerkId: userId },
+    });
+
+    const favoritesCount = await prisma.reference_items.count({
+      where: { clerkId: userId, isFavorite: true },
+    });
+
+    const unfiledCount = await prisma.reference_items.count({
+      where: { clerkId: userId, folderId: null },
+    });
+
+    const imageCount = await prisma.reference_items.count({
+      where: { clerkId: userId, fileType: "image" },
+    });
+
+    const videoCount = await prisma.reference_items.count({
+      where: { clerkId: userId, fileType: "video" },
+    });
+
+    return NextResponse.json({ 
+      items, 
+      folders,
+      stats: {
+        total: totalCount,
+        favorites: favoritesCount,
+        unfiled: unfiledCount,
+        images: imageCount,
+        videos: videoCount,
+      }
+    });
   } catch (error) {
     console.error("Error fetching reference items:", error);
     return NextResponse.json(
@@ -105,7 +129,6 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const {
-      profileId,
       name,
       description,
       tags,
@@ -116,28 +139,32 @@ export async function POST(req: NextRequest) {
       width,
       height,
       duration,
+      folderId,
+      isFavorite,
     } = body;
 
-    if (!profileId || !name || !fileType || !mimeType || !awsS3Key) {
+    if (!name || !fileType || !mimeType || !awsS3Key) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Verify the profile belongs to the user
-    const profile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        clerkId: userId,
-      },
-    });
+    // If folderId is provided, verify it belongs to the user
+    if (folderId) {
+      const folder = await prisma.reference_folders.findFirst({
+        where: {
+          id: folderId,
+          clerkId: userId,
+        },
+      });
 
-    if (!profile) {
-      return NextResponse.json(
-        { error: "Profile not found" },
-        { status: 404 }
-      );
+      if (!folder) {
+        return NextResponse.json(
+          { error: "Folder not found" },
+          { status: 404 }
+        );
+      }
     }
 
     // Construct the S3 URL
@@ -148,7 +175,6 @@ export async function POST(req: NextRequest) {
     const item = await prisma.reference_items.create({
       data: {
         clerkId: userId,
-        profileId,
         name,
         description: description || null,
         tags: tags || [],
@@ -160,7 +186,18 @@ export async function POST(req: NextRequest) {
         width: width || null,
         height: height || null,
         duration: duration || null,
-      } as any,
+        folderId: folderId || null,
+        isFavorite: isFavorite || false,
+      },
+      include: {
+        folder: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json(item, { status: 201 });

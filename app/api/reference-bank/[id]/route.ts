@@ -29,6 +29,15 @@ export async function GET(
         id,
         clerkId: userId,
       },
+      include: {
+        folder: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
+      },
     });
 
     if (!item) {
@@ -48,7 +57,7 @@ export async function GET(
   }
 }
 
-// PATCH - Update a reference item
+// PATCH - Update a reference item (including move to folder and toggle favorite)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -61,7 +70,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { name, description, tags } = body;
+    const { name, description, tags, folderId, isFavorite } = body;
 
     // Verify the item belongs to the user
     const existingItem = await prisma.reference_items.findFirst({
@@ -78,13 +87,41 @@ export async function PATCH(
       );
     }
 
+    // If folderId is provided (and not null), verify folder belongs to user
+    if (folderId !== undefined && folderId !== null) {
+      const folder = await prisma.reference_folders.findFirst({
+        where: {
+          id: folderId,
+          clerkId: userId,
+        },
+      });
+
+      if (!folder) {
+        return NextResponse.json(
+          { error: "Folder not found" },
+          { status: 404 }
+        );
+      }
+    }
+
     const updatedItem = await prisma.reference_items.update({
       where: { id },
       data: {
         name: name !== undefined ? name : existingItem.name,
         description: description !== undefined ? description : existingItem.description,
         tags: tags !== undefined ? tags : existingItem.tags,
+        folderId: folderId !== undefined ? folderId : existingItem.folderId,
+        isFavorite: isFavorite !== undefined ? isFavorite : existingItem.isFavorite,
         updatedAt: new Date(),
+      },
+      include: {
+        folder: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
+          },
+        },
       },
     });
 

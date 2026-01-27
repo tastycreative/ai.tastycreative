@@ -32,6 +32,8 @@ interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
+  profileName?: string;
+  profileUsername?: string | null;
   isDefault?: boolean;
 }
 
@@ -43,6 +45,7 @@ interface GeneratedImage {
   size: string;
   createdAt: string;
   status: "completed" | "processing" | "failed";
+  profileName?: string | null;
   metadata?: {
     resolution?: string;
     aspectRatio?: string;
@@ -78,7 +81,7 @@ export default function SeeDreamTextToImage() {
   const [targetFolder, setTargetFolder] = useState<string>("");
 
   // Use global profile from header
-  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+  const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
@@ -250,12 +253,19 @@ export default function SeeDreamTextToImage() {
 
   // Get display text for the selected folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder || !globalProfileId) return 'Select a vault folder to save images';
+    if (!targetFolder) return 'Select a vault folder to save images';
     
     const folder = vaultFolders.find(f => f.id === targetFolder);
-    if (folder && selectedProfile) {
-      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+    if (folder) {
+      // When viewing all profiles, show the folder's profile name
+      if (isAllProfiles && folder.profileName) {
+        return `Saving to: ${folder.profileName} / ${folder.name}`;
+      }
+      // When viewing single profile
+      if (selectedProfile) {
+        const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+      }
     }
     return 'Select a vault folder to save images';
   };
@@ -292,7 +302,8 @@ export default function SeeDreamTextToImage() {
         jobId: taskId,
       });
 
-      // Prepare request payload
+      // Prepare request payload - use the folder's profileId for proper association
+      const folderProfileId = vaultFolders.find(f => f.id === targetFolder)?.profileId || globalProfileId;
       const payload: any = {
         prompt: prompt.trim(),
         model: "ep-20260103160511-gxx75",
@@ -300,7 +311,7 @@ export default function SeeDreamTextToImage() {
         sequential_image_generation: maxImages > 1 ? "auto" : "disabled",
         size: currentSize,
         // Always send the current profile ID so images are associated with the profile
-        vaultProfileId: globalProfileId || null,
+        vaultProfileId: folderProfileId || null,
         // Include resolution and aspect ratio for metadata
         resolution: selectedResolution,
         aspectRatio: selectedRatio,
@@ -721,9 +732,60 @@ export default function SeeDreamTextToImage() {
                         <div className="my-2 mx-3 h-px bg-white/5" />
                       )}
 
-                      {/* Folder Options */}
-                      <div className="max-h-[200px] overflow-y-auto">
-                        {vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                      {/* Folder Options - grouped by profile when viewing all profiles */}
+                      <div className="max-h-[280px] overflow-y-auto">
+                        {isAllProfiles ? (
+                          // Group folders by profile when viewing all profiles
+                          Object.entries(
+                            vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
+                              const profileKey = folder.profileName || 'Unknown Profile';
+                              if (!acc[profileKey]) acc[profileKey] = [];
+                              acc[profileKey].push(folder);
+                              return acc;
+                            }, {} as Record<string, typeof vaultFolders>)
+                          ).map(([profileName, folders]) => (
+                            <div key={profileName}>
+                              <div className="px-4 py-2 sticky top-0 bg-slate-900/95 backdrop-blur-sm">
+                                <p className="text-xs font-medium text-violet-400 uppercase tracking-wider">{profileName}</p>
+                              </div>
+                              {folders.map((folder) => (
+                                <button
+                                  key={folder.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetFolder(folder.id);
+                                    setFolderDropdownOpen(false);
+                                  }}
+                                  className={`
+                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-purple-500/15' 
+                                      : 'hover:bg-white/5'
+                                    }
+                                  `}
+                                >
+                                  <div className={`
+                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-gradient-to-br from-purple-500/40 to-indigo-500/40 border border-purple-400/40' 
+                                      : 'bg-slate-700/50 border border-white/5'
+                                    }
+                                  `}>
+                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-300' : 'text-slate-400'}`} />
+                                  </div>
+                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                    {folder.name}
+                                  </span>
+                                  {targetFolder === folder.id && (
+                                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        ) : (
+                          // Regular folder list when viewing single profile
+                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
                           <button
                             key={folder.id}
                             type="button"
@@ -755,7 +817,8 @@ export default function SeeDreamTextToImage() {
                               <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
                             )}
                           </button>
-                        ))}
+                        ))
+                        )}
                       </div>
 
                       {vaultFolders.filter(f => !f.isDefault).length === 0 && (
@@ -1308,12 +1371,21 @@ export default function SeeDreamTextToImage() {
                         <p className="text-[11px] text-slate-100 line-clamp-2 mb-1">{image.prompt}</p>
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-300">
                           <span className="bg-white/20 rounded px-1.5 py-0.5">{image.size}</span>
+                          {isAllProfiles && image.profileName && (
+                            <span className="bg-violet-500/30 text-violet-200 rounded px-1.5 py-0.5">{image.profileName}</span>
+                          )}
                         </div>
                       </div>
                       {/* Date badge */}
                       <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
                         {new Date(image.createdAt).toLocaleDateString()}
                       </div>
+                      {/* Profile badge for all profiles view */}
+                      {isAllProfiles && image.profileName && (
+                        <div className="absolute top-2 left-2 text-[9px] text-violet-200 bg-violet-600/60 rounded px-1.5 py-0.5">
+                          {image.profileName}
+                        </div>
+                      )}
                     </button>
                   ))}
                 </div>

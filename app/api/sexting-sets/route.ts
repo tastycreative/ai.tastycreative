@@ -21,11 +21,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get("profileId");
+    const isAllProfiles = profileId === "all";
+
+    // Build profile map for adding profile names when viewing all profiles
+    let profileMap: Record<string, string> = {};
+    if (isAllProfiles) {
+      const profiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: userId },
+        select: { id: true, name: true },
+      });
+      profileMap = profiles.reduce((acc, p) => {
+        acc[p.id] = p.name;
+        return acc;
+      }, {} as Record<string, string>);
+    }
 
     const sets = await prisma.sextingSet.findMany({
       where: {
         userId,
-        ...(profileId && { category: profileId }),
+        // When viewing all profiles, don't filter by category
+        ...(!isAllProfiles && profileId && { category: profileId }),
       },
       include: {
         images: {
@@ -35,7 +50,13 @@ export async function GET(request: NextRequest) {
       orderBy: { updatedAt: "desc" },
     });
 
-    return NextResponse.json({ sets });
+    // Add profileName to each set when viewing all profiles
+    const setsWithProfileName = sets.map((set) => ({
+      ...set,
+      profileName: isAllProfiles ? profileMap[set.category] || null : null,
+    }));
+
+    return NextResponse.json({ sets: setsWithProfileName });
   } catch (error) {
     console.error("Error fetching sexting sets:", error);
     return NextResponse.json(

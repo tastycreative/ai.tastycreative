@@ -206,8 +206,21 @@ export async function GET(request: NextRequest) {
       try {
         // Get profileId from query params to filter by profile
         const profileId = searchParams.get("profileId");
+        const isAllProfiles = profileId === 'all';
         
         console.log('📋 Fetching SeeDream T2V history for user:', userId, 'profileId:', profileId);
+        
+        // Get profile names map if viewing all profiles
+        let profileMap: Record<string, { name: string; username: string | null }> = {};
+        if (isAllProfiles) {
+          const userProfiles = await prisma.instagramProfile.findMany({
+            where: { clerkId: userId },
+            select: { id: true, name: true, instagramUsername: true },
+          });
+          profileMap = Object.fromEntries(
+            userProfiles.map((p) => [p.id, { name: p.name, username: p.instagramUsername }])
+          );
+        }
         
         const videos = await prisma.generatedVideo.findMany({
           where: {
@@ -229,9 +242,9 @@ export async function GET(request: NextRequest) {
           take: 50,
         });
 
-        // Filter by profileId if provided - include videos with no profile set (backward compatibility)
+        // Filter by profileId if provided (not for all profiles)
         let filteredVideos = videos;
-        if (profileId) {
+        if (profileId && !isAllProfiles) {
           filteredVideos = videos.filter((video) => {
             const params = video.job.params as any;
             // Show videos that match the profile OR have no profile set
@@ -242,6 +255,7 @@ export async function GET(request: NextRequest) {
         const formattedVideos = filteredVideos.map((video) => {
           const metadata = video.metadata as any;
           const params = video.job.params as any;
+          const videoProfileId = params?.vaultProfileId;
           return {
             id: video.id,
             videoUrl: video.awsS3Url || video.s3Key,
@@ -251,13 +265,15 @@ export async function GET(request: NextRequest) {
             cameraFixed: metadata?.cameraFixed || params?.cameraFixed || false,
             createdAt: video.createdAt.toISOString(),
             status: "completed" as const,
+            // Include profile name when viewing all profiles
+            profileName: isAllProfiles && videoProfileId ? profileMap[videoProfileId]?.name || null : null,
             // Include full metadata for potential reuse
             metadata: {
               resolution: metadata?.resolution || params?.resolution || "720p",
               ratio: metadata?.ratio || params?.ratio || "16:9",
               generateAudio: params?.generateAudio ?? true,
               cameraFixed: metadata?.cameraFixed || params?.cameraFixed || false,
-              profileId: params?.vaultProfileId || null,
+              profileId: videoProfileId || null,
             },
           };
         });

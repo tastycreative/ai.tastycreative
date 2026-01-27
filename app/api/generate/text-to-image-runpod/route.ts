@@ -46,7 +46,23 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { workflow, params, saveToVault, vaultProfileId, vaultFolderId, targetFolder } = body;
+    const { workflow, saveToVault, vaultProfileId, vaultFolderId, targetFolder } = body;
+    
+    // Extract generation params from body (they're at top level, not in a nested 'params' object)
+    const params = {
+      prompt: body.prompt || '',
+      negativePrompt: body.negativePrompt || '',
+      width: body.width || 832,
+      height: body.height || 1216,
+      batchSize: body.batchSize || 1,
+      steps: body.steps || 40,
+      cfg: body.cfg || 1,
+      samplerName: body.samplerName || 'euler',
+      scheduler: body.scheduler || 'beta',
+      guidance: body.guidance || 4,
+      seed: body.seed || null,
+      loras: body.loras || [],
+    };
 
     if (!workflow) {
       return NextResponse.json(
@@ -113,6 +129,8 @@ export async function POST(request: NextRequest) {
       vaultFolderId: vaultFolderId || null,
       targetFolder: targetFolder || null,
     };
+    
+    console.log('🔍 DEBUG: Job params being saved to database:', JSON.stringify(jobParams, null, 2));
 
     // Create job in database
     const job: StoredGenerationJob = {
@@ -201,7 +219,7 @@ export async function POST(request: NextRequest) {
     // Update job with RunPod job ID
     if (runpodResult.id) {
       const updatedParams = {
-        ...params,
+        ...jobParams,  // ✅ Use jobParams (includes vault info) instead of params
         runpodJobId: runpodResult.id
       };
       
@@ -209,6 +227,8 @@ export async function POST(request: NextRequest) {
         params: updatedParams,
         status: 'processing'
       });
+      
+      console.log('✅ Job params updated with RunPod ID (vault info preserved)');
     }
 
     // Return job ID to frontend for polling
@@ -221,6 +241,144 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Text-to-image generation error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
+
+// GET handler to fetch FLUX text-to-image generation history
+export async function GET(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get profileId from query params to filter by profile
+    const { searchParams } = new URL(request.url);
+    const profileId = searchParams.get('profileId');
+    const limit = parseInt(searchParams.get('limit') || '50');
+
+    console.log('📋 Fetching FLUX T2I history for user:', userId, 'profileId:', profileId);
+
+    // Import prisma lazily to avoid issues
+    const { prisma } = await import('@/lib/database');
+
+    // Fetch recent FLUX text-to-image generations from database
+    // Look for generation jobs that are TEXT_TO_IMAGE type (FLUX)
+    const recentJobs = await prisma.generationJob.findMany({
+      where: {
+        clerkId: userId,
+        type: 'TEXT_TO_IMAGE',
+        status: 'COMPLETED',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit * 2, // Get more jobs to filter
+      select: {
+        id: true,
+        params: true,
+        createdAt: true,
+      },
+    });
+
+    // Filter to only FLUX jobs (NOT SeeDream) and optionally by profileId
+    const fluxJobIds = recentJobs
+      .filter((job) => {
+        const params = job.params as any;
+        // Exclude SeeDream jobs - FLUX jobs don't have source='seedream'
+        const isSeeDream = params?.source === 'seedream';
+        if (isSeeDream) return false;
+        
+        // If profileId filter is provided, STRICTLY match the profileId
+        // Don't include legacy/unassociated images when viewing a specific profile
+        if (profileId) {
+          const jobProfileId = params?.vaultProfileId;
+          return jobProfileId === profileId;
+        }
+        // If no profileId filter, show all FLUX jobs (including those without profiles)
+        return true;
+      })
+      .map((job) => job.id);
+
+    console.log('📋 Found FLUX job IDs:', fluxJobIds.length);
+
+    // Fetch images from GeneratedImage table
+    let generatedImages: any[] = [];
+    if (fluxJobIds.length > 0) {
+      generatedImages = await prisma.generatedImage.findMany({
+        where: {
+          clerkId: userId,
+          jobId: {
+            in: fluxJobIds,
+          },
+          OR: [
+            { awsS3Url: { not: null } },
+            { awsS3Key: { not: null } },
+            { data: { not: null } },
+          ],
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: limit,
+      });
+      
+      // Filter by profileId from metadata if provided - STRICT matching
+      if (profileId) {
+        generatedImages = generatedImages.filter((img) => {
+          const metadata = img.metadata as any;
+          const imgProfileId = metadata?.vaultProfileId;
+          // STRICTLY match profile - don't include images without profiles
+          return imgProfileId === profileId;
+        });
+      }
+    }
+
+    console.log('📋 Found FLUX generated images:', generatedImages.length);
+
+    // Transform to match the expected format
+    const images = generatedImages.map((img) => {
+      // Build image URL from available fields
+      let imageUrl = img.awsS3Url;
+      if (!imageUrl && img.awsS3Key) {
+        // Construct S3 URL from key if direct URL not available
+        const bucket = process.env.AWS_S3_BUCKET || '';
+        const region = process.env.AWS_REGION || 'us-east-1';
+        imageUrl = `https://${bucket}.s3.${region}.amazonaws.com/${img.awsS3Key}`;
+      }
+      if (!imageUrl && img.data) {
+        // Use base64 data as fallback
+        const base64 = Buffer.isBuffer(img.data) ? img.data.toString('base64') : img.data;
+        imageUrl = `data:image/png;base64,${base64}`;
+      }
+
+      return {
+        id: img.id,
+        imageUrl,
+        prompt: (img.metadata as any)?.prompt || '',
+        createdAt: img.createdAt.toISOString(),
+        width: (img.metadata as any)?.width || img.width || 0,
+        height: (img.metadata as any)?.height || img.height || 0,
+        status: 'completed' as const,
+        metadata: img.metadata,
+      };
+    });
+
+    return NextResponse.json({
+      success: true,
+      images,
+      total: images.length,
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching FLUX T2I history:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

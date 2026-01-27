@@ -435,8 +435,21 @@ export async function GET(request: NextRequest) {
     // Get profileId from query params to filter by profile
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
+    const isAllProfiles = profileId === 'all';
 
     console.log('📋 Fetching SeeDream T2I history for user:', userId, 'profileId:', profileId);
+
+    // Get profile names map if viewing all profiles
+    let profileMap: Record<string, { name: string; username: string | null }> = {};
+    if (isAllProfiles) {
+      const userProfiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: userId },
+        select: { id: true, name: true, instagramUsername: true },
+      });
+      profileMap = Object.fromEntries(
+        userProfiles.map((p) => [p.id, { name: p.name, username: p.instagramUsername }])
+      );
+    }
 
     // Fetch recent SeeDream generations from database
     // First get generation jobs that are SeeDream type
@@ -462,6 +475,9 @@ export async function GET(request: NextRequest) {
         const params = job.params as any;
         const isSeeDream = params?.source === 'seedream';
         if (!isSeeDream) return false;
+        
+        // If viewing all profiles, include all jobs
+        if (isAllProfiles) return true;
         
         // If profileId filter is provided, include jobs that:
         // 1. Match the profileId exactly, OR
@@ -496,8 +512,8 @@ export async function GET(request: NextRequest) {
         take: 50,
       });
       
-      // Filter by profileId from metadata if provided
-      if (profileId) {
+      // Filter by profileId from metadata if provided (not for all profiles)
+      if (profileId && !isAllProfiles) {
         generatedImages = generatedImages.filter((img) => {
           const metadata = img.metadata as any;
           const imgProfileId = metadata?.vaultProfileId;
@@ -516,8 +532,8 @@ export async function GET(request: NextRequest) {
       fileType: 'image/png',
     };
     
-    // Filter by profileId if provided
-    if (profileId) {
+    // Filter by profileId if provided (not for all profiles)
+    if (profileId && !isAllProfiles) {
       vaultWhere.profileId = profileId;
     }
     
@@ -540,6 +556,7 @@ export async function GET(request: NextRequest) {
     // Map generated images with full metadata for reuse
     const mappedGeneratedImages = generatedImages.map((img) => {
       const metadata = img.metadata as any;
+      const imgProfileId = metadata?.vaultProfileId;
       return {
         id: img.id,
         imageUrl: img.awsS3Url || '',
@@ -549,13 +566,15 @@ export async function GET(request: NextRequest) {
         createdAt: img.createdAt.toISOString(),
         status: 'completed' as const,
         source: 'generated' as const,
+        // Include profile name when viewing all profiles
+        profileName: isAllProfiles && imgProfileId ? profileMap[imgProfileId]?.name || null : null,
         // Include full metadata for reuse functionality
         metadata: {
           resolution: metadata?.resolution || '2K',
           aspectRatio: metadata?.aspectRatio || null,
           watermark: metadata?.watermark || false,
           negativePrompt: metadata?.negative_prompt || '',
-          profileId: metadata?.vaultProfileId || null,
+          profileId: imgProfileId || null,
         },
       };
     });
@@ -573,6 +592,8 @@ export async function GET(request: NextRequest) {
         status: 'completed' as const,
         source: 'vault' as const,
         profileId: img.profileId,
+        // Include profile name when viewing all profiles
+        profileName: isAllProfiles ? profileMap[img.profileId]?.name || null : null,
         // Include full metadata for reuse functionality
         metadata: {
           resolution: metadata?.resolution || '2K',

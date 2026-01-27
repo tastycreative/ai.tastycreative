@@ -23,6 +23,9 @@ import {
   X,
   Save,
   Sparkles,
+  User,
+  Users,
+  Info,
 } from "lucide-react";
 
 interface WorkflowChecklistViewProps {
@@ -50,6 +53,7 @@ interface WorkflowPhase {
   color: string;
   order: number;
   items: ChecklistItem[];
+  profileName?: string;
 }
 
 const ICON_MAP: Record<string, any> = {
@@ -70,6 +74,9 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
   const [loading, setLoading] = useState(false);
   const [expandedPhases, setExpandedPhases] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
+  
+  // All Profiles mode
+  const isAllProfiles = profileId === "all";
   
   // Modals
   const [showPhaseModal, setShowPhaseModal] = useState(false);
@@ -100,7 +107,7 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (profileId && profileId !== "all") {
+      if (profileId) {
         params.append("profileId", profileId);
       }
       const response = await fetch(`/api/instagram/workflow?${params}`);
@@ -109,6 +116,8 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
       if (data.phases && data.phases.length > 0) {
         setWorkflow(data.phases);
         setExpandedPhases([data.phases[0].id]);
+      } else {
+        setWorkflow([]);
       }
     } catch (error) {
       console.error("Error fetching workflow:", error);
@@ -365,6 +374,12 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
               <ListChecks className="w-7 h-7 text-green-400" />
             </div>
             Workflow Checklist
+            {isAllProfiles && (
+              <span className="ml-2 px-3 py-1 bg-pink-600/20 border border-pink-500/30 rounded-full text-sm font-medium text-pink-400 flex items-center gap-1">
+                <Users className="w-4 h-4" />
+                All Profiles
+              </span>
+            )}
           </h2>
           <p className="text-gray-400 text-sm mt-2 ml-1">
             Create and customize your content creation process
@@ -379,17 +394,29 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
               >
                 Reset Checks
               </button>
-              <button
-                onClick={() => openPhaseModal()}
-                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all hover:scale-105 text-sm font-medium flex items-center gap-2 shadow-lg shadow-blue-600/30"
-              >
-                <Plus className="w-4 h-4" />
-                Add Phase
-              </button>
+              {!isAllProfiles && (
+                <button
+                  onClick={() => openPhaseModal()}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl transition-all hover:scale-105 text-sm font-medium flex items-center gap-2 shadow-lg shadow-blue-600/30"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Phase
+                </button>
+              )}
             </>
           )}
         </div>
       </div>
+
+      {/* All Profiles Info Banner */}
+      {isAllProfiles && (
+        <div className="bg-gradient-to-r from-pink-600/10 via-purple-600/10 to-blue-600/10 border border-pink-500/30 rounded-xl p-4 flex items-center gap-3">
+          <Info className="w-5 h-5 text-pink-400 flex-shrink-0" />
+          <p className="text-sm text-gray-300">
+            <span className="font-medium text-pink-400">All Profiles Mode:</span> Viewing workflows from all profiles. Select a specific profile to create new phases or tasks.
+          </p>
+        </div>
+      )}
 
       {/* Empty State or Content */}
       {loading && workflow.length === 0 ? (
@@ -402,25 +429,29 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
             <Sparkles className="w-20 h-20 text-blue-400 animate-pulse" />
           </div>
           <h3 className="text-2xl font-bold text-white mb-3">
-            Create Your Custom Workflow
+            {isAllProfiles ? "No Workflows Found" : "Create Your Custom Workflow"}
           </h3>
           <p className="text-gray-400 mb-8 max-w-md mx-auto text-lg">
-            Start with our proven 7-phase template or build your own from scratch
+            {isAllProfiles 
+              ? "No workflows found for any profile. Select a specific profile to create one."
+              : "Start with our proven 7-phase template or build your own from scratch"}
           </p>
-          <div className="flex gap-4 justify-center flex-wrap">
-            <button
-              onClick={initializeTemplate}
-              className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all hover:scale-105 shadow-lg shadow-blue-600/30 font-medium"
-            >
-              ✨ Use 7-Phase Template
-            </button>
-            <button
-              onClick={() => openPhaseModal()}
-              className="px-8 py-4 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all hover:scale-105 shadow-lg font-medium"
-            >
-              🎨 Start From Scratch
-            </button>
-          </div>
+          {!isAllProfiles && (
+            <div className="flex gap-4 justify-center flex-wrap">
+              <button
+                onClick={initializeTemplate}
+                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl transition-all hover:scale-105 shadow-lg shadow-blue-600/30 font-medium"
+              >
+                ✨ Use 7-Phase Template
+              </button>
+              <button
+                onClick={() => openPhaseModal()}
+                className="px-8 py-4 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-white rounded-xl transition-all hover:scale-105 shadow-lg font-medium"
+              >
+                🎨 Start From Scratch
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -501,6 +532,12 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                       <div className="text-left flex-1">
                         <h3 className="text-xl font-bold text-white flex items-center gap-3 mb-1">
                           {phase.name}
+                          {isAllProfiles && phase.profileName && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-pink-600/20 rounded-lg text-xs text-pink-400 font-medium">
+                              <User className="w-3 h-3" />
+                              {phase.profileName}
+                            </span>
+                          )}
                         </h3>
                         {phase.description && (
                           <p className="text-sm text-gray-400 mb-3">{phase.description}</p>
@@ -534,20 +571,24 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                     </button>
 
                     <div className="flex items-center gap-2 ml-4">
-                      <button
-                        onClick={() => openPhaseModal(phase)}
-                        className="p-2.5 hover:bg-[#2a2a2a] rounded-xl transition-all hover:scale-110"
-                        title="Edit phase"
-                      >
-                        <Edit2 className="w-4 h-4 text-gray-400 hover:text-blue-400 transition-colors" />
-                      </button>
-                      <button
-                        onClick={() => deletePhase(phase.id)}
-                        className="p-2.5 hover:bg-red-600/20 rounded-xl transition-all hover:scale-110"
-                        title="Delete phase"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      </button>
+                      {!isAllProfiles && (
+                        <>
+                          <button
+                            onClick={() => openPhaseModal(phase)}
+                            className="p-2.5 hover:bg-[#2a2a2a] rounded-xl transition-all hover:scale-110"
+                            title="Edit phase"
+                          >
+                            <Edit2 className="w-4 h-4 text-gray-400 hover:text-blue-400 transition-colors" />
+                          </button>
+                          <button
+                            onClick={() => deletePhase(phase.id)}
+                            className="p-2.5 hover:bg-red-600/20 rounded-xl transition-all hover:scale-110"
+                            title="Delete phase"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-400" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -603,32 +644,38 @@ export default function WorkflowChecklistView({ profileId }: WorkflowChecklistVi
                                 </span>
                               </button>
                               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all">
-                                <button
-                                  onClick={() => openItemModal(phase.id, item)}
-                                  className="p-2 hover:bg-blue-600/20 rounded-lg transition-all hover:scale-110"
-                                  title="Edit item"
-                                >
-                                  <Edit2 className="w-4 h-4 text-blue-400" />
-                                </button>
-                                <button
-                                  onClick={() => deleteItem(item.id)}
-                                  className="p-2 hover:bg-red-600/20 rounded-lg transition-all hover:scale-110"
-                                  title="Delete item"
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-400" />
-                                </button>
+                                {!isAllProfiles && (
+                                  <>
+                                    <button
+                                      onClick={() => openItemModal(phase.id, item)}
+                                      className="p-2 hover:bg-blue-600/20 rounded-lg transition-all hover:scale-110"
+                                      title="Edit item"
+                                    >
+                                      <Edit2 className="w-4 h-4 text-blue-400" />
+                                    </button>
+                                    <button
+                                      onClick={() => deleteItem(item.id)}
+                                      className="p-2 hover:bg-red-600/20 rounded-lg transition-all hover:scale-110"
+                                      title="Delete item"
+                                    >
+                                      <Trash2 className="w-4 h-4 text-red-400" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </motion.div>
                           ))}
 
                           {/* Add Item Button */}
-                          <button
-                            onClick={() => openItemModal(phase.id)}
-                            className="w-full p-4 border-2 border-dashed border-[#3a3a3a] hover:border-blue-600/50 rounded-xl text-gray-400 hover:text-blue-400 transition-all flex items-center justify-center gap-2 group hover:bg-blue-600/5"
-                          >
-                            <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                            <span className="font-medium">Add Task</span>
-                          </button>
+                          {!isAllProfiles && (
+                            <button
+                              onClick={() => openItemModal(phase.id)}
+                              className="w-full p-4 border-2 border-dashed border-[#3a3a3a] hover:border-blue-600/50 rounded-xl text-gray-400 hover:text-blue-400 transition-all flex items-center justify-center gap-2 group hover:bg-blue-600/5"
+                            >
+                              <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                              <span className="font-medium">Add Task</span>
+                            </button>
+                          )}
                         </div>
                       </motion.div>
                     )}

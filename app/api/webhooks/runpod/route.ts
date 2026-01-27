@@ -146,6 +146,55 @@ export async function POST(request: NextRequest) {
         const loraModels = extractLoraModelsFromParams(existingJob.params);
         console.log('🎨 Extracted LoRA models from job:', loraModels);
         
+        // Extract generation parameters from job params for metadata
+        const jobParamsData = existingJob.params as any;
+        console.log('🔍 DEBUG: Job params for metadata extraction:', JSON.stringify(jobParamsData, null, 2));
+        console.log('🔍 DEBUG: saveToVault =', jobParamsData?.saveToVault);
+        console.log('🔍 DEBUG: vaultProfileId =', jobParamsData?.vaultProfileId);
+        console.log('🔍 DEBUG: vaultFolderId =', jobParamsData?.vaultFolderId);
+        
+        // Determine source from job params - check multiple possible fields
+        let generationSource = 'flux-t2i'; // Default fallback
+        if (jobParamsData?.source) {
+          generationSource = jobParamsData.source;
+        } else if (jobParamsData?.params?.source) {
+          generationSource = jobParamsData.params.source;
+        } else if (jobParamsData?.action === 'generate_style_transfer' || jobParamsData?.generation_type === 'style_transfer') {
+          generationSource = 'flux-style-transfer';
+        } else if (jobParamsData?.generationType === 'style-transfer') {
+          generationSource = 'flux-style-transfer';
+        }
+        
+        const generationMetadata = {
+          prompt: jobParamsData?.prompt || '',
+          negativePrompt: jobParamsData?.negativePrompt || '',
+          width: jobParamsData?.width || 0,
+          height: jobParamsData?.height || 0,
+          steps: jobParamsData?.steps || 0,
+          cfg: jobParamsData?.cfg || 0,
+          guidance: jobParamsData?.guidance || 0,
+          samplerName: jobParamsData?.samplerName || '',
+          scheduler: jobParamsData?.scheduler || '',
+          seed: jobParamsData?.seed || 0,
+          loras: jobParamsData?.loras || [],
+          loraStrength: jobParamsData?.loraStrength || 0,
+          selectedLora: jobParamsData?.selectedLora || '',
+          // Style transfer specific fields
+          weight: jobParamsData?.weight || 0,
+          mode: jobParamsData?.mode || '',
+          downsamplingFactor: jobParamsData?.downsamplingFactor || 0,
+          downsamplingFunction: jobParamsData?.downsamplingFunction || '',
+          autocropMargin: jobParamsData?.autocropMargin || 0,
+          referenceImage: jobParamsData?.referenceImage || jobParamsData?.params?.referenceImage || null,
+          referenceImageUrl: jobParamsData?.referenceImageUrl || null,
+          vaultProfileId: jobParamsData?.vaultProfileId || null,
+          vaultFolderId: jobParamsData?.vaultFolderId || null,
+          generatedAt: new Date().toISOString(),
+          source: generationSource,
+          generationType: jobParamsData?.generationType || jobParamsData?.generation_type || 'text-to-image',
+        };
+        console.log('📋 Generation metadata:', generationMetadata);
+        
         for (const pathData of body.aws_s3_paths) {
           const { filename, subfolder, type, awsS3Key, awsS3Url, file_size } = pathData;
           
@@ -163,7 +212,10 @@ export async function POST(request: NextRequest) {
               awsS3Key: awsS3Key,
               awsS3Url: awsS3Url,
               fileSize: file_size,
-              loraModels: loraModels // ✅ Track LoRA models used
+              loraModels: loraModels, // ✅ Track LoRA models used
+              generationMetadata: generationMetadata, // ✅ Include generation params for reuse
+              width: generationMetadata.width,
+              height: generationMetadata.height,
             }
           );
           
@@ -177,6 +229,89 @@ export async function POST(request: NextRequest) {
             }
             
             console.log(`✅ AWS S3 image saved to database: ${savedImage.id}`);
+            
+            // ✅ VAULT SAVING: If saveToVault is enabled, also create VaultItem
+            console.log('🔍 VAULT CHECK: saveToVault =', jobParamsData?.saveToVault);
+            console.log('🔍 VAULT CHECK: vaultProfileId =', jobParamsData?.vaultProfileId);
+            console.log('🔍 VAULT CHECK: vaultFolderId =', jobParamsData?.vaultFolderId);
+            console.log('🔍 VAULT CHECK: targetClerkId =', targetClerkId);
+            
+            if (jobParamsData?.saveToVault && jobParamsData?.vaultProfileId && jobParamsData?.vaultFolderId) {
+              console.log('✅ VAULT: All vault parameters present, proceeding to create vault item');
+              try {
+                const { prisma } = await import('@/lib/database');
+                
+                // Verify vault folder exists and user has access
+                console.log('🔍 VAULT: Looking for folder with ID:', jobParamsData.vaultFolderId);
+                const vaultFolder = await prisma.vaultFolder.findFirst({
+                  where: {
+                    id: jobParamsData.vaultFolderId,
+                    clerkId: targetClerkId,
+                    profileId: jobParamsData.vaultProfileId,
+                  },
+                });
+                
+                console.log('🔍 VAULT: Folder query result:', vaultFolder ? `Found: ${vaultFolder.name}` : 'NOT FOUND');
+                
+                if (vaultFolder) {
+                  // Create vault item
+                  const vaultItem = await prisma.vaultItem.create({
+                    data: {
+                      clerkId: targetClerkId,
+                      profileId: jobParamsData.vaultProfileId,
+                      folderId: jobParamsData.vaultFolderId,
+                      fileName: filename,
+                      fileType: 'image/png',
+                      fileSize: file_size || 0,
+                      awsS3Key: awsS3Key,
+                      awsS3Url: awsS3Url,
+                      metadata: {
+                        source: generationMetadata.source,
+                        generationType: generationMetadata.generationType,
+                        prompt: generationMetadata.prompt,
+                        negativePrompt: generationMetadata.negativePrompt,
+                        width: generationMetadata.width,
+                        height: generationMetadata.height,
+                        steps: generationMetadata.steps,
+                        cfg: generationMetadata.cfg,
+                        guidance: generationMetadata.guidance,
+                        samplerName: generationMetadata.samplerName,
+                        scheduler: generationMetadata.scheduler,
+                        seed: generationMetadata.seed,
+                        loras: generationMetadata.loras,
+                        loraStrength: generationMetadata.loraStrength,
+                        selectedLora: generationMetadata.selectedLora,
+                        weight: generationMetadata.weight,
+                        mode: generationMetadata.mode,
+                        downsamplingFactor: generationMetadata.downsamplingFactor,
+                        downsamplingFunction: generationMetadata.downsamplingFunction,
+                        autocropMargin: generationMetadata.autocropMargin,
+                        referenceImage: generationMetadata.referenceImage,
+                        referenceImageUrl: generationMetadata.referenceImageUrl,
+                        generatedAt: generationMetadata.generatedAt,
+                      },
+                    },
+                  });
+                  console.log(`✅ VAULT: Successfully saved to vault: ${vaultItem.id} in folder ${vaultFolder.name}`);
+                } else {
+                  console.error('❌ VAULT: Folder not found or user does not have access');
+                  console.error('❌ VAULT: Search criteria:', {
+                    id: jobParamsData.vaultFolderId,
+                    clerkId: targetClerkId,
+                    profileId: jobParamsData.vaultProfileId,
+                  });
+                }
+              } catch (vaultError) {
+                console.error('❌ VAULT: Error saving to vault:', vaultError);
+                // Don't fail the whole operation if vault save fails
+              }
+            } else {
+              console.warn('⚠️ VAULT: Skipping vault save - missing parameters:', {
+                saveToVault: jobParamsData?.saveToVault,
+                vaultProfileId: jobParamsData?.vaultProfileId,
+                vaultFolderId: jobParamsData?.vaultFolderId,
+              });
+            }
           } else {
             console.error(`❌ Failed to save AWS S3 image: ${filename}`);
           }
@@ -249,6 +384,50 @@ export async function POST(request: NextRequest) {
         const loraModels = extractLoraModelsFromParams(existingJob.params);
         console.log('🎨 Extracted LoRA models from job:', loraModels);
         
+        // Extract generation parameters from job params for metadata
+        const jobParamsData = existingJob.params as any;
+        
+        // Determine source from job params - check multiple possible fields
+        let generationSource = 'flux-t2i'; // Default fallback
+        if (jobParamsData?.source) {
+          generationSource = jobParamsData.source;
+        } else if (jobParamsData?.params?.source) {
+          generationSource = jobParamsData.params.source;
+        } else if (jobParamsData?.action === 'generate_style_transfer' || jobParamsData?.generation_type === 'style_transfer') {
+          generationSource = 'flux-style-transfer';
+        } else if (jobParamsData?.generationType === 'style-transfer') {
+          generationSource = 'flux-style-transfer';
+        }
+        
+        const generationMetadata = {
+          prompt: jobParamsData?.prompt || '',
+          negativePrompt: jobParamsData?.negativePrompt || '',
+          width: jobParamsData?.width || 0,
+          height: jobParamsData?.height || 0,
+          steps: jobParamsData?.steps || 0,
+          cfg: jobParamsData?.cfg || 0,
+          guidance: jobParamsData?.guidance || 0,
+          samplerName: jobParamsData?.samplerName || '',
+          scheduler: jobParamsData?.scheduler || '',
+          seed: jobParamsData?.seed || 0,
+          loras: jobParamsData?.loras || [],
+          loraStrength: jobParamsData?.loraStrength || 0,
+          selectedLora: jobParamsData?.selectedLora || '',
+          // Style transfer specific fields
+          weight: jobParamsData?.weight || 0,
+          mode: jobParamsData?.mode || '',
+          downsamplingFactor: jobParamsData?.downsamplingFactor || 0,
+          downsamplingFunction: jobParamsData?.downsamplingFunction || '',
+          autocropMargin: jobParamsData?.autocropMargin || 0,
+          referenceImage: jobParamsData?.referenceImage || jobParamsData?.params?.referenceImage || null,
+          referenceImageUrl: jobParamsData?.referenceImageUrl || null,
+          vaultProfileId: jobParamsData?.vaultProfileId || null,
+          vaultFolderId: jobParamsData?.vaultFolderId || null,
+          generatedAt: new Date().toISOString(),
+          source: generationSource,
+          generationType: jobParamsData?.generationType || jobParamsData?.generation_type || 'text-to-image',
+        };
+        
         for (const pathData of body.network_volume_paths) {
           const { filename, subfolder, type, s3_key, network_volume_path, file_size, aws_s3_key, aws_s3_url } = pathData;
           
@@ -270,7 +449,10 @@ export async function POST(request: NextRequest) {
               awsS3Key: aws_s3_key,
               awsS3Url: aws_s3_url,
               fileSize: file_size,
-              loraModels: loraModels // ✅ Track LoRA models used
+              loraModels: loraModels, // ✅ Track LoRA models used
+              generationMetadata: generationMetadata, // ✅ Include generation params for reuse
+              width: generationMetadata.width,
+              height: generationMetadata.height,
             }
           );
           
@@ -285,6 +467,89 @@ export async function POST(request: NextRequest) {
             }
             
             console.log(`✅ S3 network volume image saved to database: ${savedImage.id}`);
+            
+            // ✅ VAULT SAVING: If saveToVault is enabled, also create VaultItem
+            console.log('🔍 VAULT CHECK (network_volume): saveToVault =', jobParamsData?.saveToVault);
+            console.log('🔍 VAULT CHECK (network_volume): vaultProfileId =', jobParamsData?.vaultProfileId);
+            console.log('🔍 VAULT CHECK (network_volume): vaultFolderId =', jobParamsData?.vaultFolderId);
+            console.log('🔍 VAULT CHECK (network_volume): targetClerkId =', targetClerkId);
+            
+            if (jobParamsData?.saveToVault && jobParamsData?.vaultProfileId && jobParamsData?.vaultFolderId) {
+              console.log('✅ VAULT (network_volume): All vault parameters present, proceeding to create vault item');
+              try {
+                const { prisma } = await import('@/lib/database');
+                
+                // Verify vault folder exists and user has access
+                console.log('🔍 VAULT (network_volume): Looking for folder with ID:', jobParamsData.vaultFolderId);
+                const vaultFolder = await prisma.vaultFolder.findFirst({
+                  where: {
+                    id: jobParamsData.vaultFolderId,
+                    clerkId: targetClerkId,
+                    profileId: jobParamsData.vaultProfileId,
+                  },
+                });
+                
+                console.log('🔍 VAULT (network_volume): Folder query result:', vaultFolder ? `Found: ${vaultFolder.name}` : 'NOT FOUND');
+                
+                if (vaultFolder) {
+                  // Create vault item
+                  const vaultItem = await prisma.vaultItem.create({
+                    data: {
+                      clerkId: targetClerkId,
+                      profileId: jobParamsData.vaultProfileId,
+                      folderId: jobParamsData.vaultFolderId,
+                      fileName: filename,
+                      fileType: 'image/png',
+                      fileSize: file_size || 0,
+                      awsS3Key: aws_s3_key || s3_key,
+                      awsS3Url: aws_s3_url,
+                      metadata: {
+                        source: generationMetadata.source,
+                        generationType: generationMetadata.generationType,
+                        prompt: generationMetadata.prompt,
+                        negativePrompt: generationMetadata.negativePrompt,
+                        width: generationMetadata.width,
+                        height: generationMetadata.height,
+                        steps: generationMetadata.steps,
+                        cfg: generationMetadata.cfg,
+                        guidance: generationMetadata.guidance,
+                        samplerName: generationMetadata.samplerName,
+                        scheduler: generationMetadata.scheduler,
+                        seed: generationMetadata.seed,
+                        loras: generationMetadata.loras,
+                        loraStrength: generationMetadata.loraStrength,
+                        selectedLora: generationMetadata.selectedLora,
+                        weight: generationMetadata.weight,
+                        mode: generationMetadata.mode,
+                        downsamplingFactor: generationMetadata.downsamplingFactor,
+                        downsamplingFunction: generationMetadata.downsamplingFunction,
+                        autocropMargin: generationMetadata.autocropMargin,
+                        referenceImage: generationMetadata.referenceImage,
+                        referenceImageUrl: generationMetadata.referenceImageUrl,
+                        generatedAt: generationMetadata.generatedAt,
+                      },
+                    },
+                  });
+                  console.log(`✅ VAULT (network_volume): Successfully saved to vault: ${vaultItem.id} in folder ${vaultFolder.name}`);
+                } else {
+                  console.error('❌ VAULT (network_volume): Folder not found or user does not have access');
+                  console.error('❌ VAULT (network_volume): Search criteria:', {
+                    id: jobParamsData.vaultFolderId,
+                    clerkId: targetClerkId,
+                    profileId: jobParamsData.vaultProfileId,
+                  });
+                }
+              } catch (vaultError) {
+                console.error('❌ VAULT (network_volume): Error saving to vault:', vaultError);
+                // Don't fail the whole operation if vault save fails
+              }
+            } else {
+              console.warn('⚠️ VAULT (network_volume): Skipping vault save - missing parameters:', {
+                saveToVault: jobParamsData?.saveToVault,
+                vaultProfileId: jobParamsData?.vaultProfileId,
+                vaultFolderId: jobParamsData?.vaultFolderId,
+              });
+            }
           } else {
             console.error(`❌ Failed to save S3 network volume image: ${filename}`);
           }

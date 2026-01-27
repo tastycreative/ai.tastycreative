@@ -143,6 +143,7 @@ interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
+  profileName?: string;
   isDefault?: boolean;
 }
 
@@ -156,6 +157,7 @@ interface GeneratedVideo {
   createdAt: string;
   status: "completed" | "processing" | "failed";
   imageUrl?: string;
+  profileName?: string;
   metadata?: {
     negativePrompt?: string;
     mode?: string;
@@ -226,6 +228,9 @@ export default function KlingImageToVideo() {
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+  
+  // Check if "All Profiles" is selected
+  const isAllProfiles = globalProfileId === "all";
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
@@ -626,8 +631,13 @@ export default function KlingImageToVideo() {
     try {
       const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
       if (foldersResponse.ok) {
-        const folders = await foldersResponse.json();
-        setVaultFolders(Array.isArray(folders) ? folders : (folders.folders || []));
+        const data = await foldersResponse.json();
+        const folders = Array.isArray(data) ? data : (data.folders || []);
+        // Add profileName from response if available (for "all" profiles view)
+        setVaultFolders(folders.map((f: any) => ({
+          ...f,
+          profileName: f.profileName || null
+        })));
       }
     } catch (err) {
       console.error("Failed to load vault folders:", err);
@@ -642,9 +652,17 @@ export default function KlingImageToVideo() {
     if (!targetFolder || !globalProfileId) return "Select a vault folder to save videos";
     
     const folder = vaultFolders.find((f) => f.id === targetFolder);
-    if (folder && selectedProfile) {
-      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+    if (folder) {
+      // When viewing all profiles, use folder's profileName
+      if (isAllProfiles && folder.profileName) {
+        return `Saving to Vault: ${folder.profileName} / ${folder.name}`;
+      }
+      // When viewing specific profile, use selectedProfile
+      if (selectedProfile) {
+        const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+      }
+      return `Saving to Vault: ${folder.name}`;
     }
     return "Select a vault folder to save videos";
   };
@@ -876,9 +894,10 @@ export default function KlingImageToVideo() {
         }
       }
 
-      // Always include profile ID for history filtering
-      if (globalProfileId) {
-        formData.append("vaultProfileId", globalProfileId);
+      // Use folder's profileId for proper association (works for both single and all profiles views)
+      const folderProfileId = targetFolder ? vaultFolders.find(f => f.id === targetFolder)?.profileId || globalProfileId : globalProfileId;
+      if (folderProfileId && folderProfileId !== "all") {
+        formData.append("vaultProfileId", folderProfileId);
       }
       
       // Add vault folder params if selected
@@ -1733,9 +1752,12 @@ export default function KlingImageToVideo() {
                             : 'Select a folder...'
                           }
                         </p>
-                        {targetFolder && selectedProfile && (
+                        {targetFolder && (
                           <p className="text-[11px] text-violet-300/70 truncate">
-                            {selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name}
+                            {isAllProfiles 
+                              ? vaultFolders.find(f => f.id === targetFolder)?.profileName || ''
+                              : selectedProfile?.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile?.name || ''
+                            }
                           </p>
                         )}
                       </div>
@@ -1766,41 +1788,93 @@ export default function KlingImageToVideo() {
                         <div className="my-2 mx-3 h-px bg-white/5" />
                       )}
 
-                      {/* Folder Options */}
+                      {/* Folder Options - Grouped by profile when viewing all profiles */}
                       <div className="max-h-[200px] overflow-y-auto">
-                        {vaultFolders.filter(f => !f.isDefault).map((folder) => (
-                          <button
-                            key={folder.id}
-                            type="button"
-                            onClick={() => {
-                              setTargetFolder(folder.id);
-                              setFolderDropdownOpen(false);
-                            }}
-                            className={`
-                              w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
-                              ${targetFolder === folder.id 
-                                ? 'bg-violet-500/15' 
-                                : 'hover:bg-white/5'
-                              }
-                            `}
-                          >
-                            <div className={`
-                              w-8 h-8 rounded-lg flex items-center justify-center transition-colors
-                              ${targetFolder === folder.id 
-                                ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
-                                : 'bg-slate-700/50 border border-white/5'
-                              }
-                            `}>
-                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                        {isAllProfiles ? (
+                          // Group folders by profile
+                          Object.entries(
+                            vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
+                              const profileKey = folder.profileName || 'Unknown Profile';
+                              if (!acc[profileKey]) acc[profileKey] = [];
+                              acc[profileKey].push(folder);
+                              return acc;
+                            }, {} as Record<string, VaultFolder[]>)
+                          ).map(([profileName, folders]) => (
+                            <div key={profileName}>
+                              <div className="px-4 py-2 text-xs font-semibold text-violet-300 uppercase tracking-wider bg-violet-500/10 sticky top-0">
+                                {profileName}
+                              </div>
+                              {folders.map((folder) => (
+                                <button
+                                  key={folder.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetFolder(folder.id);
+                                    setFolderDropdownOpen(false);
+                                  }}
+                                  className={`
+                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-violet-500/15' 
+                                      : 'hover:bg-white/5'
+                                    }
+                                  `}
+                                >
+                                  <div className={`
+                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                      : 'bg-slate-700/50 border border-white/5'
+                                    }
+                                  `}>
+                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                                  </div>
+                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                    {folder.name}
+                                  </span>
+                                  {targetFolder === folder.id && (
+                                    <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
                             </div>
-                            <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
-                              {folder.name}
-                            </span>
-                            {targetFolder === folder.id && (
-                              <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
-                            )}
-                          </button>
-                        ))}
+                          ))
+                        ) : (
+                          // Single profile view - flat list
+                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                            <button
+                              key={folder.id}
+                              type="button"
+                              onClick={() => {
+                                setTargetFolder(folder.id);
+                                setFolderDropdownOpen(false);
+                              }}
+                              className={`
+                                w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                                ${targetFolder === folder.id 
+                                  ? 'bg-violet-500/15' 
+                                  : 'hover:bg-white/5'
+                                }
+                              `}
+                            >
+                              <div className={`
+                                w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                ${targetFolder === folder.id 
+                                  ? 'bg-gradient-to-br from-violet-500/40 to-purple-500/40 border border-violet-400/40' 
+                                  : 'bg-slate-700/50 border border-white/5'
+                                }
+                              `}>
+                                <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-violet-300' : 'text-slate-400'}`} />
+                              </div>
+                              <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                {folder.name}
+                              </span>
+                              {targetFolder === folder.id && (
+                                <Check className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                              )}
+                            </button>
+                          ))
+                        )}
                       </div>
 
                       {vaultFolders.filter(f => !f.isDefault).length === 0 && (
@@ -2201,6 +2275,14 @@ export default function KlingImageToVideo() {
                             {video.status === "completed" ? "✓ Ready" : "Processing"}
                           </div>
                         </div>
+                        {/* Profile badge when viewing all profiles */}
+                        {isAllProfiles && video.profileName && (
+                          <div className="absolute top-2 left-2">
+                            <div className="rounded-full bg-slate-900/80 backdrop-blur-sm px-2 py-1 text-[10px] text-violet-200 border border-violet-400/30">
+                              {video.profileName}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

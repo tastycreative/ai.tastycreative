@@ -20,6 +20,7 @@ import {
   CheckCircle,
   Circle,
   User,
+  Users,
   ChevronDown,
   Loader2,
   Video as VideoIcon,
@@ -45,6 +46,8 @@ interface StorySlot {
   mimeType?: string;
   isPosted?: boolean;
   postedAt?: Date;
+  profileId?: string;
+  profileName?: string | null;
   linkedPost?: {
     id: string;
     fileName?: string;
@@ -142,9 +145,37 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
   const [captionTypeFilter, setCaptionTypeFilter] = useState("All");
   const [captionBankFilter, setCaptionBankFilter] = useState("All");
 
+  // All Profiles state
+  const isAllProfiles = profileId === "all";
+  const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([]);
+  const [loadingProfiles, setLoadingProfiles] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Fetch profiles when All Profiles is selected
+  useEffect(() => {
+    if (isAllProfiles) {
+      fetchProfiles();
+    }
+  }, [isAllProfiles]);
+
+  const fetchProfiles = async () => {
+    try {
+      setLoadingProfiles(true);
+      const response = await fetch("/api/instagram/profiles");
+      const data = await response.json();
+      if (data.profiles && Array.isArray(data.profiles)) {
+        setProfiles(data.profiles);
+      }
+    } catch (error) {
+      console.error("Error fetching profiles:", error);
+    } finally {
+      setLoadingProfiles(false);
+    }
+  };
 
   useEffect(() => {
     fetchStorySlots();
@@ -159,7 +190,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
         endDate: dateStr,
       });
       
-      if (profileId && profileId !== "all") {
+      if (profileId) {
         params.append("profileId", profileId);
       }
       
@@ -218,8 +249,14 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
     setCaptionCategoryFilter("All");
     setCaptionTypeFilter("All");
     setCaptionBankFilter("All");
+    setSelectedProfileId(null); // Reset profile selection
     setShowModal(true);
-    if (profileId && profileId !== "all") {
+    
+    // Fetch vault and captions for specific profile or all profiles
+    if (isAllProfiles) {
+      // For all profiles, we'll fetch when a profile is selected
+      fetchProfiles();
+    } else if (profileId) {
       fetchVaultFolders();
       fetchVaultItems();
       fetchCaptionsBank();
@@ -260,12 +297,13 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
     setSelectedVaultItem(null);
   };
 
-  const fetchVaultFolders = async () => {
-    if (!profileId || profileId === "all") return;
+  const fetchVaultFolders = async (targetProfileId?: string) => {
+    const pId = targetProfileId || (isAllProfiles ? selectedProfileId : profileId);
+    if (!pId) return;
 
     try {
       setLoadingFolders(true);
-      const response = await fetch(`/api/vault/folders?profileId=${profileId}`);
+      const response = await fetch(`/api/vault/folders?profileId=${pId}`);
       
       if (!response.ok) {
         console.warn("Vault folders not available");
@@ -283,12 +321,13 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
     }
   };
 
-  const fetchVaultItems = async (folderId?: string) => {
-    if (!profileId || profileId === "all") return;
+  const fetchVaultItems = async (folderId?: string, targetProfileId?: string) => {
+    const pId = targetProfileId || (isAllProfiles ? selectedProfileId : profileId);
+    if (!pId) return;
 
     try {
       setLoadingVault(true);
-      const params = new URLSearchParams({ profileId });
+      const params = new URLSearchParams({ profileId: pId });
       if (folderId && folderId !== "all") {
         params.append("folderId", folderId);
       }
@@ -314,12 +353,13 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
     }
   };
 
-  const fetchCaptionsBank = async () => {
-    if (!profileId || profileId === "all") return;
+  const fetchCaptionsBank = async (targetProfileId?: string) => {
+    const pId = targetProfileId || (isAllProfiles ? selectedProfileId : profileId);
+    if (!pId) return;
 
     try {
       setLoadingCaptions(true);
-      const response = await fetch(`/api/captions?profileId=${profileId}`);
+      const response = await fetch(`/api/captions?profileId=${pId}`);
       
       if (!response.ok) {
         console.warn("Captions not available");
@@ -399,6 +439,12 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
         return;
       }
 
+      // Require profile selection when viewing All Profiles
+      if (isAllProfiles && !selectedProfileId) {
+        alert("Please select a profile to save this story to!");
+        return;
+      }
+
       // Convert 12-hour format to 24-hour format
       let hours = parseInt(timeInput.hour);
       if (timeInput.period === "PM" && hours !== 12) {
@@ -459,7 +505,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
         interactiveElement: formData.interactiveElement,
         notes: formData.notes,
         caption: formData.caption,
-        profileId: profileId,
+        profileId: isAllProfiles ? selectedProfileId : profileId,
         ...fileData,
       };
 
@@ -597,6 +643,7 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
             Stories Planner
           </h2>
           <p className="text-gray-400 mt-2">
+            {isAllProfiles && <span className="text-pink-400">All Profiles • </span>}
             Plan your Instagram stories throughout the day with interactive elements
           </p>
         </div>
@@ -612,6 +659,16 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
           <span className="hidden sm:inline">Add Story</span>
         </motion.button>
       </div>
+
+      {/* All Profiles Notice */}
+      {isAllProfiles && (
+        <div className="flex items-center gap-3 p-3 bg-pink-500/10 border border-pink-500/30 rounded-xl">
+          <Users className="w-5 h-5 text-pink-400 shrink-0" />
+          <p className="text-sm text-pink-300">
+            Viewing stories from all profiles. Select a profile when creating a new story.
+          </p>
+        </div>
+      )}
 
       {/* Date Navigator */}
       <div className="bg-gradient-to-br from-[#1a1a1a] to-[#1a1a1a] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl">
@@ -736,6 +793,14 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
 
               {/* Slot Content */}
               <div className="space-y-4">
+                {/* Profile Badge - shown when viewing All Profiles */}
+                {isAllProfiles && slot.profileName && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-pink-500/20 to-purple-500/20 rounded-xl border border-pink-500/30">
+                    <User className="w-4 h-4 text-pink-400" />
+                    <span className="text-sm font-medium text-pink-300">{slot.profileName}</span>
+                  </div>
+                )}
+
                 <div className="bg-gradient-to-r from-[#2a2a2a] to-[#252525] rounded-xl p-3 border border-blue-500/10">
                   <div className="text-xs font-bold text-blue-400 mb-1.5 uppercase tracking-wide">Story Type</div>
                   <div className="text-white font-semibold text-base">
@@ -845,6 +910,54 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
             </div>
 
             <div className="space-y-6">
+              {/* Profile Selector - shown when viewing All Profiles */}
+              {isAllProfiles && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 mb-2">
+                    👤 Profile *
+                  </label>
+                  {loadingProfiles ? (
+                    <div className="flex items-center gap-2 px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl">
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <span className="text-gray-400">Loading profiles...</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedProfileId || ""}
+                      onChange={(e) => {
+                        const newProfileId = e.target.value;
+                        setSelectedProfileId(newProfileId);
+                        // Reset vault and captions when profile changes
+                        setSelectedVaultItem(null);
+                        setUploadPreviewUrl(null);
+                        setVaultItems([]);
+                        setVaultFolders([]);
+                        setSelectedVaultFolder("all");
+                        setAvailableCaptions([]);
+                        // Fetch vault and captions for the selected profile
+                        if (newProfileId) {
+                          fetchVaultFolders(newProfileId);
+                          fetchVaultItems(undefined, newProfileId);
+                          fetchCaptionsBank(newProfileId);
+                        }
+                      }}
+                      className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"
+                    >
+                      <option value="">Select a profile...</option>
+                      {profiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                    <span>ℹ️</span>
+                    Select which profile this story belongs to
+                  </p>
+                </div>
+              )}
+
               {/* Time Input */}
               <div>
                 <label className="block text-sm font-bold text-gray-300 mb-2">
@@ -927,16 +1040,17 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                     type="button"
                     onClick={() => {
                       setUploadMode("vault");
-                      if (profileId && profileId !== "all") {
+                      const targetProfileId = isAllProfiles ? selectedProfileId : profileId;
+                      if (targetProfileId) {
                         if (vaultFolders.length === 0) {
-                          fetchVaultFolders();
+                          fetchVaultFolders(targetProfileId);
                         }
                         if (vaultItems.length === 0) {
-                          fetchVaultItems();
+                          fetchVaultItems(undefined, targetProfileId);
                         }
                       }
                     }}
-                    disabled={!profileId || profileId === "all"}
+                    disabled={isAllProfiles ? !selectedProfileId : !profileId}
                     className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
                       uploadMode === "vault"
                         ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white"
@@ -1018,7 +1132,8 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
                           setSelectedVaultFolder(e.target.value);
                           setSelectedVaultItem(null);
                           setUploadPreviewUrl(null);
-                          fetchVaultItems(e.target.value);
+                          const targetProfileId = isAllProfiles ? selectedProfileId : profileId;
+                          fetchVaultItems(e.target.value, targetProfileId || undefined);
                         }}
                         disabled={loadingFolders}
                         className="w-full px-4 py-3 bg-[#2a2a2a] border-2 border-[#3a3a3a] rounded-xl text-white focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"

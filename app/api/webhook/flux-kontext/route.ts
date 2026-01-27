@@ -111,10 +111,42 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Check if we should save to vault
+          // Always save to GeneratedImage table for history tracking
+          const generatedImageData = {
+            clerkId: ownerClerkId,
+            jobId: jobId,
+            filename: imageData.filename,
+            subfolder: imageData.subfolder || '',
+            type: imageData.type || 'output',
+            fileSize: imageData.fileSize,
+            awsS3Key: imageData.awsS3Key,
+            awsS3Url: imageData.awsS3Url,
+            format: 'png',
+            metadata: {
+              source: "flux-kontext",
+              generationType: "image-editing",
+              model: jobParams?.model || "flux-kontext",
+              prompt: jobParams?.prompt || "",
+              vaultProfileId: jobParams?.vaultProfileId,
+              vaultFolderId: jobParams?.vaultFolderId,
+              referenceImageUrl: jobParams?.referenceImageUrl,
+              referenceImageUrls: jobParams?.referenceImageUrls,
+              steps: jobParams?.steps,
+              guidance: jobParams?.guidance,
+              seed: jobParams?.seed,
+              generatedAt: new Date().toISOString(),
+            },
+          };
+
+          await prisma.generatedImage.create({
+            data: generatedImageData
+          });
+
+          console.log(`✅ Saved image to GeneratedImage: ${imageData.filename} (owner: ${ownerClerkId})`);
+
+          // Additionally save to vault if configured
           if (shouldSaveToVault) {
-            // Save to vault database with generation metadata
-            console.log(`💾 Saving to vault - Profile: ${jobParams.vaultProfileId}, Folder: ${jobParams.vaultFolderId}`);
+            console.log(`💾 Also saving to vault - Profile: ${jobParams.vaultProfileId}, Folder: ${jobParams.vaultFolderId}`);
             
             const vaultItem = await prisma.vaultItem.create({
               data: {
@@ -137,23 +169,6 @@ export async function POST(request: NextRequest) {
             });
 
             console.log(`✅ Saved image to vault: ${imageData.filename} (vault item: ${vaultItem.id})`);
-          } else {
-            // Save image to regular database
-            await prisma.generatedImage.create({
-              data: {
-                clerkId: ownerClerkId, // Use the determined owner's clerkId
-                jobId: jobId,
-                filename: imageData.filename,
-                subfolder: imageData.subfolder || '',
-                type: imageData.type || 'output',
-                fileSize: imageData.fileSize,
-                awsS3Key: imageData.awsS3Key,
-                awsS3Url: imageData.awsS3Url,
-                format: 'png',
-              }
-            });
-
-            console.log(`✅ Saved image to database: ${imageData.filename} (owner: ${ownerClerkId})`);
           }
         } catch (imageError) {
           console.error(`❌ Error saving image ${imageData.filename}:`, imageError);

@@ -16,12 +16,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get("profileId");
 
+    const isAllProfiles = !profileId || profileId === "all";
+
     const whereClause: any = {
       clerkId: user.id,
     };
 
     if (profileId && profileId !== "all") {
       whereClause.profileId = profileId;
+    }
+
+    // If fetching all profiles, build a profile map for names
+    let profileMap: Record<string, string> = {};
+    if (isAllProfiles) {
+      const profiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: user.id },
+        select: { id: true, name: true },
+      });
+      profileMap = profiles.reduce((acc, profile) => {
+        acc[profile.id] = profile.name;
+        return acc;
+      }, {} as Record<string, string>);
     }
 
     const phases = await prisma.workflowPhase.findMany({
@@ -34,7 +49,15 @@ export async function GET(request: NextRequest) {
       orderBy: { order: "asc" },
     });
 
-    return NextResponse.json({ phases });
+    // Add profileName to each phase if in all profiles mode
+    const phasesWithProfile = isAllProfiles
+      ? phases.map((phase) => ({
+          ...phase,
+          profileName: profileMap[phase.profileId] || "Unknown Profile",
+        }))
+      : phases;
+
+    return NextResponse.json({ phases: phasesWithProfile });
   } catch (error) {
     console.error("Error fetching workflow:", error);
     return NextResponse.json(

@@ -42,6 +42,8 @@ model User {
   instagramProfiles        InstagramProfile[]
   notifications            Notification[]
   productionEntries        ProductionEntry[]
+  referenceItems           reference_items[]
+  referenceFolders         reference_folders[]
   teamMemberships          TeamMember[]
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
@@ -474,6 +476,7 @@ model InstagramProfile {
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
   profileImageUrl        String?
+  organizationId         String?
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -486,7 +489,7 @@ model InstagramProfile {
   posts                  InstagramPost[]
   organization           Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
-  reference_items        reference_items[]
+  organizations          Organization?         @relation(fields: [organizationId], references: [id])
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
@@ -1102,13 +1105,13 @@ model OrganizationInvite {
 }
 
 model CustomOrganizationPermission {
-  id                    String       @id @default(cuid())
-  organizationId        String       @unique
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @default(now()) @updatedAt
-  permissions           Json         @default("{}")
-  maxVaultFolders       Int?
-  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id              String       @id @default(cuid())
+  organizationId  String       @unique
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @default(now()) @updatedAt
+  permissions     Json         @default("{}")
+  maxVaultFolders Int?
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@map("custom_organization_permissions")
@@ -1218,34 +1221,58 @@ model ai_voice_generations {
 }
 
 model reference_items {
-  id                 String           @id @default(cuid())
-  clerkId            String
-  profileId          String
-  name               String
-  description        String?
-  fileType           String
-  mimeType           String
-  fileSize           Int
-  width              Int?
-  height             Int?
-  duration           Float?
-  awsS3Key           String
-  awsS3Url           String
-  thumbnailUrl       String?
-  tags               String[]         @default([])
-  usageCount         Int              @default(0)
-  lastUsedAt         DateTime?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  instagram_profiles InstagramProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  id           String             @id @default(cuid())
+  clerkId      String
+  name         String
+  description  String?
+  fileType     String
+  mimeType     String
+  fileSize     Int
+  width        Int?
+  height       Int?
+  duration     Float?
+  awsS3Key     String
+  awsS3Url     String
+  thumbnailUrl String?
+  tags         String[]           @default([])
+  usageCount   Int                @default(0)
+  lastUsedAt   DateTime?
+  isFavorite   Boolean            @default(false)
+  folderId     String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  folder       reference_folders? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  user         User               @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
 
   @@index([clerkId])
-  @@index([clerkId, profileId])
+  @@index([clerkId, folderId])
+  @@index([clerkId, isFavorite])
   @@index([fileType])
   @@index([lastUsedAt])
-  @@index([profileId])
+  @@index([folderId])
   @@index([tags])
   @@index([usageCount])
+}
+
+model reference_folders {
+  id          String              @id @default(cuid())
+  clerkId     String
+  name        String
+  description String?
+  color       String              @default("#8B5CF6")
+  icon        String              @default("folder")
+  parentId    String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  items       reference_items[]
+  parent      reference_folders?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    reference_folders[] @relation("FolderHierarchy")
+  user        User                @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+
+  @@unique([clerkId, name, parentId])
+  @@index([clerkId])
+  @@index([clerkId, parentId])
+  @@index([parentId])
 }
 
 model of_model_assets {

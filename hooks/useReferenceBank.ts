@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 
 export interface ReferenceItem {
   id: string;
   clerkId: string;
-  profileId: string;
   name: string;
   description: string | null;
   fileType: string;
@@ -21,63 +19,91 @@ export interface ReferenceItem {
   tags: string[];
   usageCount: number;
   lastUsedAt: string | null;
+  isFavorite: boolean;
+  folderId: string | null;
+  folder?: {
+    id: string;
+    name: string;
+    color: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface ReferenceFolder {
+  id: string;
+  clerkId: string;
+  name: string;
+  description: string | null;
+  color: string;
+  icon: string;
+  parentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    items: number;
+  };
+}
+
 interface UseReferenceBankOptions {
   filterType?: "all" | "image" | "video";
+  folderId?: string | null;
+  favoritesOnly?: boolean;
   autoFetch?: boolean;
-  profileId?: string;
 }
 
 export function useReferenceBank(options: UseReferenceBankOptions = {}) {
-  const { filterType = "all", autoFetch = true, profileId: propProfileId } = options;
-  const { profileId: selectedProfileId } = useInstagramProfile();
-  
-  // Use provided profileId or fall back to the global selected profile
-  const profileId = propProfileId || selectedProfileId;
+  const { 
+    filterType = "all", 
+    folderId,
+    favoritesOnly = false,
+    autoFetch = true 
+  } = options;
   
   const [items, setItems] = useState<ReferenceItem[]>([]);
+  const [folders, setFolders] = useState<ReferenceFolder[]>([]);
+  const [stats, setStats] = useState({ total: 0, favorites: 0, unfiled: 0, images: 0, videos: 0 });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
-    if (!profileId) {
-      setItems([]);
-      return;
-    }
-    
     setIsLoading(true);
     setError(null);
     
     try {
-      const response = await fetch(
-        `/api/reference-bank?profileId=${profileId}`
-      );
+      const params = new URLSearchParams();
+      
+      if (folderId === "root") {
+        params.set("folderId", "root");
+      } else if (folderId) {
+        params.set("folderId", folderId);
+      }
+      
+      if (favoritesOnly) {
+        params.set("favorites", "true");
+      }
+      
+      if (filterType !== "all") {
+        params.set("fileType", filterType);
+      }
+      
+      const response = await fetch(`/api/reference-bank?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error("Failed to fetch reference items");
       }
       
       const data = await response.json();
-      let fetchedItems = data.items || [];
-      
-      // Apply filter
-      if (filterType !== "all") {
-        fetchedItems = fetchedItems.filter(
-          (item: ReferenceItem) => item.fileType === filterType
-        );
-      }
-      
-      setItems(fetchedItems);
+      setItems(data.items || []);
+      setFolders(data.folders || []);
+      setStats(data.stats || { total: 0, favorites: 0, unfiled: 0, images: 0, videos: 0 });
     } catch (err) {
       console.error("Error fetching reference items:", err);
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setIsLoading(false);
     }
-  }, [profileId, filterType]);
+  }, [folderId, favoritesOnly, filterType]);
 
   useEffect(() => {
     if (autoFetch) {
@@ -136,6 +162,8 @@ export function useReferenceBank(options: UseReferenceBankOptions = {}) {
 
   return {
     items,
+    folders,
+    stats,
     isLoading,
     error,
     fetchItems,

@@ -37,6 +37,7 @@ interface VaultFolder {
   name: string;
   profileId: string;
   isDefault?: boolean;
+  profileName?: string;
 }
 
 interface GeneratedVideo {
@@ -49,6 +50,7 @@ interface GeneratedVideo {
   createdAt: string;
   status: "completed" | "processing" | "failed";
   referenceImageUrl?: string | null;
+  profileName?: string;
   metadata?: {
     resolution?: string;
     ratio?: string;
@@ -118,7 +120,7 @@ export default function SeeDreamImageToVideo() {
   const [targetFolder, setTargetFolder] = useState<string>("");
 
   // Use global profile from header
-  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
+  const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
 
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
@@ -265,9 +267,16 @@ export default function SeeDreamImageToVideo() {
     if (!targetFolder || !globalProfileId) return "Select a vault folder to save videos";
     
     const folder = vaultFolders.find((f) => f.id === targetFolder);
-    if (folder && selectedProfile) {
-      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+    if (folder) {
+      // If viewing all profiles, use the folder's profileName
+      if (isAllProfiles && folder.profileName) {
+        return `Saving to Vault: ${folder.profileName} / ${folder.name}`;
+      }
+      // Otherwise use the selected profile
+      if (selectedProfile) {
+        const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+      }
     }
     return "Select a vault folder to save videos";
   };
@@ -631,6 +640,10 @@ export default function SeeDreamImageToVideo() {
         jobId: localTaskId,
       });
 
+      // Get profileId from the selected folder
+      const selectedFolder = vaultFolders.find(f => f.id === targetFolder);
+      const folderProfileId = selectedFolder?.profileId || globalProfileId;
+
       const payload: any = {
         prompt: prompt.trim(),
         image: uploadedImage,
@@ -644,12 +657,12 @@ export default function SeeDreamImageToVideo() {
         generateAudio,
         // Store reference image URL for reuse functionality
         referenceImageUrl: savedReferenceUrl || null,
-        // Always include profile ID for history filtering
-        vaultProfileId: globalProfileId || null,
+        // Always include profile ID for history filtering (use folder's profile)
+        vaultProfileId: folderProfileId || null,
       };
 
       // Add vault folder params if selected
-      if (targetFolder && globalProfileId) {
+      if (targetFolder && folderProfileId) {
         payload.saveToVault = true;
         payload.vaultFolderId = targetFolder;
       }
@@ -962,7 +975,7 @@ export default function SeeDreamImageToVideo() {
                     Starting Image *
                   </label>
                   {/* Reference Bank Button */}
-                  {mounted && globalProfileId && (
+                  {mounted && (
                     <button
                       type="button"
                       onClick={() => setShowReferenceBankSelector(true)}
@@ -1258,7 +1271,58 @@ export default function SeeDreamImageToVideo() {
 
                       {/* Folder Options */}
                       <div className="max-h-[200px] overflow-y-auto">
-                        {vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                        {isAllProfiles ? (
+                          // Group folders by profile when viewing all profiles
+                          Object.entries(
+                            vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
+                              const profileName = folder.profileName || 'Unknown Profile';
+                              if (!acc[profileName]) acc[profileName] = [];
+                              acc[profileName].push(folder);
+                              return acc;
+                            }, {} as Record<string, VaultFolder[]>)
+                          ).map(([profileName, folders]) => (
+                            <div key={profileName}>
+                              <div className="px-4 py-2 text-xs font-medium text-purple-300 bg-purple-500/10 border-b border-purple-500/20">
+                                {profileName}
+                              </div>
+                              {folders.map((folder) => (
+                                <button
+                                  key={folder.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetFolder(folder.id);
+                                    setFolderDropdownOpen(false);
+                                  }}
+                                  className={`
+                                    w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-purple-500/15' 
+                                      : 'hover:bg-white/5'
+                                    }
+                                  `}
+                                >
+                                  <div className={`
+                                    w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                    ${targetFolder === folder.id 
+                                      ? 'bg-gradient-to-br from-purple-500/40 to-indigo-500/40 border border-purple-400/40' 
+                                      : 'bg-slate-700/50 border border-white/5'
+                                    }
+                                  `}>
+                                    <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-300' : 'text-slate-400'}`} />
+                                  </div>
+                                  <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-white font-medium' : 'text-slate-200'}`}>
+                                    {folder.name}
+                                  </span>
+                                  {targetFolder === folder.id && (
+                                    <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        ) : (
+                          // Normal folder list for single profile
+                          vaultFolders.filter(f => !f.isDefault).map((folder) => (
                           <button
                             key={folder.id}
                             type="button"
@@ -1290,7 +1354,8 @@ export default function SeeDreamImageToVideo() {
                               <Check className="w-4 h-4 text-purple-400 flex-shrink-0" />
                             )}
                           </button>
-                        ))}
+                        ))
+                        )}
                       </div>
 
                       {vaultFolders.filter(f => !f.isDefault).length === 0 && (
@@ -1746,6 +1811,12 @@ export default function SeeDreamImageToVideo() {
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition">
                           <Play className="w-10 h-10 text-white" />
                         </div>
+                        {/* Profile badge (when viewing all profiles) */}
+                        {isAllProfiles && video.profileName && (
+                          <div className="absolute top-2 left-2 text-[9px] text-violet-200 bg-violet-600/60 rounded px-1.5 py-0.5">
+                            {video.profileName}
+                          </div>
+                        )}
                         {/* Date badge */}
                         <div className="absolute top-2 right-2 text-[9px] text-slate-300 bg-black/50 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition">
                           {new Date(video.createdAt).toLocaleDateString()}
@@ -1753,7 +1824,12 @@ export default function SeeDreamImageToVideo() {
                       </div>
                       <div className="px-4 py-3">
                         <p className="text-sm font-medium text-white line-clamp-2 mb-1">{video.prompt}</p>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 flex-wrap">
+                          {isAllProfiles && video.profileName && (
+                            <span className="bg-violet-500/20 rounded px-1.5 py-0.5 text-violet-300">
+                              {video.profileName}
+                            </span>
+                          )}
                           <span className="bg-white/10 rounded px-1.5 py-0.5">
                             {video.duration === -1 ? "Auto" : `${video.duration}s`}
                           </span>
@@ -1778,13 +1854,12 @@ export default function SeeDreamImageToVideo() {
       )}
 
       {/* Reference Bank Selector */}
-      {mounted && globalProfileId && (
+      {showReferenceBankSelector && (
         <ReferenceSelector
-          isOpen={showReferenceBankSelector}
+          isOpen={true}
           onClose={() => setShowReferenceBankSelector(false)}
           onSelect={handleReferenceBankSelect}
           filterType="image"
-          profileId={globalProfileId}
         />
       )}
     </div>

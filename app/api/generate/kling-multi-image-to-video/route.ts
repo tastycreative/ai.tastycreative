@@ -286,7 +286,21 @@ export async function GET(request: NextRequest) {
 
     // If requesting history
     if (history === "true") {
-      console.log("[Kling Multi-I2V] Fetching video history for user:", userId, "profileId:", filterProfileId);
+      const isAllProfiles = filterProfileId === "all";
+      console.log("[Kling Multi-I2V] Fetching video history for user:", userId, "profileId:", filterProfileId, "isAllProfiles:", isAllProfiles);
+
+      // If viewing all profiles, get profile map for name lookups
+      let profileMap: Record<string, string> = {};
+      if (isAllProfiles) {
+        const profiles = await prisma.instagramProfile.findMany({
+          where: { clerkId: userId },
+          select: { id: true, name: true, instagramUsername: true },
+        });
+        profileMap = profiles.reduce((acc, p) => {
+          acc[p.id] = p.instagramUsername ? `@${p.instagramUsername}` : p.name;
+          return acc;
+        }, {} as Record<string, string>);
+      }
 
       // Step 1: Get generation jobs first, then filter by source in JS for reliability
       const recentJobs = await prisma.generationJob.findMany({
@@ -310,8 +324,8 @@ export async function GET(request: NextRequest) {
         .filter((job) => {
           const params = job.params as any;
           if (params?.source !== "kling-multi-i2v") return false;
-          // Filter by profile if specified
-          if (filterProfileId) {
+          // Filter by profile if specified (and not "all")
+          if (filterProfileId && !isAllProfiles) {
             return params?.vaultProfileId === filterProfileId;
           }
           return true;
@@ -348,8 +362,8 @@ export async function GET(request: NextRequest) {
         },
       };
       
-      // Add profile filter if specified
-      if (filterProfileId) {
+      // Add profile filter if specified (and not "all")
+      if (filterProfileId && !isAllProfiles) {
         vaultQuery.profileId = filterProfileId;
       }
       
@@ -377,6 +391,7 @@ export async function GET(request: NextRequest) {
         .map(job => {
           const params = job.params as any;
           const videoMetadata = job.videos[0]?.metadata as any;
+          const videoProfileId = params?.vaultProfileId || null;
           return {
             id: job.id,
             videoUrl: job.videos[0]?.awsS3Url || job.videos[0]?.networkVolumePath || "",
@@ -392,6 +407,7 @@ export async function GET(request: NextRequest) {
             createdAt: job.createdAt.toISOString(),
             status: "completed" as const,
             source: "generated" as const,
+            profileName: isAllProfiles && videoProfileId ? profileMap[videoProfileId] || null : null,
             metadata: {
               ...videoMetadata,
               prompt: params?.prompt || videoMetadata?.prompt || "",
@@ -403,6 +419,7 @@ export async function GET(request: NextRequest) {
               imageCount: params?.image_count || videoMetadata?.imageCount || 0,
               cfgScale: params?.cfg_scale || videoMetadata?.cfgScale || 0.5,
               sourceImageUrls: params?.sourceImageUrls || videoMetadata?.sourceImageUrls || [],
+              profileId: videoProfileId,
             },
           };
         });

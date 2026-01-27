@@ -16,6 +16,7 @@ import {
   Hash,
   MapPin,
   Users,
+  User,
   Lightbulb,
   CheckCircle,
   Circle,
@@ -50,6 +51,13 @@ interface FeedPostSlot {
   }>;
   isPosted?: boolean;
   postedAt?: Date;
+  profileId?: string;
+  profileName?: string;
+}
+
+interface Profile {
+  id: string;
+  name: string;
 }
 
 const POST_TYPES = [
@@ -108,14 +116,41 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
   const [captionCategoryFilter, setCaptionCategoryFilter] = useState("All");
   const [captionTypeFilter, setCaptionTypeFilter] = useState("All");
   const [captionBankFilter, setCaptionBankFilter] = useState("All");
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+
+  const isAllProfiles = profileId === "all";
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
+    if (isAllProfiles) {
+      fetchProfiles();
+    }
+  }, [profileId]);
+
+  useEffect(() => {
     fetchFeedPostSlots();
   }, [selectedDate, profileId]);
+
+  const fetchProfiles = async () => {
+    try {
+      const response = await fetch("/api/instagram/profiles");
+      if (response.ok) {
+        const data = await response.json();
+        // API returns { success: true, profiles: [...] }
+        if (data.profiles && Array.isArray(data.profiles)) {
+          setProfiles(data.profiles);
+        } else if (Array.isArray(data)) {
+          setProfiles(data);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching profiles:", error);
+    }
+  };
 
   const fetchFeedPostSlots = async () => {
     try {
@@ -187,11 +222,19 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     setCaptionCategoryFilter("All");
     setCaptionTypeFilter("All");
     setCaptionBankFilter("All");
+    setSelectedProfileId("");
     setShowModal(true);
-    if (profileId && profileId !== "all") {
+    
+    // Fetch vault and captions based on mode
+    if (isAllProfiles) {
+      // In All Profiles mode, fetch all vault items and captions
       fetchVaultFolders();
       fetchVaultItems();
       fetchCaptionsBank();
+    } else if (profileId) {
+      fetchVaultFolders(profileId);
+      fetchVaultItems(undefined, profileId);
+      fetchCaptionsBank(profileId);
     }
   };
 
@@ -248,12 +291,16 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     setUploadPreviewUrls([]);
   };
 
-  const fetchVaultFolders = async () => {
-    if (!profileId || profileId === "all") return;
-
+  const fetchVaultFolders = async (targetProfileId?: string) => {
+    const effectiveProfileId = targetProfileId || (isAllProfiles ? undefined : profileId);
+    
     try {
       setLoadingFolders(true);
-      const response = await fetch(`/api/vault/folders?profileId=${profileId}`);
+      const params = new URLSearchParams();
+      if (effectiveProfileId) {
+        params.append("profileId", effectiveProfileId);
+      }
+      const response = await fetch(`/api/vault/folders?${params}`);
       
       if (!response.ok) {
         console.warn("Vault folders not available");
@@ -271,16 +318,19 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     }
   };
 
-  const fetchVaultItems = async (folderId?: string) => {
-    if (!profileId || profileId === "all") return;
-
+  const fetchVaultItems = async (folderId?: string, targetProfileId?: string) => {
+    const effectiveProfileId = targetProfileId || (isAllProfiles ? undefined : profileId);
+    
     try {
       setLoadingVault(true);
-      let url = `/api/vault/items?profileId=${profileId}`;
-      if (folderId) {
-        url += `&folderId=${folderId}`;
+      const params = new URLSearchParams();
+      if (effectiveProfileId) {
+        params.append("profileId", effectiveProfileId);
       }
-      const response = await fetch(url);
+      if (folderId) {
+        params.append("folderId", folderId);
+      }
+      const response = await fetch(`/api/vault/items?${params}`);
       
       if (!response.ok) {
         console.warn("Vault items not available");
@@ -302,21 +352,48 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     }
   };
 
-  const fetchCaptionsBank = async () => {
-    if (!profileId || profileId === "all") return;
+  const fetchCaptionsBank = async (targetProfileId?: string) => {
+    const effectiveProfileId = targetProfileId || (isAllProfiles ? undefined : profileId);
+    
+    if (!effectiveProfileId && !isAllProfiles) return;
 
     try {
       setLoadingCaptions(true);
-      const response = await fetch(`/api/captions?profileId=${profileId}`);
       
-      if (!response.ok) {
-        console.warn("Captions not available");
-        setAvailableCaptions([]);
-        return;
-      }
+      if (isAllProfiles && !effectiveProfileId) {
+        // Fetch captions for all profiles
+        const allCaptions: any[] = [];
+        if (Array.isArray(profiles) && profiles.length > 0) {
+          for (const profile of profiles) {
+            try {
+              const response = await fetch(`/api/captions?profileId=${profile.id}`);
+              if (response.ok) {
+                const data = await response.json();
+                // Add profileName to each caption
+                const captionsWithProfile = data.map((caption: any) => ({
+                  ...caption,
+                  profileName: profile.name,
+                }));
+                allCaptions.push(...captionsWithProfile);
+              }
+            } catch (err) {
+              console.error(`Error fetching captions for profile ${profile.id}:`, err);
+            }
+          }
+        }
+        setAvailableCaptions(allCaptions);
+      } else {
+        const response = await fetch(`/api/captions?profileId=${effectiveProfileId}`);
+        
+        if (!response.ok) {
+          console.warn("Captions not available");
+          setAvailableCaptions([]);
+          return;
+        }
 
-      const data = await response.json();
-      setAvailableCaptions(data);
+        const data = await response.json();
+        setAvailableCaptions(data);
+      }
     } catch (error) {
       console.error("Error loading captions:", error);
       setAvailableCaptions([]);
@@ -381,11 +458,20 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     setCaptionCategoryFilter("All");
     setCaptionTypeFilter("All");
     setCaptionBankFilter("All");
+    // Set the profile for editing
+    setSelectedProfileId(slot.profileId || "");
     setShowModal(true);
-    if (profileId && profileId !== "all") {
+    
+    // Fetch vault and captions for the slot's profile or all profiles
+    const targetProfile = slot.profileId || (isAllProfiles ? undefined : profileId);
+    if (isAllProfiles) {
       fetchVaultFolders();
       fetchVaultItems();
       fetchCaptionsBank();
+    } else if (targetProfile) {
+      fetchVaultFolders(targetProfile);
+      fetchVaultItems(undefined, targetProfile);
+      fetchCaptionsBank(targetProfile);
     }
   };
 
@@ -417,6 +503,12 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
     try {
       if (!timeInput.hour || !timeInput.minute || !timeInput.period) {
         alert("Please select a time for this feed post!");
+        return;
+      }
+
+      // Require profile selection when in All Profiles mode
+      if (isAllProfiles && !selectedProfileId) {
+        alert("Please select a profile for this feed post!");
         return;
       }
 
@@ -490,7 +582,7 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
         notes: formData.notes,
         hashtags: hashtags,
         collaborators: collaborators,
-        profileId: profileId,
+        profileId: isAllProfiles ? selectedProfileId : profileId,
         files: filesData.length > 0 ? filesData : null,
       };
 
@@ -612,6 +704,12 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <ImageIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             Feed Post Planner
+            {isAllProfiles && (
+              <span className="ml-2 px-3 py-1 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 text-blue-400 rounded-full text-sm font-medium border border-blue-500/30 flex items-center gap-1.5">
+                <Users className="w-4 h-4" />
+                All Profiles
+              </span>
+            )}
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             Plan and schedule your Instagram feed posts
@@ -628,6 +726,21 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
           Add Feed Post
         </motion.button>
       </div>
+
+      {/* All Profiles Info Banner */}
+      {isAllProfiles && (
+        <div className="bg-gradient-to-r from-blue-900/30 to-cyan-900/30 border border-blue-500/30 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <Users className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-sm font-semibold text-blue-300">Viewing All Profiles</h3>
+              <p className="text-xs text-gray-400 mt-1">
+                Showing feed posts from all your profiles. When creating a new post, you&apos;ll need to select which profile to assign it to.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Date Navigator */}
       <div className="bg-gradient-to-br from-[#1a1a1a] to-[#1a1a1a] border-2 border-[#2a2a2a] rounded-2xl p-6 shadow-xl">
@@ -694,6 +807,16 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
               whileHover={{ y: -4 }}
               className="bg-gradient-to-br from-[#1a1a1a] to-[#252525] border-2 border-[#2a2a2a] rounded-2xl p-5 hover:border-blue-500/30 transition-all shadow-xl hover:shadow-2xl hover:shadow-blue-600/10"
             >
+              {/* Profile Badge for All Profiles mode */}
+              {isAllProfiles && slot.profileName && (
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 text-blue-300 rounded-full text-xs font-semibold border border-blue-500/30">
+                    <User className="w-3 h-3" />
+                    {slot.profileName}
+                  </span>
+                </div>
+              )}
+
               {/* Time Header */}
               <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-[#2a2a2a]">
                 <div className="flex items-center gap-2">
@@ -886,6 +1009,41 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
 
               {/* Content */}
               <div className="p-5 overflow-y-auto max-h-[calc(90vh-180px)] space-y-4">
+                {/* Profile Selector for All Profiles Mode */}
+                {isAllProfiles && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-blue-500" />
+                      Select Profile <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      value={selectedProfileId}
+                      onChange={(e) => {
+                        setSelectedProfileId(e.target.value);
+                        // Refresh vault and captions for selected profile
+                        if (e.target.value) {
+                          fetchVaultFolders(e.target.value);
+                          fetchVaultItems(undefined, e.target.value);
+                          fetchCaptionsBank(e.target.value);
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-[#252525] border border-[#2a2a2a] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- Select a Profile --</option>
+                      {Array.isArray(profiles) && profiles.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          @{profile.name}
+                        </option>
+                      ))}
+                    </select>
+                    {!selectedProfileId && (
+                      <p className="text-xs text-amber-400 mt-1 flex items-center gap-1">
+                        ⚠️ Profile selection is required when viewing All Profiles
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Time Picker */}
                 <div>
                   <label className="text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
@@ -962,16 +1120,17 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                       type="button"
                       onClick={() => {
                         setUploadMode("vault");
-                        if (profileId && profileId !== "all") {
+                        const targetProfile = isAllProfiles ? selectedProfileId : profileId;
+                        if (targetProfile) {
                           if (vaultFolders.length === 0) {
-                            fetchVaultFolders();
+                            fetchVaultFolders(targetProfile);
                           }
                           if (vaultItems.length === 0) {
-                            fetchVaultItems();
+                            fetchVaultItems(undefined, targetProfile);
                           }
                         }
                       }}
-                      disabled={!profileId || profileId === "all"}
+                      disabled={!profileId || (isAllProfiles && !selectedProfileId)}
                       className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all text-sm ${
                         uploadMode === "vault"
                           ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
@@ -1136,6 +1295,15 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                                     {isSelected && (
                                       <div className="absolute top-1 right-1 p-1 bg-blue-600 rounded-full">
                                         <CheckCircle className="w-4 h-4 text-white" />
+                                      </div>
+                                    )}
+                                    {/* Profile indicator for All Profiles mode */}
+                                    {isAllProfiles && item.profileName && (
+                                      <div className="absolute top-1 left-1 right-8">
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-600/90 text-white rounded text-[10px] font-medium truncate max-w-full">
+                                          <User className="w-2.5 h-2.5 flex-shrink-0" />
+                                          <span className="truncate">{item.profileName}</span>
+                                        </span>
                                       </div>
                                     )}
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1327,6 +1495,12 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
                                   }}
                                   className="w-full text-left px-4 py-3 hover:bg-[#333] transition-colors"
                                 >
+                                  {isAllProfiles && caption.profileName && (
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <User className="w-3 h-3 text-pink-400" />
+                                      <span className="text-xs text-pink-400 font-medium">{caption.profileName}</span>
+                                    </div>
+                                  )}
                                   <div className="text-white text-sm line-clamp-2 mb-2">
                                     {caption.caption}
                                   </div>

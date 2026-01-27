@@ -12,7 +12,7 @@ const s3Client = new S3Client({
   },
 });
 
-// POST - Get presigned URL for uploading
+// POST - Get presigned URL for uploading (universal, no profile dependency)
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
@@ -21,9 +21,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { profileId, fileName, fileType } = body;
+    const { fileName, fileType, folderId } = body;
 
-    if (!profileId || !fileName || !fileType) {
+    if (!fileName || !fileType) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -42,7 +42,9 @@ export async function POST(req: NextRequest) {
     // Generate a unique key for the file
     const fileExtension = fileName.split(".").pop() || "";
     const uniqueFileName = `${uuidv4()}.${fileExtension}`;
-    const key = `reference-bank/${userId}/${profileId}/${uniqueFileName}`;
+    // Store in user-specific folder, optionally with folder subfolder
+    const folderPath = folderId ? `folders/${folderId}` : "unfiled";
+    const key = `reference-bank/${userId}/${folderPath}/${uniqueFileName}`;
 
     // Create the presigned URL
     const command = new PutObjectCommand({

@@ -134,6 +134,9 @@ export async function saveImageToDatabase(
     awsS3Url?: string; // AWS S3 public URL for direct access
     fileSize?: number; // File size if known
     loraModels?: string[]; // ✅ Array of LoRA model filenames used in generation
+    generationMetadata?: any; // ✅ Generation parameters metadata (prompt, settings, etc.)
+    width?: number; // ✅ Image width
+    height?: number; // ✅ Image height
   } = {}
 ): Promise<GeneratedImage | null> {
   console.log('💾 Saving image to database:', pathInfo.filename);
@@ -245,6 +248,16 @@ export async function saveImageToDatabase(
       }
     }
 
+    // Merge provided generationMetadata with extracted metadata
+    const finalMetadata = {
+      ...metadata,
+      ...(options.generationMetadata || {}),
+    };
+    
+    // Use provided dimensions or extracted ones
+    const finalWidth = options.width || width;
+    const finalHeight = options.height || height;
+
     // Save to database using upsert to handle potential duplicates
     const savedImage = await prisma.generatedImage.upsert({
       where: {
@@ -258,8 +271,8 @@ export async function saveImageToDatabase(
       update: {
         // Update with new data if image already exists
         fileSize: options.fileSize || fileSize,
-        width,
-        height,
+        width: finalWidth,
+        height: finalHeight,
         format,
         // Prisma expects a Uint8Array for bytes fields; convert Buffer to Uint8Array if present
         data: imageData ? new Uint8Array(imageData) : undefined,
@@ -267,7 +280,7 @@ export async function saveImageToDatabase(
         s3Key: options.s3Key,
         awsS3Key: options.awsS3Key,
         awsS3Url: options.awsS3Url,
-        metadata,
+        metadata: finalMetadata,
         loraModels: options.loraModels // ✅ Update LoRA models if provided
       },
       create: {
@@ -277,8 +290,8 @@ export async function saveImageToDatabase(
         subfolder: pathInfo.subfolder,
         type: pathInfo.type,
         fileSize: options.fileSize || fileSize,
-        width,
-        height,
+        width: finalWidth,
+        height: finalHeight,
         format,
         // Prisma expects a Uint8Array for bytes fields; convert Buffer to Uint8Array if present
         data: imageData ? new Uint8Array(imageData) : undefined,
@@ -286,7 +299,7 @@ export async function saveImageToDatabase(
         s3Key: options.s3Key,
         awsS3Key: options.awsS3Key,
         awsS3Url: options.awsS3Url,
-        metadata,
+        metadata: finalMetadata,
         loraModels: options.loraModels || [] // ✅ Store LoRA models array
       }
     });

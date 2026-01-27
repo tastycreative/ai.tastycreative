@@ -79,6 +79,7 @@ interface SextingSet {
   createdAt: string;
   updatedAt: string;
   images: SextingImage[];
+  profileName?: string | null;
 }
 
 interface VaultFolder {
@@ -214,6 +215,9 @@ export default function SextingSetOrganizer({
   const actionsButtonRef = useRef<HTMLButtonElement>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Check if "All Profiles" is selected
+  const isAllProfiles = profileId === "all";
+
   // Set mounted state for portals
   useEffect(() => {
     setMounted(true);
@@ -257,12 +261,12 @@ export default function SextingSetOrganizer({
     setExpandedSets(new Set());
   }, [profileId]);
 
-  // Fetch sets
-  const fetchSets = useCallback(async (autoSelectFirst = false) => {
+  // Fetch sets - accepts profileId as parameter to avoid stale closure
+  const fetchSets = useCallback(async (profileIdParam: string | null, autoSelectFirst = false) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (profileId) params.set("profileId", profileId);
+      if (profileIdParam) params.set("profileId", profileIdParam);
 
       const response = await fetch(`/api/sexting-sets?${params.toString()}`);
       const data = await response.json();
@@ -280,12 +284,12 @@ export default function SextingSetOrganizer({
     } finally {
       setLoading(false);
     }
-  }, [profileId]);
+  }, []);
 
   // Initial fetch - only runs when profileId changes
   useEffect(() => {
-    fetchSets(true); // Auto-select first set on initial load
-  }, [profileId]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchSets(profileId, true); // Auto-select first set on initial load
+  }, [profileId, fetchSets]);
 
   // Create new set
   const createSet = async () => {
@@ -574,11 +578,21 @@ export default function SextingSetOrganizer({
     setShowExportModal(true);
     setExportSuccess(null);
     setExportFolderName(selectedSet.name); // Pre-fill with set name
+    
+    // Fetch profiles and pre-select the set's profile when viewing All Profiles
+    if (isAllProfiles) {
+      fetchProfiles();
+      // Pre-select the profile that owns this set (category stores the profileId)
+      setSelectedExportProfileId(selectedSet.category);
+    }
   };
 
   // Export to vault - creates a new folder with all items
   const exportToVault = async () => {
-    if (!selectedSet || !profileId) return;
+    // When viewing All Profiles, use the selected export profile ID
+    const targetProfileId = isAllProfiles ? selectedExportProfileId : profileId;
+    
+    if (!selectedSet || !targetProfileId) return;
 
     if (!exportFolderName.trim()) {
       alert("Please enter a folder name");
@@ -592,7 +606,7 @@ export default function SextingSetOrganizer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           setId: selectedSet.id,
-          profileId: profileId,
+          profileId: targetProfileId,
           folderName: exportFolderName.trim(),
         }),
       });
@@ -1265,6 +1279,7 @@ export default function SextingSetOrganizer({
               Sexting Set Organizer
             </h2>
             <p className="text-sm text-gray-400">
+              {isAllProfiles && <span className="text-pink-400">All Profiles • </span>}
               {sets.length} set{sets.length !== 1 ? "s" : ""} • Drag to reorder
             </p>
           </div>
@@ -1272,12 +1287,28 @@ export default function SextingSetOrganizer({
 
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-pink-500/25 transition-all duration-200 hover:scale-105"
+          disabled={isAllProfiles}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium shadow-lg transition-all duration-200 ${
+            isAllProfiles
+              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+              : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-pink-500/25 hover:scale-105"
+          }`}
+          title={isAllProfiles ? "Select a specific profile to create a new set" : "Create a new set"}
         >
           <FolderPlus className="w-5 h-5" />
           <span>New Set</span>
         </button>
       </div>
+
+      {/* All Profiles Notice */}
+      {isAllProfiles && (
+        <div className="flex items-center gap-3 p-3 bg-pink-500/10 border border-pink-500/30 rounded-xl">
+          <Users className="w-5 h-5 text-pink-400 shrink-0" />
+          <p className="text-sm text-pink-300">
+            Viewing sets from all profiles. Select a specific profile to create new sets or perform certain actions.
+          </p>
+        </div>
+      )}
 
       {/* Main content area */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1285,24 +1316,162 @@ export default function SextingSetOrganizer({
         <div className="lg:col-span-1 space-y-3">
           <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-4 backdrop-blur-sm">
             <h3 className="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
-              <Heart className="w-4 h-4 text-pink-500" />
-              Your Sets
+              {isAllProfiles ? (
+                <>
+                  <Users className="w-4 h-4 text-pink-500" />
+                  All Profiles&apos; Sets
+                </>
+              ) : (
+                <>
+                  <Heart className="w-4 h-4 text-pink-500" />
+                  Your Sets
+                </>
+              )}
             </h3>
 
             {sets.length === 0 ? (
               <div className="text-center py-8">
                 <Sparkles className="w-10 h-10 text-pink-500/50 mx-auto mb-3" />
                 <p className="text-gray-400 text-sm">No sets yet</p>
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="mt-3 text-pink-400 hover:text-pink-300 text-sm font-medium"
-                >
-                  Create your first set
-                </button>
+                {!isAllProfiles && (
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="mt-3 text-pink-400 hover:text-pink-300 text-sm font-medium"
+                  >
+                    Create your first set
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar pr-1">
-                {sets.map((set) => (
+                {/* Group sets by profile when All Profiles is selected */}
+                {isAllProfiles ? (
+                  // Group by profile
+                  Object.entries(
+                    sets.reduce((acc, set) => {
+                      const profileName = set.profileName || "Unknown Profile";
+                      if (!acc[profileName]) {
+                        acc[profileName] = [];
+                      }
+                      acc[profileName].push(set);
+                      return acc;
+                    }, {} as Record<string, SextingSet[]>)
+                  ).map(([profileName, profileSets]) => (
+                    <div key={profileName} className="mb-4">
+                      {/* Profile Header */}
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <User className="w-3.5 h-3.5 text-pink-400" />
+                        <span className="text-xs font-medium text-pink-400">{profileName}</span>
+                        <span className="text-xs text-gray-500">({profileSets.length})</span>
+                      </div>
+                      {/* Profile's Sets */}
+                      <div className="space-y-2 pl-2 border-l-2 border-pink-500/20">
+                        {profileSets.map((set) => (
+                          <div
+                            key={set.id}
+                            className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 ${
+                              selectedSet?.id === set.id
+                                ? "bg-gradient-to-r from-pink-500/20 to-rose-500/20 border border-pink-500/40"
+                                : "bg-gray-800/50 hover:bg-gray-800/80 border border-transparent hover:border-gray-700/50"
+                            }`}
+                            onClick={() => {
+                              setSelectedSet(set);
+                              setExpandedSets((prev) => new Set([...prev, set.id]));
+                            }}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                {editingName === set.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={tempName}
+                                      onChange={(e) => setTempName(e.target.value)}
+                                      className="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                      autoFocus
+                                      onClick={(e) => e.stopPropagation()}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          updateSetName(set.id, tempName);
+                                        } else if (e.key === "Escape") {
+                                          setEditingName(null);
+                                        }
+                                      }}
+                                    />
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateSetName(set.id, tempName);
+                                      }}
+                                      className="p-1 text-green-400 hover:text-green-300"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingName(null);
+                                      }}
+                                      className="p-1 text-gray-400 hover:text-gray-300"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-white truncate">
+                                      {set.name}
+                                    </span>
+                                    <span className="text-xs text-gray-500 bg-gray-700/50 px-1.5 py-0.5 rounded">
+                                      {set.images.length}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span
+                                    className={`text-xs px-2 py-0.5 rounded-full ${
+                                      set.status === "published"
+                                        ? "bg-green-500/20 text-green-400"
+                                        : set.status === "scheduled"
+                                          ? "bg-blue-500/20 text-blue-400"
+                                          : "bg-gray-600/50 text-gray-400"
+                                    }`}
+                                  >
+                                    {set.status}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingName(set.id);
+                                    setTempName(set.name);
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteSet(set.id);
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/20 rounded-lg"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  // Normal view - single profile
+                  sets.map((set) => (
                   <div
                     key={set.id}
                     className={`group relative p-3 rounded-xl cursor-pointer transition-all duration-200 ${
@@ -1401,7 +1570,8 @@ export default function SextingSetOrganizer({
                       </div>
                     </div>
                   </div>
-                ))}
+                ))
+                )}
               </div>
             )}
           </div>
@@ -1422,9 +1592,17 @@ export default function SextingSetOrganizer({
               <div className="p-4 border-b border-gray-700/50">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold text-white text-lg">
-                      {selectedSet.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-white text-lg">
+                        {selectedSet.name}
+                      </h3>
+                      {/* Profile badge when viewing All Profiles */}
+                      {isAllProfiles && selectedSet.profileName && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30">
+                          {selectedSet.profileName}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-400">
                       {selectedSet.images.length} item
                       {selectedSet.images.length !== 1 ? "s" : ""}
@@ -1794,6 +1972,37 @@ export default function SextingSetOrganizer({
                   </div>
                 ) : (
                   <>
+                    {/* Profile Selector - shown when viewing All Profiles */}
+                    {isAllProfiles && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                          Save to Profile
+                        </label>
+                        {loadingProfiles ? (
+                          <div className="flex items-center gap-2 px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl">
+                            <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                            <span className="text-gray-400">Loading profiles...</span>
+                          </div>
+                        ) : (
+                          <select
+                            value={selectedExportProfileId || ""}
+                            onChange={(e) => setSelectedExportProfileId(e.target.value)}
+                            className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          >
+                            <option value="" disabled>Select a profile</option>
+                            {profiles.map((profile) => (
+                              <option key={profile.id} value={profile.id}>
+                                {profile.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        <p className="text-xs text-gray-500 mt-2">
+                          Choose which profile&apos;s vault to save to
+                        </p>
+                      </div>
+                    )}
+                    
                     {/* Folder Name */}
                     <div>
                       <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -1830,7 +2039,7 @@ export default function SextingSetOrganizer({
                     onClick={exportToVault}
                     disabled={
                       exporting ||
-                      !profileId ||
+                      (isAllProfiles ? !selectedExportProfileId : !profileId) ||
                       !exportFolderName.trim()
                     }
                     className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white rounded-xl font-medium shadow-lg shadow-purple-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -2767,7 +2976,7 @@ export default function SextingSetOrganizer({
                   } : undefined}
                   onSaveComplete={() => {
                     // Refresh to show the saved audio and close modal
-                    fetchSets();
+                    fetchSets(profileId);
                     setShowVoiceModal(false);
                   }}
                 />

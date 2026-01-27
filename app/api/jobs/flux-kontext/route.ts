@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     console.log('🎨 Creating Flux Kontext job for user:', userId);
 
     const body = await request.json();
-    const { workflow, prompt, params, saveToVault, vaultProfileId, vaultFolderId } = body;
+    const { workflow, prompt, params, saveToVault, vaultProfileId, vaultFolderId, referenceImageUrl, referenceImageUrls } = body;
 
     if (!workflow) {
       return NextResponse.json(
@@ -33,7 +33,10 @@ export async function POST(request: NextRequest) {
     const jobParams: any = {
       workflow,
       prompt,
-      ...params
+      ...params,
+      // Include reference image URLs for reuse functionality
+      referenceImageUrl,
+      referenceImageUrls,
     };
     
     if (saveToVault && vaultProfileId && vaultFolderId) {

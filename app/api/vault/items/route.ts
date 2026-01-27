@@ -49,27 +49,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(items);
     }
 
-    if (!profileId) {
-      return NextResponse.json(
-        { error: "profileId is required" },
-        { status: 400 }
-      );
+    // Build where clause - if profileId provided, filter by it; otherwise get all user items
+    const whereClause: { clerkId: string; profileId?: string; folderId?: string } = {
+      clerkId: userId,
+    };
+    
+    if (profileId) {
+      whereClause.profileId = profileId;
+    }
+    
+    if (folderId) {
+      whereClause.folderId = folderId;
     }
 
-    // If folderId is provided, get items for that folder only
-    // If not, get all items for the profile (for "All Media" view)
+    // Build profile map for "all profiles" mode (when no profileId specified)
+    let profileMap: Record<string, string> = {};
+    if (!profileId) {
+      const profiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: userId },
+        select: { id: true, name: true },
+      });
+      profileMap = profiles.reduce((acc, p) => {
+        acc[p.id] = p.name;
+        return acc;
+      }, {} as Record<string, string>);
+    }
+
+    // Get items based on the where clause
     const items = await prisma.vaultItem.findMany({
-      where: {
-        clerkId: userId,
-        profileId,
-        ...(folderId ? { folderId } : {}),
-      },
+      where: whereClause,
       orderBy: {
         createdAt: "desc",
       },
     });
 
-    return NextResponse.json(items);
+    // Add profileName to each item when in "all profiles" mode
+    const itemsWithProfileName = !profileId ? items.map((item) => ({
+      ...item,
+      profileName: item.profileId ? profileMap[item.profileId] || "Unknown" : undefined,
+    })) : items;
+
+    return NextResponse.json(itemsWithProfileName);
   } catch (error) {
     console.error("Error fetching vault items:", error);
     return NextResponse.json(

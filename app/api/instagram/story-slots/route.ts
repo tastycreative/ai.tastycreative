@@ -17,12 +17,26 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const profileId = searchParams.get("profileId");
+    const isAllProfiles = profileId === "all";
 
     if (!startDate || !endDate) {
       return NextResponse.json(
         { error: "startDate and endDate are required" },
         { status: 400 }
       );
+    }
+
+    // Build profile map for adding profile names when viewing all profiles
+    let profileMap: Record<string, string> = {};
+    if (isAllProfiles) {
+      const profiles = await prisma.instagramProfile.findMany({
+        where: { clerkId: user.id },
+        select: { id: true, name: true },
+      });
+      profileMap = profiles.reduce((acc, p) => {
+        acc[p.id] = p.name;
+        return acc;
+      }, {} as Record<string, string>);
     }
 
     const whereClause: any = {
@@ -33,7 +47,8 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    if (profileId && profileId !== "all") {
+    // Only filter by profileId if not viewing all profiles
+    if (profileId && !isAllProfiles) {
       whereClause.profileId = profileId;
     }
 
@@ -67,7 +82,13 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    return NextResponse.json({ slots });
+    // Add profileName to each slot when viewing all profiles
+    const slotsWithProfileName = slots.map((slot) => ({
+      ...slot,
+      profileName: isAllProfiles && slot.profileId ? profileMap[slot.profileId] || null : null,
+    }));
+
+    return NextResponse.json({ slots: slotsWithProfileName });
   } catch (error) {
     console.error("Error fetching story slots:", error);
     return NextResponse.json(

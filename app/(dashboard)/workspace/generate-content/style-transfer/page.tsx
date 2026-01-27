@@ -1,12 +1,16 @@
 // app/(dashboard)/workspace/generate-content/style-transfer/page.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import MaskEditor from "@/components/MaskEditor";
 import { getOptimizedImageUrl } from "@/lib/awsS3Utils";
+import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
+import { ReferenceItem } from "@/hooks/useReferenceBank";
 import {
   ImageIcon,
   Wand2,
@@ -30,6 +34,10 @@ import {
   XCircle,
   Archive,
   ChevronDown,
+  RotateCcw,
+  Clock,
+  Folder,
+  Library,
 } from "lucide-react";
 
 // Types
@@ -120,6 +128,39 @@ interface DatabaseImage {
   createdAt: Date | string;
 }
 
+// Interface for generation history images
+interface GeneratedImage {
+  id: string;
+  imageUrl: string;
+  prompt: string;
+  modelVersion: string;
+  size: string;
+  createdAt: string;
+  status: "completed" | "processing" | "failed";
+  source?: "generated" | "vault";
+  profileId?: string;
+  // Metadata for reuse functionality
+  metadata?: {
+    width?: number;
+    height?: number;
+    steps?: number;
+    cfg?: number;
+    samplerName?: string;
+    scheduler?: string;
+    guidance?: number;
+    loraStrength?: number;
+    selectedLora?: string;
+    seed?: number | null;
+    weight?: number;
+    mode?: string;
+    downsamplingFactor?: number;
+    downsamplingFunction?: string;
+    autocropMargin?: number;
+    referenceImageUrl?: string;
+    profileId?: string;
+  };
+}
+
 // Constants
 const ASPECT_RATIOS = [
   { name: "Portrait", width: 832, height: 1216, ratio: "2:3" },
@@ -177,6 +218,9 @@ export default function StyleTransferPage() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+
+  // Use global profile from header
+  const { profileId: globalProfileId, selectedProfile } = useInstagramProfile();
 
   const [params, setParams] = useState<StyleTransferParams>({
     prompt: "",
@@ -243,6 +287,9 @@ export default function StyleTransferPage() {
   const [referenceImagePreview, setReferenceImagePreview] = useState<
     string | null
   >(null);
+  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null); // Track URL for reuse
+  const [isFromReferenceBank, setIsFromReferenceBank] = useState(false); // Track if image is from Reference Bank
+  const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [maskData, setMaskData] = useState<string | null>(null);
   const [showMaskEditor, setShowMaskEditor] = useState(false);
@@ -253,10 +300,24 @@ export default function StyleTransferPage() {
   // Folder selection states (vault-only)
   const [targetFolder, setTargetFolder] = useState<string>("");
 
-  // Vault Integration State
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  // Vault Integration State - Updated to use global profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
+
+  // Generation History State
+  const [generationHistory, setGenerationHistory] = useState<GeneratedImage[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Modal states
+  const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Reference Bank Selector State
+  const [showReferenceBankSelector, setShowReferenceBankSelector] = useState(false);
+
+  // Hydration fix - track if component is mounted
+  const [mounted, setMounted] = useState(false);
 
   // Database image states
   const [jobImages, setJobImages] = useState<Record<string, DatabaseImage[]>>(
@@ -713,75 +774,210 @@ export default function StyleTransferPage() {
     }
   }, [apiClient]);
 
-  // Load vault profiles and their folders
+  // Load vault folders for the selected profile
+  const loadVaultData = useCallback(async () => {
+    if (!apiClient || !globalProfileId) return;
+
+    setIsLoadingVaultData(true);
+    try {
+      const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
+      if (foldersResponse.ok) {
+        const folders = await foldersResponse.json();
+        setVaultFolders(folders);
+      }
+    } catch (error) {
+      console.error('Failed to load vault folders:', error);
+      setVaultFolders([]);
+    } finally {
+      setIsLoadingVaultData(false);
+    }
+  }, [apiClient, globalProfileId]);
+
+  // Load vault data when profile changes
   useEffect(() => {
-    const loadVaultData = async () => {
-      if (!apiClient) return;
+    loadVaultData();
+    // Clear selected folder when profile changes
+    setTargetFolder("");
+  }, [loadVaultData]);
 
-      setIsLoadingVaultData(true);
-      try {
-        // First, load all Instagram profiles
-        const profilesResponse = await fetch('/api/instagram/profiles');
-        if (!profilesResponse.ok) {
-          throw new Error('Failed to load profiles');
+  // Load generation history
+  const loadGenerationHistory = useCallback(async () => {
+    if (!apiClient) return;
+    setIsLoadingHistory(true);
+    try {
+      // Add profileId to filter by selected profile
+      const url = globalProfileId 
+        ? `/api/generate/style-transfer?profileId=${globalProfileId}`
+        : "/api/generate/style-transfer";
+      const response = await apiClient.get(url);
+      if (response.ok) {
+        const data = await response.json();
+        const images = data.images || [];
+        console.log('📋 Loaded Style Transfer history:', images.length, 'images for profile:', globalProfileId);
+        setGenerationHistory(images);
+      } else {
+        console.error('Failed to load Style Transfer history:', response.status);
+      }
+    } catch (error) {
+      console.error('Error loading Style Transfer history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [apiClient, globalProfileId]);
+
+  // Load generation history when apiClient is available or profile changes
+  useEffect(() => {
+    if (apiClient) {
+      loadGenerationHistory();
+    }
+  }, [apiClient, globalProfileId, loadGenerationHistory]);
+
+  // Handle reusing generation parameters from a previous generation
+  const handleReuseSettings = async (image: GeneratedImage) => {
+    // Set the prompt
+    if (image.prompt) {
+      setParams(prev => ({ ...prev, prompt: image.prompt }));
+    }
+
+    // Set parameters from metadata
+    if (image.metadata) {
+      const { metadata } = image;
+      setParams(prev => ({
+        ...prev,
+        width: metadata.width || prev.width,
+        height: metadata.height || prev.height,
+        steps: metadata.steps || prev.steps,
+        cfg: metadata.cfg || prev.cfg,
+        samplerName: metadata.samplerName || prev.samplerName,
+        scheduler: metadata.scheduler || prev.scheduler,
+        guidance: metadata.guidance || prev.guidance,
+        loraStrength: metadata.loraStrength || prev.loraStrength,
+        selectedLora: metadata.selectedLora || prev.selectedLora,
+        seed: metadata.seed !== undefined ? metadata.seed : prev.seed,
+        weight: metadata.weight || prev.weight,
+        mode: metadata.mode || prev.mode,
+        downsamplingFactor: metadata.downsamplingFactor || prev.downsamplingFactor,
+        downsamplingFunction: metadata.downsamplingFunction || prev.downsamplingFunction,
+        autocropMargin: metadata.autocropMargin !== undefined ? metadata.autocropMargin : prev.autocropMargin,
+      }));
+
+      // Load reference image if available - create a proper File object
+      if (metadata.referenceImageUrl) {
+        try {
+          console.log('🖼️ Loading reference image for reuse:', metadata.referenceImageUrl);
+          const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(metadata.referenceImageUrl)}`);
+          if (proxyResponse.ok) {
+            const blob = await proxyResponse.blob();
+            
+            // Create a File object from the blob (required for generation)
+            const file = new File([blob], 'reference-image.png', { type: blob.type || 'image/png' });
+            setReferenceImage(file);
+            setReferenceImageUrl(metadata.referenceImageUrl);
+            setIsFromReferenceBank(true);
+            
+            // Create preview
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              setReferenceImagePreview(reader.result as string);
+            };
+            reader.readAsDataURL(blob);
+            console.log('✅ Reference image loaded for reuse');
+          }
+        } catch (err) {
+          console.warn('Failed to load reference image:', err);
         }
+      }
+    }
 
-        const profilesData = await profilesResponse.json();
-        const profileList: InstagramProfile[] = Array.isArray(profilesData)
-          ? profilesData
-          : profilesData.profiles || [];
+    // Close the modal
+    setShowImageModal(false);
+    setSelectedImage(null);
 
-        // Sort profiles alphabetically
-        const sortedProfiles = [...profileList].sort((a, b) =>
-          (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
-        );
+    // Scroll to the top of the page to show the form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
-        setVaultProfiles(sortedProfiles);
-
-        // Now load vault folders for each profile
-        const foldersByProfile: Record<string, VaultFolder[]> = {};
-
-        await Promise.all(
-          sortedProfiles.map(async (profile) => {
+  // Check for reuse data on mount
+  useEffect(() => {
+    setMounted(true);
+    
+    // Check for reuse data from Vault or other sources
+    const checkForReuseData = async () => {
+      try {
+        const reuseDataStr = sessionStorage.getItem('flux-style-transfer-reuse');
+        if (reuseDataStr) {
+          const reuseData = JSON.parse(reuseDataStr);
+          
+          // Clear the sessionStorage immediately to prevent re-applying
+          sessionStorage.removeItem('flux-style-transfer-reuse');
+          
+          // Apply the reuse data
+          if (reuseData.prompt) {
+            setParams(prev => ({ ...prev, prompt: reuseData.prompt }));
+          }
+          
+          // Apply all other params from metadata
+          if (reuseData.width) setParams(prev => ({ ...prev, width: reuseData.width }));
+          if (reuseData.height) setParams(prev => ({ ...prev, height: reuseData.height }));
+          if (reuseData.steps) setParams(prev => ({ ...prev, steps: reuseData.steps }));
+          if (reuseData.cfg) setParams(prev => ({ ...prev, cfg: reuseData.cfg }));
+          if (reuseData.samplerName) setParams(prev => ({ ...prev, samplerName: reuseData.samplerName }));
+          if (reuseData.scheduler) setParams(prev => ({ ...prev, scheduler: reuseData.scheduler }));
+          if (reuseData.guidance) setParams(prev => ({ ...prev, guidance: reuseData.guidance }));
+          if (reuseData.loraStrength) setParams(prev => ({ ...prev, loraStrength: reuseData.loraStrength }));
+          if (reuseData.selectedLora) setParams(prev => ({ ...prev, selectedLora: reuseData.selectedLora }));
+          if (reuseData.seed !== undefined) setParams(prev => ({ ...prev, seed: reuseData.seed }));
+          if (reuseData.weight) setParams(prev => ({ ...prev, weight: reuseData.weight }));
+          if (reuseData.mode) setParams(prev => ({ ...prev, mode: reuseData.mode }));
+          if (reuseData.downsamplingFactor) setParams(prev => ({ ...prev, downsamplingFactor: reuseData.downsamplingFactor }));
+          if (reuseData.downsamplingFunction) setParams(prev => ({ ...prev, downsamplingFunction: reuseData.downsamplingFunction }));
+          if (reuseData.autocropMargin !== undefined) setParams(prev => ({ ...prev, autocropMargin: reuseData.autocropMargin }));
+          
+          // Load reference image if available
+          if (reuseData.referenceImageUrl) {
             try {
-              const foldersResponse = await fetch(`/api/vault/folders?profileId=${profile.id}`);
-              if (foldersResponse.ok) {
-                const folders = await foldersResponse.json();
-                foldersByProfile[profile.id] = folders;
+              const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(reuseData.referenceImageUrl)}`);
+              if (proxyResponse.ok) {
+                const blob = await proxyResponse.blob();
+                
+                // Create a File object from the blob for form submission
+                const file = new File([blob], 'reference-image.png', { type: blob.type || 'image/png' });
+                setReferenceImage(file);
+                setReferenceImageUrl(reuseData.referenceImageUrl);
+                setIsFromReferenceBank(true); // Treat as from Reference Bank to avoid re-saving
+                
+                // Create preview
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  setReferenceImagePreview(reader.result as string);
+                };
+                reader.readAsDataURL(blob);
+                
+                console.log('✅ Reference image loaded from reuse data:', reuseData.referenceImageUrl);
               }
-            } catch (error) {
-              console.error(`Failed to load folders for profile ${profile.id}:`, error);
-              foldersByProfile[profile.id] = [];
+            } catch (err) {
+              console.warn('Failed to load reference image:', err);
             }
-          })
-        );
-
-        setVaultFoldersByProfile(foldersByProfile);
+          }
+        }
       } catch (error) {
-        console.error('Failed to load vault data:', error);
-      } finally {
-        setIsLoadingVaultData(false);
+        console.error('Error parsing reuse data:', error);
       }
     };
-
-    loadVaultData();
-  }, [apiClient]);
+    
+    checkForReuseData();
+  }, []);
 
   // Get display text for the selected vault folder
   const getSelectedFolderDisplay = (): string => {
-    if (!targetFolder) return 'Select a vault folder to save your stylized images';
+    if (!targetFolder || !globalProfileId) return 'Please select a vault folder to save your images';
     
-    if (targetFolder.startsWith('vault:')) {
-      const parts = targetFolder.replace('vault:', '').split(':');
-      const profileId = parts[0];
-      const folderId = parts[1];
-      const profile = vaultProfiles.find(p => p.id === profileId);
-      const folders = vaultFoldersByProfile[profileId] || [];
-      const folder = folders.find(f => f.id === folderId);
-      return `Saving to: ${profile?.name || 'Profile'} / ${folder?.name || 'Folder'}`;
+    const folder = vaultFolders.find(f => f.id === targetFolder);
+    if (folder && selectedProfile) {
+      const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
+      return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
     }
-    
-    return 'Select a vault folder';
+    return 'Please select a vault folder';
   };
 
   // Auto-refresh for ALL jobs - check every 3 seconds for faster loading
@@ -872,12 +1068,150 @@ export default function StyleTransferPage() {
   const removeReferenceImage = () => {
     setReferenceImage(null);
     setReferenceImagePreview(null);
+    setReferenceImageUrl(null);
+    setIsFromReferenceBank(false);
     setMaskData(null);
     setShowMaskEditor(false);
     setUploadedImageFilename(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  // Save uploaded image to Reference Bank
+  const saveToReferenceBank = async (imageBase64: string, fileName: string): Promise<{ id: string; url: string } | null> => {
+    if (!globalProfileId) return null;
+    
+    try {
+      // Get file info
+      const mimeType = imageBase64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
+      const extension = mimeType === 'image/png' ? 'png' : 'jpg';
+      const finalFileName = fileName || `style-reference-${Date.now()}.${extension}`;
+      
+      // Convert base64 to blob for upload
+      const base64Data = imageBase64.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      
+      // Get dimensions from the image
+      const img = new Image();
+      const dimensionsPromise = new Promise<{ width: number; height: number }>((resolve) => {
+        img.onload = () => resolve({ width: img.width, height: img.height });
+        img.onerror = () => resolve({ width: 0, height: 0 });
+        img.src = imageBase64;
+      });
+      const dimensions = await dimensionsPromise;
+
+      // Get presigned URL
+      const presignedResponse = await fetch('/api/reference-bank/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: finalFileName,
+          fileType: mimeType,
+          profileId: globalProfileId,
+        }),
+      });
+
+      if (!presignedResponse.ok) {
+        const errorText = await presignedResponse.text();
+        console.error('Failed to get presigned URL:', presignedResponse.status, errorText);
+        return null;
+      }
+
+      const { presignedUrl, key, url } = await presignedResponse.json();
+
+      // Upload to S3
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': mimeType },
+        body: blob,
+      });
+
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        console.error('Failed to upload to S3:', uploadResponse.status, errorText);
+        return null;
+      }
+
+      // Create reference item in database
+      const createResponse = await fetch('/api/reference-bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: globalProfileId,
+          name: finalFileName,
+          fileType: 'image',
+          mimeType,
+          fileSize: blob.size,
+          width: dimensions.width,
+          height: dimensions.height,
+          awsS3Key: key,
+          awsS3Url: url,
+          tags: ['style-transfer', 'reference'],
+        }),
+      });
+
+      if (!createResponse.ok) {
+        console.error('Failed to create reference item');
+        return null;
+      }
+
+      const newReference = await createResponse.json();
+      console.log('✅ Image saved to Reference Bank:', newReference.id);
+      return { id: newReference.id, url: newReference.awsS3Url || url };
+    } catch (err) {
+      console.error('Error saving to Reference Bank:', err);
+      return null;
+    }
+  };
+
+  // Handle selection from Reference Bank
+  const handleReferenceBankSelect = async (item: ReferenceItem) => {
+    if (referenceImage) {
+      // Remove existing reference image first
+      removeReferenceImage();
+    }
+
+    try {
+      // Use a proxy to fetch the image to avoid CORS issues
+      const proxyResponse = await fetch(`/api/proxy-image?url=${encodeURIComponent(item.awsS3Url)}`);
+      
+      if (!proxyResponse.ok) {
+        throw new Error('Failed to load reference image');
+      }
+      
+      const blob = await proxyResponse.blob();
+      
+      // Create a File object from the blob
+      const file = new File([blob], item.name || 'reference-image.png', { type: blob.type || 'image/png' });
+      
+      setReferenceImage(file);
+      setReferenceImageUrl(item.awsS3Url); // Track the URL for metadata
+      setIsFromReferenceBank(true); // Mark as from Reference Bank
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setReferenceImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(blob);
+      
+      // Track usage
+      fetch(`/api/reference-bank/${item.id}/use`, { method: 'POST' }).catch(console.error);
+      
+      console.log('✅ Reference image loaded from Reference Bank:', item.name);
+    } catch (err) {
+      console.error('Error loading reference image from Reference Bank:', err);
+      alert('Failed to load reference image. Please try again.');
+    }
+
+    setShowReferenceBankSelector(false);
   };
 
   // Handle mask updates from the mask editor
@@ -1218,6 +1552,40 @@ export default function StyleTransferPage() {
     }
   };
 
+  // Reset form
+  const handleReset = () => {
+    setParams({
+      prompt: "",
+      width: 832,
+      height: 1216,
+      batchSize: 1,
+      steps: 40,
+      cfg: 1,
+      samplerName: "euler",
+      scheduler: "beta",
+      guidance: 3.5,
+      loraStrength: 0.95,
+      selectedLora: "AI MODEL 3.safetensors",
+      seed: null,
+      weight: 0.8,
+      mode: "center crop (square)",
+      downsamplingFactor: 1,
+      downsamplingFunction: "area",
+      autocropMargin: 0.1,
+      loras: [{
+        id: crypto.randomUUID(),
+        modelName: "AI MODEL 3.safetensors",
+        strength: 0.95
+      }],
+    });
+    setReferenceImage(null);
+    setReferenceImagePreview(null);
+    setMaskData(null);
+    setUploadedImageFilename(null);
+    setTargetFolder("");
+    setCurrentJob(null);
+  };
+
   // Submit generation - Updated for serverless
   const handleGenerate = async () => {
     if (!apiClient) {
@@ -1232,6 +1600,11 @@ export default function StyleTransferPage() {
 
     if (!referenceImage) {
       alert("Please select a reference image for style transfer");
+      return;
+    }
+
+    if (!globalProfileId) {
+      alert("Please select a profile from the header to save your images");
       return;
     }
 
@@ -1258,6 +1631,27 @@ export default function StyleTransferPage() {
       console.log("=== STARTING STYLE TRANSFER GENERATION (SERVERLESS) ===");
       console.log("Generation params:", params);
 
+      // Save reference image to Reference Bank if not already from there
+      let currentReferenceImageUrl = referenceImageUrl;
+      if (!isFromReferenceBank && referenceImagePreview && globalProfileId) {
+        console.log("📚 Saving reference image to Reference Bank...");
+        setIsSavingToReferenceBank(true);
+        try {
+          const fileName = referenceImage?.name || `style-reference-${Date.now()}.png`;
+          const savedRef = await saveToReferenceBank(referenceImagePreview, fileName);
+          if (savedRef) {
+            currentReferenceImageUrl = savedRef.url;
+            setReferenceImageUrl(savedRef.url);
+            setIsFromReferenceBank(true);
+            console.log("✅ Reference image saved to Reference Bank:", savedRef.url);
+          }
+        } catch (err) {
+          console.warn("⚠️ Failed to save to Reference Bank, continuing with generation:", err);
+        } finally {
+          setIsSavingToReferenceBank(false);
+        }
+      }
+
       // Upload reference image first
       console.log("📤 Uploading reference image...");
       const uploadResult = await uploadReferenceImageToServer(
@@ -1277,29 +1671,69 @@ export default function StyleTransferPage() {
       );
       console.log("Created style transfer workflow for serverless submission");
 
-      // Build request payload
+      // Build request payload with all params at top level for webhook metadata extraction
       const requestPayload: any = {
         workflow,
-        params,
+        // Include all params at top level for webhook metadata extraction
+        prompt: params.prompt,
+        negativePrompt: '',
+        width: params.width,
+        height: params.height,
+        steps: params.steps,
+        cfg: params.cfg,
+        guidance: params.guidance,
+        samplerName: params.samplerName,
+        scheduler: params.scheduler,
+        // Only include seed if it's not null
+        ...(params.seed !== null && { seed: params.seed }),
+        loraStrength: params.loraStrength,
+        selectedLora: params.selectedLora,
+        loras: params.loras,
+        // Style transfer specific params
+        weight: params.weight,
+        mode: params.mode,
+        downsamplingFactor: params.downsamplingFactor,
+        downsamplingFunction: params.downsamplingFunction,
+        autocropMargin: params.autocropMargin,
+        // Also include in nested params for backward compatibility
+        params: {
+          ...params,
+          source: 'flux-style-transfer',
+          generationType: 'style-transfer',
+          referenceImage: uploadResult.filename,
+        },
         action: "generate_style_transfer",
         generation_type: "style_transfer",
-        user_id: user?.id, // Include user_id for proper S3 folder organization
+        generationType: 'style-transfer',
+        user_id: user?.id,
         referenceImage: uploadResult.filename,
         maskImage: uploadResult.maskFilename,
         // Include base64 data for direct use by RunPod
         referenceImageData: uploadResult.base64,
         maskImageData: uploadResult.maskBase64,
+        // Add source for tracking
+        source: 'flux-style-transfer',
+        // Include reference image URL for metadata storage (from Reference Bank or auto-saved)
+        referenceImageUrl: currentReferenceImageUrl || null,
       };
 
       // Parse vault folder and add parameters
-      if (targetFolder.startsWith('vault:')) {
+      // Check if using the new format (just folder ID) or old format (vault:profileId:folderId)
+      if (globalProfileId && targetFolder && !targetFolder.startsWith('vault:')) {
+        // New format: just folder ID, use global profile
+        requestPayload.saveToVault = true;
+        requestPayload.vaultProfileId = globalProfileId;
+        requestPayload.vaultFolderId = targetFolder;
+        console.log("🗂️ Saving to vault:", { profileId: globalProfileId, folderId: targetFolder });
+      } else if (targetFolder.startsWith('vault:')) {
+        // Old format: vault:profileId:folderId
         const parts = targetFolder.replace('vault:', '').split(':');
         const profileId = parts[0];
         const folderId = parts[1];
         requestPayload.saveToVault = true;
         requestPayload.vaultProfileId = profileId;
         requestPayload.vaultFolderId = folderId;
-        console.log("🗂️ Saving to vault:", { profileId, folderId });
+        console.log("🗂️ Saving to vault (legacy):", { profileId, folderId });
       }
 
       // Submit to serverless API endpoint instead of local ComfyUI
@@ -1610,6 +2044,10 @@ export default function StyleTransferPage() {
           // Refresh image stats after completion
           console.log("📊 Refreshing image stats after generation completion");
           await fetchImageStats();
+          
+          // Reload generation history to show the new image
+          console.log("📋 Reloading generation history after completion");
+          await loadGenerationHistory();
 
           // Show success notification in console only
           console.log(
@@ -1898,116 +2336,153 @@ export default function StyleTransferPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="relative min-h-screen bg-slate-950 text-slate-50">
+      {/* Background decorations */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-pink-400/10 blur-3xl" />
+        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         {/* Header */}
-        <div className="mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-2xl shadow-lg animate-pulse">
-              <Palette className="w-8 h-8 text-white" />
+        <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-center">
+          <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-purple-900/30 backdrop-blur">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 via-pink-500 to-blue-600 shadow-lg shadow-purple-900/50">
+                <Palette className="w-6 h-6 text-white" />
+                <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+                  FLUX Style Transfer
+                </h1>
+                <p className="text-sm text-slate-400">Transform images with AI-powered artistic styles</p>
+              </div>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
-              Style Transfer Studio
-            </h1>
+            <p className="text-slate-300 leading-relaxed">
+              Upload a reference image and apply its style to your creations using advanced FLUX Redux technology. Perfect for creating consistent branded content.
+            </p>
           </div>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Transform your images with artistic styles using AI-powered magic ✨ Create stunning style transfers with advanced FLUX Redux technology
-          </p>
+
+          {/* Profile indicator card */}
+          <div className="bg-gradient-to-br from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-3xl p-6 shadow-xl backdrop-blur">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-xl bg-purple-500/30 flex items-center justify-center">
+                <Folder className="w-5 h-5 text-purple-300" />
+              </div>
+              <div>
+                <p className="text-sm text-purple-200/80">Current Profile</p>
+                <p className="text-lg font-semibold text-white">
+                  {selectedProfile ? (selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name) : 'No profile selected'}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-purple-200/60">
+              Images will be saved to this profile's vault
+            </p>
+          </div>
         </div>
 
         {/* Error Display */}
         {currentJob?.error && !isJobCancelled(currentJob) && (
-          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-950/30 dark:to-pink-950/30 border-2 border-red-300 dark:border-red-700 rounded-xl sm:rounded-2xl flex items-start gap-2 sm:gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/50 rounded-lg flex-shrink-0">
-              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
+          <div className="p-4 bg-gradient-to-r from-red-950/50 to-pink-950/50 border border-red-500/30 rounded-2xl flex items-start gap-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="p-2 bg-red-500/20 rounded-lg flex-shrink-0">
+              <AlertCircle className="w-5 h-5 text-red-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-red-900 dark:text-red-100 text-sm sm:text-base md:text-lg">Oops! Something went wrong</h3>
-              <p className="text-xs sm:text-sm text-red-700 dark:text-red-300 mt-1 break-words">{currentJob.error}</p>
+              <h3 className="font-bold text-red-100">Oops! Something went wrong</h3>
+              <p className="text-sm text-red-300 mt-1 break-words">{currentJob.error}</p>
             </div>
             <button
               onClick={() => setCurrentJob(prev => prev ? {...prev, error: undefined} : null)}
-              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 transition-colors p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg"
+              className="text-red-400 hover:text-red-200 transition-colors p-1 hover:bg-red-500/20 rounded-lg"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Panel - Input */}
-          <div className="space-y-3 sm:space-y-4 md:space-y-6">
+          <div className="space-y-6">
             {/* Vault Folder Selection */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <Archive className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur">
+              <div className="flex items-center gap-2 mb-4">
+                <Archive className="w-5 h-5 text-purple-400" />
+                <h2 className="text-lg font-bold text-white">
                   Save to Vault
                 </h2>
                 {isLoadingVaultData && (
-                  <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
                 )}
               </div>
-              <div className="relative">
-                <select
-                  value={targetFolder}
-                  onChange={(e) => setTargetFolder(e.target.value)}
-                  disabled={isLoadingVaultData}
-                  className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base bg-gray-800 border-2 border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-inner [&>option]:bg-gray-800 [&>option]:text-white [&>optgroup]:bg-gray-800 [&>optgroup]:text-gray-400"
-                >
-                  <option value="">📁 Select a vault folder...</option>
-                  
-                  {/* Vault Folders by Profile */}
-                  {vaultProfiles.map((profile) => {
-                    const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                    if (folders.length === 0) return null;
-                    
-                    return (
-                      <optgroup 
-                        key={profile.id} 
-                        label={`📸 ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                      >
-                        {folders.map((folder) => (
-                          <option 
-                            key={folder.id} 
-                            value={`vault:${profile.id}:${folder.id}`}
-                          >
-                            {folder.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-                <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                  <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                </div>
-              </div>
               
-              {/* Selected folder display */}
-              <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-2">
-                {getSelectedFolderDisplay()}
-              </p>
+              {!globalProfileId ? (
+                <div className="text-center py-4">
+                  <p className="text-slate-400 text-sm">Please select a profile from the header to see vault folders</p>
+                </div>
+              ) : (
+                <>
+                  <div className="relative">
+                    <select
+                      value={targetFolder}
+                      onChange={(e) => setTargetFolder(e.target.value)}
+                      disabled={isLoadingVaultData}
+                      className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-inner [&>option]:bg-slate-800 [&>option]:text-white"
+                    >
+                      <option value="">📁 Select a vault folder...</option>
+                      {vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                        <option key={folder.id} value={folder.id}>
+                          {folder.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <ChevronDown className="w-5 h-5 text-slate-400" />
+                    </div>
+                  </div>
+                  
+                  {/* Selected folder display */}
+                  <p className="text-xs text-slate-400 mt-2">
+                    {getSelectedFolderDisplay()}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Reference Image Upload */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-lg sm:shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5 text-pink-600 dark:text-pink-400" />
-                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">
-                  Style Reference Image
-                </h2>
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-pink-400" />
+                  <h2 className="text-lg font-bold text-white">
+                    Style Reference Image
+                  </h2>
+                </div>
+                {/* Reference Bank Button */}
+                {mounted && globalProfileId && (
+                  <button
+                    type="button"
+                    onClick={() => setShowReferenceBankSelector(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/30 transition-all"
+                    disabled={isGenerating}
+                  >
+                    <Library className="w-3.5 h-3.5" />
+                    Reference Bank
+                  </button>
+                )}
               </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="text-sm font-medium text-slate-300">
                     Upload your reference image for style transfer
                   </label>
                   {referenceImage && (
                     <button
                       onClick={removeReferenceImage}
-                      className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-300"
+                      className="text-xs text-red-400 hover:text-red-300"
                     >
                       Remove
                     </button>
@@ -2620,34 +3095,44 @@ export default function StyleTransferPage() {
 
             {/* Generate Button */}
             <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 border border-white/20 shadow-lg">
-              <button
-                onClick={handleGenerate}
-                disabled={
-                  isGenerating ||
-                  !params.prompt.trim() ||
-                  !referenceImage ||
-                  uploadingImage ||
-                  !targetFolder
-                }
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-lg sm:rounded-xl transition-all duration-200 flex items-center justify-center space-x-1.5 sm:space-x-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-95 text-sm sm:text-base"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                    <span>Applying Style Transfer...</span>
-                  </>
-                ) : uploadingImage ? (
-                  <>
-                    <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                    <span>Uploading Image...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                    <span>Apply Style Transfer</span>
-                  </>
-                )}
-              </button>
+              <div className="grid grid-cols-[2fr_0.5fr] gap-3">
+                <button
+                  onClick={handleGenerate}
+                  disabled={
+                    isGenerating ||
+                    !params.prompt.trim() ||
+                    !referenceImage ||
+                    uploadingImage ||
+                    !targetFolder
+                  }
+                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-lg sm:rounded-xl transition-all duration-200 flex items-center justify-center space-x-1.5 sm:space-x-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed active:scale-95 text-sm sm:text-base"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      <span>Applying Style Transfer...</span>
+                    </>
+                  ) : uploadingImage ? (
+                    <>
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      <span>Uploading Image...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span>Apply Style Transfer</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleReset}
+                  disabled={isGenerating}
+                  className="rounded-lg sm:rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white/50 dark:bg-slate-700/50 px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:border-indigo-400 dark:hover:border-indigo-400 disabled:opacity-60 flex items-center justify-center"
+                  title="Reset form"
+                >
+                  <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              </div>
               
               {!targetFolder && !isGenerating && (
                 <p className="mt-2 sm:mt-3 text-xs sm:text-sm text-amber-600 dark:text-amber-400 text-center">
@@ -3192,65 +3677,259 @@ export default function StyleTransferPage() {
               </div>
             )}
 
-            {/* Generation History */}
-            {jobHistory.length > 0 && (
-              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl p-6 border border-white/20 shadow-lg">
-                <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center">
-                  <CheckCircle className="w-5 h-5 mr-2 text-green-600" />
-                  Recent Style Transfers
-                </h3>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {jobHistory
-                    .filter((job) => job && job.id)
-                    .slice(0, 5) // Show only 5 most recent jobs
-                    .map((job, index) => (
-                      <div
-                        key={job.id || `job-${index}`}
-                        className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/70 transition-colors"
-                      >
-                        <div className="flex items-center space-x-3">
-                          {job.status === "completed" && (
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                          )}
-                          {job.status === "failed" && !isJobCancelled(job) && (
-                            <AlertCircle className="w-4 h-4 text-red-500" />
-                          )}
-                          {job.status === "failed" && isJobCancelled(job) && (
-                            <XCircle className="w-4 h-4 text-orange-500" />
-                          )}
-                          {(job.status === "pending" ||
-                            job.status === "processing") && (
-                            <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
-                          )}
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {formatJobTime(job.createdAt)}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                              {job.status === "failed" && isJobCancelled(job)
-                                ? "cancelled"
-                                : job.status || "unknown"}
-                            </p>
-                          </div>
-                        </div>
-                        {job.resultUrls && job.resultUrls.length > 0 && (
-                          <div className="flex space-x-1">
-                            <button
-                              onClick={() => fetchJobImages(job.id)}
-                              className="text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300"
-                              title="Refresh images"
-                            >
-                              <RefreshCw className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+            {/* Recent Generations Section */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-purple-400" />
                 </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Recent Generations</h2>
+                  <p className="text-sm text-slate-400">
+                    {globalProfileId && selectedProfile 
+                      ? `${selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name}'s style transfers`
+                      : 'Your recent style transfers'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => loadGenerationHistory()}
+                  disabled={isLoadingHistory}
+                  className="px-3 py-2 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 rounded-lg transition-colors flex items-center gap-2 text-sm"
+                >
+                  {isLoadingHistory ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  Refresh
+                </button>
+                {generationHistory.length > 8 && (
+                  <button
+                    onClick={() => setShowHistoryModal(true)}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors text-sm font-medium"
+                  >
+                    View All ({generationHistory.length})
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            {isLoadingHistory ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+              </div>
+            ) : generationHistory.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Clock className="w-12 h-12 text-slate-600 mb-4" />
+                <p className="text-slate-400">No style transfers yet</p>
+                <p className="text-sm text-slate-500 mt-1">Generate your first style transfer to see it here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {generationHistory.slice(0, 8).map((image) => (
+                  <div
+                    key={image.id}
+                    onClick={() => {
+                      setSelectedImage(image);
+                      setShowImageModal(true);
+                    }}
+                    className="group relative aspect-square bg-slate-800/50 rounded-xl overflow-hidden cursor-pointer border border-white/5 hover:border-purple-500/50 transition-all"
+                  >
+                    <img
+                      src={image.imageUrl}
+                      alt={image.prompt || 'Style transfer'}
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute bottom-0 left-0 right-0 p-3">
+                        <p className="text-xs text-white/90 line-clamp-2">{image.prompt || 'No prompt'}</p>
+                        <p className="text-xs text-slate-400 mt-1">{image.size}</p>
+                      </div>
+                    </div>
+                    {image.status === "processing" && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
+      </div>
+
+      {/* View All History Modal */}
+      {mounted && showHistoryModal && createPortal(
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">All Generations</h2>
+                  <p className="text-sm text-slate-400">{generationHistory.length} style transfers</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6 text-slate-400" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {generationHistory.map((image) => (
+                  <div
+                    key={image.id}
+                    onClick={() => {
+                      setSelectedImage(image);
+                      setShowImageModal(true);
+                      setShowHistoryModal(false);
+                    }}
+                    className="group relative aspect-square bg-slate-800/50 rounded-xl overflow-hidden cursor-pointer border border-white/5 hover:border-purple-500/50 transition-all"
+                  >
+                    <img
+                      src={image.imageUrl}
+                      alt={image.prompt || 'Style transfer'}
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute bottom-0 left-0 right-0 p-3">
+                        <p className="text-xs text-white/90 line-clamp-2">{image.prompt || 'No prompt'}</p>
+                        <p className="text-xs text-slate-400 mt-1">{new Date(image.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Image Preview Modal */}
+      {mounted && showImageModal && selectedImage && createPortal(
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/10 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-lg font-semibold text-white">Image Preview</h3>
+              <button
+                onClick={() => {
+                  setShowImageModal(false);
+                  setSelectedImage(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6 text-slate-400" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Image */}
+                <div className="aspect-square bg-slate-800/50 rounded-xl overflow-hidden">
+                  <img
+                    src={selectedImage.imageUrl}
+                    alt={selectedImage.prompt || 'Style transfer'}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                
+                {/* Details */}
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-400 mb-1">Prompt</h4>
+                    <p className="text-white">{selectedImage.prompt || 'No prompt'}</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-400 mb-1">Size</h4>
+                      <p className="text-white">{selectedImage.size || 'Unknown'}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-400 mb-1">Created</h4>
+                      <p className="text-white">{new Date(selectedImage.createdAt).toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  {selectedImage.metadata && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-slate-400">Settings</h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {selectedImage.metadata.steps && (
+                          <div className="bg-slate-800/50 rounded-lg p-2">
+                            <span className="text-slate-400">Steps:</span>{' '}
+                            <span className="text-white">{selectedImage.metadata.steps}</span>
+                          </div>
+                        )}
+                        {selectedImage.metadata.cfg && (
+                          <div className="bg-slate-800/50 rounded-lg p-2">
+                            <span className="text-slate-400">CFG:</span>{' '}
+                            <span className="text-white">{selectedImage.metadata.cfg}</span>
+                          </div>
+                        )}
+                        {selectedImage.metadata.weight && (
+                          <div className="bg-slate-800/50 rounded-lg p-2">
+                            <span className="text-slate-400">Weight:</span>{' '}
+                            <span className="text-white">{selectedImage.metadata.weight}</span>
+                          </div>
+                        )}
+                        {selectedImage.metadata.guidance && (
+                          <div className="bg-slate-800/50 rounded-lg p-2">
+                            <span className="text-slate-400">Guidance:</span>{' '}
+                            <span className="text-white">{selectedImage.metadata.guidance}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap gap-3 pt-4">
+                    <button
+                      onClick={() => handleReuseSettings(selectedImage)}
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Reuse Settings
+                    </button>
+                    <a
+                      href={selectedImage.imageUrl}
+                      download={`style-transfer-${selectedImage.id}.png`}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reference Bank Selector */}
+      {showReferenceBankSelector && globalProfileId && (
+        <ReferenceSelector
+          profileId={globalProfileId}
+          onSelect={handleReferenceBankSelect}
+          onClose={() => setShowReferenceBankSelector(false)}
+          filterType="image"
+          isOpen={true}
+        />
+      )}
       </div>
     </div>
   );

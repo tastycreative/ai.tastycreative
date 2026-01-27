@@ -292,8 +292,22 @@ export async function GET(request: NextRequest) {
       try {
         // Get profileId from query params to filter by profile
         const profileId = searchParams.get("profileId");
+        const isAllProfiles = profileId === "all";
         
-        console.log("[Kling I2V] Fetching video history for user:", userId, "profileId:", profileId);
+        console.log("[Kling I2V] Fetching video history for user:", userId, "profileId:", profileId, "isAllProfiles:", isAllProfiles);
+
+        // If viewing all profiles, get profile map for name lookups
+        let profileMap: Record<string, string> = {};
+        if (isAllProfiles) {
+          const profiles = await prisma.instagramProfile.findMany({
+            where: { clerkId: userId },
+            select: { id: true, name: true, instagramUsername: true },
+          });
+          profileMap = profiles.reduce((acc, p) => {
+            acc[p.id] = p.instagramUsername ? `@${p.instagramUsername}` : p.name;
+            return acc;
+          }, {} as Record<string, string>);
+        }
 
         // Step 1: Get generation jobs first, then filter by source in JS for reliability
         const recentJobs = await prisma.generationJob.findMany({
@@ -350,7 +364,7 @@ export async function GET(request: NextRequest) {
 
         // Filter by profileId if provided - only include videos with matching profile
         let filteredVideos = videos;
-        if (profileId) {
+        if (profileId && !isAllProfiles) {
           filteredVideos = videos.filter((video) => {
             const params = video.job.params as any;
             const videoProfileId = params?.vaultProfileId;
@@ -365,6 +379,7 @@ export async function GET(request: NextRequest) {
         // Map generated videos - this is the single source of truth for history
         const mappedGeneratedVideos = filteredVideos.map((video) => {
           const params = video.job.params as any;
+          const videoProfileId = params?.vaultProfileId || null;
           return {
             id: video.id,
             videoUrl: video.awsS3Url || video.s3Key || "",
@@ -376,6 +391,7 @@ export async function GET(request: NextRequest) {
             createdAt: video.createdAt.toISOString(),
             status: "completed" as const,
             source: "generated" as const,
+            profileName: isAllProfiles && videoProfileId ? profileMap[videoProfileId] || null : null,
             metadata: {
               negativePrompt: params?.negative_prompt || "",
               mode: params?.mode || "std",
@@ -385,7 +401,7 @@ export async function GET(request: NextRequest) {
               imageMode: params?.image_mode || "normal",
               referenceImageUrl: params?.imageUrl || null,
               tailImageUrl: params?.tailImageUrl || null,
-              profileId: params?.vaultProfileId || null,
+              profileId: videoProfileId,
             },
           };
         });
