@@ -565,7 +565,7 @@ export default function OrganizationsTab() {
                       .replace(/\s+/g, '-') // Replace spaces with hyphens
                       .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
                       .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
-                    setNewOrgSlug(tenant);
+                    setNewOrgSlug(slug);
                   }}
                   className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   placeholder="Acme Inc."
