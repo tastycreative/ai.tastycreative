@@ -243,7 +243,7 @@ export default function OfModelLayout({
     );
   }
 
-  const config = statusConfig[model.status];
+  const config = statusConfig[model.status] || statusConfig.INACTIVE;
   const imageUrl = getDisplayImageUrl(model.profileImageUrl);
 
   return (
