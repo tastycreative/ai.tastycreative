@@ -2,11 +2,14 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useParams } from 'next/navigation';
 import { useInstagramProfile, Profile, ALL_PROFILES_OPTION } from '@/hooks/useInstagramProfile';
 import { ChevronDown, User, Check, Plus, Instagram, Loader2, Sparkles, Star, Users, ChevronUp, Building2, FolderOpen } from 'lucide-react';
 import Link from 'next/link';
 
 export function GlobalProfileSelector() {
+  const params = useParams();
+  const tenant = params.tenant as string;
   const {
     profileId,
     setProfileId,
@@ -104,7 +107,7 @@ export function GlobalProfileSelector() {
   if (profiles.length === 0) {
     return (
       <Link
-        href="/workspace/creators"
+        href={`/${tenant}/workspace/creators`}
         className="group w-full flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-fuchsia-500/10 hover:from-violet-500/20 hover:via-purple-500/20 hover:to-fuchsia-500/20 border border-violet-500/20 hover:border-violet-500/40 transition-all duration-300"
       >
         <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-violet-500/30 group-hover:scale-105 transition-transform">
@@ -357,7 +360,7 @@ export function GlobalProfileSelector() {
           {/* Footer */}
           <div className="border-t border-white/[0.06] p-2">
             <Link
-              href="/workspace/creators"
+              href={`/${tenant}/workspace/creators`}
               onClick={() => setIsOpen(false)}
               className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-xs font-semibold text-violet-300 hover:text-white hover:bg-violet-500/15 rounded-xl transition-all duration-200"
             >
