@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { getBestMediaUrl, getBandwidthStats, getDownloadUrl } from "@/lib/directUrlUtils";
@@ -343,6 +344,8 @@ const LazyMedia: React.FC<LazyMediaProps> = ({ item, onClick }) => {
 };
 
 export default function GeneratedContentPage() {
+  const params = useParams();
+  const tenant = params.tenant as string;
   const apiClient = useApiClient();
   const { isAdmin, loading: adminLoading } = useIsAdmin();
 
@@ -4317,7 +4320,7 @@ export default function GeneratedContentPage() {
               ) : (
                 <>
                   <a
-                    href="/workspace/generate-content/text-to-image"
+                    href={`/${tenant}/workspace/generate-content/text-to-image`}
                     className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 inline-flex items-center space-x-2"
                   >
                     <ImageIcon className="w-4 h-4" />
@@ -4325,7 +4328,7 @@ export default function GeneratedContentPage() {
                   </a>
 
                   <a
-                    href="/workspace/generate-content/image-to-video"
+                    href={`/${tenant}/workspace/generate-content/image-to-video`}
                     className="px-6 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-200 inline-flex items-center space-x-2"
                   >
                     <Video className="w-4 h-4" />
