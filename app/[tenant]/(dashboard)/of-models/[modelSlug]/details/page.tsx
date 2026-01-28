@@ -148,21 +148,21 @@ function Section({
 
 export default function OfModelDetailsPage() {
   const params = useParams();
-  const slug = params.slug as string;
+  const modelSlug = params.modelSlug as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [details, setDetails] = useState<OfModelDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
-    if (slug) {
+    if (modelSlug) {
       loadModel();
     }
-  }, [slug]);
+  }, [modelSlug]);
 
   const loadModel = async () => {
     try {
-      const response = await fetch(`/api/of-models/`);
+      const response = await fetch(`/api/of-models/${modelSlug}`);
       if (response.ok) {
         const result = await response.json();
         setModel(result.data);

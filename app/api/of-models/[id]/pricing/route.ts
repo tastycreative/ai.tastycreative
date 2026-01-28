@@ -7,6 +7,7 @@ interface RouteParams {
 }
 
 // GET - Get all pricing categories for an OF model (accessible by anyone authenticated)
+// Returns both model-specific and global categories
 export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const { userId } = await auth();
@@ -15,6 +16,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const includeGlobal = searchParams.get("includeGlobal") !== "false"; // Default to true
 
     // Verify model exists
     const model = await prisma.of_models.findUnique({
@@ -28,9 +31,22 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Build where clause
+    const whereClause = includeGlobal
+      ? {
+          OR: [
+            { creatorId: id },
+            { isGlobal: true },
+          ],
+        }
+      : { creatorId: id };
+
     const categories = await prisma.of_model_pricing_categories.findMany({
-      where: { creatorId: id },
-      orderBy: { order: "asc" },
+      where: whereClause,
+      orderBy: [
+        { isGlobal: "asc" }, // Model-specific first, then global
+        { order: "asc" },
+      ],
       include: {
         of_model_pricing_items: {
           orderBy: { order: "asc" },
@@ -58,7 +74,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
     const body = await req.json();
-    const { name, slug, description, order = 0 } = body;
+    const { name, slug, description, order = 0, isGlobal = false } = body;
 
     if (!name || !slug) {
       return NextResponse.json(
@@ -67,43 +83,45 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verify model exists
-    const model = await prisma.of_models.findUnique({
-      where: { id },
-    });
+    // For global categories, creatorId should be null
+    // For model-specific, verify model exists
+    if (!isGlobal) {
+      const model = await prisma.of_models.findUnique({
+        where: { id },
+      });
 
-    if (!model) {
-      return NextResponse.json(
-        { error: "OF model not found" },
-        { status: 404 }
-      );
+      if (!model) {
+        return NextResponse.json(
+          { error: "OF model not found" },
+          { status: 404 }
+        );
+      }
     }
 
-    // Check if slug is unique for this creator
-    const existingCategory = await prisma.of_model_pricing_categories.findUnique({
-      where: {
-        creatorId_slug: {
-          creatorId: id,
-          slug,
-        },
-      },
+    // Check if slug is unique for this creator (or globally if isGlobal)
+    const existingCategory = await prisma.of_model_pricing_categories.findFirst({
+      where: isGlobal
+        ? { slug, isGlobal: true }
+        : { creatorId: id, slug },
     });
 
     if (existingCategory) {
       return NextResponse.json(
-        { error: "Category slug already exists for this model" },
+        { error: isGlobal ? "Global category slug already exists" : "Category slug already exists for this model" },
         { status: 409 }
       );
     }
 
     const category = await prisma.of_model_pricing_categories.create({
       data: {
-        creatorId: id,
+        creatorId: isGlobal ? null : id,
         name,
         slug,
         description,
         order,
-      } as any,
+        isGlobal,
+        updatedAt: new Date(),
+      },
       include: {
         of_model_pricing_items: true,
       },

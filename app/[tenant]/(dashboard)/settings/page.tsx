@@ -29,7 +29,11 @@ import {
   Users,
   Crown,
   Plus,
+  DollarSign,
+  ChevronRight,
 } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 
 interface UserProfile {
   id: string;
@@ -71,6 +75,8 @@ interface OrganizationMember {
 
 export default function SettingsPage() {
   const { user } = useUser();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const queryClient = useQueryClient();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -861,6 +867,39 @@ export default function SettingsPage() {
                 {formatDate(userProfile.updatedAt)}
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* Quick Links Card */}
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-200">
+              <Settings className="w-5 h-5" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Quick Links</h2>
+          </div>
+
+          <div className="space-y-3">
+            {/* Pricing Templates Link */}
+            <Link
+              href={`/${tenant}/settings/pricing-templates`}
+              className="group flex items-center justify-between p-4 rounded-2xl border border-white/10 bg-slate-950/60 hover:border-violet-500/30 hover:bg-violet-500/5 transition-all"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 text-emerald-300">
+                  <DollarSign className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white group-hover:text-violet-200 transition-colors">
+                    Pricing Templates
+                  </h3>
+                  <p className="text-sm text-slate-400">
+                    Create and manage reusable pricing templates for OF Creators
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-violet-300 group-hover:translate-x-1 transition-all" />
+            </Link>
           </div>
         </div>
 

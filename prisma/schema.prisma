@@ -1274,7 +1274,7 @@ model reference_folders {
 }
 
 model of_model_assets {
-  id           String           @id
+  id           String           @id @default(cuid())
   creatorId    String
   type         OfModelAssetType
   name         String
@@ -1292,7 +1292,7 @@ model of_model_assets {
 }
 
 model of_model_details {
-  id                   String    @id
+  id                   String    @id @default(cuid())
   creatorId            String    @unique
   fullName             String?
   age                  Int?
@@ -1320,38 +1320,47 @@ model of_model_details {
 }
 
 model of_model_pricing_categories {
-  id                     String                   @id
-  creatorId              String
+  id                     String                   @id @default(cuid())
+  creatorId              String?                  // Nullable for global categories
   name                   String
   slug                   String
   description            String?
   order                  Int                      @default(0)
+  isGlobal               Boolean                  @default(false) // True for global pricing that applies to all models
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime
-  of_models              of_models                @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  of_models              of_models?               @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   of_model_pricing_items of_model_pricing_items[]
 
   @@unique([creatorId, slug])
   @@index([creatorId])
+  @@index([isGlobal])
 }
 
 model of_model_pricing_items {
-  id                          String                      @id
+  id                          String                      @id @default(cuid())
   categoryId                  String
   name                        String
-  price                       Float
+  price                       Float                       // Main price (for FIXED) or display price
+  priceType                   PricingItemType             @default(FIXED) // FIXED, RANGE, MINIMUM
+  priceMin                    Float?                      // For RANGE/MINIMUM types
+  priceMax                    Float?                      // For RANGE type
+  isFree                      Boolean                     @default(false) // Mark as free content
   description                 String?
   order                       Int                         @default(0)
   isActive                    Boolean                     @default(true)
   createdAt                   DateTime                    @default(now())
   updatedAt                   DateTime
   of_model_pricing_categories of_model_pricing_categories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  pricing_history             pricing_history[]
 
   @@index([categoryId])
+  @@index([isFree])
+  @@index([priceType])
 }
 
 model of_models {
-  id                          String                        @id
+  id                          String                        @id @default(cuid())
   name                        String
   displayName                 String
   slug                        String                        @unique
@@ -1635,4 +1644,116 @@ enum OfModelStatus {
   INACTIVE
   DROPPED
   PENDING
+}
+
+// Pricing Templates
+model pricing_template {
+  id          String   @id @default(cuid())
+  name        String                          // e.g., "GF Accurate", "Porn Scam"
+  slug        String   @unique
+  description String?
+  category    PricingTemplateCategory         // PORN_ACCURATE, PORN_SCAM, GF_ACCURATE, GF_SCAM, BUNDLE_BASED, CUSTOM
+  pageType    PricingTemplatePageType @default(ALL_PAGES)  // ALL_PAGES, FREE, PAID, VIP
+  isDefault   Boolean  @default(false)        // System default templates
+  isActive    Boolean  @default(true)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       pricing_template_item[]
+
+  @@index([category])
+  @@index([pageType])
+  @@index([isActive])
+}
+
+model pricing_template_item {
+  id          String   @id @default(cuid())
+  templateId  String
+  name        String                          // e.g., "Dick Rating", "Custom Video"
+  priceType   PricingItemType @default(FIXED) // FIXED, RANGE, MINIMUM
+  priceFixed  Float?
+  priceMin    Float?
+  priceMax    Float?
+  isFree      Boolean  @default(false)        // Mark as free content
+  description String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  template    pricing_template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([order])
+  @@index([isFree])
+}
+
+// Pricing History for audit trail
+model pricing_history {
+  id              String   @id @default(cuid())
+  pricingItemId   String
+  changeType      PricingChangeType           // CREATED, UPDATED, DELETED, ACTIVATED, DEACTIVATED
+
+  // Old values
+  oldName         String?
+  oldPriceType    PricingItemType?
+  oldPrice        Float?
+  oldPriceMin     Float?
+  oldPriceMax     Float?
+  oldIsFree       Boolean?
+  oldIsActive     Boolean?
+
+  // New values
+  newName         String?
+  newPriceType    PricingItemType?
+  newPrice        Float?
+  newPriceMin     Float?
+  newPriceMax     Float?
+  newIsFree       Boolean?
+  newIsActive     Boolean?
+
+  // Audit info
+  changedById     String?
+  changedByName   String?
+  reason          String?
+  createdAt       DateTime @default(now())
+
+  pricingItem     of_model_pricing_items @relation(fields: [pricingItemId], references: [id], onDelete: Cascade)
+
+  @@index([pricingItemId])
+  @@index([createdAt])
+  @@index([changeType])
+  @@index([changedById])
+}
+
+enum PricingChangeType {
+  CREATED
+  UPDATED
+  DELETED
+  ACTIVATED
+  DEACTIVATED
+  PRICE_CHANGE
+}
+
+enum PricingTemplateCategory {
+  PORN_ACCURATE
+  PORN_SCAM
+  GF_ACCURATE
+  GF_SCAM
+  BUNDLE_BASED
+  CUSTOM
+}
+
+enum PricingTemplatePageType {
+  ALL_PAGES
+  FREE
+  PAID
+  VIP
+}
+
+enum PricingItemType {
+  FIXED
+  RANGE
+  MINIMUM
 }

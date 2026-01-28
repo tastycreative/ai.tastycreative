@@ -117,35 +117,35 @@ export default function OfModelLayout({
 }) {
   const params = useParams();
   const pathname = usePathname();
-  const slug = params.slug as string;
+  const modelSlug = params.modelSlug as string;
   const [model, setModel] = useState<OfModel | null>(null);
   const [loading, setLoading] = useState(true);
 
   const storeModel = useOfModelStore((state) => state.selectedModel);
 
   useEffect(() => {
-    if (slug) {
+    if (modelSlug) {
       loadModel();
     }
-  }, [slug]);
+  }, [modelSlug]);
 
   const loadModel = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/of-models/`);
+      const response = await fetch(`/api/of-models/${modelSlug}`);
       if (response.ok) {
         const result = await response.json();
         setModel(result.data);
       } else {
         const error = await response.json().catch(() => ({ error: 'Unknown error' }));
         console.error('API error loading model:', response.status, error);
-        if (storeModel && storeModel.slug === slug) {
+        if (storeModel && storeModel.slug === modelSlug) {
           setModel(storeModel as OfModel);
         }
       }
     } catch (error) {
       console.error('Error loading model:', error);
-      if (storeModel && storeModel.slug === slug) {
+      if (storeModel && storeModel.slug === modelSlug) {
         setModel(storeModel as OfModel);
       }
     } finally {
@@ -153,11 +153,14 @@ export default function OfModelLayout({
     }
   };
 
+  // Build base path from current pathname (strips any sub-route like /pricing, /assets, /details)
+  const basePath = pathname.replace(/\/(pricing|assets|details)$/, '');
+
   const tabs = [
-    { name: 'Overview', href: `/of-models/`, icon: User, exact: true },
-    { name: 'Pricing', href: `/of-models//pricing`, icon: DollarSign },
-    { name: 'Assets', href: `/of-models//assets`, icon: Image },
-    { name: 'Details', href: `/of-models//details`, icon: FileText },
+    { name: 'Overview', href: basePath, icon: User, exact: true },
+    { name: 'Pricing', href: `${basePath}/pricing`, icon: DollarSign },
+    { name: 'Assets', href: `${basePath}/assets`, icon: Image },
+    { name: 'Details', href: `${basePath}/details`, icon: FileText },
   ];
 
   const isActive = (tab: { href: string; exact?: boolean }) => {
@@ -213,7 +216,7 @@ export default function OfModelLayout({
         </div>
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Link
-            href="/of-models"
+            href="../"
             className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-colors mb-8"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -229,7 +232,7 @@ export default function OfModelLayout({
               The model you're looking for doesn't exist or has been removed.
             </p>
             <Link
-              href="/of-models"
+              href="../"
               className="group relative inline-flex items-center gap-2 px-6 py-3 rounded-xl font-medium text-white overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-violet-600 to-fuchsia-600" />
@@ -258,7 +261,7 @@ export default function OfModelLayout({
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
         <Link
-          href="/of-models"
+          href="../"
           className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white transition-colors mb-8 group"
         >
           <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />

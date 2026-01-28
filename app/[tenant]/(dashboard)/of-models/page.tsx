@@ -132,7 +132,7 @@ export default function OfModelsPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ACTIVE');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -229,11 +229,11 @@ export default function OfModelsPage() {
                   <Crown className="w-6 h-6 text-violet-400" />
                 </div>
                 <h1 className="text-4xl sm:text-5xl font-light tracking-tight text-white">
-                  Models
+                  OF Creators
                 </h1>
               </div>
               <p className="text-zinc-500 text-lg font-light max-w-xl">
-                Curate and manage your creator portfolio with precision
+                Profiles, assets, and pricing at a glance
               </p>
             </div>
 
@@ -643,7 +643,7 @@ function ModelCard({
       <div className="relative p-4 space-y-3">
         <div>
           <Link
-            href={`/of-models/${model.slug}`}
+            href={`of-models/${model.slug}`}
             onClick={() => setStoreSelectedModel(model as any)}
             className="block"
           >
@@ -665,7 +665,7 @@ function ModelCard({
           </div>
 
           <Link
-            href={`/of-models/${model.slug}`}
+            href={`of-models/${model.slug}`}
             onClick={() => setStoreSelectedModel(model as any)}
             className="flex items-center gap-1.5 text-xs font-medium text-violet-400 hover:text-violet-300 transition-colors"
           >
@@ -724,7 +724,7 @@ function ModelListItem({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-3">
           <Link
-            href={`/of-models/${model.slug}`}
+            href={`of-models/${model.slug}`}
             onClick={() => setStoreSelectedModel(model as any)}
           >
             <h3 className="font-medium text-white hover:text-violet-300 transition-colors truncate">
@@ -787,7 +787,7 @@ function ModelListItem({
       {/* Actions */}
       <div className="flex items-center gap-1">
         <Link
-          href={`/of-models/${model.slug}`}
+          href={`of-models/${model.slug}`}
           onClick={() => setStoreSelectedModel(model as any)}
           className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all"
         >
