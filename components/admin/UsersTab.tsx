@@ -1,20 +1,23 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Mail, Calendar, Eye, Search, Filter } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { User, Mail, Calendar, Eye, Search, Filter, UserPlus, Trash2 } from 'lucide-react';
+import { InviteMembersModal } from '../InviteMembersModal';
+import { useOrganization } from '@/lib/hooks/useOrganization';
 
-interface UserData {
+interface MemberData {
   id: string;
+  userId: string;
   clerkId: string;
   email: string | null;
   firstName: string | null;
   lastName: string | null;
   imageUrl: string | null;
-  role: 'USER' | 'CONTENT_CREATOR' | 'MANAGER' | 'ADMIN';
-  createdAt: string;
+  role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  joinedAt: string;
   lastSignInAt: string | null;
-  inDatabase?: boolean;
-  isOrphaned?: boolean;
+  inClerk: boolean;
   _count: {
     images: number;
     videos: number;
@@ -24,89 +27,80 @@ interface UserData {
 }
 
 export default function UsersTab() {
-  const [users, setUsers] = useState<UserData[]>([]);
+  const params = useParams();
+  const tenant = params.tenant as string;
+  const { currentOrganization, loading: orgLoading } = useOrganization();
+  const [users, setUsers] = useState<MemberData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'email' | 'created' | 'activity'>('created');
   const [updatingRoles, setUpdatingRoles] = useState<Set<string>>(new Set());
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (tenant && currentOrganization) {
+      fetchUsers();
+    }
+  }, [tenant, currentOrganization]);
 
   const fetchUsers = async () => {
+    if (!tenant || !currentOrganization) return;
+
     try {
-      const response = await fetch('/api/admin/users');
+      const response = await fetch(`/api/tenant/${tenant}/members`);
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        throw new Error('Failed to fetch members');
       }
       const data = await response.json();
-      setUsers(data);
+      setUsers(data.members || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch users');
+      setError(err instanceof Error ? err.message : 'Failed to fetch members');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRoleChange = async (userId: string, newRole: 'USER' | 'CONTENT_CREATOR' | 'MANAGER' | 'ADMIN') => {
-    // Prevent multiple simultaneous updates for the same user
-    if (updatingRoles.has(userId)) return;
+  const handleRoleChange = async (memberId: string, newRole: 'OWNER' | 'ADMIN' | 'MEMBER') => {
+    // Prevent multiple simultaneous updates for the same member
+    if (updatingRoles.has(memberId)) return;
 
-    setUpdatingRoles(prev => new Set(prev).add(userId));
+    setUpdatingRoles(prev => new Set(prev).add(memberId));
 
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      const response = await fetch(`/api/tenant/${tenant}/members`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify({ memberId, role: newRole }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update user role');
+        throw new Error(errorData.error || 'Failed to update member role');
       }
 
-      const result = await response.json();
-
-      // If the user was created in the database (was Clerk-only before)
-      if (result.created) {
-        // Refresh the entire user list to get the updated status
-        await fetchUsers();
-        console.log(`User created in database and role set to ${newRole}`);
-      } else {
-        // Just update the user in the local state
-        setUsers(prevUsers =>
-          prevUsers.map(user =>
-            user.clerkId === userId
-              ? { ...user, role: newRole }
-              : user
-          )
-        );
-        console.log(`User role updated to ${newRole}`);
-      }
+      // Refresh the member list to get updated data
+      await fetchUsers();
+      console.log(`Member role updated to ${newRole}`);
 
     } catch (error) {
-      console.error('Error updating user role:', error);
-      
-      // More detailed error handling
-      let errorMessage = 'Failed to update user role';
+      console.error('Error updating member role:', error);
+
+      let errorMessage = 'Failed to update member role';
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      
-      // Revert the dropdown to the original value by refetching
+
+      // Revert by refetching
       fetchUsers();
-      
-      // Show more informative error message
-      alert(`Error updating user role: ${errorMessage}`);
+
+      alert(`Error updating member role: ${errorMessage}`);
     } finally {
       setUpdatingRoles(prev => {
         const newSet = new Set(prev);
-        newSet.delete(userId);
+        newSet.delete(memberId);
         return newSet;
       });
     }
@@ -120,14 +114,13 @@ export default function UsersTab() {
       return fullName.includes(searchLower) || email.includes(searchLower);
     })
     .sort((a, b) => {
-      // First, sort by role priority: ADMIN > MANAGER > USER
+      // First, sort by role priority: OWNER > ADMIN > MEMBER
       const getRolePriority = (role: string) => {
         switch (role) {
-          case 'ADMIN': return 0;
-          case 'MANAGER': return 1;
-          case 'CONTENT_CREATOR': return 2;
-          case 'USER': return 3;
-          default: return 4;
+          case 'OWNER': return 0;
+          case 'ADMIN': return 1;
+          case 'MEMBER': return 2;
+          default: return 3;
         }
       };
 
@@ -147,7 +140,7 @@ export default function UsersTab() {
         case 'email':
           return (a.email || '').localeCompare(b.email || '');
         case 'created':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return new Date(b.joinedAt).getTime() - new Date(a.joinedAt).getTime();
         case 'activity':
           const activityA = a._count.images + a._count.videos + a._count.jobs;
           const activityB = b._count.images + b._count.videos + b._count.jobs;
@@ -220,25 +213,27 @@ export default function UsersTab() {
               <option value="activity">Most Active</option>
             </select>
           </div>
+
+          {/* Invite Members Button */}
+          {currentOrganization && (
+            <button
+              onClick={() => setIsInviteModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl text-xs xs:text-sm font-medium"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span className="hidden xs:inline">Invite Members</span>
+              <span className="xs:hidden">Invite</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Users Count & Debug Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 xs:gap-4">
-        <div className="bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-900/10 dark:to-purple-900/10 border border-blue-200/30 dark:border-blue-700/20 rounded-lg p-2.5 xs:p-3 sm:p-4">
-          <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-300">
-            Showing <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredUsers.length}</span> of{' '}
-            <span className="font-semibold text-blue-600 dark:text-blue-400">{users.length}</span> total users
-          </p>
-        </div>
-        
-        <div className="bg-gradient-to-r from-emerald-50/50 to-teal-50/50 dark:from-emerald-900/10 dark:to-teal-900/10 border border-emerald-200/30 dark:border-emerald-700/20 rounded-lg p-2.5 xs:p-3 sm:p-4">
-          <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-semibold text-green-600 dark:text-green-400">{users.filter(u => u.inDatabase && !u.isOrphaned).length}</span> Synced,{' '}
-            <span className="font-semibold text-yellow-600 dark:text-yellow-400">{users.filter(u => !u.inDatabase).length}</span> Clerk only,{' '}
-            <span className="font-semibold text-red-600 dark:text-red-400">{users.filter(u => u.isOrphaned).length}</span> Orphaned
-          </p>
-        </div>
+      {/* Members Count */}
+      <div className="bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-900/10 dark:to-purple-900/10 border border-blue-200/30 dark:border-blue-700/20 rounded-lg p-2.5 xs:p-3 sm:p-4">
+        <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-300">
+          Showing <span className="font-semibold text-blue-600 dark:text-blue-400">{filteredUsers.length}</span> of{' '}
+          <span className="font-semibold text-blue-600 dark:text-blue-400">{users.length}</span> total members
+        </p>
       </div>
 
       {/* Users Table */}
@@ -255,9 +250,6 @@ export default function UsersTab() {
                 </th>
                 <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Role
-                </th>
-                <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                  Status
                 </th>
                 <th className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4 text-left text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                   Activity
@@ -317,51 +309,25 @@ export default function UsersTab() {
                   <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
                     <select
                       value={user.role}
-                      onChange={(e) => handleRoleChange(user.clerkId, e.target.value as 'USER' | 'CONTENT_CREATOR' | 'MANAGER' | 'ADMIN')}
-                      disabled={updatingRoles.has(user.clerkId)}
+                      onChange={(e) => handleRoleChange(user.id, e.target.value as 'OWNER' | 'ADMIN' | 'MEMBER')}
+                      disabled={updatingRoles.has(user.id) || user.role === 'OWNER'}
                       className={`px-2 xs:px-3 py-1 rounded-full text-[10px] xs:text-xs font-medium border-0 cursor-pointer transition-colors ${
-                        updatingRoles.has(user.clerkId)
+                        updatingRoles.has(user.id) || user.role === 'OWNER'
                           ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
                           : user.role === 'ADMIN'
                           ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/50'
-                          : user.role === 'MANAGER'
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
-                          : user.role === 'CONTENT_CREATOR'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800/50'
                       } focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                     >
-                      <option value="USER">User</option>
-                      <option value="CONTENT_CREATOR">Content Creator</option>
-                      <option value="MANAGER">Manager</option>
+                      <option value="OWNER">Owner</option>
                       <option value="ADMIN">Admin</option>
+                      <option value="MEMBER">Member</option>
                     </select>
-                    {updatingRoles.has(user.clerkId) && (
+                    {updatingRoles.has(user.id) && (
                       <div className="mt-1 text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">
                         Updating...
                       </div>
                     )}
-                  </td>
-
-                  {/* Status */}
-                  <td className="px-3 xs:px-4 sm:px-6 py-2.5 xs:py-3 sm:py-4">
-                    <div className="space-y-1">
-                      {user.isOrphaned ? (
-                        <span className="inline-flex items-center px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 whitespace-nowrap">
-                          <span className="hidden xs:inline">Orphaned (DB only)</span>
-                          <span className="xs:hidden">Orphaned</span>
-                        </span>
-                      ) : user.inDatabase ? (
-                        <span className="inline-flex items-center px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                          Synced
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-1.5 xs:px-2 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 whitespace-nowrap">
-                          <span className="hidden xs:inline">Clerk only</span>
-                          <span className="xs:hidden">Clerk</span>
-                        </span>
-                      )}
-                    </div>
                   </td>
 
                   {/* Activity Stats */}
@@ -391,7 +357,7 @@ export default function UsersTab() {
                     <div className="space-y-1">
                       <div className="flex items-center space-x-1">
                         <Calendar className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                        <span className="whitespace-nowrap">Joined: {new Date(user.createdAt).toLocaleDateString()}</span>
+                        <span className="whitespace-nowrap">Joined: {new Date(user.joinedAt).toLocaleDateString()}</span>
                       </div>
                       {user.lastSignInAt && (
                         <div className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
@@ -422,6 +388,17 @@ export default function UsersTab() {
             {searchTerm ? 'Try adjusting your search terms' : 'No users have signed up yet'}
           </p>
         </div>
+      )}
+
+      {/* Invite Members Modal */}
+      {currentOrganization && (
+        <InviteMembersModal
+          organizationSlug={currentOrganization.slug}
+          organizationName={currentOrganization.name}
+          isOpen={isInviteModalOpen}
+          onClose={() => setIsInviteModalOpen(false)}
+          onSuccess={fetchUsers}
+        />
       )}
     </div>
   );

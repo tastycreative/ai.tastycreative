@@ -4,6 +4,9 @@ import { prisma } from '@/lib/database';
 import { sendOrganizationInvite } from '@/lib/email';
 import crypto from 'crypto';
 
+// Force Node.js runtime for nodemailer support
+export const runtime = 'nodejs';
+
 // GET - List all invites for an organization
 export async function GET(
   req: NextRequest,
