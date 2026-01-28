@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc-client";
 import {
@@ -89,6 +90,8 @@ const statusConfig = {
 } as const;
 
 export default function TrainingJobsPage() {
+  const params = useParams();
+  const tenant = params.tenant as string;
   const [selectedTab, setSelectedTab] = useState<
     "all" | "active" | "completed"
   >("all");
@@ -277,7 +280,7 @@ export default function TrainingJobsPage() {
 
           <div className="flex items-center space-x-4">
             <Link
-              href="/workspace/train-lora"
+              href={`/${tenant}/workspace/train-lora`}
               className="group flex items-center space-x-3 px-6 py-3 bg-white/10 backdrop-blur-sm text-white rounded-2xl hover:bg-white/20 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl border border-white/20"
             >
               <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -484,7 +487,7 @@ export default function TrainingJobsPage() {
             {selectedTab === "all" && !searchQuery && (
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Link
-                  href="/workspace/train-lora"
+                  href={`/${tenant}/workspace/train-lora`}
                   className="group inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl"
                 >
                   <Zap className="w-5 h-5 group-hover:scale-110 transition-transform" />

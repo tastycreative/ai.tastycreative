@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useApiClient } from "@/lib/apiClient";
 import { useAuth } from "@clerk/nextjs";
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   UserPlus,
   Users,
@@ -123,6 +123,8 @@ interface InstagramProfile {
 }
 
 function FriendsPageContent() {
+  const params = useParams();
+  const tenant = params.tenant as string;
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(tabParam || "friends");
@@ -896,7 +898,7 @@ function FriendsPageContent() {
             <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">No profiles found</p>
             <a
-              href="/workspace/creators"
+              href={`/${tenant}/workspace/creators`}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all"
             >
               Create Profile

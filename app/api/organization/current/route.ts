@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get the user's team membership to check role
-    const teamMember = await prisma.teamMember.findUnique({
+    const organizationMember = await prisma.organizationMember.findUnique({
       where: {
         userId_organizationId: {
           userId: user.id,
@@ -65,13 +65,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user can manage organization (OWNER or ADMIN)
-    const canManage = teamMember?.role === 'OWNER' || teamMember?.role === 'ADMIN';
+    const canManage = organizationMember?.role === 'OWNER' || organizationMember?.role === 'ADMIN';
 
     return NextResponse.json({
       success: true,
       organization: {
         ...organization,
-        memberRole: teamMember?.role,
+        memberRole: organizationMember?.role,
         canManage,
       },
     });
@@ -113,7 +113,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Check if user has permission (OWNER or ADMIN)
-    const teamMember = await prisma.teamMember.findUnique({
+    const organizationMember = await prisma.organizationMember.findUnique({
       where: {
         userId_organizationId: {
           userId: user.id,
@@ -125,7 +125,7 @@ export async function PATCH(request: NextRequest) {
       },
     });
 
-    if (!teamMember || (teamMember.role !== 'OWNER' && teamMember.role !== 'ADMIN')) {
+    if (!organizationMember || (organizationMember.role !== 'OWNER' && organizationMember.role !== 'ADMIN')) {
       return NextResponse.json(
         { error: 'You do not have permission to update organization settings' },
         { status: 403 }
@@ -163,7 +163,7 @@ export async function PATCH(request: NextRequest) {
       success: true,
       organization: {
         ...updatedOrganization,
-        memberRole: teamMember.role,
+        memberRole: organizationMember.role,
         canManage: true,
       },
     });
