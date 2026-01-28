@@ -16,7 +16,7 @@ export async function GET(
     const { orgId } = await params;
 
     // Check if user has access to this organization
-    const membership = await prisma.organizationMember.findFirst({
+    const membership = await prisma.teamMember.findFirst({
       where: {
         organizationId: orgId,
         user: { clerkId: userId },
@@ -28,7 +28,7 @@ export async function GET(
     }
 
     // Fetch all organization members from database
-    const dbMembers = await prisma.organizationMember.findMany({
+    const dbMembers = await prisma.teamMember.findMany({
       where: {
         organizationId: orgId,
       },
@@ -114,7 +114,7 @@ export async function DELETE(
     }
 
     // Check if user is admin/owner of the organization
-    const currentMembership = await prisma.organizationMember.findFirst({
+    const currentMembership = await prisma.teamMember.findFirst({
       where: {
         organizationId: orgId,
         user: { clerkId: userId },
@@ -127,7 +127,7 @@ export async function DELETE(
     }
 
     // Get the member to be removed
-    const memberToRemove = await prisma.organizationMember.findUnique({
+    const memberToRemove = await prisma.teamMember.findUnique({
       where: { id: memberId },
     });
 
@@ -144,7 +144,7 @@ export async function DELETE(
     }
 
     // Remove the member
-    await prisma.organizationMember.delete({
+    await prisma.teamMember.delete({
       where: { id: memberId },
     });
 
@@ -180,7 +180,7 @@ export async function PATCH(
     }
 
     // Check if user is admin/owner of the organization
-    const currentMembership = await prisma.organizationMember.findFirst({
+    const currentMembership = await prisma.teamMember.findFirst({
       where: {
         organizationId: orgId,
         user: { clerkId: userId },
@@ -193,7 +193,7 @@ export async function PATCH(
     }
 
     // Get the member to be updated
-    const memberToUpdate = await prisma.organizationMember.findUnique({
+    const memberToUpdate = await prisma.teamMember.findUnique({
       where: { id: memberId },
     });
 
@@ -210,7 +210,7 @@ export async function PATCH(
     }
 
     // Update the role
-    const updatedMember = await prisma.organizationMember.update({
+    const updatedMember = await prisma.teamMember.update({
       where: { id: memberId },
       data: { role },
     });

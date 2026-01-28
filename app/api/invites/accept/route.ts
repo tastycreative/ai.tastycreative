@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if already a member
-    const existingMembership = await prisma.organizationMember.findFirst({
+    const existingMembership = await prisma.teamMember.findFirst({
       where: {
         organizationId: invite.organizationId,
         userId: dbUser.id,
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
     // Create membership and mark invite as accepted in a transaction
     await prisma.$transaction([
-      prisma.organizationMember.create({
+      prisma.teamMember.create({
         data: {
           organizationId: invite.organizationId,
           userId: dbUser.id,

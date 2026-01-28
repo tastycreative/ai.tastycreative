@@ -18,7 +18,7 @@ export async function GET(
     const { orgId } = await params;
 
     // Check if user is admin/owner of the organization
-    const membership = await prisma.organizationMember.findFirst({
+    const membership = await prisma.teamMember.findFirst({
       where: {
         organizationId: orgId,
         user: { clerkId: userId },
@@ -82,7 +82,7 @@ export async function POST(
     }
 
     // Check if user is admin/owner of the organization
-    const membership = await prisma.organizationMember.findFirst({
+    const membership = await prisma.teamMember.findFirst({
       where: {
         organizationId: orgId,
         user: { clerkId: userId },
@@ -99,7 +99,7 @@ export async function POST(
     }
 
     // Check if any emails are already members
-    const existingMembers = await prisma.organizationMember.findMany({
+    const existingMembers = await prisma.teamMember.findMany({
       where: {
         organizationId: orgId,
         user: {
@@ -226,7 +226,7 @@ export async function DELETE(
     }
 
     // Check if user is admin/owner of the organization
-    const membership = await prisma.organizationMember.findFirst({
+    const membership = await prisma.teamMember.findFirst({
       where: {
         organizationId: orgId,
         user: { clerkId: userId },
