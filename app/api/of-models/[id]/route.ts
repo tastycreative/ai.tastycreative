@@ -131,14 +131,14 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const model = await prisma.of_models.update({
       where: { id },
       data: updateData,
-      include: ({
+      include: {
         _count: {
           select: {
-            assets: true,
-            pricingCategories: true,
+            of_model_assets: true,
+            of_model_pricing_categories: true,
           },
         },
-      } as any),
+      },
     });
 
     return NextResponse.json({ data: model });
