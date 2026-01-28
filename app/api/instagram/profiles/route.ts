@@ -61,10 +61,33 @@ export async function GET(request: NextRequest) {
         },
         user: {
           select: {
+            id: true,
+            clerkId: true,
             name: true,
+            firstName: true,
+            lastName: true,
+            imageUrl: true,
+            email: true,
           },
         },
       },
+    });
+
+    // Sort profiles: user's own profiles first, then shared profiles
+    profiles.sort((a, b) => {
+      const aIsOwn = a.clerkId === userId;
+      const bIsOwn = b.clerkId === userId;
+      
+      // Own profiles come first
+      if (aIsOwn && !bIsOwn) return -1;
+      if (!aIsOwn && bIsOwn) return 1;
+      
+      // Within same category, default profiles come first
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      
+      // Then sort by creation date
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
 
     // Get accepted friends count for each profile

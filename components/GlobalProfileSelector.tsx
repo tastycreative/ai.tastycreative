@@ -3,13 +3,15 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import { useInstagramProfile, Profile, ALL_PROFILES_OPTION } from '@/hooks/useInstagramProfile';
-import { ChevronDown, User, Check, Plus, Instagram, Loader2, Sparkles, Star, Users, ChevronUp, Building2, FolderOpen } from 'lucide-react';
+import { ChevronDown, User, Check, Plus, Instagram, Loader2, Sparkles, Star, Users, ChevronUp, Building2, FolderOpen, Share2 } from 'lucide-react';
 import Link from 'next/link';
 
 export function GlobalProfileSelector() {
   const params = useParams();
   const tenant = params.tenant as string;
+  const { user: clerkUser } = useUser();
   const {
     profileId,
     setProfileId,
@@ -19,12 +21,41 @@ export function GlobalProfileSelector() {
     isAllProfiles,
   } = useInstagramProfile();
 
-  // Sort profiles by name
+  // Helper to check if a profile is owned by the current user
+  const isOwnProfile = (profile: Profile) => {
+    return profile.clerkId === clerkUser?.id || profile.user?.clerkId === clerkUser?.id;
+  };
+
+  // Helper to get owner display name for shared profiles
+  const getOwnerDisplayName = (profile: Profile) => {
+    if (!profile.user) return null;
+    if (profile.user.firstName && profile.user.lastName) {
+      return `${profile.user.firstName} ${profile.user.lastName}`;
+    }
+    if (profile.user.firstName) return profile.user.firstName;
+    if (profile.user.name) return profile.user.name;
+    if (profile.user.email) return profile.user.email.split('@')[0];
+    return null;
+  };
+
+  // Sort profiles: owned first, then shared (each group sorted by name)
   const sortedProfiles = useMemo(() => {
-    return [...profiles].sort((a, b) =>
-      (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
-    );
-  }, [profiles]);
+    return [...profiles].sort((a, b) => {
+      const aIsOwn = isOwnProfile(a);
+      const bIsOwn = isOwnProfile(b);
+      
+      // Own profiles come first
+      if (aIsOwn && !bIsOwn) return -1;
+      if (!aIsOwn && bIsOwn) return 1;
+      
+      // Within same category, default profiles come first
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      
+      // Then sort by name
+      return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
+    });
+  }, [profiles, clerkUser?.id]);
 
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -159,10 +190,14 @@ export function GlobalProfileSelector() {
               </div>
             )}
           </div>
-          {/* Online indicator - hide for All Profiles */}
-          {!isAllProfiles && (
+          {/* Indicator - show share icon for shared profiles, green dot for own */}
+          {!isAllProfiles && selectedProfile && !isOwnProfile(selectedProfile) ? (
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full border-2 border-[#0d0d12] flex items-center justify-center">
+              <Share2 className="w-2 h-2 text-white" />
+            </div>
+          ) : !isAllProfiles ? (
             <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-[#0d0d12]" />
-          )}
+          ) : null}
         </div>
         
         {/* Profile Info */}
@@ -171,7 +206,9 @@ export function GlobalProfileSelector() {
             <p className="text-sm font-semibold text-white truncate">
               {selectedProfile?.name || 'Select Profile'}
             </p>
-            {selectedProfile?.organization ? (
+            {selectedProfile && !isAllProfiles && !isOwnProfile(selectedProfile) ? (
+              <Share2 className="w-3 h-3 text-blue-400 flex-shrink-0" />
+            ) : selectedProfile?.organization ? (
               <Building2 className="w-3 h-3 text-blue-400 flex-shrink-0" />
             ) : !isAllProfiles ? (
               <Sparkles className="w-3 h-3 text-amber-400 flex-shrink-0" />
@@ -180,10 +217,10 @@ export function GlobalProfileSelector() {
           <p className="text-[11px] text-white/40 truncate">
             {isAllProfiles 
               ? `${profiles.length} profile${profiles.length !== 1 ? 's' : ''}`
-              : selectedProfile?.instagramUsername
-                ? `@${selectedProfile.instagramUsername}`
-                : selectedProfile?.organization
-                  ? `Shared · ${selectedProfile.organization.name}`
+              : selectedProfile && !isOwnProfile(selectedProfile)
+                ? `Shared by ${getOwnerDisplayName(selectedProfile) || 'someone'}`
+                : selectedProfile?.instagramUsername
+                  ? `@${selectedProfile.instagramUsername}`
                   : 'Active Creator'}
           </p>
         </div>
@@ -278,83 +315,183 @@ export function GlobalProfileSelector() {
             {/* Divider */}
             <div className="mx-2 my-2 border-t border-white/[0.06]" />
 
-            {/* Individual Profiles */}
-            {sortedProfiles.map((profile) => (
-              <button
-                key={profile.id}
-                onClick={() => handleProfileSelect(profile)}
-                className={`
-                  w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-1 last:mb-0
-                  ${profile.id === profileId
-                    ? 'bg-violet-500/15 border border-violet-500/25'
-                    : 'hover:bg-white/5 border border-transparent'
-                  }
-                `}
-              >
-                {/* Profile Image */}
-                <div className="relative flex-shrink-0">
-                  <div className={`
-                    w-10 h-10 rounded-xl overflow-hidden
-                    ${profile.id === profileId ? 'ring-2 ring-violet-400/40' : 'ring-1 ring-white/10'}
-                  `}>
-                    {profile.profileImageUrl ? (
-                      <img
-                        src={profile.profileImageUrl}
-                        alt={profile.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className={`w-full h-full flex items-center justify-center ${
-                        profile.id === profileId
-                          ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500'
-                          : 'bg-gradient-to-br from-gray-600 to-gray-700'
-                      }`}>
-                        <Instagram className="w-4 h-4 text-white" />
+            {/* My Profiles Section */}
+            {sortedProfiles.filter(p => isOwnProfile(p)).length > 0 && (
+              <>
+                <div className="px-3 py-1.5 flex items-center gap-2">
+                  <Sparkles className="w-3 h-3 text-violet-400" />
+                  <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">My Profiles</span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-violet-500/20 text-violet-300 rounded-full font-semibold">
+                    {sortedProfiles.filter(p => isOwnProfile(p)).length}
+                  </span>
+                </div>
+                {sortedProfiles.filter(p => isOwnProfile(p)).map((profile) => (
+                  <button
+                    key={profile.id}
+                    onClick={() => handleProfileSelect(profile)}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-1
+                      ${profile.id === profileId
+                        ? 'bg-violet-500/15 border border-violet-500/25'
+                        : 'hover:bg-white/5 border border-transparent'
+                      }
+                    `}
+                  >
+                    {/* Profile Image */}
+                    <div className="relative flex-shrink-0">
+                      <div className={`
+                        w-10 h-10 rounded-xl overflow-hidden
+                        ${profile.id === profileId ? 'ring-2 ring-violet-400/40' : 'ring-1 ring-white/10'}
+                      `}>
+                        {profile.profileImageUrl ? (
+                          <img
+                            src={profile.profileImageUrl}
+                            alt={profile.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className={`w-full h-full flex items-center justify-center ${
+                            profile.id === profileId
+                              ? 'bg-gradient-to-br from-violet-500 to-fuchsia-500'
+                              : 'bg-gradient-to-br from-gray-600 to-gray-700'
+                          }`}>
+                            <Instagram className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Profile Info */}
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className={`font-medium text-sm truncate ${
+                          profile.id === profileId ? 'text-white' : 'text-white/80'
+                        }`}>
+                          {profile.name}
+                        </p>
+                        {profile.isDefault && (
+                          <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-semibold border border-amber-500/30">
+                            <Star className="w-2 h-2" />
+                            DEFAULT
+                          </span>
+                        )}
+                      </div>
+                      {profile.instagramUsername && (
+                        <p className="text-[10px] text-white/40 truncate">
+                          @{profile.instagramUsername}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Selected Check */}
+                    {profile.id === profileId && (
+                      <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center flex-shrink-0">
+                        <Check className="w-3 h-3 text-white" />
                       </div>
                     )}
-                  </div>
-                </div>
-                
-                {/* Profile Info */}
-                <div className="flex-1 text-left min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className={`font-medium text-sm truncate ${
-                      profile.id === profileId ? 'text-white' : 'text-white/80'
-                    }`}>
-                      {profile.name}
-                    </p>
-                    {profile.isDefault && (
-                      <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-semibold border border-amber-500/30">
-                        <Star className="w-2 h-2" />
-                        DEFAULT
-                      </span>
-                    )}
-                    {profile.organization && (
-                      <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-full font-semibold border border-blue-500/30">
-                        <Building2 className="w-2 h-2" />
-                        SHARED
-                      </span>
-                    )}
-                  </div>
-                  {profile.instagramUsername ? (
-                    <p className="text-[10px] text-white/40 truncate">
-                      @{profile.instagramUsername}
-                    </p>
-                  ) : profile.organization ? (
-                    <p className="text-[10px] text-blue-400/60 truncate">
-                      {profile.organization.name}
-                    </p>
-                  ) : null}
-                </div>
-                
-                {/* Selected Check */}
-                {profile.id === profileId && (
-                  <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center flex-shrink-0">
-                    <Check className="w-3 h-3 text-white" />
-                  </div>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* Shared with me Section */}
+            {sortedProfiles.filter(p => !isOwnProfile(p)).length > 0 && (
+              <>
+                {sortedProfiles.filter(p => isOwnProfile(p)).length > 0 && (
+                  <div className="mx-2 my-2 border-t border-white/[0.06]" />
                 )}
-              </button>
-            ))}
+                <div className="px-3 py-1.5 flex items-center gap-2">
+                  <Share2 className="w-3 h-3 text-blue-400" />
+                  <span className="text-[10px] font-semibold text-white/50 uppercase tracking-wider">Shared with me</span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded-full font-semibold">
+                    {sortedProfiles.filter(p => !isOwnProfile(p)).length}
+                  </span>
+                </div>
+                {sortedProfiles.filter(p => !isOwnProfile(p)).map((profile) => {
+                  const ownerName = getOwnerDisplayName(profile);
+                  return (
+                    <button
+                      key={profile.id}
+                      onClick={() => handleProfileSelect(profile)}
+                      className={`
+                        w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 mb-1 last:mb-0
+                        ${profile.id === profileId
+                          ? 'bg-blue-500/15 border border-blue-500/25'
+                          : 'hover:bg-white/5 border border-transparent'
+                        }
+                      `}
+                    >
+                      {/* Profile Image */}
+                      <div className="relative flex-shrink-0">
+                        <div className={`
+                          w-10 h-10 rounded-xl overflow-hidden
+                          ${profile.id === profileId ? 'ring-2 ring-blue-400/40' : 'ring-1 ring-white/10'}
+                        `}>
+                          {profile.profileImageUrl ? (
+                            <img
+                              src={profile.profileImageUrl}
+                              alt={profile.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className={`w-full h-full flex items-center justify-center ${
+                              profile.id === profileId
+                                ? 'bg-gradient-to-br from-blue-500 to-cyan-500'
+                                : 'bg-gradient-to-br from-gray-600 to-gray-700'
+                            }`}>
+                              <Instagram className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                        </div>
+                        {/* Shared indicator */}
+                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full border-2 border-[#13131a] flex items-center justify-center">
+                          <Share2 className="w-2 h-2 text-white" />
+                        </div>
+                      </div>
+                      
+                      {/* Profile Info */}
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={`font-medium text-sm truncate ${
+                            profile.id === profileId ? 'text-white' : 'text-white/80'
+                          }`}>
+                            {profile.name}
+                          </p>
+                          {profile.isDefault && (
+                            <span className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-semibold border border-amber-500/30">
+                              <Star className="w-2 h-2" />
+                              DEFAULT
+                            </span>
+                          )}
+                        </div>
+                        {ownerName ? (
+                          <p className="text-[10px] text-blue-400/70 truncate flex items-center gap-1">
+                            <User className="w-2.5 h-2.5" />
+                            Shared by {ownerName}
+                          </p>
+                        ) : profile.organization ? (
+                          <p className="text-[10px] text-blue-400/60 truncate flex items-center gap-1">
+                            <Building2 className="w-2.5 h-2.5" />
+                            {profile.organization.name}
+                          </p>
+                        ) : profile.instagramUsername ? (
+                          <p className="text-[10px] text-white/40 truncate">
+                            @{profile.instagramUsername}
+                          </p>
+                        ) : null}
+                      </div>
+                      
+                      {/* Selected Check */}
+                      {profile.id === profileId && (
+                        <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
           
           {/* Footer */}

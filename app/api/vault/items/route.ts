@@ -2,6 +2,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+      include: {
+        user: {
+          select: { clerkId: true },
+        },
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // GET /api/vault/items - Get all items for a folder or all items for a profile
 export async function GET(request: NextRequest) {
   try {
@@ -49,47 +90,114 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(items);
     }
 
-    // Build where clause - if profileId provided, filter by it; otherwise get all user items
-    const whereClause: { clerkId: string; profileId?: string; folderId?: string } = {
-      clerkId: userId,
-    };
-    
-    if (profileId) {
-      whereClause.profileId = profileId;
-    }
-    
-    if (folderId) {
-      whereClause.folderId = folderId;
-    }
+    // Get user's organization for "all profiles" mode
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { currentOrganizationId: true },
+    });
 
-    // Build profile map for "all profiles" mode (when no profileId specified)
-    let profileMap: Record<string, string> = {};
-    if (!profileId) {
+    // Handle "all" profiles case OR no profileId - get items from all accessible profiles
+    if (profileId === "all" || !profileId) {
+      // Build profile query for "all profiles" mode
+      const profileWhereCondition: any = {
+        OR: [
+          { clerkId: userId },
+        ],
+      };
+      if (user?.currentOrganizationId) {
+        profileWhereCondition.OR.push({ organizationId: user.currentOrganizationId });
+      }
+
       const profiles = await prisma.instagramProfile.findMany({
-        where: { clerkId: userId },
-        select: { id: true, name: true },
+        where: profileWhereCondition,
+        select: { 
+          id: true, 
+          name: true, 
+          clerkId: true,
+          user: {
+            select: { clerkId: true },
+          },
+        },
       });
-      profileMap = profiles.reduce((acc, p) => {
+      const profileMap = profiles.reduce((acc, p) => {
         acc[p.id] = p.name;
         return acc;
       }, {} as Record<string, string>);
+
+      // Build OR conditions for items - for each profile, get items owned by that profile's owner
+      const itemOrConditions: { profileId: string; clerkId: string }[] = [];
+      for (const profile of profiles) {
+        const ownerClerkId = profile.clerkId || profile.user?.clerkId;
+        if (ownerClerkId) {
+          itemOrConditions.push({
+            profileId: profile.id,
+            clerkId: ownerClerkId,
+          });
+        }
+      }
+
+      // If no valid conditions, return empty array
+      if (itemOrConditions.length === 0) {
+        return NextResponse.json([]);
+      }
+
+      // Get items for all accessible profiles (only from profile owners)
+      const items = await prisma.vaultItem.findMany({
+        where: {
+          OR: itemOrConditions,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      // Add profileName to each item
+      const itemsWithProfileName = items.map((item) => ({
+        ...item,
+        profileName: item.profileId ? profileMap[item.profileId] || "Unknown" : undefined,
+      }));
+
+      return NextResponse.json(itemsWithProfileName);
     }
 
-    // Get items based on the where clause
-    const items = await prisma.vaultItem.findMany({
-      where: whereClause,
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    // For specific profile, check if user has access
+    if (profileId) {
+      const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
+      
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Access denied to this profile" }, { status: 403 });
+      }
 
-    // Add profileName to each item when in "all profiles" mode
-    const itemsWithProfileName = !profileId ? items.map((item) => ({
-      ...item,
-      profileName: item.profileId ? profileMap[item.profileId] || "Unknown" : undefined,
-    })) : items;
+      // Determine the profile owner's clerkId for filtering items
+      const profileOwnerClerkId = profile?.clerkId || profile?.user?.clerkId;
 
-    return NextResponse.json(itemsWithProfileName);
+      // If we can't determine the owner, return empty array
+      if (!profileOwnerClerkId) {
+        return NextResponse.json([]);
+      }
+
+      // Build where clause for items - only show items from the profile owner
+      const whereClause: { profileId: string; clerkId: string; folderId?: string } = {
+        profileId: profileId,
+        clerkId: profileOwnerClerkId,
+      };
+      
+      if (folderId) {
+        whereClause.folderId = folderId;
+      }
+
+      const items = await prisma.vaultItem.findMany({
+        where: whereClause,
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      return NextResponse.json(items);
+    }
+
+    // This should not be reached, but return empty array as fallback
+    return NextResponse.json([]);
   } catch (error) {
     console.error("Error fetching vault items:", error);
     return NextResponse.json(
@@ -114,6 +222,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "All fields are required" },
         { status: 400 }
+      );
+    }
+
+    // Check if user has access to this profile
+    const { hasAccess } = await hasAccessToProfile(userId, profileId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Access denied to this profile" },
+        { status: 403 }
       );
     }
 

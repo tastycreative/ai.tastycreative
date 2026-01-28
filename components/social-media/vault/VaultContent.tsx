@@ -60,6 +60,11 @@ import {
   Wand2,
   FileOutput,
   RotateCcw,
+  Link,
+  ExternalLink,
+  RefreshCw,
+  LogOut,
+  CheckCircle2,
 } from "lucide-react";
 
 import { PlatformExportModal } from "@/components/export";
@@ -77,6 +82,8 @@ interface VaultFolder {
   profileId: string;
   isDefault?: boolean;
   hasShares?: boolean;
+  isOwnedProfile?: boolean;
+  ownerName?: string | null;
 }
 
 interface SharedVaultFolder {
@@ -177,6 +184,30 @@ interface ContentCreator {
   firstName: string | null;
   lastName: string | null;
   email: string | null;
+}
+
+// Google Drive interfaces
+interface GoogleDriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size?: string;
+  modifiedTime?: string;
+  webViewLink?: string;
+  webContentLink?: string;
+  thumbnailLink?: string;
+}
+
+interface GoogleDriveFolder {
+  id: string;
+  name: string;
+  mimeType: string;
+  shared?: boolean;
+}
+
+interface GoogleDriveBreadcrumb {
+  id: string | null;
+  name: string;
 }
 
 // Memoized Grid Item Component for performance
@@ -582,6 +613,20 @@ export function VaultContent() {
   const [showExportModal, setShowExportModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Import from Google Drive state
+  const [showGoogleDriveModal, setShowGoogleDriveModal] = useState(false);
+  const [googleDriveAccessToken, setGoogleDriveAccessToken] = useState<string | null>(null);
+  const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
+  const [googleDriveFolders, setGoogleDriveFolders] = useState<GoogleDriveFolder[]>([]);
+  const [googleDriveBreadcrumbs, setGoogleDriveBreadcrumbs] = useState<GoogleDriveBreadcrumb[]>([{ id: null, name: 'My Drive' }]);
+  const [currentGoogleDriveFolderId, setCurrentGoogleDriveFolderId] = useState<string | null>(null);
+  const [selectedGoogleDriveFiles, setSelectedGoogleDriveFiles] = useState<Set<string>>(new Set());
+  const [loadingGoogleDriveFiles, setLoadingGoogleDriveFiles] = useState(false);
+  const [importingFromGoogleDrive, setImportingFromGoogleDrive] = useState(false);
+  const [googleDriveImportSuccess, setGoogleDriveImportSuccess] = useState<{ itemCount: number } | null>(null);
+  const [googleDriveError, setGoogleDriveError] = useState<string | null>(null);
+  const [googleDriveLinkInput, setGoogleDriveLinkInput] = useState("");
+
   // Debounce search for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
@@ -891,7 +936,8 @@ export function VaultContent() {
 
   const loadAllFolders = async () => {
     try {
-      const response = await fetch('/api/vault/folders');
+      // Pass profileId=all to get folders from all profiles including shared organization profiles
+      const response = await fetch('/api/vault/folders?profileId=all');
       if (!response.ok) throw new Error("Failed to load all folders");
 
       const data = await response.json();
@@ -933,10 +979,10 @@ export function VaultContent() {
   const loadItems = async () => {
     // When viewing all profiles, we need either a selected folder or just load all items
     if (selectedProfileId === 'all') {
-      // Load all items across all profiles
+      // Load all items across all profiles (including shared org profiles)
       setLoadingItems(true);
       try {
-        const response = await fetch('/api/vault/items');
+        const response = await fetch('/api/vault/items?profileId=all');
         if (!response.ok) throw new Error("Failed to load items");
 
         const data = await response.json();
@@ -1016,6 +1062,238 @@ export function VaultContent() {
       setLoadingSharedFolders(false);
     }
   };
+
+  // ==================== Google Drive Functions ====================
+  
+  // Check for Google Drive access token in URL (after OAuth callback) or localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const accessToken = urlParams.get('access_token');
+      if (accessToken) {
+        setGoogleDriveAccessToken(accessToken);
+        localStorage.setItem('googleDriveAccessToken', accessToken);
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      } else {
+        const savedToken = localStorage.getItem('googleDriveAccessToken');
+        if (savedToken) {
+          setGoogleDriveAccessToken(savedToken);
+        }
+      }
+    }
+  }, []);
+
+  // Connect to Google Drive
+  const connectToGoogleDrive = async () => {
+    try {
+      const currentPath = window.location.pathname;
+      const response = await fetch(`/api/auth/google?redirect=${encodeURIComponent(currentPath)}`);
+      const data = await response.json();
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (error) {
+      console.error("Error connecting to Google Drive:", error);
+      setGoogleDriveError("Failed to connect to Google Drive");
+    }
+  };
+
+  // Fetch Google Drive contents (folders and files) for current folder
+  const fetchGoogleDriveContents = async (folderId: string | null = null) => {
+    if (!googleDriveAccessToken) return;
+
+    try {
+      setLoadingGoogleDriveFiles(true);
+      setGoogleDriveError(null);
+      
+      const params = new URLSearchParams({
+        accessToken: googleDriveAccessToken,
+      });
+      if (folderId) {
+        params.append('folderId', folderId);
+      }
+      
+      const response = await fetch(`/api/google-drive/browse?${params}`);
+      const data = await response.json();
+
+      if (data.authError) {
+        setGoogleDriveAccessToken(null);
+        localStorage.removeItem('googleDriveAccessToken');
+        setGoogleDriveError("Session expired. Please reconnect to Google Drive.");
+        return;
+      }
+
+      if (data.error) {
+        if (data.permissionError || data.error.includes('access') || data.error.includes('permission') || data.error.includes('not found')) {
+          setGoogleDriveError("Unable to access this folder. You may not have permission or the link may be invalid.");
+        } else {
+          setGoogleDriveError(data.error);
+        }
+        return;
+      }
+
+      const folders = data.folders || [];
+      const mediaFiles = data.mediaFiles || [];
+      
+      setGoogleDriveFolders(folders);
+      setGoogleDriveFiles(mediaFiles);
+    } catch (error) {
+      console.error("Error fetching Google Drive contents:", error);
+      setGoogleDriveError("Failed to fetch contents from Google Drive");
+    } finally {
+      setLoadingGoogleDriveFiles(false);
+    }
+  };
+
+  // Navigate into a Google Drive folder
+  const navigateToGoogleDriveFolder = (folder: GoogleDriveFolder) => {
+    setCurrentGoogleDriveFolderId(folder.id);
+    setGoogleDriveBreadcrumbs(prev => [...prev, { id: folder.id, name: folder.name }]);
+    setSelectedGoogleDriveFiles(new Set());
+    fetchGoogleDriveContents(folder.id);
+  };
+
+  // Navigate to a specific breadcrumb
+  const navigateToBreadcrumb = (index: number) => {
+    const breadcrumb = googleDriveBreadcrumbs[index];
+    setCurrentGoogleDriveFolderId(breadcrumb.id);
+    setGoogleDriveBreadcrumbs(prev => prev.slice(0, index + 1));
+    setSelectedGoogleDriveFiles(new Set());
+    fetchGoogleDriveContents(breadcrumb.id);
+  };
+
+  // Extract folder ID from Google Drive link
+  const extractFolderIdFromLink = (link: string): string | null => {
+    const patterns = [
+      /\/folders\/([a-zA-Z0-9_-]+)/,
+      /\/drive\/.*folders\/([a-zA-Z0-9_-]+)/,
+      /id=([a-zA-Z0-9_-]+)/,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = link.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    return null;
+  };
+
+  // Browse a Google Drive folder from a link
+  const browseGoogleDriveLink = async () => {
+    if (!googleDriveAccessToken || !googleDriveLinkInput.trim()) return;
+    
+    const folderId = extractFolderIdFromLink(googleDriveLinkInput.trim());
+    if (!folderId) {
+      setGoogleDriveError("Invalid Google Drive link. Please paste a valid folder link.");
+      return;
+    }
+
+    try {
+      setLoadingGoogleDriveFiles(true);
+      setGoogleDriveError(null);
+      setGoogleDriveBreadcrumbs([{ id: folderId, name: 'Linked Folder' }]);
+      setCurrentGoogleDriveFolderId(folderId);
+      
+      await fetchGoogleDriveContents(folderId);
+    } catch (error) {
+      console.error("Error browsing Google Drive link:", error);
+      setGoogleDriveError("Failed to access the linked folder. Make sure you have permission.");
+    }
+  };
+
+  // Open Google Drive import modal
+  const openGoogleDriveModal = () => {
+    if (!selectedFolderId || !selectedProfileId || selectedProfileId === 'all') return;
+    setShowGoogleDriveModal(true);
+    setGoogleDriveImportSuccess(null);
+    setSelectedGoogleDriveFiles(new Set());
+    setGoogleDriveError(null);
+    setGoogleDriveLinkInput("");
+    setGoogleDriveBreadcrumbs([{ id: null, name: 'From Link' }]);
+    setCurrentGoogleDriveFolderId(null);
+    setGoogleDriveFolders([]);
+    setGoogleDriveFiles([]);
+  };
+
+  // Toggle Google Drive file selection
+  const toggleGoogleDriveFileSelection = (fileId: string) => {
+    setSelectedGoogleDriveFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId);
+      } else {
+        newSet.add(fileId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all Google Drive files
+  const selectAllGoogleDriveFiles = () => {
+    if (selectedGoogleDriveFiles.size === googleDriveFiles.length) {
+      setSelectedGoogleDriveFiles(new Set());
+    } else {
+      setSelectedGoogleDriveFiles(new Set(googleDriveFiles.map(file => file.id)));
+    }
+  };
+
+  // Import from Google Drive
+  const importFromGoogleDrive = async () => {
+    if (!selectedFolderId || !selectedProfileId || selectedGoogleDriveFiles.size === 0 || !googleDriveAccessToken) return;
+
+    try {
+      setImportingFromGoogleDrive(true);
+      setGoogleDriveError(null);
+      const response = await fetch("/api/vault/import-from-google-drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folderId: selectedFolderId,
+          profileId: selectedProfileId,
+          fileIds: Array.from(selectedGoogleDriveFiles),
+          accessToken: googleDriveAccessToken,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.authError) {
+        setGoogleDriveAccessToken(null);
+        localStorage.removeItem('googleDriveAccessToken');
+        setGoogleDriveError("Session expired. Please reconnect to Google Drive.");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to import");
+      }
+
+      // Reload vault items
+      loadItems();
+
+      setGoogleDriveImportSuccess({ itemCount: data.itemCount });
+      showToast(`Imported ${data.itemCount} file(s) from Google Drive`, "success");
+
+      // Reset and close after success
+      setTimeout(() => {
+        setShowGoogleDriveModal(false);
+        setGoogleDriveImportSuccess(null);
+        setSelectedGoogleDriveFiles(new Set());
+        setGoogleDriveFiles([]);
+      }, 2000);
+    } catch (error) {
+      console.error("Error importing from Google Drive:", error);
+      setGoogleDriveError(
+        error instanceof Error ? error.message : "Failed to import from Google Drive"
+      );
+    } finally {
+      setImportingFromGoogleDrive(false);
+    }
+  };
+
+  // ==================== End Google Drive Functions ====================
 
   const loadAvailableUsers = async () => {
     try {
@@ -2578,59 +2856,93 @@ export function VaultContent() {
                 <div className="space-y-1">
                   {/* Group folders by profile when viewing all profiles */}
                   {isAllProfiles ? (
-                    // Group folders by profile
-                    profiles.map(profile => {
-                      const profileFolders = visibleFolders.filter(f => f.profileId === profile.id);
-                      if (profileFolders.length === 0) return null;
+                    // Group folders by profile - owned profiles first, then shared
+                    (() => {
+                      // Separate owned and shared profiles based on folder ownership info
+                      const ownedProfiles: typeof profiles = [];
+                      const sharedProfiles: typeof profiles = [];
                       
-                      return (
-                        <div key={profile.id} className="mb-3">
-                          <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500 border-b border-white/5 mb-1">
-                            <div className="w-5 h-5 bg-gradient-to-br from-violet-500/50 to-fuchsia-500/50 rounded flex items-center justify-center">
-                              <span className="text-[10px] font-medium text-white">{profile.name?.charAt(0) || '?'}</span>
-                            </div>
-                            <span className="truncate font-medium">{profile.name}</span>
-                            {profile.instagramUsername && (
-                              <span className="text-gray-600">@{profile.instagramUsername}</span>
-                            )}
-                          </div>
-                          <div className="space-y-1 pl-2">
-                            {profileFolders.map((folder) => {
-                              const isActive = folder.id === selectedFolderId && !selectedSharedFolder && adminViewMode === 'personal';
-                              const itemCount = folder.isDefault 
-                                ? vaultItems.filter((item) => item.profileId === folder.profileId).length 
-                                : vaultItems.filter((item) => item.folderId === folder.id).length;
-                              return (
-                                <div key={folder.id} className="group">
-                                  {editingFolderId === folder.id ? (
-                                    <div className="flex items-center gap-2 px-2">
-                                      <input value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" />
-                                      <button onClick={handleUpdateFolder} className="p-1.5 text-emerald-400"><Check className="w-4 h-4" /></button>
-                                      <button onClick={() => { setEditingFolderId(null); setEditingFolderName(''); }} className="p-1.5 text-gray-500"><X className="w-4 h-4" /></button>
-                                    </div>
-                                  ) : (
-                                    <div onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolder(null); setSharedFolderItems([]); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'}`}>
-                                      {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
-                                      <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
-                                      <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>{itemCount}</span>
-                                      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
-                                        <button onClick={(e) => { e.stopPropagation(); handleOpenShareModal(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Share"><Share2 className="w-3.5 h-3.5 text-gray-500" /></button>
-                                        {!folder.isDefault && (
-                                          <>
-                                            <button onClick={(e) => { e.stopPropagation(); startEditFolder(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Rename"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
-                                            <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="p-1 hover:bg-white/10 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
-                                          </>
-                                        )}
-                                      </div>
-                                    </div>
+                      for (const profile of profiles) {
+                        const profileFolders = visibleFolders.filter(f => f.profileId === profile.id);
+                        if (profileFolders.length === 0) continue;
+                        
+                        // Check if any folder for this profile is owned by current user
+                        const isOwned = profileFolders.some(f => f.isOwnedProfile === true);
+                        if (isOwned) {
+                          ownedProfiles.push(profile);
+                        } else {
+                          sharedProfiles.push(profile);
+                        }
+                      }
+                      
+                      const sortedProfiles = [...ownedProfiles, ...sharedProfiles];
+                      
+                      return sortedProfiles.map(profile => {
+                        const profileFolders = visibleFolders.filter(f => f.profileId === profile.id);
+                        if (profileFolders.length === 0) return null;
+                        
+                        // Determine if this is an owned or shared profile
+                        const isOwned = profileFolders.some(f => f.isOwnedProfile === true);
+                        const ownerName = !isOwned ? profileFolders[0]?.ownerName : null;
+                        
+                        return (
+                          <div key={profile.id} className="mb-3">
+                            <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-500 border-b border-white/5 mb-1">
+                              <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 ${isOwned ? 'bg-gradient-to-br from-violet-500/50 to-fuchsia-500/50' : 'bg-gradient-to-br from-amber-500/50 to-orange-500/50'}`}>
+                                <span className="text-[10px] font-medium text-white">{profile.name?.charAt(0) || '?'}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-medium truncate">{profile.name}</span>
+                                  {profile.instagramUsername && (
+                                    <span className="text-gray-600 flex-shrink-0">@{profile.instagramUsername}</span>
                                   )}
                                 </div>
-                              );
-                            })}
+                                {!isOwned && ownerName && (
+                                  <div className="text-[10px] text-amber-400 mt-0.5">
+                                    Shared by {ownerName}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-1 pl-2">
+                              {profileFolders.map((folder) => {
+                                const isActive = folder.id === selectedFolderId && !selectedSharedFolder && adminViewMode === 'personal';
+                                const itemCount = folder.isDefault 
+                                  ? vaultItems.filter((item) => item.profileId === folder.profileId).length 
+                                  : vaultItems.filter((item) => item.folderId === folder.id).length;
+                                return (
+                                  <div key={folder.id} className="group">
+                                    {editingFolderId === folder.id ? (
+                                      <div className="flex items-center gap-2 px-2">
+                                        <input value={editingFolderName} onChange={(e) => setEditingFolderName(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleUpdateFolder()} autoFocus className="flex-1 px-3 py-2 text-sm bg-white/5 border border-white/10 rounded-xl text-gray-200 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" />
+                                        <button onClick={handleUpdateFolder} className="p-1.5 text-emerald-400"><Check className="w-4 h-4" /></button>
+                                        <button onClick={() => { setEditingFolderId(null); setEditingFolderName(''); }} className="p-1.5 text-gray-500"><X className="w-4 h-4" /></button>
+                                      </div>
+                                    ) : (
+                                      <div onClick={() => { setSelectedFolderId(folder.id); setSelectedSharedFolder(null); setSharedFolderItems([]); setSidebarOpen(false); setAdminViewMode('personal'); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${isActive ? 'bg-gradient-to-r from-violet-500/20 to-fuchsia-500/20 text-violet-300 border border-violet-500/30' : 'hover:bg-white/5 text-gray-400 border border-transparent'}`}>
+                                        {isActive ? <FolderOpen className="w-4 h-4" /> : <FolderClosed className="w-4 h-4" />}
+                                        <span className="flex-1 text-sm font-medium text-left truncate">{folder.name}</span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? 'bg-violet-500/30 text-violet-300' : 'bg-white/10 text-gray-500'}`}>{itemCount}</span>
+                                        <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity">
+                                          <button onClick={(e) => { e.stopPropagation(); handleOpenShareModal(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Share"><Share2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                                          {!folder.isDefault && (
+                                            <>
+                                              <button onClick={(e) => { e.stopPropagation(); startEditFolder(folder); }} className="p-1 hover:bg-white/10 rounded-lg" title="Rename"><Edit2 className="w-3.5 h-3.5 text-gray-500" /></button>
+                                              <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="p-1 hover:bg-white/10 rounded-lg" title="Delete"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+                                            </>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      });
+                    })()
                   ) : (
                     // Single profile view - original behavior
                     visibleFolders.map((folder) => {
@@ -2903,6 +3215,11 @@ export function VaultContent() {
                 {!isViewingShared && !isViewingCreators && (
                   <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25" title={selectedProfileId === 'all' ? 'Select a specific profile to upload' : undefined}>
                     <Upload className="w-4 h-4" /> Upload
+                  </button>
+                )}
+                {!isViewingShared && !isViewingCreators && (
+                  <button onClick={openGoogleDriveModal} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-blue-500/25" title={selectedProfileId === 'all' ? 'Select a specific profile to import' : 'Import from Google Drive'}>
+                    <HardDrive className="w-4 h-4" /> Google Drive
                   </button>
                 )}
                 {/* Desktop Export button */}
@@ -3181,6 +3498,359 @@ export function VaultContent() {
           )}
         </div>
       </div>
+
+      {/* Import from Google Drive Modal */}
+      {showGoogleDriveModal && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            if (!importingFromGoogleDrive) {
+              setShowGoogleDriveModal(false);
+              setSelectedGoogleDriveFiles(new Set());
+              setGoogleDriveFiles([]);
+              setGoogleDriveImportSuccess(null);
+              setGoogleDriveError(null);
+            }
+          }}
+        >
+          <div
+            className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-6xl max-h-[90vh] shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-gray-700 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl">
+                  <HardDrive className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-white">
+                    Import from Google Drive
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    Add files to your vault
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 flex-1 overflow-y-auto">
+              {googleDriveImportSuccess ? (
+                <div className="text-center py-6">
+                  <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 className="w-8 h-8 text-green-400" />
+                  </div>
+                  <h4 className="text-xl font-semibold text-white mb-2">
+                    Import Successful!
+                  </h4>
+                  <p className="text-gray-400">
+                    {googleDriveImportSuccess.itemCount} file
+                    {googleDriveImportSuccess.itemCount !== 1 ? "s" : ""} imported to your vault
+                  </p>
+                </div>
+              ) : !googleDriveAccessToken ? (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <HardDrive className="w-10 h-10 text-blue-400" />
+                  </div>
+                  <h4 className="text-xl font-semibold text-white mb-2">
+                    Connect to Google Drive
+                  </h4>
+                  <p className="text-gray-400 mb-6 max-w-md mx-auto">
+                    To import files from Google Drive, you need to connect your account first.
+                  </p>
+                  <button
+                    onClick={connectToGoogleDrive}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 transition-all duration-200 flex items-center gap-2 mx-auto"
+                  >
+                    <HardDrive className="w-5 h-5" />
+                    Connect Google Drive
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-5">
+                  {/* Link Input Section */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2 text-gray-300">
+                      <Link className="w-5 h-5 text-blue-400" />
+                      <span className="font-medium">Paste a Google Drive folder link to browse</span>
+                    </div>
+                    <div className="flex gap-2 p-4 bg-gray-800/30 rounded-xl border border-gray-700/50">
+                      <div className="flex-1 relative">
+                        <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                        <input
+                          type="text"
+                          placeholder="Paste Google Drive folder link here..."
+                          value={googleDriveLinkInput}
+                          onChange={(e) => setGoogleDriveLinkInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && googleDriveLinkInput.trim()) {
+                              browseGoogleDriveLink();
+                            }
+                          }}
+                          className="w-full pl-10 pr-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all text-sm"
+                        />
+                      </div>
+                      <button
+                        onClick={browseGoogleDriveLink}
+                        disabled={loadingGoogleDriveFiles || !googleDriveLinkInput.trim()}
+                        className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Browse
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Breadcrumb Navigation */}
+                  <div className="flex items-center gap-1 text-sm bg-gray-800/30 rounded-xl px-4 py-2.5 overflow-x-auto">
+                    {googleDriveBreadcrumbs.map((crumb, index) => (
+                      <div key={index} className="flex items-center">
+                        {index > 0 && <ChevronRight className="w-4 h-4 text-gray-500 mx-1" />}
+                        <button
+                          onClick={() => navigateToBreadcrumb(index)}
+                          className={`px-2 py-1 rounded-lg hover:bg-gray-700/50 transition-colors truncate max-w-[180px] ${
+                            index === googleDriveBreadcrumbs.length - 1
+                              ? "text-blue-400 font-medium bg-blue-500/10"
+                              : "text-gray-400 hover:text-gray-300"
+                          }`}
+                        >
+                          {crumb.name}
+                        </button>
+                      </div>
+                    ))}
+                    <div className="ml-auto flex items-center gap-2">
+                      <button
+                        onClick={() => fetchGoogleDriveContents(currentGoogleDriveFolderId)}
+                        disabled={loadingGoogleDriveFiles}
+                        className="p-2 bg-gray-700/50 hover:bg-gray-600/50 text-gray-400 hover:text-gray-300 rounded-lg transition-all"
+                        title="Refresh"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${loadingGoogleDriveFiles ? 'animate-spin' : ''}`} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setGoogleDriveAccessToken(null);
+                          localStorage.removeItem('googleDriveAccessToken');
+                          setGoogleDriveFiles([]);
+                          setGoogleDriveFolders([]);
+                          setGoogleDriveBreadcrumbs([{ id: null, name: 'My Drive' }]);
+                          setGoogleDriveLinkInput('');
+                          setGoogleDriveError(null);
+                        }}
+                        className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all"
+                        title="Sign out of Google Drive"
+                      >
+                        <LogOut className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {googleDriveError && (
+                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">{googleDriveError.includes("permission") || googleDriveError.includes("access") ? "Access Denied" : "Error"}</p>
+                        <p className="text-red-400/80 mt-1">{googleDriveError}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Content Area */}
+                  {loadingGoogleDriveFiles ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                    </div>
+                  ) : googleDriveFolders.length === 0 && googleDriveFiles.length === 0 && !googleDriveError ? (
+                    <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl border border-gray-700/30">
+                      <Folder className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-base font-medium">This folder is empty</p>
+                      <p className="text-sm mt-1 text-gray-600">
+                        {googleDriveBreadcrumbs.length > 1 
+                          ? "Go back or paste a different folder link"
+                          : "Paste a folder link above to browse its contents"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-5">
+                      {/* Folders */}
+                      {googleDriveFolders.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-3">
+                            📁 Folders ({googleDriveFolders.length})
+                          </label>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[200px] overflow-y-auto pr-2">
+                            {googleDriveFolders.map((folder) => (
+                              <button
+                                key={folder.id}
+                                onClick={() => navigateToGoogleDriveFolder(folder)}
+                                className="flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-700/50 rounded-xl text-left transition-all border border-gray-700/50 hover:border-blue-500/30 group"
+                              >
+                                <div className="p-2 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20 transition-colors">
+                                  <Folder className="w-5 h-5 text-yellow-400" />
+                                </div>
+                                <span className="text-sm text-gray-300 truncate flex-1">{folder.name}</span>
+                                {folder.shared && (
+                                  <Users className="w-4 h-4 text-gray-500 shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Files */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-sm font-medium text-gray-300">
+                            🖼️ Media Files ({googleDriveFiles.length})
+                            {selectedGoogleDriveFiles.size > 0 && (
+                              <span className="ml-2 px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full text-xs">
+                                {selectedGoogleDriveFiles.size} selected
+                              </span>
+                            )}
+                          </label>
+                          {googleDriveFiles.length > 0 && (
+                            <button
+                              onClick={selectAllGoogleDriveFiles}
+                              className="text-sm text-blue-400 hover:text-blue-300 px-3 py-1 rounded-lg hover:bg-blue-500/10 transition-colors"
+                            >
+                              {selectedGoogleDriveFiles.size === googleDriveFiles.length
+                                ? "Deselect All"
+                                : "Select All"}
+                            </button>
+                          )}
+                        </div>
+
+                        {googleDriveFiles.length === 0 ? (
+                          <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl">
+                            <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                            <p className="text-base">No media files found</p>
+                            <p className="text-sm mt-1 text-gray-600">
+                              Browse into folders to find images, videos, and audio files
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 max-h-[320px] overflow-y-auto pr-2">
+                            {googleDriveFiles.map((file) => (
+                              <div
+                                key={file.id}
+                                onClick={() => toggleGoogleDriveFileSelection(file.id)}
+                                className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${
+                                  selectedGoogleDriveFiles.has(file.id)
+                                    ? "border-blue-500 ring-2 ring-blue-500/30"
+                                    : "border-transparent hover:border-gray-600"
+                                }`}
+                              >
+                                {file.mimeType?.startsWith("video/") ? (
+                                  file.thumbnailLink ? (
+                                    <img
+                                      src={file.thumbnailLink}
+                                      alt={file.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex flex-col items-center justify-center p-2">
+                                      <VideoIcon className="w-8 h-8 text-gray-400 mb-1" />
+                                      <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                        {file.name}
+                                      </p>
+                                    </div>
+                                  )
+                                ) : file.mimeType?.startsWith("audio/") ? (
+                                  <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex flex-col items-center justify-center p-2">
+                                    <Music4 className="w-8 h-8 text-violet-400 mb-1" />
+                                    <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                      {file.name}
+                                    </p>
+                                  </div>
+                                ) : file.thumbnailLink ? (
+                                  <img
+                                    src={file.thumbnailLink}
+                                    alt={file.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex flex-col items-center justify-center p-2">
+                                    <ImageIcon className="w-8 h-8 text-gray-400 mb-1" />
+                                    <p className="text-xs text-gray-400 text-center truncate w-full px-1">
+                                      {file.name}
+                                    </p>
+                                  </div>
+                                )}
+                                {selectedGoogleDriveFiles.has(file.id) && (
+                                  <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                                    <CheckCircle2 className="w-6 h-6 text-blue-400" />
+                                  </div>
+                                )}
+                                {file.mimeType?.startsWith("video/") && (
+                                  <div className="absolute bottom-1 right-1 bg-black/70 rounded px-1">
+                                    <VideoIcon className="w-3 h-3 text-white" />
+                                  </div>
+                                )}
+                                {file.mimeType?.startsWith("audio/") && (
+                                  <div className="absolute bottom-1 right-1 bg-black/70 rounded px-1">
+                                    <Music4 className="w-3 h-3 text-white" />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {!googleDriveImportSuccess && googleDriveAccessToken && (
+              <div className="p-6 border-t border-gray-700 flex gap-3 shrink-0">
+                <button
+                  onClick={() => {
+                    setShowGoogleDriveModal(false);
+                    setSelectedGoogleDriveFiles(new Set());
+                    setGoogleDriveFiles([]);
+                    setGoogleDriveError(null);
+                  }}
+                  disabled={importingFromGoogleDrive}
+                  className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={importFromGoogleDrive}
+                  disabled={importingFromGoogleDrive || selectedGoogleDriveFiles.size === 0}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {importingFromGoogleDrive ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <HardDrive className="w-4 h-4" />
+                      Import {selectedGoogleDriveFiles.size} File{selectedGoogleDriveFiles.size !== 1 ? "s" : ""}
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {!googleDriveAccessToken && (
+              <div className="p-6 border-t border-gray-700 shrink-0">
+                <button
+                  onClick={() => setShowGoogleDriveModal(false)}
+                  className="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Platform Export Modal */}
       <PlatformExportModal

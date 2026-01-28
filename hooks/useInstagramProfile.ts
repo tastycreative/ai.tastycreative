@@ -9,6 +9,7 @@ export interface Profile {
   instagramUsername?: string;
   profileImageUrl?: string;
   isDefault: boolean;
+  clerkId?: string | null;
   organizationId?: string | null;
   organization?: {
     id: string;
@@ -16,8 +17,14 @@ export interface Profile {
     logoUrl?: string | null;
   } | null;
   user?: {
+    id?: string;
+    clerkId?: string | null;
     name?: string | null;
-  };
+    firstName?: string | null;
+    lastName?: string | null;
+    imageUrl?: string | null;
+    email?: string | null;
+  } | null;
 }
 
 const STORAGE_KEY = 'selectedInstagramProfileId';
