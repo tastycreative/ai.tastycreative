@@ -80,7 +80,7 @@ export async function GET(
     const imageData = await prisma.generatedImage.aggregate({
       where: {
         user: {
-          teamMembers: {
+          teamMemberships: {
             some: {
               organizationId: organization.id,
             },
@@ -95,7 +95,7 @@ export async function GET(
     const videoData = await prisma.generatedVideo.aggregate({
       where: {
         user: {
-          teamMembers: {
+          teamMemberships: {
             some: {
               organizationId: organization.id,
             },
