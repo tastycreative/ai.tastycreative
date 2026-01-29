@@ -37,7 +37,7 @@ export function useIsAdmin() {
           if (response.ok) {
             const data = await response.json();
             // Only ADMIN role should have admin access, not MANAGER
-            hasDatabaseAdminRole = data.role === 'ADMIN';
+            hasDatabaseAdminRole = data.role === 'ADMIN' || data.role === 'SUPER_ADMIN';
           }
         } catch (error) {
           console.log('Could not fetch database role, using fallback methods');

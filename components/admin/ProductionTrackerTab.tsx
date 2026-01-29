@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { Calendar, User, Instagram, Cpu, CheckCircle, XCircle, Clock, Image, Video, FileText, Plus, X } from 'lucide-react';
 
@@ -94,6 +95,8 @@ function GlobalModal({ isOpen, onClose, children }: { isOpen: boolean; onClose: 
 }
 
 export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProps) {
+  const params = useParams();
+  const tenant = params.tenant as string;
   const [productionData, setProductionData] = useState<ProductionEntry[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -112,19 +115,23 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
 
   // Load production data from database on component mount
   useEffect(() => {
-    fetchProductionEntries();
-  }, []);
+    if (tenant) {
+      fetchProductionEntries();
+    }
+  }, [tenant]);
 
   // Fetch content creators when component mounts
   useEffect(() => {
-    fetchContentCreators();
-  }, []);
+    if (tenant) {
+      fetchContentCreators();
+    }
+  }, [tenant]);
 
   const fetchProductionEntries = async () => {
     try {
       setLoading(true);
       console.log('Fetching production entries...');
-      const response = await fetch('/api/admin/production-entries', {
+      const response = await fetch(`/api/tenant/${tenant}/production-entries`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -150,7 +157,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
   const fetchContentCreators = async () => {
     try {
       setContentCreatorsLoading(true);
-      const response = await fetch('/api/admin/content-creators', {
+      const response = await fetch(`/api/tenant/${tenant}/content-creators`, {
         method: 'GET',
         credentials: 'include', // Include cookies for authentication
         headers: {
@@ -234,7 +241,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
     try {
       setLoading(true);
       
-      const response = await fetch('/api/admin/production-entries', {
+      const response = await fetch(`/api/tenant/${tenant}/production-entries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -282,7 +289,7 @@ export default function ProductionTrackerTab({ stats }: ProductionTrackerTabProp
       try {
         // Delete all entries from database
         for (const entry of productionData) {
-          await fetch(`/api/admin/production-entries/${entry.id}`, {
+          await fetch(`/api/tenant/${tenant}/production-entries/${entry.id}`, {
             method: 'DELETE',
           });
         }

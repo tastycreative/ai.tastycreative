@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { Plus, Edit, Trash2, X, Upload, Image as ImageIcon } from 'lucide-react';
 import Image from 'next/image';
 import { createPortal } from 'react-dom';
@@ -19,6 +20,9 @@ interface Model {
 }
 
 export default function AIMarketplaceTab() {
+  const params = useParams();
+  const tenant = params.tenant as string;
+
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,13 +46,15 @@ export default function AIMarketplaceTab() {
 
   // Fetch models on mount
   useEffect(() => {
-    fetchModels();
-  }, []);
+    if (tenant) {
+      fetchModels();
+    }
+  }, [tenant]);
 
   const fetchModels = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/marketplace');
+      const response = await fetch(`/api/tenant/${tenant}/marketplace`);
       if (response.ok) {
         const data = await response.json();
         setModels(data);
@@ -131,7 +137,7 @@ export default function AIMarketplaceTab() {
 
     try {
       if (modalMode === 'add') {
-        const response = await fetch('/api/admin/marketplace', {
+        const response = await fetch(`/api/tenant/${tenant}/marketplace`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(modelData),
@@ -141,7 +147,7 @@ export default function AIMarketplaceTab() {
           await fetchModels();
         }
       } else if (modalMode === 'edit' && selectedModel) {
-        const response = await fetch('/api/admin/marketplace', {
+        const response = await fetch(`/api/tenant/${tenant}/marketplace`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: selectedModel.id, ...modelData }),
@@ -161,7 +167,7 @@ export default function AIMarketplaceTab() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this model?')) {
       try {
-        const response = await fetch(`/api/admin/marketplace?id=${id}`, {
+        const response = await fetch(`/api/tenant/${tenant}/marketplace?id=${id}`, {
           method: 'DELETE',
         });
         

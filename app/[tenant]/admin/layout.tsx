@@ -52,6 +52,7 @@ export default function AdminLayout({
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [expandedSections, setExpandedSections] = useState<string[]>(["AI Voice Note Tracker"]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const pathname = usePathname();
   const params = useParams();
   const { signOut } = useClerk();
@@ -60,8 +61,24 @@ export default function AdminLayout({
   // Get the slug from params
   const tenant = params.tenant as string;
 
-  // Admin navigation
-  const navigation: (NavItem | NavSection)[] = [
+  // Check if user is super admin
+  useEffect(() => {
+    const checkSuperAdmin = async () => {
+      try {
+        const response = await fetch('/api/auth/check-role');
+        if (response.ok) {
+          const data = await response.json();
+          setIsSuperAdmin(data.isSuperAdmin || false);
+        }
+      } catch (error) {
+        console.error('Error checking super admin status:', error);
+      }
+    };
+    checkSuperAdmin();
+  }, []);
+
+  // Build navigation based on user role
+  const baseNavigation: (NavItem | NavSection)[] = [
     {
       name: "Overview",
       href: `/${tenant}/admin`,
@@ -72,6 +89,10 @@ export default function AdminLayout({
       href: `/${tenant}/admin/users`,
       icon: Users,
     },
+  ];
+
+  // Super admin only navigation items
+  const superAdminNavigation: (NavItem | NavSection)[] = isSuperAdmin ? [
     {
       name: "Organizations",
       href: `/${tenant}/admin/organizations`,
@@ -82,6 +103,10 @@ export default function AdminLayout({
       href: `/${tenant}/admin/plans`,
       icon: CreditCard,
     },
+  ] : [];
+
+  // Common navigation items
+  const commonNavigation: (NavItem | NavSection)[] = [
     {
       name: "Production Tracker",
       href: `/${tenant}/admin/production`,
@@ -144,6 +169,13 @@ export default function AdminLayout({
       href: `/${tenant}/admin/logs`,
       icon: FileText,
     },
+  ];
+
+  // Combine navigation based on user role
+  const navigation: (NavItem | NavSection)[] = [
+    ...baseNavigation,
+    ...superAdminNavigation,
+    ...commonNavigation,
   ];
 
   // Get user's first name or fallback

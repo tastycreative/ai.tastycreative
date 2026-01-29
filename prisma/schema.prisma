@@ -42,8 +42,8 @@ model User {
   instagramProfiles        InstagramProfile[]
   notifications            Notification[]
   productionEntries        ProductionEntry[]
-  referenceItems           reference_items[]
   referenceFolders         reference_folders[]
+  referenceItems           reference_items[]
   teamMemberships          TeamMember[]
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
@@ -465,7 +465,6 @@ model LoRAShare {
 model InstagramProfile {
   id                     String                @id @default(cuid())
   clerkId                String
-  organizationId         String?
   name                   String
   description            String?
   instagramUsername      String?
@@ -476,6 +475,7 @@ model InstagramProfile {
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
   profileImageUrl        String?
+  organizationId         String?
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -486,8 +486,8 @@ model InstagramProfile {
   sentFriendRequests     Friendship[]          @relation("SentFriendRequests")
   linkedLoRAs            InfluencerLoRA[]
   posts                  InstagramPost[]
-  organization           Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   user                   User                  @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  organization           Organization?         @relation(fields: [organizationId], references: [id])
 
   @@index([clerkId])
   @@index([clerkId, isDefault])
@@ -612,21 +612,24 @@ model FeedPostBookmark {
 }
 
 model MarketplaceModel {
-  id          String            @id @default(cuid())
-  name        String
-  price       Float
-  status      MarketplaceStatus @default(AVAILABLE)
-  imageUrl    String
-  category    String            @default("Premium")
-  gallery     String[]          @default([])
-  description String
-  included    String[]          @default([])
-  usedFor     String[]          @default([])
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id             String            @id @default(cuid())
+  name           String
+  price          Float
+  status         MarketplaceStatus @default(AVAILABLE)
+  imageUrl       String
+  category       String            @default("Premium")
+  gallery        String[]          @default([])
+  description    String
+  included       String[]          @default([])
+  usedFor        String[]          @default([])
+  organizationId String?
+  organization   Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([status])
   @@index([createdAt])
+  @@index([organizationId])
   @@map("marketplace_models")
 }
 
@@ -1048,6 +1051,7 @@ model Organization {
   customPermissions    CustomOrganizationPermission?
   instagramProfiles    InstagramProfile[]
   invites              OrganizationInvite[]
+  marketplaceModels    MarketplaceModel[]
   subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   members              TeamMember[]
   usageLogs            UsageLog[]
@@ -1235,12 +1239,12 @@ model reference_items {
   tags         String[]           @default([])
   usageCount   Int                @default(0)
   lastUsedAt   DateTime?
-  isFavorite   Boolean            @default(false)
-  folderId     String?
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
-  folder       reference_folders? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  folderId     String?
+  isFavorite   Boolean            @default(false)
   user         User               @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  folder       reference_folders? @relation(fields: [folderId], references: [id])
 
   @@index([clerkId])
   @@index([clerkId, folderId])
@@ -1262,10 +1266,10 @@ model reference_folders {
   parentId    String?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
-  items       reference_items[]
-  parent      reference_folders?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children    reference_folders[] @relation("FolderHierarchy")
   user        User                @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
+  parent      reference_folders?  @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children    reference_folders[] @relation("FolderHierarchy")
+  items       reference_items[]
 
   @@unique([clerkId, name, parentId])
   @@index([clerkId])
@@ -1321,14 +1325,14 @@ model of_model_details {
 
 model of_model_pricing_categories {
   id                     String                   @id @default(cuid())
-  creatorId              String?                  // Nullable for global categories
+  creatorId              String?
   name                   String
   slug                   String
   description            String?
   order                  Int                      @default(0)
-  isGlobal               Boolean                  @default(false) // True for global pricing that applies to all models
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime
+  isGlobal               Boolean                  @default(false)
   of_models              of_models?               @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   of_model_pricing_items of_model_pricing_items[]
 
@@ -1341,16 +1345,16 @@ model of_model_pricing_items {
   id                          String                      @id @default(cuid())
   categoryId                  String
   name                        String
-  price                       Float                       // Main price (for FIXED) or display price
-  priceType                   PricingItemType             @default(FIXED) // FIXED, RANGE, MINIMUM
-  priceMin                    Float?                      // For RANGE/MINIMUM types
-  priceMax                    Float?                      // For RANGE type
-  isFree                      Boolean                     @default(false) // Mark as free content
+  price                       Float
   description                 String?
   order                       Int                         @default(0)
   isActive                    Boolean                     @default(true)
   createdAt                   DateTime                    @default(now())
   updatedAt                   DateTime
+  isFree                      Boolean                     @default(false)
+  priceMax                    Float?
+  priceMin                    Float?
+  priceType                   PricingItemType             @default(FIXED)
   of_model_pricing_categories of_model_pricing_categories @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   pricing_history             pricing_history[]
 
@@ -1407,6 +1411,76 @@ model plan_features {
   @@index([planId])
 }
 
+model pricing_template {
+  id          String                  @id @default(cuid())
+  name        String
+  slug        String                  @unique
+  description String?
+  category    PricingTemplateCategory
+  pageType    PricingTemplatePageType @default(ALL_PAGES)
+  isDefault   Boolean                 @default(false)
+  isActive    Boolean                 @default(true)
+  createdBy   String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  items       pricing_template_item[]
+
+  @@index([category])
+  @@index([pageType])
+  @@index([isActive])
+}
+
+model pricing_template_item {
+  id          String           @id @default(cuid())
+  templateId  String
+  name        String
+  priceType   PricingItemType  @default(FIXED)
+  priceFixed  Float?
+  priceMin    Float?
+  priceMax    Float?
+  description String?
+  order       Int              @default(0)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  isFree      Boolean          @default(false)
+  template    pricing_template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId])
+  @@index([order])
+  @@index([isFree])
+}
+
+model pricing_history {
+  id            String                 @id @default(cuid())
+  pricingItemId String
+  changeType    PricingChangeType
+  oldName       String?
+  oldPriceType  PricingItemType?
+  oldPrice      Float?
+  oldPriceMin   Float?
+  oldPriceMax   Float?
+  oldIsFree     Boolean?
+  oldIsActive   Boolean?
+  newName       String?
+  newPriceType  PricingItemType?
+  newPrice      Float?
+  newPriceMin   Float?
+  newPriceMax   Float?
+  newIsFree     Boolean?
+  newIsActive   Boolean?
+  changedById   String?
+  changedByName String?
+  reason        String?
+  createdAt     DateTime               @default(now())
+  pricingItem   of_model_pricing_items @relation(fields: [pricingItemId], references: [id], onDelete: Cascade)
+
+  @@index([pricingItemId])
+  @@index([createdAt])
+  @@index([changeType])
+  @@index([changedById])
+}
+
 enum SyncStatus {
   PENDING
   SYNCED
@@ -1451,6 +1525,7 @@ enum UserRole {
   USER
   MANAGER
   ADMIN
+  SUPER_ADMIN
   CONTENT_CREATOR
 }
 
@@ -1644,87 +1719,6 @@ enum OfModelStatus {
   INACTIVE
   DROPPED
   PENDING
-}
-
-// Pricing Templates
-model pricing_template {
-  id          String   @id @default(cuid())
-  name        String                          // e.g., "GF Accurate", "Porn Scam"
-  slug        String   @unique
-  description String?
-  category    PricingTemplateCategory         // PORN_ACCURATE, PORN_SCAM, GF_ACCURATE, GF_SCAM, BUNDLE_BASED, CUSTOM
-  pageType    PricingTemplatePageType @default(ALL_PAGES)  // ALL_PAGES, FREE, PAID, VIP
-  isDefault   Boolean  @default(false)        // System default templates
-  isActive    Boolean  @default(true)
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  items       pricing_template_item[]
-
-  @@index([category])
-  @@index([pageType])
-  @@index([isActive])
-}
-
-model pricing_template_item {
-  id          String   @id @default(cuid())
-  templateId  String
-  name        String                          // e.g., "Dick Rating", "Custom Video"
-  priceType   PricingItemType @default(FIXED) // FIXED, RANGE, MINIMUM
-  priceFixed  Float?
-  priceMin    Float?
-  priceMax    Float?
-  isFree      Boolean  @default(false)        // Mark as free content
-  description String?
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  template    pricing_template @relation(fields: [templateId], references: [id], onDelete: Cascade)
-
-  @@index([templateId])
-  @@index([order])
-  @@index([isFree])
-}
-
-// Pricing History for audit trail
-model pricing_history {
-  id              String   @id @default(cuid())
-  pricingItemId   String
-  changeType      PricingChangeType           // CREATED, UPDATED, DELETED, ACTIVATED, DEACTIVATED
-
-  // Old values
-  oldName         String?
-  oldPriceType    PricingItemType?
-  oldPrice        Float?
-  oldPriceMin     Float?
-  oldPriceMax     Float?
-  oldIsFree       Boolean?
-  oldIsActive     Boolean?
-
-  // New values
-  newName         String?
-  newPriceType    PricingItemType?
-  newPrice        Float?
-  newPriceMin     Float?
-  newPriceMax     Float?
-  newIsFree       Boolean?
-  newIsActive     Boolean?
-
-  // Audit info
-  changedById     String?
-  changedByName   String?
-  reason          String?
-  createdAt       DateTime @default(now())
-
-  pricingItem     of_model_pricing_items @relation(fields: [pricingItemId], references: [id], onDelete: Cascade)
-
-  @@index([pricingItemId])
-  @@index([createdAt])
-  @@index([changeType])
-  @@index([changedById])
 }
 
 enum PricingChangeType {

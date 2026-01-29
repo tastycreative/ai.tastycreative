@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { Users, Settings, BarChart, Shield, Activity, ShoppingBag, TrendingUp, Clock, Database, Zap, Sparkles, Cpu, HardDrive, Cloud } from 'lucide-react';
 import UsersTab from './UsersTab';
 import ProductionTrackerTab from './ProductionTrackerTab';
@@ -26,6 +27,8 @@ interface AdminStats {
   storageUsed: string;
 }
 export default function AdminContent() {
+  const params = useParams();
+  const tenant = params.tenant as string;
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState<AdminStats>({
     totalUsers: 0,
@@ -36,12 +39,14 @@ export default function AdminContent() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAdminStats();
-  }, []);
+    if (tenant) {
+      fetchAdminStats();
+    }
+  }, [tenant]);
 
   const fetchAdminStats = async () => {
     try {
-      const response = await fetch('/api/admin/stats');
+      const response = await fetch(`/api/tenant/${tenant}/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data);

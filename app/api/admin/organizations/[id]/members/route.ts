@@ -1,34 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { currentUser } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
+import { requireSuperAdminAccess } from '@/lib/adminAuth';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
+    // Check super admin access
+    await requireSuperAdminAccess();
 
-    if (!userId) {
+    // Get current user for invitedBy field
+    const clerkUser = await currentUser();
+    if (!clerkUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get the user from the database
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-      select: { id: true, role: true },
+    const adminUser = await prisma.user.findUnique({
+      where: { clerkId: clerkUser.id },
+      select: { id: true }
     });
 
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    // Check if user is admin
-    if (user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Forbidden: Admin access required' },
-        { status: 403 }
-      );
+    if (!adminUser) {
+      return NextResponse.json({ error: 'Admin user not found' }, { status: 404 });
     }
 
     const { id: organizationId } = await params;
@@ -92,7 +87,7 @@ export async function POST(
         canInviteMembers: canInviteMembers ?? false,
         canManageBilling: canManageBilling ?? false,
         canManageMembers: canManageMembers ?? false,
-        invitedBy: user.id,
+        invitedBy: adminUser.id,
       },
       include: {
         user: {

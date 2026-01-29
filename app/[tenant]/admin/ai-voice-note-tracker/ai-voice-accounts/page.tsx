@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
 import { AIVoiceAccountsTable } from "@/components/admin/ai-voice-note-tracker/ai-voice-accounts/AIVoiceAccountsTable";
 import { AddVoiceModal } from "@/components/admin/ai-voice-note-tracker/ai-voice-accounts/AddVoiceModal";
 import { VoiceDetailsModal } from "@/components/admin/ai-voice-note-tracker/ai-voice-accounts/VoiceDetailsModal";
-import { 
-  Mic, 
-  Plus, 
-  RefreshCw, 
+import {
+  Mic,
+  Plus,
+  RefreshCw,
   Search,
-  Volume2 
+  Volume2
 } from "lucide-react";
 
 interface AIVoiceAccount {
@@ -35,6 +36,8 @@ interface AIVoiceAccount {
 }
 
 export default function AIVoiceAccountsPage() {
+  const params = useParams();
+  const tenant = params.tenant as string;
   const [voices, setVoices] = useState<AIVoiceAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,9 +46,10 @@ export default function AIVoiceAccountsPage() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const fetchVoices = useCallback(async () => {
+    if (!tenant) return;
     try {
       setLoading(true);
-      const response = await fetch("/api/admin/ai-voice-accounts");
+      const response = await fetch(`/api/tenant/${tenant}/ai-voice-accounts`);
       if (response.ok) {
         const data = await response.json();
         setVoices(data.voices || []);
@@ -55,7 +59,7 @@ export default function AIVoiceAccountsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tenant]);
 
   useEffect(() => {
     fetchVoices();
@@ -68,7 +72,7 @@ export default function AIVoiceAccountsPage() {
     customApiKey?: string;
   }) => {
     try {
-      const response = await fetch("/api/admin/ai-voice-accounts", {
+      const response = await fetch(`/api/tenant/${tenant}/ai-voice-accounts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(voiceData),
@@ -92,7 +96,7 @@ export default function AIVoiceAccountsPage() {
     if (!confirm("Are you sure you want to delete this voice account?")) return;
 
     try {
-      const response = await fetch(`/api/admin/ai-voice-accounts?id=${id}`, {
+      const response = await fetch(`/api/tenant/${tenant}/ai-voice-accounts?id=${id}`, {
         method: "DELETE",
       });
 
@@ -106,7 +110,7 @@ export default function AIVoiceAccountsPage() {
 
   const handleToggleActive = async (voice: AIVoiceAccount) => {
     try {
-      const response = await fetch("/api/admin/ai-voice-accounts", {
+      const response = await fetch(`/api/tenant/${tenant}/ai-voice-accounts`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

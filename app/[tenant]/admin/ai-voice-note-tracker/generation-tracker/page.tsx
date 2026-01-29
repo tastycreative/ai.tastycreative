@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
 import { GenerationStats } from "@/components/admin/ai-voice-note-tracker/generation-tracker/GenerationStats";
 import { TopActiveUsers } from "@/components/admin/ai-voice-note-tracker/generation-tracker/TopActiveUsers";
 import { GenerationsTable } from "@/components/admin/ai-voice-note-tracker/generation-tracker/GenerationsTable";
-import { 
-  TrendingUp, 
-  RefreshCw, 
+import {
+  TrendingUp,
+  RefreshCw,
   Calendar,
   Download,
 } from "lucide-react";
@@ -54,20 +55,22 @@ export interface VoiceModel {
 }
 
 export default function GenerationTrackerPage() {
+  const params = useParams();
+  const tenant = params.tenant as string;
   const [stats, setStats] = useState<GenerationStats | null>(null);
   const [topUsers, setTopUsers] = useState<TopUser[]>([]);
   const [generations, setGenerations] = useState<GenerationData[]>([]);
   const [voiceModels, setVoiceModels] = useState<VoiceModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Filters
   const [dateRange, setDateRange] = useState<"today" | "week" | "month" | "all">("all");
   const [selectedUser, setSelectedUser] = useState<string>("");
   const [selectedVoice, setSelectedVoice] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [topUsersTimeRange, setTopUsersTimeRange] = useState<"today" | "week" | "month" | "all">("month");
-  
+
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -75,6 +78,7 @@ export default function GenerationTrackerPage() {
   const limit = 20;
 
   const fetchData = useCallback(async (isRefresh = false) => {
+    if (!tenant) return;
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -92,7 +96,7 @@ export default function GenerationTrackerPage() {
       if (searchQuery) params.set("search", searchQuery);
       params.set("topUsersTimeRange", topUsersTimeRange);
 
-      const response = await fetch(`/api/admin/ai-voice-generations?${params.toString()}`);
+      const response = await fetch(`/api/tenant/${tenant}/ai-voice-generations?${params.toString()}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -109,7 +113,7 @@ export default function GenerationTrackerPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, dateRange, selectedUser, selectedVoice, searchQuery, topUsersTimeRange]);
+  }, [tenant, page, dateRange, selectedUser, selectedVoice, searchQuery, topUsersTimeRange]);
 
   useEffect(() => {
     fetchData();
@@ -128,7 +132,7 @@ export default function GenerationTrackerPage() {
       if (selectedVoice) params.set("voiceAccountId", selectedVoice);
       if (searchQuery) params.set("search", searchQuery);
 
-      const response = await fetch(`/api/admin/ai-voice-generations?${params.toString()}`);
+      const response = await fetch(`/api/tenant/${tenant}/ai-voice-generations?${params.toString()}`);
       
       if (response.ok) {
         const blob = await response.blob();
