@@ -1,15 +1,12 @@
 // app/api/instagram/workflow/items/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
 // Helper function to check if user has access to a profile (owner or shared via organization)
 async function hasAccessToProfile(userId: string, profileId: string): Promise<{hasAccess: boolean, profile: any}> {
-  const user = await currentUser();
-  if (!user) return { hasAccess: false, profile: null };
-
   const profile = await prisma.instagramProfile.findUnique({
     where: { id: profileId },
   });
@@ -22,10 +19,27 @@ async function hasAccessToProfile(userId: string, profileId: string): Promise<{h
   }
 
   // Check if profile is shared via organization
-  if (profile.organizationId && user.organizationMemberships) {
-    const userOrgIds = user.organizationMemberships.map((m: any) => m.organization.id);
-    if (userOrgIds.includes(profile.organizationId)) {
-      return { hasAccess: true, profile };
+  if (profile.organizationId) {
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (currentUser) {
+      if (currentUser.currentOrganizationId === profile.organizationId) {
+        return { hasAccess: true, profile };
+      }
+
+      const membership = await prisma.teamMember.findFirst({
+        where: {
+          userId: currentUser.id,
+          organizationId: profile.organizationId,
+        },
+      });
+
+      if (membership) {
+        return { hasAccess: true, profile };
+      }
     }
   }
 
@@ -35,8 +49,8 @@ async function hasAccessToProfile(userId: string, profileId: string): Promise<{h
 // PATCH: Update a checklist item
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await currentUser();
-    if (!user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -63,11 +77,11 @@ export async function PATCH(request: NextRequest) {
 
     // Check access through the phase's profile
     if (existingItem.phase.profileId) {
-      const { hasAccess } = await hasAccessToProfile(user.id, existingItem.phase.profileId);
+      const { hasAccess } = await hasAccessToProfile(userId, existingItem.phase.profileId);
       if (!hasAccess) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-    } else if (existingItem.phase.clerkId !== user.id) {
+    } else if (existingItem.phase.clerkId !== userId) {
       // Fallback to clerkId check for phases without profileId
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -95,8 +109,8 @@ export async function PATCH(request: NextRequest) {
 // DELETE: Remove a checklist item
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await currentUser();
-    if (!user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -120,11 +134,11 @@ export async function DELETE(request: NextRequest) {
 
     // Check access through the phase's profile
     if (existingItem.phase.profileId) {
-      const { hasAccess } = await hasAccessToProfile(user.id, existingItem.phase.profileId);
+      const { hasAccess } = await hasAccessToProfile(userId, existingItem.phase.profileId);
       if (!hasAccess) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
-    } else if (existingItem.phase.clerkId !== user.id) {
+    } else if (existingItem.phase.clerkId !== userId) {
       // Fallback to clerkId check for phases without profileId
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

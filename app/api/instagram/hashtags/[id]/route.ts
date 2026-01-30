@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
@@ -9,18 +9,37 @@ async function hasAccessToHashtagSet(userId: string, setOwnerId: string): Promis
   // Owner always has access
   if (userId === setOwnerId) return true;
 
-  const user = await currentUser();
-  if (!user) return false;
+  // Get user from database to check organization memberships
+  const currentUser = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, currentOrganizationId: true },
+  });
 
-  // Check if the set owner has shared profiles with user's organizations
-  const userOrgIds = user.organizationMemberships?.map((m: any) => m.organization.id) || [];
+  if (!currentUser) return false;
+
+  let organizationIds: string[] = [];
+
+  // Get all organizations the user is a member of
+  const memberships = await prisma.teamMember.findMany({
+    where: { userId: currentUser.id },
+    select: { organizationId: true },
+  });
+
+  organizationIds = memberships
+    .map(m => m.organizationId)
+    .filter((id): id is string => id !== null);
+
+  // Add current organization if set
+  if (currentUser.currentOrganizationId && !organizationIds.includes(currentUser.currentOrganizationId)) {
+    organizationIds.push(currentUser.currentOrganizationId);
+  }
   
-  if (userOrgIds.length > 0) {
+  if (organizationIds.length > 0) {
     // Check if set owner has profiles shared with user's organizations
     const sharedProfile = await prisma.instagramProfile.findFirst({
       where: {
         clerkId: setOwnerId,
-        organizationId: { in: userOrgIds },
+        organizationId: { in: organizationIds },
       },
     });
     

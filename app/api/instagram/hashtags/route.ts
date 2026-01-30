@@ -1,24 +1,43 @@
 import { NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
 // Helper to get all accessible clerkIds for a user (self + organization members who share profiles)
 async function getAccessibleClerkIds(userId: string): Promise<string[]> {
-  const user = await currentUser();
-  if (!user) return [userId];
-
   const clerkIds = [userId];
   
-  // Get profiles shared with user via organization to find other clerkIds
-  const userOrgIds = user.organizationMemberships?.map((m: any) => m.organization.id) || [];
+  // Get user from database to check organization memberships
+  const currentUser = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, currentOrganizationId: true },
+  });
+
+  let organizationIds: string[] = [];
+
+  if (currentUser) {
+    // Get all organizations the user is a member of
+    const memberships = await prisma.teamMember.findMany({
+      where: { userId: currentUser.id },
+      select: { organizationId: true },
+    });
+
+    organizationIds = memberships
+      .map(m => m.organizationId)
+      .filter((id): id is string => id !== null);
+
+    // Add current organization if set
+    if (currentUser.currentOrganizationId && !organizationIds.includes(currentUser.currentOrganizationId)) {
+      organizationIds.push(currentUser.currentOrganizationId);
+    }
+  }
   
-  if (userOrgIds.length > 0) {
+  if (organizationIds.length > 0) {
     // Get unique clerkIds from profiles shared with the user's organizations
     const sharedProfiles = await prisma.instagramProfile.findMany({
       where: {
-        organizationId: { in: userOrgIds },
+        organizationId: { in: organizationIds },
         clerkId: { not: userId },
       },
       select: { clerkId: true },

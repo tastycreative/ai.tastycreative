@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, currentUser } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
 import { prisma, withRetry } from '@/lib/database';
 import { google } from 'googleapis';
 import { recordPostChange, notifyPostChange } from '@/lib/post-change-tracker';
@@ -8,9 +8,6 @@ import { deleteFromAwsS3 } from '@/lib/awsS3Utils';
 
 // Helper function to check if user has access to a profile (owner or shared via organization)
 async function hasAccessToProfile(userId: string, profileId: string): Promise<{hasAccess: boolean, profile: any}> {
-  const user = await currentUser();
-  if (!user) return { hasAccess: false, profile: null };
-
   const profile = await prisma.instagramProfile.findUnique({
     where: { id: profileId },
   });
@@ -23,10 +20,27 @@ async function hasAccessToProfile(userId: string, profileId: string): Promise<{h
   }
 
   // Check if profile is shared via organization
-  if (profile.organizationId && user.organizationMemberships) {
-    const userOrgIds = user.organizationMemberships.map((m: any) => m.organization.id);
-    if (userOrgIds.includes(profile.organizationId)) {
-      return { hasAccess: true, profile };
+  if (profile.organizationId) {
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (currentUser) {
+      if (currentUser.currentOrganizationId === profile.organizationId) {
+        return { hasAccess: true, profile };
+      }
+
+      const membership = await prisma.teamMember.findFirst({
+        where: {
+          userId: currentUser.id,
+          organizationId: profile.organizationId,
+        },
+      });
+
+      if (membership) {
+        return { hasAccess: true, profile };
+      }
     }
   }
 
