@@ -27,6 +27,15 @@ export default function OrganizationPermissionsModal({
 
   useEffect(() => {
     fetchPermissions();
+    // Scroll to top when modal opens
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Also scroll the modal content to top
+    setTimeout(() => {
+      const modalContent = document.querySelector('[data-modal-content]');
+      if (modalContent) {
+        modalContent.scrollTop = 0;
+      }
+    }, 100);
   }, [organizationId]);
 
   const fetchPermissions = async () => {
@@ -102,6 +111,7 @@ export default function OrganizationPermissionsModal({
         <div
           className="relative bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-2xl p-6 max-w-6xl w-full border border-gray-200 dark:border-gray-700 my-8 max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
+          data-modal-content
         >
           {/* Header */}
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">

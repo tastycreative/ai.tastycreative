@@ -1,12 +1,152 @@
 'use client';
 
-import { Shield, Layers, Zap, Users as UsersIcon, Sparkles, Star, Settings } from 'lucide-react';
+import { Shield, Layers, Zap, Users as UsersIcon, Sparkles, Star, Settings, Wand2, Video, Film, Mic, Palette, PlayCircle, Shuffle, ImageIcon } from 'lucide-react';
 import { PLAN_FEATURES, getFeaturesByCategory, getCategoryIcon, getCategoryTitle, FeatureDefinition } from '@/lib/planFeatures';
 
 interface PlanFeaturesEditorProps {
   features: Record<string, boolean | number | null>;
   onChange: (features: Record<string, boolean | number | null>) => void;
 }
+
+// Define custom feature groups that match the navigation structure
+const FEATURE_GROUPS = [
+  {
+    key: 'tabs',
+    title: 'Navigation Tabs',
+    icon: Layers,
+    features: [
+      'hasGenerateTab',
+      'hasVaultTab',
+      'hasTrainingTab',
+      'hasInstagramTab',
+      'hasPlanningTab',
+      'hasPipelineTab',
+      'hasAnalyticsTab',
+      'hasFeedTab',
+      'hasMarketplaceTab',
+      'hasReferenceBank',
+    ],
+  },
+  {
+    key: 'flux_models',
+    title: 'Flux Models',
+    icon: Sparkles,
+    features: [
+      'canTextToImage',
+      'canStyleTransfer',
+      'canSkinEnhancer',
+      'canFluxKontext',
+    ],
+  },
+  {
+    key: 'wan_models',
+    title: 'Wan 2.2 Models',
+    icon: Video,
+    features: [
+      'canTextToVideo',
+      'canImageToVideo',
+    ],
+  },
+  {
+    key: 'advanced_tools',
+    title: 'Advanced Tools',
+    icon: Wand2,
+    features: [
+      'canFaceSwap',
+      'canImageToImageSkinEnhancer',
+      'canVideoFpsBoost',
+    ],
+  },
+  {
+    key: 'seedream',
+    title: 'SeeDream 4.5',
+    icon: Sparkles,
+    features: [
+      'canSeeDreamTextToImage',
+      'canSeeDreamImageToImage',
+      'canSeeDreamTextToVideo',
+      'canSeeDreamImageToVideo',
+    ],
+  },
+  {
+    key: 'kling_ai',
+    title: 'Kling AI',
+    icon: Film,
+    features: [
+      'canKlingTextToVideo',
+      'canKlingImageToVideo',
+      'canKlingMultiImageToVideo',
+      'canKlingMotionControl',
+    ],
+  },
+  {
+    key: 'ai_voice',
+    title: 'AI Voice',
+    icon: Mic,
+    features: [
+      'canAIVoice',
+    ],
+  },
+  {
+    key: 'training',
+    title: 'Model Training',
+    icon: Star,
+    features: [
+      'canTrainLoRA',
+      'canShareLoRA',
+    ],
+  },
+  {
+    key: 'content_studio',
+    title: 'Content Studio',
+    icon: Zap,
+    features: [
+      'canAutoSchedule',
+      'canBulkUpload',
+      'canCaptionBank',
+      'canHashtagBank',
+      'canStoryPlanner',
+      'canReelPlanner',
+      'canFeedPostPlanner',
+      'canContentPipeline',
+      'canPerformanceMetrics',
+    ],
+  },
+  {
+    key: 'collaboration',
+    title: 'Collaboration',
+    icon: UsersIcon,
+    features: [
+      'canShareFolders',
+      'canCreateFolders',
+      'canApproveContent',
+      'canCommentOnContent',
+      'canAssignTasks',
+      'canMentionTeam',
+    ],
+  },
+  {
+    key: 'advanced',
+    title: 'Advanced Features',
+    icon: Shield,
+    features: [
+      'canAccessMarketplace',
+      'canExportData',
+      'canAccessAPI',
+      'canWhiteLabel',
+      'canCustomBranding',
+      'canWebhooks',
+    ],
+  },
+  {
+    key: 'limits',
+    title: 'Limits',
+    icon: Settings,
+    features: [
+      'maxVaultFolders',
+    ],
+  },
+];
 
 export default function PlanFeaturesEditor({ features, onChange }: PlanFeaturesEditorProps) {
   const toggleFeature = (key: string) => {
@@ -21,20 +161,6 @@ export default function PlanFeaturesEditor({ features, onChange }: PlanFeaturesE
       ...features,
       [key]: value,
     });
-  };
-
-  // Get icon component from icon name string
-  const getIconComponent = (iconName: string) => {
-    const icons: Record<string, any> = {
-      Layers,
-      Sparkles,
-      Star,
-      Zap,
-      Users: UsersIcon,
-      Shield,
-      Settings,
-    };
-    return icons[iconName] || Shield;
   };
 
   const FeatureToggle = ({
@@ -76,13 +202,16 @@ export default function PlanFeaturesEditor({ features, onChange }: PlanFeaturesE
     );
   };
 
-  // Toggle all features in a category
-  const toggleAllInCategory = (category: FeatureDefinition['category']) => {
-    const categoryFeatures = getFeaturesByCategory(category);
-    const allEnabled = categoryFeatures.every(f => features[f.key]);
+  // Toggle all features in a group
+  const toggleAllInGroup = (groupKey: string) => {
+    const group = FEATURE_GROUPS.find(g => g.key === groupKey);
+    if (!group) return;
+
+    const groupFeatures = PLAN_FEATURES.filter(f => group.features.includes(f.key));
+    const allEnabled = groupFeatures.every(f => features[f.key]);
 
     const updates: Record<string, boolean | number | null> = {};
-    categoryFeatures.forEach(feature => {
+    groupFeatures.forEach(feature => {
       // Only toggle boolean features, not numeric ones
       if (feature.type === 'boolean') {
         updates[feature.key] = !allEnabled;
@@ -95,33 +224,38 @@ export default function PlanFeaturesEditor({ features, onChange }: PlanFeaturesE
     });
   };
 
-  // Check if all features in a category are enabled
-  const areCategoryFeaturesEnabled = (category: FeatureDefinition['category']) => {
-    const categoryFeatures = getFeaturesByCategory(category).filter(f => f.type === 'boolean');
-    if (categoryFeatures.length === 0) return false;
-    return categoryFeatures.every(f => features[f.key]);
+  // Check if all features in a group are enabled
+  const areGroupFeaturesEnabled = (groupKey: string) => {
+    const group = FEATURE_GROUPS.find(g => g.key === groupKey);
+    if (!group) return false;
+
+    const groupFeatures = PLAN_FEATURES.filter(f => group.features.includes(f.key)).filter(f => f.type === 'boolean');
+    if (groupFeatures.length === 0) return false;
+    return groupFeatures.every(f => features[f.key]);
   };
 
-  // Check if some (but not all) features in a category are enabled
-  const areCategoryFeaturesIndeterminate = (category: FeatureDefinition['category']) => {
-    const categoryFeatures = getFeaturesByCategory(category).filter(f => f.type === 'boolean');
-    if (categoryFeatures.length === 0) return false;
-    const enabledCount = categoryFeatures.filter(f => features[f.key]).length;
-    return enabledCount > 0 && enabledCount < categoryFeatures.length;
+  // Check if some (but not all) features in a group are enabled
+  const areGroupFeaturesIndeterminate = (groupKey: string) => {
+    const group = FEATURE_GROUPS.find(g => g.key === groupKey);
+    if (!group) return false;
+
+    const groupFeatures = PLAN_FEATURES.filter(f => group.features.includes(f.key)).filter(f => f.type === 'boolean');
+    if (groupFeatures.length === 0) return false;
+    const enabledCount = groupFeatures.filter(f => features[f.key]).length;
+    return enabledCount > 0 && enabledCount < groupFeatures.length;
   };
 
-  const FeatureSection = ({
-    category,
+  const FeatureGroup = ({
+    group,
   }: {
-    category: FeatureDefinition['category'];
+    group: typeof FEATURE_GROUPS[0];
   }) => {
-    const categoryFeatures = getFeaturesByCategory(category);
-    if (categoryFeatures.length === 0) return null;
+    const groupFeatures = PLAN_FEATURES.filter(f => group.features.includes(f.key));
+    if (groupFeatures.length === 0) return null;
 
-    const Icon = getIconComponent(getCategoryIcon(category));
-    const title = getCategoryTitle(category);
-    const allEnabled = areCategoryFeaturesEnabled(category);
-    const indeterminate = areCategoryFeaturesIndeterminate(category);
+    const Icon = group.icon;
+    const allEnabled = areGroupFeaturesEnabled(group.key);
+    const indeterminate = areGroupFeaturesIndeterminate(group.key);
 
     return (
       <div>
@@ -132,14 +266,14 @@ export default function PlanFeaturesEditor({ features, onChange }: PlanFeaturesE
             ref={(el) => {
               if (el) el.indeterminate = indeterminate;
             }}
-            onChange={() => toggleAllInCategory(category)}
+            onChange={() => toggleAllInGroup(group.key)}
             className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer flex-shrink-0"
           />
           <Icon className="w-4 h-4 text-blue-600" />
-          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{title}</h4>
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{group.title}</h4>
         </label>
         <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
-          {categoryFeatures.map((feature) => (
+          {groupFeatures.map((feature) => (
             <FeatureToggle key={feature.key} feature={feature} />
           ))}
         </div>
@@ -149,13 +283,9 @@ export default function PlanFeaturesEditor({ features, onChange }: PlanFeaturesE
 
   return (
     <div className="space-y-4">
-      <FeatureSection category="tab" />
-      <FeatureSection category="generation" />
-      <FeatureSection category="training" />
-      <FeatureSection category="content" />
-      <FeatureSection category="collaboration" />
-      <FeatureSection category="limit" />
-      <FeatureSection category="advanced" />
+      {FEATURE_GROUPS.map((group) => (
+        <FeatureGroup key={group.key} group={group} />
+      ))}
     </div>
   );
 }
