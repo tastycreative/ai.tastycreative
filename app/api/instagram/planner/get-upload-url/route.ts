@@ -1,3 +1,4 @@
+// app/api/instagram/planner/get-upload-url/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
@@ -58,67 +59,59 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { setId, files } = await request.json();
+    const { profileId, plannerType, files } = await request.json();
 
-    if (!setId || !files || !Array.isArray(files)) {
+    if (!files || !Array.isArray(files) || files.length === 0) {
       return NextResponse.json(
-        { error: "Set ID and files array required" },
+        { error: "Files array required" },
         { status: 400 }
       );
     }
 
-    // Find the set
-    const set = await prisma.sextingSet.findFirst({
-      where: {
-        id: setId,
-      },
-      include: {
-        images: {
-          orderBy: { sequence: "desc" },
-          take: 1,
-        },
-      },
-    });
-
-    if (!set) {
-      return NextResponse.json({ error: "Set not found" }, { status: 404 });
-    }
-
-    // Verify access via the set's category (profileId)
-    const { hasAccess } = await hasAccessToProfile(userId, set.category);
-
-    // Also allow if user owns the set directly
-    if (!hasAccess && set.userId !== userId) {
+    if (!plannerType || !['story', 'reel', 'feed-post'].includes(plannerType)) {
       return NextResponse.json(
-        { error: "Unauthorized to upload to this set" },
-        { status: 403 }
+        { error: "Valid plannerType required (story, reel, feed-post)" },
+        { status: 400 }
       );
     }
 
-    // Use the set owner's userId for the S3 path (for consistency)
-    const ownerUserId = set.userId;
+    // Determine the target userId for the S3 path
+    let targetUserId = userId;
+    if (profileId) {
+      const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: "Unauthorized to upload to this profile" },
+          { status: 403 }
+        );
+      }
+      // Use the profile owner's userId for consistent S3 path structure
+      targetUserId = profile.clerkId;
+    }
 
-    // Get the current max sequence
-    let currentSequence = set.images[0]?.sequence || 0;
+    // Map plannerType to folder structure
+    const folderMap: Record<string, string> = {
+      'story': 'instagram/stories',
+      'reel': 'instagram/reels',
+      'feed-post': 'instagram/feed-posts',
+    };
+    const folder = folderMap[plannerType];
 
     // Generate presigned URLs for each file
     const uploadUrls = await Promise.all(
       files.map(async (file: { name: string; type: string; size: number }) => {
         const fileId = uuidv4();
         const extension = file.name.split(".").pop() || "";
-        const key = `sexting-sets/${ownerUserId}/${setId}/${fileId}.${extension}`;
-        
-        currentSequence++;
+        const key = `${folder}/${targetUserId}/${fileId}.${extension}`;
 
         const command = new PutObjectCommand({
           Bucket: BUCKET_NAME,
           Key: key,
           ContentType: file.type,
-          // Add metadata for the file
           Metadata: {
             originalName: encodeURIComponent(file.name),
-            setId: setId,
-            userId: ownerUserId,
+            plannerType: plannerType,
+            userId: targetUserId,
           },
         });
 
@@ -137,7 +130,6 @@ export async function POST(request: NextRequest) {
           originalName: file.name,
           type: file.type,
           size: file.size,
-          sequence: currentSequence,
         };
       })
     );

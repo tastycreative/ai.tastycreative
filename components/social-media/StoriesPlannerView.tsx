@@ -472,30 +472,54 @@ export default function StoriesPlannerView({ profileId }: StoriesPlannerViewProp
           mimeType: selectedVaultItem.fileType,
         };
       }
-      // Otherwise, if there's a new file to upload, upload it to S3
+      // Otherwise, if there's a new file to upload, upload it directly to S3 using presigned URL
       else if (uploadedFile) {
-        const formDataUpload = new FormData();
-        formDataUpload.append('file', uploadedFile);
-        formDataUpload.append('folder', 'instagram/stories');
-
-        const uploadResponse = await fetch('/api/s3/upload', {
+        const targetProfileId = isAllProfiles ? selectedProfileId : profileId;
+        
+        // Step 1: Get presigned URL from our API
+        const presignedResponse = await fetch('/api/instagram/planner/get-upload-url', {
           method: 'POST',
-          body: formDataUpload,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profileId: targetProfileId,
+            plannerType: 'story',
+            files: [{
+              name: uploadedFile.name,
+              type: uploadedFile.type,
+              size: uploadedFile.size,
+            }],
+          }),
         });
 
-        if (!uploadResponse.ok) {
-          throw new Error('Failed to upload file');
+        if (!presignedResponse.ok) {
+          const errorData = await presignedResponse.json();
+          throw new Error(errorData.error || 'Failed to get upload URL');
         }
 
-        const uploadData = await uploadResponse.json();
-        console.log('✅ File uploaded to S3:', uploadData.file);
+        const { uploadUrls } = await presignedResponse.json();
+        const uploadInfo = uploadUrls[0];
 
-        // Store file info directly on the slot (no InstagramPost needed)
+        // Step 2: Upload file directly to S3 using presigned URL
+        const s3UploadResponse = await fetch(uploadInfo.uploadUrl, {
+          method: 'PUT',
+          body: uploadedFile,
+          headers: {
+            'Content-Type': uploadedFile.type,
+          },
+        });
+
+        if (!s3UploadResponse.ok) {
+          throw new Error('Failed to upload file to S3');
+        }
+
+        console.log('✅ File uploaded directly to S3:', uploadInfo.finalUrl);
+
+        // Store file info directly on the slot
         fileData = {
-          awsS3Key: uploadData.file.key,
-          awsS3Url: uploadData.file.url,
-          fileName: uploadData.file.name,
-          mimeType: uploadData.file.mimeType,
+          awsS3Key: uploadInfo.key,
+          awsS3Url: uploadInfo.finalUrl,
+          fileName: uploadInfo.originalName,
+          mimeType: uploadedFile.type,
         };
       }
 

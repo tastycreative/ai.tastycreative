@@ -11,6 +11,52 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check if this is a request for specific profile IDs
+    const { searchParams } = new URL(request.url);
+    const idsParam = searchParams.get('ids');
+
+    if (idsParam) {
+      // Fetch specific profiles by IDs
+      const profileIds = idsParam.split(',').filter(Boolean);
+
+      if (profileIds.length === 0) {
+        return NextResponse.json({
+          success: true,
+          profiles: [],
+        });
+      }
+
+      const profiles = await prisma.instagramProfile.findMany({
+        where: {
+          id: { in: profileIds },
+        },
+        select: {
+          id: true,
+          name: true,
+          instagramUsername: true,
+          profileImageUrl: true,
+          clerkId: true,
+          organizationId: true,
+          user: {
+            select: {
+              id: true,
+              clerkId: true,
+              firstName: true,
+              lastName: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        profiles,
+      });
+    }
+
+    // Otherwise, return all accessible profiles for the user
     // Get user's current organization
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },

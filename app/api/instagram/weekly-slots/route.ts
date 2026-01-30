@@ -25,16 +25,49 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get user's current organization to include shared profiles
+    const dbUser = await prisma.user.findUnique({
+      where: { clerkId: user.id },
+      select: { currentOrganizationId: true },
+    });
+
+    // Build query to include user's own content AND content from organization profiles
+    const profileWhereCondition: any = {
+      OR: [
+        { clerkId: user.id }, // User's own profiles
+      ],
+    };
+
+    // Add organization profiles if user belongs to an organization
+    if (dbUser?.currentOrganizationId) {
+      profileWhereCondition.OR.push({
+        organizationId: dbUser.currentOrganizationId,
+      });
+    }
+
+    // Get accessible profile IDs
+    const accessibleProfiles = await prisma.instagramProfile.findMany({
+      where: profileWhereCondition,
+      select: { id: true },
+    });
+
+    const accessibleProfileIds = accessibleProfiles.map(p => p.id);
+
     const whereClause: any = {
-      clerkId: user.id,
       date: {
         gte: new Date(startDate),
         lte: new Date(endDate),
       },
+      OR: [
+        { clerkId: user.id }, // User's own slots
+        { profileId: { in: accessibleProfileIds } }, // Slots for accessible profiles
+      ],
     };
 
     if (profileId && profileId !== "all") {
+      // Override to filter by specific profile if provided
       whereClause.profileId = profileId;
+      delete whereClause.OR;
     }
 
     const slots = await prisma.weeklyPlanningSlot.findMany({
@@ -61,14 +94,18 @@ export async function GET(request: NextRequest) {
 
     // For STORY_BATCH slots, also fetch story planning slots
     const storyWhereClause: any = {
-      clerkId: user.id,
       date: {
         gte: new Date(startDate),
         lte: new Date(endDate),
       },
+      OR: [
+        { clerkId: user.id }, // User's own story slots
+        { profileId: { in: accessibleProfileIds } }, // Story slots for accessible profiles
+      ],
     };
     if (profileId && profileId !== "all") {
       storyWhereClause.profileId = profileId;
+      delete storyWhereClause.OR;
     }
     const storySlots = await prisma.storyPlanningSlot.findMany({
       where: storyWhereClause,
@@ -77,14 +114,18 @@ export async function GET(request: NextRequest) {
 
     // For REEL_1 slots, also fetch reel planning slots
     const reelWhereClause: any = {
-      clerkId: user.id,
       date: {
         gte: new Date(startDate),
         lte: new Date(endDate),
       },
+      OR: [
+        { clerkId: user.id }, // User's own reel slots
+        { profileId: { in: accessibleProfileIds } }, // Reel slots for accessible profiles
+      ],
     };
     if (profileId && profileId !== "all") {
       reelWhereClause.profileId = profileId;
+      delete reelWhereClause.OR;
     }
     const reelSlots = await prisma.reelPlanningSlot.findMany({
       where: reelWhereClause,
@@ -93,14 +134,18 @@ export async function GET(request: NextRequest) {
 
     // For FEED_POST slots, also fetch feed post planning slots
     const feedPostWhereClause: any = {
-      clerkId: user.id,
       date: {
         gte: new Date(startDate),
         lte: new Date(endDate),
       },
+      OR: [
+        { clerkId: user.id }, // User's own feed post slots
+        { profileId: { in: accessibleProfileIds } }, // Feed post slots for accessible profiles
+      ],
     };
     if (profileId && profileId !== "all") {
       feedPostWhereClause.profileId = profileId;
+      delete feedPostWhereClause.OR;
     }
     const feedPostSlots = await prisma.feedPostPlanningSlot.findMany({
       where: feedPostWhereClause,

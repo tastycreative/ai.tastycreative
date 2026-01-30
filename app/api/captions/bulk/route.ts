@@ -2,6 +2,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+      include: {
+        user: {
+          select: { clerkId: true },
+        },
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // POST - Bulk import captions from CSV/JSON
 export async function POST(request: NextRequest) {
   try {
@@ -24,20 +65,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify profile belongs to user
-    const profile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        clerkId: userId,
-      },
-    });
+    // Verify user has access to the profile (own or shared)
+    const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
 
-    if (!profile) {
+    if (!hasAccess || !profile) {
       return NextResponse.json(
         { error: "Profile not found or unauthorized" },
         { status: 404 }
       );
     }
+
+    // Use the profile owner's clerkId for the captions
+    const captionOwnerId = profile.clerkId;
 
     // Validate and transform captions
     const validCaptions = captions.filter((c: {
@@ -56,11 +95,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for duplicates
+    // Check for duplicates (using profileId instead of clerkId)
     const existingCaptions = await prisma.caption.findMany({
       where: {
         profileId,
-        clerkId: userId,
       },
       select: {
         caption: true,
@@ -75,7 +113,7 @@ export async function POST(request: NextRequest) {
 
     const duplicateCount = validCaptions.length - newCaptions.length;
 
-    // Create captions in bulk
+    // Create captions in bulk (using the profile owner's clerkId)
     const createdCaptions = await prisma.caption.createMany({
       data: newCaptions.map((c: {
         caption: string;
@@ -86,7 +124,7 @@ export async function POST(request: NextRequest) {
         notes?: string;
         tags?: string;
       }) => ({
-        clerkId: userId,
+        clerkId: captionOwnerId,
         profileId,
         caption: c.caption.trim(),
         captionCategory: c.captionCategory,
@@ -140,32 +178,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify profile belongs to user
-    const profile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        clerkId: userId,
-      },
-    });
+    // Verify user has access to the profile (own or shared)
+    const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
 
-    if (!profile) {
+    if (!hasAccess || !profile) {
       return NextResponse.json(
         { error: "Profile not found or unauthorized" },
         { status: 404 }
       );
     }
 
-    // Build query filters
+    // Build query filters (using profileId instead of clerkId)
     const where: {
       profileId: string;
-      clerkId: string;
       captionCategory?: string;
       captionTypes?: string;
       captionBanks?: string;
       isFavorite?: boolean;
     } = {
       profileId,
-      clerkId: userId,
     };
 
     if (category && category !== "All") {

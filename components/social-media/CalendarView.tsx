@@ -18,6 +18,9 @@ import {
   User,
   ChevronDown,
   Plus,
+  Filter,
+  Share2,
+  Sparkles,
 } from "lucide-react";
 import { fetchInstagramPosts, type InstagramPost } from "@/lib/instagram-posts";
 import { useUser } from "@clerk/nextjs";
@@ -38,6 +41,13 @@ interface Post {
   awsS3Key?: string | null;
   awsS3Url?: string | null;
   mimeType?: string | null;
+  profile?: {
+    id: string;
+    name: string;
+    profileImageUrl?: string | null;
+    instagramUsername?: string | null;
+    isOwned: boolean;
+  };
 }
 
 interface Profile {
@@ -70,9 +80,13 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [profileTypeFilter, setProfileTypeFilter] = useState<'all' | 'owned' | 'shared'>('all');
   
   // View mode: 'monthly' or 'weekly'
   const [viewMode, setViewMode] = useState<'monthly' | 'weekly'>('monthly');
+  
+  // Check if "All Profiles" is selected
+  const isAllProfiles = profileId === 'all';
 
   // Fetch posts
   useEffect(() => {
@@ -80,7 +94,28 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
       if (!isLoaded || !user) return;
       
       try {
-        const dbPosts = await fetchInstagramPosts();
+        const dbPosts = await fetchInstagramPosts(undefined, profileId && profileId !== 'all' ? profileId : undefined);
+        
+        // Fetch profile information for posts
+        const profileIds = [...new Set(dbPosts.map(p => p.profileId).filter(Boolean))] as string[];
+        const profilesMap = new Map();
+        
+        if (profileIds.length > 0) {
+          const profilesResponse = await fetch(`/api/instagram/profiles?ids=${profileIds.join(',')}`);
+          if (profilesResponse.ok) {
+            const { profiles } = await profilesResponse.json();
+            profiles.forEach((profile: any) => {
+              profilesMap.set(profile.id, {
+                id: profile.id,
+                name: profile.name,
+                profileImageUrl: profile.profileImageUrl,
+                instagramUsername: profile.instagramUsername,
+                isOwned: profile.clerkId === user.id,
+              });
+            });
+          }
+        }
+        
         const convertedPosts: Post[] = dbPosts.map((dbPost: InstagramPost) => ({
           id: dbPost.id,
           fileName: dbPost.fileName || "Untitled",
@@ -94,6 +129,7 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
           awsS3Key: dbPost.awsS3Key,
           awsS3Url: dbPost.awsS3Url,
           mimeType: dbPost.mimeType,
+          profile: dbPost.profileId ? profilesMap.get(dbPost.profileId) : undefined,
         }));
         setPosts(convertedPosts);
       } catch (error) {
@@ -104,11 +140,11 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
     };
 
     loadPosts();
-  }, [isLoaded, user]);
+  }, [isLoaded, user, profileId]);
 
-  // Get posts for a specific date
+  // Get posts for a specific date with profile filtering
   const getPostsForDate = (date: Date) => {
-    return posts.filter((post) => {
+    const datePosts = posts.filter((post) => {
       if (!post.date) return false;
       const postDate = new Date(post.date);
       return (
@@ -117,6 +153,16 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
         postDate.getFullYear() === date.getFullYear()
       );
     });
+    
+    // Apply profile type filter only when "All Profiles" is selected
+    if (!isAllProfiles) return datePosts;
+    
+    if (profileTypeFilter === 'owned') {
+      return datePosts.filter(post => post.profile?.isOwned === true);
+    } else if (profileTypeFilter === 'shared') {
+      return datePosts.filter(post => post.profile?.isOwned === false);
+    }
+    return datePosts;
   };
 
   // Calendar generation
@@ -329,7 +375,44 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
         <WeeklyCalendarView profileId={profileId} />
       ) : (
         <>
-          {/* Calendar Stats */}
+          {/* Profile Type Filter - Show only when "All Profiles" is selected */}
+      {isAllProfiles && (
+        <div className="flex items-center gap-2 p-3 bg-white/5 dark:bg-white/5 rounded-xl border border-white/10">
+          <Filter className="w-4 h-4 text-white/50" />
+          <button
+            onClick={() => setProfileTypeFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              profileTypeFilter === 'all'
+                ? 'bg-violet-500 text-white shadow-lg'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            All ({posts.length})
+          </button>
+          <button
+            onClick={() => setProfileTypeFilter('owned')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              profileTypeFilter === 'owned'
+                ? 'bg-violet-500 text-white shadow-lg'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            My Posts ({posts.filter(p => p.profile?.isOwned).length})
+          </button>
+          <button
+            onClick={() => setProfileTypeFilter('shared')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              profileTypeFilter === 'shared'
+                ? 'bg-blue-500 text-white shadow-lg'
+                : 'text-white/60 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            Shared ({posts.filter(p => !p.profile?.isOwned && p.profile).length})
+          </button>
+        </div>
+      )}
+
+      {/* Calendar Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-700/30 rounded-lg p-3 sm:p-4">
           <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
@@ -442,10 +525,29 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                       {dayPosts.slice(0, 2).map((post) => (
                         <div
                           key={post.id}
-                          className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-700/30 rounded hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-200 group-hover:scale-105"
+                          className={`flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-gradient-to-r rounded hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-200 group-hover:scale-105 ${
+                            isAllProfiles && post.profile
+                              ? post.profile.isOwned
+                                ? 'from-violet-50 to-violet-100 dark:from-violet-900/30 dark:to-violet-900/20 border border-violet-200/50 dark:border-violet-700/30'
+                                : 'from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 border border-blue-200/50 dark:border-blue-700/30'
+                              : 'from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-700/30'
+                          }`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${getStatusColor(post.status)} shadow-sm`} />
+                          {isAllProfiles && post.profile && (
+                            <div className="w-3 h-3 sm:w-4 sm:h-4 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-white/20">
+                              {post.profile.profileImageUrl ? (
+                                <img src={post.profile.profileImageUrl} alt={post.profile.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className={`w-full h-full flex items-center justify-center text-[8px] font-bold ${
+                                  post.profile.isOwned ? 'bg-violet-500 text-white' : 'bg-blue-500 text-white'
+                                }`}>
+                                  {post.profile.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <span className="text-[9px] sm:text-xs text-gray-600 dark:text-gray-400 truncate flex-1 font-medium">
                             {post.fileName}
                           </span>
@@ -534,12 +636,37 @@ const CalendarView = ({ profileId }: CalendarViewProps) => {
                     .map((post, index) => (
                     <div
                       key={post.id}
-                      className="group relative bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-700/30 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 hover:shadow-lg hover:scale-[1.01] transition-all duration-300"
+                      className={`group relative rounded-xl overflow-hidden border hover:shadow-lg hover:scale-[1.01] transition-all duration-300 ${
+                        isAllProfiles && post.profile
+                          ? post.profile.isOwned
+                            ? 'bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-900/30 dark:to-violet-900/20 border-violet-200 dark:border-violet-700/30'
+                            : 'bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 border-blue-200 dark:border-blue-700/30'
+                          : 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-700/30 border-gray-200 dark:border-gray-600'
+                      }`}
                     >
                       {/* Post number indicator */}
                       <div className="absolute top-3 left-3 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center text-sm font-bold shadow-lg z-10">
                         {index + 1}
                       </div>
+                      
+                      {/* Profile indicator for All Profiles view */}
+                      {isAllProfiles && post.profile && (
+                        <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-sm z-10">
+                          <div className="w-4 h-4 rounded-full overflow-hidden ring-1 ring-white/20">
+                            {post.profile.profileImageUrl ? (
+                              <img src={post.profile.profileImageUrl} alt={post.profile.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className={`w-full h-full flex items-center justify-center text-[8px] font-bold ${
+                                post.profile.isOwned ? 'bg-violet-500' : 'bg-blue-500'
+                              } text-white`}>
+                                {post.profile.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-xs text-white font-medium">{post.profile.name}</span>
+                          {!post.profile.isOwned && <Share2 className="w-3 h-3 text-blue-300" />}
+                        </div>
+                      )}
 
                       <div className="flex gap-4 p-4">
                         {/* Image/Video Preview */}

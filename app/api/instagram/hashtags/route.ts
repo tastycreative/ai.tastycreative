@@ -1,10 +1,41 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
-// GET all hashtag sets for the user
+// Helper to get all accessible clerkIds for a user (self + organization members who share profiles)
+async function getAccessibleClerkIds(userId: string): Promise<string[]> {
+  const user = await currentUser();
+  if (!user) return [userId];
+
+  const clerkIds = [userId];
+  
+  // Get profiles shared with user via organization to find other clerkIds
+  const userOrgIds = user.organizationMemberships?.map((m: any) => m.organization.id) || [];
+  
+  if (userOrgIds.length > 0) {
+    // Get unique clerkIds from profiles shared with the user's organizations
+    const sharedProfiles = await prisma.instagramProfile.findMany({
+      where: {
+        organizationId: { in: userOrgIds },
+        clerkId: { not: userId },
+      },
+      select: { clerkId: true },
+      distinct: ['clerkId'],
+    });
+    
+    sharedProfiles.forEach(p => {
+      if (!clerkIds.includes(p.clerkId)) {
+        clerkIds.push(p.clerkId);
+      }
+    });
+  }
+
+  return clerkIds;
+}
+
+// GET all hashtag sets for the user (includes shared organization members' sets)
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -13,8 +44,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get accessible clerkIds (self + org members who share profiles)
+    const accessibleClerkIds = await getAccessibleClerkIds(userId);
+
     const sets = await prisma.hashtagSet.findMany({
-      where: { clerkId: userId },
+      where: { clerkId: { in: accessibleClerkIds } },
       orderBy: { order: "asc" },
     });
 

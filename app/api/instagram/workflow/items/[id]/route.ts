@@ -5,6 +5,33 @@ import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
+// Helper function to check if user has access to a profile (owner or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{hasAccess: boolean, profile: any}> {
+  const user = await currentUser();
+  if (!user) return { hasAccess: false, profile: null };
+
+  const profile = await prisma.instagramProfile.findUnique({
+    where: { id: profileId },
+  });
+
+  if (!profile) return { hasAccess: false, profile: null };
+
+  // Check if user owns the profile
+  if (profile.clerkId === userId) {
+    return { hasAccess: true, profile };
+  }
+
+  // Check if profile is shared via organization
+  if (profile.organizationId && user.organizationMemberships) {
+    const userOrgIds = user.organizationMemberships.map((m: any) => m.organization.id);
+    if (userOrgIds.includes(profile.organizationId)) {
+      return { hasAccess: true, profile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // PATCH: Update a checklist item
 export async function PATCH(request: NextRequest) {
   try {
@@ -21,7 +48,7 @@ export async function PATCH(request: NextRequest) {
     const parts = url.pathname.split('/').filter(Boolean);
     const id = parts[parts.length - 1];
 
-    // Verify ownership through phase
+    // Verify access through phase's profile
     const existingItem = await prisma.workflowCheckItem.findUnique({
       where: { id },
       include: { phase: true },
@@ -34,7 +61,14 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (existingItem.phase.clerkId !== user.id) {
+    // Check access through the phase's profile
+    if (existingItem.phase.profileId) {
+      const { hasAccess } = await hasAccessToProfile(user.id, existingItem.phase.profileId);
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (existingItem.phase.clerkId !== user.id) {
+      // Fallback to clerkId check for phases without profileId
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -71,7 +105,7 @@ export async function DELETE(request: NextRequest) {
     const parts = url.pathname.split('/').filter(Boolean);
     const id = parts[parts.length - 1];
 
-    // Verify ownership through phase
+    // Verify access through phase's profile
     const existingItem = await prisma.workflowCheckItem.findUnique({
       where: { id },
       include: { phase: true },
@@ -84,7 +118,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (existingItem.phase.clerkId !== user.id) {
+    // Check access through the phase's profile
+    if (existingItem.phase.profileId) {
+      const { hasAccess } = await hasAccessToProfile(user.id, existingItem.phase.profileId);
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (existingItem.phase.clerkId !== user.id) {
+      // Fallback to clerkId check for phases without profileId
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

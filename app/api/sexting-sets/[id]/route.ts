@@ -11,6 +11,42 @@ const s3Client = new S3Client({
   },
 });
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // GET - Fetch a single sexting set with its images
 export async function GET(
   request: NextRequest,
@@ -25,7 +61,7 @@ export async function GET(
     const { id } = await params;
 
     const set = await prisma.sextingSet.findFirst({
-      where: { id, userId },
+      where: { id },
       include: {
         images: {
           orderBy: { sequence: "asc" },
@@ -35,8 +71,19 @@ export async function GET(
 
     if (!set) {
       return NextResponse.json(
-        { error: "Set not found or unauthorized" },
+        { error: "Set not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify access via the set's category (profileId)
+    const { hasAccess } = await hasAccessToProfile(userId, set.category);
+
+    // Also allow if user owns the set directly
+    if (!hasAccess && set.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized to access this set" },
+        { status: 403 }
       );
     }
 
@@ -72,15 +119,26 @@ export async function DELETE(
       );
     }
 
-    // Verify ownership of the set
+    // Find the set
     const existingSet = await prisma.sextingSet.findFirst({
-      where: { id: setId, userId },
+      where: { id: setId },
     });
 
     if (!existingSet) {
       return NextResponse.json(
-        { error: "Set not found or unauthorized" },
+        { error: "Set not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify access via the set's category (profileId)
+    const { hasAccess } = await hasAccessToProfile(userId, existingSet.category);
+
+    // Also allow if user owns the set directly
+    if (!hasAccess && existingSet.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized to modify this set" },
+        { status: 403 }
       );
     }
 
@@ -163,15 +221,26 @@ export async function PATCH(
       );
     }
 
-    // Verify ownership of the set
+    // Find the set
     const existingSet = await prisma.sextingSet.findFirst({
-      where: { id: setId, userId },
+      where: { id: setId },
     });
 
     if (!existingSet) {
       return NextResponse.json(
-        { error: "Set not found or unauthorized" },
+        { error: "Set not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify access via the set's category (profileId)
+    const { hasAccess } = await hasAccessToProfile(userId, existingSet.category);
+
+    // Also allow if user owns the set directly
+    if (!hasAccess && existingSet.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized to modify this set" },
+        { status: 403 }
       );
     }
 

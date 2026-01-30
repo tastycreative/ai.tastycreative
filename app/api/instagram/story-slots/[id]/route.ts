@@ -5,6 +5,42 @@ import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // PATCH: Update a story slot
 export async function PATCH(request: NextRequest) {
   try {
@@ -35,7 +71,7 @@ export async function PATCH(request: NextRequest) {
     const parts = url.pathname.split('/').filter(Boolean);
     const id = parts[parts.length - 1];
 
-    // Verify ownership
+    // Find the slot
     const existingSlot = await prisma.storyPlanningSlot.findUnique({
       where: { id },
     });
@@ -47,7 +83,14 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (existingSlot.clerkId !== user.id) {
+    // Check access - either own slot or has access to the profile
+    let hasAccess = existingSlot.clerkId === user.id;
+    if (!hasAccess && existingSlot.profileId) {
+      const profileAccess = await hasAccessToProfile(user.id, existingSlot.profileId);
+      hasAccess = profileAccess.hasAccess;
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -162,7 +205,7 @@ export async function DELETE(request: NextRequest) {
     const parts = url.pathname.split('/').filter(Boolean);
     const id = parts[parts.length - 1];
 
-    // Verify ownership
+    // Find the slot
     const existingSlot = await prisma.storyPlanningSlot.findUnique({
       where: { id },
     });
@@ -174,7 +217,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (existingSlot.clerkId !== user.id) {
+    // Check access - either own slot or has access to the profile
+    let hasAccess = existingSlot.clerkId === user.id;
+    if (!hasAccess && existingSlot.profileId) {
+      const profileAccess = await hasAccessToProfile(user.id, existingSlot.profileId);
+      hasAccess = profileAccess.hasAccess;
+    }
+
+    if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

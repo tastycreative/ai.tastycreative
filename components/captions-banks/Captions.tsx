@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { useUser } from "@clerk/nextjs";
 import {
   Search,
   Plus,
@@ -32,6 +33,7 @@ import {
   Folder,
   TrendingUp,
   Info,
+  Share2,
 } from "lucide-react";
 
 interface Caption {
@@ -49,6 +51,7 @@ interface Caption {
   tags: string | null;
   createdAt: string;
   profileName?: string;
+  isSharedProfile?: boolean;
 }
 
 interface DuplicateGroup {
@@ -73,11 +76,19 @@ interface InstagramProfile {
   instagramUsername: string | null;
   profileImageUrl: string | null;
   isDefault: boolean;
+  clerkId?: string;
+  user?: {
+    clerkId: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+  };
 }
 
 export function Captions() {
   // Use global profile selector
   const { profileId: globalProfileId, profiles: globalProfiles, loadingProfiles } = useInstagramProfile();
+  const { user: clerkUser } = useUser();
   
   const [captions, setCaptions] = useState<Caption[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
@@ -87,6 +98,28 @@ export function Captions() {
     ), 
     [globalProfiles]
   );
+
+  // Helper to check if selected profile is shared (not owned by current user)
+  const isSharedProfile = useMemo(() => {
+    if (!selectedProfileId || selectedProfileId === "all" || !clerkUser?.id) return false;
+    const profile = profiles.find(p => p.id === selectedProfileId);
+    if (!profile) return false;
+    // Check if the profile's clerkId matches the current user
+    return profile.clerkId !== clerkUser.id;
+  }, [selectedProfileId, profiles, clerkUser?.id]);
+
+  // Helper to get owner name for shared profiles
+  const getSharedProfileOwnerName = useMemo(() => {
+    if (!isSharedProfile) return null;
+    const profile = profiles.find(p => p.id === selectedProfileId);
+    if (!profile?.user) return null;
+    if (profile.user.firstName && profile.user.lastName) {
+      return `${profile.user.firstName} ${profile.user.lastName}`;
+    }
+    if (profile.user.firstName) return profile.user.firstName;
+    if (profile.user.name) return profile.user.name;
+    return null;
+  }, [isSharedProfile, selectedProfileId, profiles]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -800,11 +833,19 @@ export function Captions() {
                     All Profiles
                   </span>
                 )}
+                {isSharedProfile && !isAllProfiles && (
+                  <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-full text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                    <Share2 className="w-4 h-4" />
+                    Shared
+                  </span>
+                )}
               </h1>
               <p className="mt-1 text-gray-500 dark:text-gray-400">
                 {isAllProfiles 
                   ? "Viewing captions from all profiles"
-                  : <>Manage captions for <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedProfile?.name}</span></>
+                  : isSharedProfile
+                    ? <>Viewing captions for <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedProfile?.name}</span> {getSharedProfileOwnerName && <span className="text-blue-500">(shared by {getSharedProfileOwnerName})</span>}</>
+                    : <>Manage captions for <span className="text-violet-600 dark:text-violet-400 font-medium">{selectedProfile?.name}</span></>
                 }
               </p>
             </div>
@@ -870,6 +911,16 @@ export function Captions() {
             <Info className="w-5 h-5 text-pink-500 flex-shrink-0" />
             <p className="text-sm text-gray-700 dark:text-gray-300">
               <span className="font-medium text-pink-600 dark:text-pink-400">All Profiles Mode:</span> Viewing captions from all profiles. Select a specific profile to add, edit, or delete captions.
+            </p>
+          </div>
+        )}
+
+        {/* Shared Profile Info Banner */}
+        {isSharedProfile && !isAllProfiles && (
+          <div className="mb-6 bg-gradient-to-r from-blue-50 via-cyan-50 to-teal-50 dark:from-blue-900/20 dark:via-cyan-900/20 dark:to-teal-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-center gap-3">
+            <Share2 className="w-5 h-5 text-blue-500 flex-shrink-0" />
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <span className="font-medium text-blue-600 dark:text-blue-400">Shared Profile:</span> This profile was shared with you{getSharedProfileOwnerName && ` by ${getSharedProfileOwnerName}`}. You can view, edit, add, and manage captions collaboratively.
             </p>
           </div>
         )}

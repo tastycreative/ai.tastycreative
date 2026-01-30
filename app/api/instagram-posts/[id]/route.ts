@@ -1,10 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { prisma, withRetry } from '@/lib/database';
 import { google } from 'googleapis';
 import { recordPostChange, notifyPostChange } from '@/lib/post-change-tracker';
 import { createInAppNotification } from '@/lib/notification-service';
 import { deleteFromAwsS3 } from '@/lib/awsS3Utils';
+
+// Helper function to check if user has access to a profile (owner or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{hasAccess: boolean, profile: any}> {
+  const user = await currentUser();
+  if (!user) return { hasAccess: false, profile: null };
+
+  const profile = await prisma.instagramProfile.findUnique({
+    where: { id: profileId },
+  });
+
+  if (!profile) return { hasAccess: false, profile: null };
+
+  // Check if user owns the profile
+  if (profile.clerkId === userId) {
+    return { hasAccess: true, profile };
+  }
+
+  // Check if profile is shared via organization
+  if (profile.organizationId && user.organizationMemberships) {
+    const userOrgIds = user.organizationMemberships.map((m: any) => m.organization.id);
+    if (userOrgIds.includes(profile.organizationId)) {
+      return { hasAccess: true, profile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
 
 // Helper to initialize Google Drive client
 function getDriveClient(accessToken: string) {
@@ -37,17 +64,30 @@ export async function GET(
 
     const { id } = await params;
 
-    const post = await prisma.instagramPost.findFirst({
-      where: {
-        id,
-        clerkId: userId,
-      },
+    const post = await prisma.instagramPost.findUnique({
+      where: { id },
     });
 
     if (!post) {
       return NextResponse.json(
         { error: 'Post not found' },
         { status: 404 }
+      );
+    }
+
+    // Check if user can access this post (owns it or has access to profile)
+    const ownsPost = post.clerkId === userId;
+    let hasProfileAccess = false;
+    
+    if (post.profileId) {
+      const { hasAccess } = await hasAccessToProfile(userId, post.profileId);
+      hasProfileAccess = hasAccess;
+    }
+
+    if (!ownsPost && !hasProfileAccess) {
+      return NextResponse.json(
+        { error: 'Unauthorized to access this post' },
+        { status: 403 }
       );
     }
 
@@ -100,7 +140,7 @@ export async function PATCH(
     } = body;
 
     // Get current user's role from database
-    const currentUser = await withRetry(() => 
+    const currentUserRecord = await withRetry(() => 
       prisma.user.findUnique({
         where: { clerkId: userId },
         select: { role: true }
@@ -121,12 +161,21 @@ export async function PATCH(
       );
     }
 
+    // Check if user has access to the profile this post belongs to
+    let hasProfileAccess = false;
+    if (existingPost.profileId) {
+      const { hasAccess } = await hasAccessToProfile(userId, existingPost.profileId);
+      hasProfileAccess = hasAccess;
+    }
+
     // Allow if:
     // 1. User owns the post, OR
-    // 2. User is ADMIN or MANAGER (can edit any post)
+    // 2. User has access to the profile (shared via organization), OR
+    // 3. User is SUPER_ADMIN, ADMIN, or MANAGER (can edit any post)
     const canEdit = 
       existingPost.clerkId === userId || 
-      (currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER'));
+      hasProfileAccess ||
+      (currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN' || currentUserRecord.role === 'MANAGER'));
 
     if (!canEdit) {
       return NextResponse.json(
@@ -170,10 +219,10 @@ export async function PATCH(
       })
     );
 
-    console.log(`✅ Updated Instagram post: ${id} by user ${userId} (role: ${currentUser?.role || 'USER'})`);
+    console.log(`✅ Updated Instagram post: ${id} by user ${userId} (role: ${currentUserRecord?.role || 'USER'})`);
 
     // Send notifications for status changes by admin/manager
-    const isAdminOrManager = currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER');
+    const isAdminOrManager = currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN' || currentUserRecord.role === 'MANAGER');
     const statusChanged = existingPost.status !== status;
     
     if (isAdminOrManager && statusChanged && status) {
@@ -274,7 +323,7 @@ export async function DELETE(
   const accessToken = searchParams.get('accessToken');
 
     // Get current user's role from database
-    const currentUser = await prisma.user.findUnique({
+    const currentUserRecord = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true }
     });
@@ -291,12 +340,21 @@ export async function DELETE(
       );
     }
 
+    // Check if user has access to the profile this post belongs to
+    let hasProfileAccess = false;
+    if (post.profileId) {
+      const { hasAccess } = await hasAccessToProfile(userId, post.profileId);
+      hasProfileAccess = hasAccess;
+    }
+
     // Allow if:
     // 1. User owns the post, OR
-    // 2. User is ADMIN or MANAGER (can delete any post)
+    // 2. User has access to the shared profile this post belongs to, OR
+    // 3. User is SUPER_ADMIN, ADMIN or MANAGER (can delete any post)
     const canDelete = 
       post.clerkId === userId || 
-      (currentUser && (currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER'));
+      hasProfileAccess ||
+      (currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN' || currentUserRecord.role === 'MANAGER'));
 
     if (!canDelete) {
       return NextResponse.json(
@@ -357,7 +415,7 @@ export async function DELETE(
     // Record change for polling clients (for production)
     recordPostChange(id);
 
-    console.log(`✅ Deleted Instagram post: ${id} by user ${userId} (role: ${currentUser?.role || 'USER'})`);
+    console.log(`✅ Deleted Instagram post: ${id} by user ${userId} (role: ${currentUserRecord?.role || 'USER'})`);
 
     return NextResponse.json({
       success: true,

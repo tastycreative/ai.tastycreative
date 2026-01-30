@@ -2,6 +2,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+      include: {
+        user: {
+          select: { clerkId: true },
+        },
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // PATCH - Update caption actions (toggle favorite, track usage, etc.)
 export async function PATCH(request: NextRequest) {
   try {
@@ -24,18 +65,25 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Verify caption belongs to user
+    // First, find the caption
     const existingCaption = await prisma.caption.findFirst({
-      where: {
-        id,
-        clerkId: userId,
-      },
+      where: { id },
     });
 
     if (!existingCaption) {
       return NextResponse.json(
-        { error: "Caption not found or unauthorized" },
+        { error: "Caption not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify user has access to the caption's profile
+    const { hasAccess } = await hasAccessToProfile(userId, existingCaption.profileId);
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Unauthorized to modify this caption" },
+        { status: 403 }
       );
     }
 
@@ -126,38 +174,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify profile belongs to user
-    const profile = await prisma.instagramProfile.findFirst({
-      where: {
-        id: profileId,
-        clerkId: userId,
-      },
-    });
+    // Verify user has access to the profile (own or shared)
+    const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
 
-    if (!profile) {
+    if (!hasAccess || !profile) {
       return NextResponse.json(
         { error: "Profile not found or unauthorized" },
         { status: 404 }
       );
     }
 
-    // Get statistics
+    // Get statistics using profileId instead of clerkId
     const totalCaptions = await prisma.caption.count({
-      where: { profileId, clerkId: userId },
+      where: { profileId },
     });
 
     const favoriteCaptions = await prisma.caption.count({
-      where: { profileId, clerkId: userId, isFavorite: true },
+      where: { profileId, isFavorite: true },
     });
 
     const totalUsage = await prisma.caption.aggregate({
-      where: { profileId, clerkId: userId },
+      where: { profileId },
       _sum: { usageCount: true },
     });
 
     // Get most used captions
     const mostUsed = await prisma.caption.findMany({
-      where: { profileId, clerkId: userId, usageCount: { gt: 0 } },
+      where: { profileId, usageCount: { gt: 0 } },
       orderBy: { usageCount: "desc" },
       take: 5,
       select: {
@@ -170,7 +213,7 @@ export async function GET(request: NextRequest) {
 
     // Get recently used captions
     const recentlyUsed = await prisma.caption.findMany({
-      where: { profileId, clerkId: userId, lastUsedAt: { not: null } },
+      where: { profileId, lastUsedAt: { not: null } },
       orderBy: { lastUsedAt: "desc" },
       take: 5,
       select: {
@@ -187,7 +230,6 @@ export async function GET(request: NextRequest) {
     const captionsWithCooldown = await prisma.caption.findMany({
       where: { 
         profileId, 
-        clerkId: userId, 
         lastUsedAt: { not: null },
       },
       select: {
@@ -216,7 +258,7 @@ export async function GET(request: NextRequest) {
     // Get category breakdown
     const categoryStats = await prisma.caption.groupBy({
       by: ["captionCategory"],
-      where: { profileId, clerkId: userId },
+      where: { profileId },
       _count: { id: true },
       _sum: { usageCount: true },
     });
@@ -224,14 +266,14 @@ export async function GET(request: NextRequest) {
     // Get type breakdown
     const typeStats = await prisma.caption.groupBy({
       by: ["captionTypes"],
-      where: { profileId, clerkId: userId },
+      where: { profileId },
       _count: { id: true },
     });
 
     // Get bank breakdown
     const bankStats = await prisma.caption.groupBy({
       by: ["captionBanks"],
-      where: { profileId, clerkId: userId },
+      where: { profileId },
       _count: { id: true },
     });
 

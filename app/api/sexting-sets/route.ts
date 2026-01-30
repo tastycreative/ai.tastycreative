@@ -11,6 +11,72 @@ const s3Client = new S3Client({
   },
 });
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null; isShared: boolean }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile, isShared: false };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+      include: {
+        user: {
+          select: { clerkId: true },
+        },
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile, isShared: true };
+    }
+  }
+
+  return { hasAccess: false, profile: null, isShared: false };
+}
+
+// Helper function to get all accessible profile IDs for a user
+async function getAccessibleProfileIds(userId: string): Promise<string[]> {
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  const whereCondition: any = {
+    OR: [
+      { clerkId: userId },
+    ],
+  };
+
+  if (user?.currentOrganizationId) {
+    whereCondition.OR.push({ organizationId: user.currentOrganizationId });
+  }
+
+  const profiles = await prisma.instagramProfile.findMany({
+    where: whereCondition,
+    select: { id: true },
+  });
+
+  return profiles.map((p) => p.id);
+}
+
 // GET - Fetch all sexting sets for the user (optionally filtered by profileId)
 export async function GET(request: NextRequest) {
   try {
@@ -23,25 +89,83 @@ export async function GET(request: NextRequest) {
     const profileId = searchParams.get("profileId");
     const isAllProfiles = profileId === "all";
 
-    // Build profile map for adding profile names when viewing all profiles
-    let profileMap: Record<string, string> = {};
+    // Get user's organization for shared profile access
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { currentOrganizationId: true },
+    });
+
+    // Build profile map for adding profile names
+    let profileMap: Record<string, { name: string; clerkId: string; isShared: boolean }> = {};
+    let accessibleProfileIds: string[] = [];
+
     if (isAllProfiles) {
+      // Get all profiles the user has access to (own + organization)
+      const whereCondition: any = {
+        OR: [
+          { clerkId: userId },
+        ],
+      };
+      if (user?.currentOrganizationId) {
+        whereCondition.OR.push({ organizationId: user.currentOrganizationId });
+      }
+
       const profiles = await prisma.instagramProfile.findMany({
-        where: { clerkId: userId },
-        select: { id: true, name: true },
+        where: whereCondition,
+        select: { id: true, name: true, clerkId: true },
       });
-      profileMap = profiles.reduce((acc, p) => {
-        acc[p.id] = p.name;
+
+      profileMap = profiles.reduce((acc, profile) => {
+        acc[profile.id] = {
+          name: profile.name,
+          clerkId: profile.clerkId,
+          isShared: profile.clerkId !== userId,
+        };
         return acc;
-      }, {} as Record<string, string>);
+      }, {} as Record<string, { name: string; clerkId: string; isShared: boolean }>);
+
+      accessibleProfileIds = profiles.map((p) => p.id);
+    } else if (profileId) {
+      // Verify profile access (own or shared via organization)
+      const { hasAccess, profile, isShared } = await hasAccessToProfile(userId, profileId);
+
+      if (!hasAccess || !profile) {
+        return NextResponse.json(
+          { error: "Profile not found or unauthorized" },
+          { status: 404 }
+        );
+      }
+
+      profileMap[profileId] = {
+        name: profile.name,
+        clerkId: profile.clerkId,
+        isShared,
+      };
+    }
+
+    // Build the query for sexting sets
+    // For shared profiles, we need to get sets by category (profileId) regardless of userId
+    let setsWhere: any = {};
+
+    if (isAllProfiles) {
+      // Get sets for all accessible profiles
+      setsWhere = {
+        category: { in: accessibleProfileIds },
+      };
+    } else if (profileId) {
+      // Get sets for the specific profile
+      setsWhere = {
+        category: profileId,
+      };
+    } else {
+      // No profile specified - get only user's own sets
+      setsWhere = {
+        userId,
+      };
     }
 
     const sets = await prisma.sextingSet.findMany({
-      where: {
-        userId,
-        // When viewing all profiles, don't filter by category
-        ...(!isAllProfiles && profileId && { category: profileId }),
-      },
+      where: setsWhere,
       include: {
         images: {
           orderBy: { sequence: "asc" },
@@ -50,13 +174,14 @@ export async function GET(request: NextRequest) {
       orderBy: { updatedAt: "desc" },
     });
 
-    // Add profileName to each set when viewing all profiles
-    const setsWithProfileName = sets.map((set) => ({
+    // Add profileName and isShared to each set
+    const setsWithProfileInfo = sets.map((set) => ({
       ...set,
-      profileName: isAllProfiles ? profileMap[set.category] || null : null,
+      profileName: profileMap[set.category]?.name || null,
+      isSharedProfile: profileMap[set.category]?.isShared || false,
     }));
 
-    return NextResponse.json({ sets: setsWithProfileName });
+    return NextResponse.json({ sets: setsWithProfileInfo });
   } catch (error) {
     console.error("Error fetching sexting sets:", error);
     return NextResponse.json(
@@ -84,14 +209,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate S3 folder path
-    const s3FolderPath = `sexting-sets/${userId}/${profileId || "general"}/${Date.now()}-${name.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`;
+    // Determine the target profile ID
+    const targetProfileId = profileId || category;
+
+    // If a profile is specified, verify access
+    if (targetProfileId && targetProfileId !== "general") {
+      const { hasAccess, profile } = await hasAccessToProfile(userId, targetProfileId);
+
+      if (!hasAccess || !profile) {
+        return NextResponse.json(
+          { error: "Profile not found or unauthorized" },
+          { status: 404 }
+        );
+      }
+
+      // Use the profile owner's userId for the set
+      const setOwnerId = profile.clerkId;
+
+      // Generate S3 folder path using the profile owner's ID
+      const s3FolderPath = `sexting-sets/${setOwnerId}/${targetProfileId}/${Date.now()}-${name.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`;
+
+      const set = await prisma.sextingSet.create({
+        data: {
+          userId: setOwnerId,
+          name,
+          category: targetProfileId,
+          s3FolderPath,
+          status: "draft",
+        },
+        include: {
+          images: true,
+        },
+      });
+
+      return NextResponse.json({ set });
+    }
+
+    // No profile specified - create for current user
+    const s3FolderPath = `sexting-sets/${userId}/general/${Date.now()}-${name.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`;
 
     const set = await prisma.sextingSet.create({
       data: {
         userId,
         name,
-        category: category || profileId || "general",
+        category: "general",
         s3FolderPath,
         status: "draft",
       },
@@ -128,15 +289,26 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Verify ownership
+    // Find the set first
     const existingSet = await prisma.sextingSet.findFirst({
-      where: { id, userId },
+      where: { id },
     });
 
     if (!existingSet) {
       return NextResponse.json(
-        { error: "Set not found or unauthorized" },
+        { error: "Set not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify access via the set's category (profileId)
+    const { hasAccess } = await hasAccessToProfile(userId, existingSet.category);
+
+    // Also allow if user owns the set directly
+    if (!hasAccess && existingSet.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized to modify this set" },
+        { status: 403 }
       );
     }
 
@@ -183,16 +355,27 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Verify ownership and get images
+    // Find the set first
     const existingSet = await prisma.sextingSet.findFirst({
-      where: { id, userId },
+      where: { id },
       include: { images: true },
     });
 
     if (!existingSet) {
       return NextResponse.json(
-        { error: "Set not found or unauthorized" },
+        { error: "Set not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify access via the set's category (profileId)
+    const { hasAccess } = await hasAccessToProfile(userId, existingSet.category);
+
+    // Also allow if user owns the set directly
+    if (!hasAccess && existingSet.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized to delete this set" },
+        { status: 403 }
       );
     }
 

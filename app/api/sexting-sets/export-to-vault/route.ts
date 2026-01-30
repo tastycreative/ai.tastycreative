@@ -11,6 +11,42 @@ const s3Client = new S3Client({
   },
 });
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // POST - Export a sexting set to a new vault folder
 export async function POST(request: NextRequest) {
   try {
@@ -43,9 +79,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify ownership of the sexting set
+    // Find the sexting set
     const sextingSet = await prisma.sextingSet.findFirst({
-      where: { id: setId, userId },
+      where: { id: setId },
       include: {
         images: {
           orderBy: { sequence: "asc" },
@@ -55,8 +91,19 @@ export async function POST(request: NextRequest) {
 
     if (!sextingSet) {
       return NextResponse.json(
-        { error: "Set not found or unauthorized" },
+        { error: "Set not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify access via the set's category (profileId)
+    const { hasAccess } = await hasAccessToProfile(userId, sextingSet.category);
+
+    // Also allow if user owns the set directly
+    if (!hasAccess && sextingSet.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized to export this set" },
+        { status: 403 }
       );
     }
 
@@ -67,19 +114,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the profile belongs to this user
-    const profile = await prisma.instagramProfile.findFirst({
-      where: { id: profileId, clerkId: userId },
-    });
+    // Verify access to the target profile for vault export
+    const { hasAccess: hasTargetProfileAccess, profile } = await hasAccessToProfile(userId, profileId);
 
-    if (!profile) {
+    if (!hasTargetProfileAccess) {
       return NextResponse.json(
         { error: "Profile not found or unauthorized" },
         { status: 404 }
       );
     }
 
-    // Create new vault folder for this export
+    // Create new vault folder for this export (owned by current user)
     const vaultFolder = await prisma.vaultFolder.create({
       data: {
         clerkId: userId,

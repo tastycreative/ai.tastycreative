@@ -214,6 +214,7 @@ export async function POST(request: NextRequest) {
     // Check if saving to vault - verify folder exists and user has access
     let vaultFolder = null;
     if (body.saveToVault && body.vaultProfileId && body.vaultFolderId) {
+      // First check if user owns the folder
       vaultFolder = await prisma.vaultFolder.findFirst({
         where: {
           id: body.vaultFolderId,
@@ -222,6 +223,107 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // If not owned, check if folder is shared with user OR if profile is shared via organization
+      if (!vaultFolder) {
+        // Get the user's internal ID for organization membership checks
+        const currentUser = await prisma.user.findUnique({
+          where: { clerkId: userId },
+          select: { id: true, currentOrganizationId: true },
+        });
+
+        // Get the profile to check organization membership
+        const profile = await prisma.instagramProfile.findUnique({
+          where: { id: body.vaultProfileId },
+          select: {
+            id: true,
+            clerkId: true,
+            organizationId: true,
+          },
+        });
+
+        // Check if user has access via organization
+        let isOrgMember = false;
+        
+        if (profile?.organizationId && currentUser) {
+          if (currentUser.currentOrganizationId === profile.organizationId) {
+            isOrgMember = true;
+          } else {
+            const membership = await prisma.teamMember.findFirst({
+              where: {
+                userId: currentUser.id,
+                organizationId: profile.organizationId,
+              },
+            });
+            isOrgMember = !!membership;
+          }
+        }
+
+        console.log('🔍 T2I Access check:', {
+          userId,
+          userInternalId: currentUser?.id,
+          profileId: body.vaultProfileId,
+          profileOrgId: profile?.organizationId,
+          userCurrentOrgId: currentUser?.currentOrganizationId,
+          isOrgMember,
+        });
+
+        if (isOrgMember) {
+          // User has access to the profile through organization membership
+          vaultFolder = await prisma.vaultFolder.findFirst({
+            where: {
+              id: body.vaultFolderId,
+              profileId: body.vaultProfileId,
+            },
+          });
+
+          if (vaultFolder) {
+            console.log('📂 Using organization shared vault folder:', vaultFolder.name);
+          }
+        } else {
+          // Check if folder is explicitly shared via VaultFolderShare
+          const sharedFolder = await prisma.vaultFolder.findFirst({
+            where: {
+              id: body.vaultFolderId,
+              profileId: body.vaultProfileId,
+              shares: {
+                some: {
+                  sharedWithClerkId: userId,
+                },
+              },
+            },
+            include: {
+              shares: {
+                where: {
+                  sharedWithClerkId: userId,
+                },
+                select: {
+                  permission: true,
+                },
+              },
+            },
+          });
+
+          if (sharedFolder) {
+            const hasEditPermission = sharedFolder.shares.some(
+              (share) => share.permission === 'EDIT'
+            );
+            
+            if (hasEditPermission) {
+              vaultFolder = sharedFolder;
+              console.log('📂 Using explicitly shared vault folder (EDIT access):', vaultFolder.name);
+            } else {
+              console.error('❌ Vault folder found but user only has VIEW permission');
+              return NextResponse.json(
+                { error: 'Insufficient permissions. EDIT access required to generate content in this folder.' },
+                { status: 403 }
+              );
+            }
+          }
+        }
+      } else {
+        console.log('📂 Using owned vault folder:', vaultFolder.name);
+      }
+
       if (!vaultFolder) {
         console.error('❌ Vault folder not found or access denied');
         return NextResponse.json(
@@ -229,7 +331,6 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
-      console.log('📂 Saving to vault folder:', vaultFolder.name);
     }
 
     // Process and save each generated image
@@ -269,10 +370,11 @@ export async function POST(request: NextRequest) {
         let subfolder = '';
         let publicUrl: string;
         
-        if (body.saveToVault && body.vaultProfileId && body.vaultFolderId) {
-          // Save to vault storage: vault/{clerkId}/{profileId}/{folderId}/{fileName}
-          s3Key = `vault/${userId}/${body.vaultProfileId}/${body.vaultFolderId}/${filename}`;
-          console.log(`📤 Uploading to Vault S3: ${s3Key}`);
+        if (body.saveToVault && body.vaultProfileId && body.vaultFolderId && vaultFolder) {
+          // Save to vault storage: vault/{ownerClerkId}/{profileId}/{folderId}/{fileName}
+          // Use the folder owner's clerkId (vaultFolder.clerkId), not current user's
+          s3Key = `vault/${vaultFolder.clerkId}/${body.vaultProfileId}/${body.vaultFolderId}/${filename}`;
+          console.log(`📤 Uploading to Vault S3: ${s3Key} (owner: ${vaultFolder.clerkId})`);
         } else if (body.targetFolder) {
           // Use selected folder (already includes outputs/{userId}/ prefix)
           s3Key = `${body.targetFolder.replace(/\/$/, '')}/${filename}`;
@@ -307,11 +409,12 @@ export async function POST(request: NextRequest) {
         // Save to database - different handling for vault vs regular
         const [width, height] = (item.size || body.size || '2048x2048').split('x').map(Number);
         
-        if (body.saveToVault && body.vaultProfileId && body.vaultFolderId) {
+        if (body.saveToVault && body.vaultProfileId && body.vaultFolderId && vaultFolder) {
           // Save to vault database with generation metadata
+          // Use vaultFolder.clerkId (the profile owner's clerkId) so the item appears in the vault
           const vaultItem = await prisma.vaultItem.create({
             data: {
-              clerkId: userId,
+              clerkId: vaultFolder.clerkId, // Use folder owner's clerkId, not current user
               profileId: body.vaultProfileId,
               folderId: body.vaultFolderId,
               fileName: filename,
@@ -330,6 +433,7 @@ export async function POST(request: NextRequest) {
                 aspectRatio: body.aspectRatio || null,
                 watermark: body.watermark,
                 generatedAt: new Date().toISOString(),
+                generatedByClerkId: userId, // Track who actually generated it
               },
             },
           });
@@ -526,15 +630,22 @@ export async function GET(request: NextRequest) {
     console.log('📋 Found generated images:', generatedImages.length);
 
     // Also fetch vault items that were created from SeeDream
-    // Fetch recent image vault items and filter by source in JS for reliability
+    // Need to check both: items where clerkId matches (own profile) OR items generated by this user (shared profile)
     const vaultWhere: any = {
-      clerkId: userId,
       fileType: 'image/png',
+      OR: [
+        { clerkId: userId }, // Items on own profiles
+      ],
     };
     
     // Filter by profileId if provided (not for all profiles)
     if (profileId && !isAllProfiles) {
       vaultWhere.profileId = profileId;
+      // For specific profile, also get items where user generated on a shared profile
+      vaultWhere.OR = [
+        { clerkId: userId, profileId },
+        { profileId }, // Will filter by generatedByClerkId below
+      ];
     }
     
     const allVaultImages = await prisma.vaultItem.findMany({
@@ -546,9 +657,16 @@ export async function GET(request: NextRequest) {
     });
 
     // Filter to only SeeDream generated images
+    // Also include items where this user generated on a shared profile
     const vaultImages = allVaultImages.filter((img) => {
       const metadata = img.metadata as any;
-      return metadata?.source === 'seedream-t2i';
+      const isSeeDreamT2I = metadata?.source === 'seedream-t2i';
+      if (!isSeeDreamT2I) return false;
+      
+      // Include if: user owns the item OR user generated the item (on shared profile)
+      const isOwned = img.clerkId === userId;
+      const isGenerated = metadata?.generatedByClerkId === userId;
+      return isOwned || isGenerated;
     }).slice(0, 20);
 
     console.log('📋 Found vault images:', vaultImages.length);

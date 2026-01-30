@@ -5,6 +5,42 @@ import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // GET: Fetch a specific reel slot
 export async function GET(request: NextRequest) {
   try {
@@ -13,15 +49,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-  const url = new URL(request.url);
-  const parts = url.pathname.split('/').filter(Boolean);
-  const id = parts[parts.length - 1];
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
 
     const slot = await prisma.reelPlanningSlot.findUnique({
-      where: {
-        id,
-        clerkId: user.id,
-      },
+      where: { id },
       include: {
         pipelineItem: true,
       },
@@ -29,6 +62,17 @@ export async function GET(request: NextRequest) {
 
     if (!slot) {
       return NextResponse.json({ error: "Reel slot not found" }, { status: 404 });
+    }
+
+    // Check access - either own slot or has access to the profile
+    let hasAccess = slot.clerkId === user.id;
+    if (!hasAccess && slot.profileId) {
+      const profileAccess = await hasAccessToProfile(user.id, slot.profileId);
+      hasAccess = profileAccess.hasAccess;
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     return NextResponse.json({ slot });
@@ -49,9 +93,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-  const url = new URL(request.url);
-  const parts = url.pathname.split('/').filter(Boolean);
-  const id = parts[parts.length - 1];
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
     const body = await request.json();
     const {
       timeSlot,
@@ -69,16 +113,24 @@ export async function PATCH(request: NextRequest) {
       postedAt,
     } = body;
 
-    // Check if slot exists and belongs to user
-    const existingSlot = await prisma.reelPlanningSlot.findFirst({
-      where: {
-        id,
-        clerkId: user.id,
-      },
+    // Check if slot exists
+    const existingSlot = await prisma.reelPlanningSlot.findUnique({
+      where: { id },
     });
 
     if (!existingSlot) {
       return NextResponse.json({ error: "Reel slot not found" }, { status: 404 });
+    }
+
+    // Check access - either own slot or has access to the profile
+    let hasAccess = existingSlot.clerkId === user.id;
+    if (!hasAccess && existingSlot.profileId) {
+      const profileAccess = await hasAccessToProfile(user.id, existingSlot.profileId);
+      hasAccess = profileAccess.hasAccess;
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Build update data
@@ -146,20 +198,28 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-  const url = new URL(request.url);
-  const parts = url.pathname.split('/').filter(Boolean);
-  const id = parts[parts.length - 1];
+    const url = new URL(request.url);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const id = parts[parts.length - 1];
 
-    // Check if slot exists and belongs to user
-    const existingSlot = await prisma.reelPlanningSlot.findFirst({
-      where: {
-        id,
-        clerkId: user.id,
-      },
+    // Check if slot exists
+    const existingSlot = await prisma.reelPlanningSlot.findUnique({
+      where: { id },
     });
 
     if (!existingSlot) {
       return NextResponse.json({ error: "Reel slot not found" }, { status: 404 });
+    }
+
+    // Check access - either own slot or has access to the profile
+    let hasAccess = existingSlot.clerkId === user.id;
+    if (!hasAccess && existingSlot.profileId) {
+      const profileAccess = await hasAccessToProfile(user.id, existingSlot.profileId);
+      hasAccess = profileAccess.hasAccess;
+    }
+
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Delete the associated pipeline item first if it exists

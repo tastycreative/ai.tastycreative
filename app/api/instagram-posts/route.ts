@@ -3,6 +3,74 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 import { recordPostChange, notifyPostChange } from '@/lib/post-change-tracker';
 
+// Helper function to check if user has access to a profile (owner or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{hasAccess: boolean, profile: any}> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile via user's currentOrganizationId in database
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+      include: {
+        user: {
+          select: { clerkId: true },
+        },
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
+// Helper to get all accessible profile IDs for a user
+async function getAccessibleProfileIds(userId: string): Promise<string[]> {
+  // Get user's own profiles
+  const ownProfiles = await prisma.instagramProfile.findMany({
+    where: { clerkId: userId },
+    select: { id: true },
+  });
+
+  // Get organization shared profiles via user's currentOrganizationId in database
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+  
+  const sharedProfiles = user?.currentOrganizationId
+    ? await prisma.instagramProfile.findMany({
+        where: {
+          organizationId: user.currentOrganizationId,
+          clerkId: { not: userId }, // Exclude own profiles to avoid duplicates
+        },
+        select: { id: true },
+      })
+    : [];
+
+  return [...ownProfiles, ...sharedProfiles].map(p => p.id);
+}
+
 // GET - Fetch Instagram posts (for current user OR specified user if Admin/Manager)
 export async function GET(request: NextRequest) {
   try {
@@ -23,13 +91,13 @@ export async function GET(request: NextRequest) {
 
     // If requesting another user's posts, verify permissions
     if (targetUserId && targetUserId !== userId) {
-      const currentUser = await prisma.user.findUnique({
+      const currentUserRecord = await prisma.user.findUnique({
         where: { clerkId: userId },
         select: { role: true }
       });
 
-      // Only ADMIN and MANAGER can view other users' posts
-      if (!currentUser || (currentUser.role !== 'ADMIN' && currentUser.role !== 'MANAGER')) {
+      // Only SUPER_ADMIN, ADMIN and MANAGER can view other users' posts
+      if (!currentUserRecord || (currentUserRecord.role !== 'SUPER_ADMIN' && currentUserRecord.role !== 'ADMIN' && currentUserRecord.role !== 'MANAGER')) {
         return NextResponse.json(
           { error: 'Unauthorized - insufficient permissions to view other users posts' },
           { status: 403 }
@@ -39,10 +107,34 @@ export async function GET(request: NextRequest) {
       postsClerkId = targetUserId;
     }
 
-    // Build where clause with optional profileId filter
-    const whereClause: any = { clerkId: postsClerkId };
+    // Build where clause - support shared profiles
+    let whereClause: any;
+
     if (profileId) {
-      whereClause.profileId = profileId;
+      // Specific profile requested - verify access
+      const { hasAccess } = await hasAccessToProfile(userId, profileId);
+      if (!hasAccess && postsClerkId === userId) {
+        return NextResponse.json(
+          { error: 'Unauthorized to access this profile' },
+          { status: 403 }
+        );
+      }
+      whereClause = { profileId };
+    } else {
+      // No specific profile - get all accessible posts
+      if (postsClerkId === userId) {
+        // Get posts for all accessible profiles (owned + shared)
+        const accessibleProfileIds = await getAccessibleProfileIds(userId);
+        whereClause = {
+          OR: [
+            { clerkId: userId }, // Own posts
+            { profileId: { in: accessibleProfileIds } }, // Shared profile posts
+          ]
+        };
+      } else {
+        // Admin viewing specific user's posts
+        whereClause = { clerkId: postsClerkId };
+      }
     }
 
     const posts = await prisma.instagramPost.findMany({
@@ -112,9 +204,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the highest order number for this user
+    // Determine the target clerkId - if this is a shared profile, use the profile owner's clerkId
+    let targetClerkId = userId;
+    if (profileId) {
+      const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
+      if (!hasAccess) {
+        return NextResponse.json(
+          { error: 'Unauthorized to create posts for this profile' },
+          { status: 403 }
+        );
+      }
+      // Use the profile owner's clerkId for data association
+      targetClerkId = profile.clerkId;
+    }
+
+    // Get the highest order number for this profile (or user if no profile)
+    const orderWhereClause = profileId 
+      ? { profileId } 
+      : { clerkId: targetClerkId };
+    
     const maxOrderPost = await prisma.instagramPost.findFirst({
-      where: { clerkId: userId },
+      where: orderWhereClause,
       orderBy: { order: 'desc' },
       select: { order: true },
     });
@@ -123,12 +233,12 @@ export async function POST(request: NextRequest) {
 
     const post = await prisma.instagramPost.create({
       data: {
-        clerkId: userId,
+        clerkId: targetClerkId,
         profileId: profileId || null,
-  driveFileId: hasDrivePayload ? driveFileId : null,
-  driveFileUrl: hasDrivePayload ? driveFileUrl : null,
-  awsS3Key: hasS3Payload ? awsS3Key : null,
-  awsS3Url: hasS3Payload ? awsS3Url : null,
+        driveFileId: hasDrivePayload ? driveFileId : null,
+        driveFileUrl: hasDrivePayload ? driveFileUrl : null,
+        awsS3Key: hasS3Payload ? awsS3Key : null,
+        awsS3Url: hasS3Payload ? awsS3Url : null,
         fileName,
         caption,
         scheduledDate: scheduledDate ? new Date(scheduledDate) : null,
@@ -189,11 +299,21 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Get accessible profile IDs for the user
+    const accessibleProfileIds = await getAccessibleProfileIds(userId);
+
     // Update all post orders in a transaction
+    // Allow updates for posts that belong to user OR are from accessible profiles
     await prisma.$transaction(
       posts.map((post) =>
         prisma.instagramPost.update({
-          where: { id: post.id, clerkId: userId },
+          where: { 
+            id: post.id,
+            OR: [
+              { clerkId: userId },
+              { profileId: { in: accessibleProfileIds } }
+            ]
+          },
           data: { order: post.order },
         })
       )

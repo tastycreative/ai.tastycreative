@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -41,6 +41,7 @@ interface WeeklySlot {
   trendingAudio?: string | null;
   contentIdeas?: string | null;
   linkedPostId?: string | null;
+  profileId?: string | null;
   storyCount?: number; // Number of stories planned for this date
   reelCount?: number; // Number of reels planned for this date
   postedCount?: number; // Number of stories/reels posted for this date
@@ -62,6 +63,8 @@ interface WeeklyCalendarViewProps {
 export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProps) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const params = useParams();
+  const tenant = params.tenant as string;
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
     const today = new Date();
     const dayOfWeek = today.getDay();
@@ -76,6 +79,7 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
   const [reelCountsByDate, setReelCountsByDate] = useState<Record<string, { total: number; posted: number }>>({});
   const [feedPostCountsByDate, setFeedPostCountsByDate] = useState<Record<string, { total: number; posted: number }>>({});
   const [loading, setLoading] = useState(true);
+  const [profiles, setProfiles] = useState<Record<string, { name: string; profileImageUrl?: string; instagramUsername?: string }>>({});
   const [showSlotModal, setShowSlotModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<WeeklySlot | null>(null);
   const [selectedDateStories, setSelectedDateStories] = useState<any[]>([]);
@@ -111,6 +115,31 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
     date.setDate(currentWeekStart.getDate() + i);
     return date;
   });
+
+  // Load profiles
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    const fetchProfiles = async () => {
+      try {
+        const response = await fetch('/api/instagram/profiles');
+        if (response.ok) {
+          const data = await response.json();
+          const profileMap: Record<string, { name: string; profileImageUrl?: string; instagramUsername?: string }> = {};
+          data.profiles?.forEach((p: any) => {
+            profileMap[p.id] = {
+              name: p.name,
+              profileImageUrl: p.profileImageUrl,
+              instagramUsername: p.instagramUsername,
+            };
+          });
+          setProfiles(profileMap);
+        }
+      } catch (error) {
+        console.error('Error fetching profiles:', error);
+      }
+    };
+    fetchProfiles();
+  }, [isLoaded, user]);
 
   // Load slots for current week
   useEffect(() => {
@@ -870,6 +899,23 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
                               </button>
                             </div>
                           )}
+                          {/* Profile indicator when viewing all profiles */}
+                          {profileId === 'all' && slot.profileId && profiles[slot.profileId] && (
+                            <div className="flex items-center gap-1 mb-1">
+                              {profiles[slot.profileId].profileImageUrl ? (
+                                <img
+                                  src={profiles[slot.profileId].profileImageUrl}
+                                  alt={profiles[slot.profileId].name}
+                                  className="w-3 h-3 rounded-full object-cover ring-1 ring-white/20"
+                                />
+                              ) : (
+                                <div className="w-3 h-3 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 ring-1 ring-white/20" />
+                              )}
+                              <span className="text-[8px] sm:text-[9px] font-medium text-white/60 truncate">
+                                {profiles[slot.profileId].name}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between">
                             <span
                               className={`text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full text-white ${getStatusColor(
@@ -1180,7 +1226,8 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
                       const month = String(editingSlot.date.getMonth() + 1).padStart(2, '0');
                       const day = String(editingSlot.date.getDate()).padStart(2, '0');
                       const dateStr = `${year}-${month}-${day}`;
-                      router.push(`/workspace/instagram-staging?tab=reels&date=${dateStr}`);
+                      const profileParam = profileId && profileId !== 'all' ? `?profile=${profileId}&date=${dateStr}` : `?date=${dateStr}`;
+                      router.push(`/${tenant}/workspace/content-studio/reels${profileParam}`);
                     }}
                     className="mt-3 w-full px-3 py-2 text-xs font-medium text-pink-600 dark:text-pink-400 hover:bg-pink-100 dark:hover:bg-pink-900/30 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
@@ -1245,7 +1292,8 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
                       const month = String(editingSlot.date.getMonth() + 1).padStart(2, '0');
                       const day = String(editingSlot.date.getDate()).padStart(2, '0');
                       const dateStr = `${year}-${month}-${day}`;
-                      router.push(`/workspace/instagram-staging?tab=feed-posts&date=${dateStr}`);
+                      const profileParam = profileId && profileId !== 'all' ? `?profile=${profileId}&date=${dateStr}` : `?date=${dateStr}`;
+                      router.push(`/${tenant}/workspace/content-studio/feed-posts${profileParam}`);
                     }}
                     className="mt-3 w-full px-3 py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
@@ -1302,7 +1350,8 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
                       const month = String(editingSlot.date.getMonth() + 1).padStart(2, '0');
                       const day = String(editingSlot.date.getDate()).padStart(2, '0');
                       const dateStr = `${year}-${month}-${day}`;
-                      router.push(`/workspace/instagram-staging?tab=stories&date=${dateStr}`);
+                      const profileParam = profileId && profileId !== 'all' ? `?profile=${profileId}&date=${dateStr}` : `?date=${dateStr}`;
+                      router.push(`/${tenant}/workspace/content-studio/stories${profileParam}`);
                     }}
                     className="mt-3 w-full px-3 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
@@ -1335,7 +1384,8 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
                         const month = String(new Date(targetDate).getMonth() + 1).padStart(2, '0');
                         const day = String(new Date(targetDate).getDate()).padStart(2, '0');
                         const dateStr = `${year}-${month}-${day}`;
-                        router.push(`/workspace/instagram-staging?tab=stories&date=${dateStr}`);
+                        const profileParam = profileId && profileId !== 'all' ? `?profile=${profileId}&date=${dateStr}` : `?date=${dateStr}`;
+                        router.push(`/${tenant}/workspace/content-studio/stories${profileParam}`);
                       }
                     }}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg transition-colors font-medium"
@@ -1366,7 +1416,8 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
                         const month = String(new Date(targetDate).getMonth() + 1).padStart(2, '0');
                         const day = String(new Date(targetDate).getDate()).padStart(2, '0');
                         const dateStr = `${year}-${month}-${day}`;
-                        router.push(`/workspace/instagram-staging?tab=reels&date=${dateStr}`);
+                        const profileParam = profileId && profileId !== 'all' ? `?profile=${profileId}&date=${dateStr}` : `?date=${dateStr}`;
+                        router.push(`/${tenant}/workspace/content-studio/reels${profileParam}`);
                       }
                     }}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-700 hover:to-red-700 text-white rounded-lg transition-colors font-medium"
@@ -1397,7 +1448,8 @@ export default function WeeklyCalendarView({ profileId }: WeeklyCalendarViewProp
                         const month = String(new Date(targetDate).getMonth() + 1).padStart(2, '0');
                         const day = String(new Date(targetDate).getDate()).padStart(2, '0');
                         const dateStr = `${year}-${month}-${day}`;
-                        router.push(`/workspace/instagram-staging?tab=feed-posts&date=${dateStr}`);
+                        const profileParam = profileId && profileId !== 'all' ? `?profile=${profileId}&date=${dateStr}` : `?date=${dateStr}`;
+                        router.push(`/${tenant}/workspace/content-studio/feed-posts${profileParam}`);
                       }
                     }}
                     className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg transition-colors font-medium"
