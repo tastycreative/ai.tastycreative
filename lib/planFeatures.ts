@@ -194,6 +194,14 @@ export const PLAN_FEATURES: FeatureDefinition[] = [
     defaultValue: true,
   },
   {
+    key: 'canAIVoice',
+    label: 'AI Voice Generation',
+    description: 'Text-to-speech AI voice generation',
+    category: 'generation',
+    type: 'boolean',
+    defaultValue: true,
+  },
+  {
     key: 'canSeeDreamTextToImage',
     label: 'SeeDream Text to Image',
     description: 'SeeDream 4.5 text-to-image generation',
