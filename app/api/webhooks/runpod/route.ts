@@ -289,6 +289,7 @@ export async function POST(request: NextRequest) {
                         referenceImage: generationMetadata.referenceImage,
                         referenceImageUrl: generationMetadata.referenceImageUrl,
                         generatedAt: generationMetadata.generatedAt,
+                        generatedByClerkId: job?.clerkId, // Track who generated this item
                       },
                     },
                   });
@@ -527,6 +528,7 @@ export async function POST(request: NextRequest) {
                         referenceImage: generationMetadata.referenceImage,
                         referenceImageUrl: generationMetadata.referenceImageUrl,
                         generatedAt: generationMetadata.generatedAt,
+                        generatedByClerkId: job?.clerkId, // Track who generated this item
                       },
                     },
                   });

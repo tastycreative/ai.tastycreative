@@ -12,6 +12,47 @@ const s3Client = new S3Client({
   },
 });
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+      include: {
+        user: {
+          select: { clerkId: true },
+        },
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // Initialize Google Drive API with OAuth2
 function getDriveClient(accessToken: string) {
   const oauth2Client = new google.auth.OAuth2(
@@ -66,11 +107,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify ownership of the vault folder
+    // Check if user has access to this profile
+    const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Access denied to this profile" },
+        { status: 403 }
+      );
+    }
+
+    // Verify the folder exists and belongs to this profile
     const vaultFolder = await prisma.vaultFolder.findFirst({
       where: {
         id: folderId,
-        clerkId: userId,
         profileId: profileId,
       },
     });
@@ -81,6 +130,9 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Determine the profile owner's clerkId for consistency
+    const profileOwnerClerkId = profile?.clerkId || profile?.user?.clerkId || userId;
 
     // Initialize Google Drive client
     const drive = getDriveClient(accessToken);
@@ -142,7 +194,7 @@ export async function POST(request: NextRequest) {
         // Create vault item record
         const vaultItem = await prisma.vaultItem.create({
           data: {
-            clerkId: userId,
+            clerkId: profileOwnerClerkId,
             folderId: folderId,
             profileId: profileId,
             fileName: fileName,

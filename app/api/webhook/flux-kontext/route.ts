@@ -164,6 +164,7 @@ export async function POST(request: NextRequest) {
                   model: jobParams?.model || "flux-kontext",
                   prompt: jobParams?.prompt || "",
                   generatedAt: new Date().toISOString(),
+                  generatedByClerkId: job.clerkId, // Track who generated this item
                 },
               },
             });

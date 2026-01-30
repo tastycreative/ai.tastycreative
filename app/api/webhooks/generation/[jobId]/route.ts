@@ -202,6 +202,12 @@ export async function POST(
                   fileSize: fileSize || 0,
                   awsS3Key: awsS3Key,
                   awsS3Url: awsS3Url,
+                  metadata: {
+                    source: jobParams?.source || (isVideo ? 'video-generation' : 'image-generation'),
+                    generationType: isVideo ? 'video' : 'image',
+                    generatedAt: new Date().toISOString(),
+                    generatedByClerkId: existingJob.clerkId, // Track who generated this item
+                  },
                 },
               });
               
@@ -407,6 +413,12 @@ export async function POST(
                     fileSize: file_size || 0,
                     awsS3Key: s3_key,
                     awsS3Url: publicUrl,
+                    metadata: {
+                      source: jobParams?.source || 'image-generation',
+                      generationType: 'image',
+                      generatedAt: new Date().toISOString(),
+                      generatedByClerkId: existingJob.clerkId, // Track who generated this item
+                    },
                   },
                 });
                 
@@ -838,6 +850,12 @@ export async function POST(
                     fileSize: videoInfo.fileSize || 0,
                     awsS3Key: s3Key,
                     awsS3Url: publicUrl,
+                    metadata: {
+                      source: jobParams?.source || 'video-generation',
+                      generationType: 'video',
+                      generatedAt: new Date().toISOString(),
+                      generatedByClerkId: existingJob.clerkId, // Track who generated this item
+                    },
                   },
                 });
                 
@@ -1004,6 +1022,12 @@ export async function POST(
                     fileSize: videoBuffer.length,
                     awsS3Key: s3Key,
                     awsS3Url: publicUrl,
+                    metadata: {
+                      source: jobParams?.source || 'video-generation',
+                      generationType: 'video',
+                      generatedAt: new Date().toISOString(),
+                      generatedByClerkId: existingJob.clerkId, // Track who generated this item
+                    },
                   },
                 });
                 

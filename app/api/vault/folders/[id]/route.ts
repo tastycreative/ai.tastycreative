@@ -11,6 +11,47 @@ const s3Client = new S3Client({
   },
 });
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+      include: {
+        user: {
+          select: { clerkId: true },
+        },
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // PATCH /api/vault/folders/[id] - Update folder name
 export async function PATCH(
   request: NextRequest,
@@ -30,9 +71,16 @@ export async function PATCH(
       return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
 
-    // Verify ownership
-    const folder = await prisma.vaultFolder.findFirst({
-      where: { id, clerkId: userId },
+    // Get the folder to check permissions
+    const folder = await prisma.vaultFolder.findUnique({
+      where: { id },
+      select: { 
+        id: true, 
+        name: true, 
+        isDefault: true, 
+        profileId: true, 
+        clerkId: true 
+      },
     });
 
     if (!folder) {
@@ -44,6 +92,16 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Cannot rename default folder" },
         { status: 400 }
+      );
+    }
+
+    // Check if user has access to the profile this folder belongs to
+    const { hasAccess } = await hasAccessToProfile(userId, folder.profileId);
+    
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Access denied to this folder" },
+        { status: 403 }
       );
     }
 
@@ -75,9 +133,15 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Verify ownership
-    const folder = await prisma.vaultFolder.findFirst({
-      where: { id, clerkId: userId },
+    // Get the folder to check permissions
+    const folder = await prisma.vaultFolder.findUnique({
+      where: { id },
+      select: { 
+        id: true, 
+        isDefault: true, 
+        profileId: true, 
+        clerkId: true 
+      },
     });
 
     if (!folder) {
@@ -89,6 +153,16 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Cannot delete default folder" },
         { status: 400 }
+      );
+    }
+
+    // Check if user has access to the profile this folder belongs to
+    const { hasAccess } = await hasAccessToProfile(userId, folder.profileId);
+    
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Access denied to this folder" },
+        { status: 403 }
       );
     }
 

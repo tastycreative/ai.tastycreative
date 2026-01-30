@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user has access to this profile
-    const { hasAccess } = await hasAccessToProfile(userId, profileId);
+    const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
     if (!hasAccess) {
       return NextResponse.json(
         { error: "Access denied to this profile" },
@@ -263,9 +263,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine the profile owner's clerkId
+    // For shared organization profiles, use the profile owner's clerkId
+    // For own profiles, use the current user's clerkId
+    const profileOwnerClerkId = profile?.clerkId || profile?.user?.clerkId || userId;
+
     const folder = await prisma.vaultFolder.create({
       data: {
-        clerkId: userId,
+        clerkId: profileOwnerClerkId,
         profileId,
         name,
         isDefault: isDefault || false,

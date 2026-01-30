@@ -2,6 +2,156 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/database';
 
+// GET endpoint for fetching generation history
+export async function GET(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const isHistoryRequest = searchParams.get('history') === 'true';
+
+    if (isHistoryRequest) {
+      try {
+        const profileId = searchParams.get('profileId');
+        const isAllProfiles = profileId === 'all' || !profileId;
+
+        console.log('[Wan T2V] Fetching video history for user:', userId, 'profileId:', profileId, 'isAllProfiles:', isAllProfiles);
+
+        // If viewing all profiles, get profile map for name lookups
+        let profileMap: Record<string, string> = {};
+        if (isAllProfiles) {
+          const profiles = await prisma.instagramProfile.findMany({
+            where: { clerkId: userId },
+            select: { id: true, name: true, instagramUsername: true },
+          });
+          profileMap = profiles.reduce((acc, p) => {
+            acc[p.id] = p.instagramUsername ? `@${p.instagramUsername}` : p.name;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+
+        // Get recent completed TEXT_TO_VIDEO jobs (filtering for wan-t2v source)
+        const recentJobs = await prisma.generationJob.findMany({
+          where: {
+            clerkId: userId,
+            type: 'TEXT_TO_VIDEO',
+            status: 'COMPLETED',
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 50,
+          select: {
+            id: true,
+            params: true,
+          },
+        });
+
+        // Filter to only Wan T2V jobs (source === 'wan-t2v' or no source which means it's from this handler)
+        const wanJobIds = recentJobs
+          .filter((job) => {
+            const params = job.params as any;
+            // Include if source is wan-t2v OR if source is not set (legacy jobs from this handler)
+            return params?.source === 'wan-t2v' || !params?.source;
+          })
+          .map((job) => job.id);
+
+        console.log('[Wan T2V] Found Wan job IDs:', wanJobIds.length);
+
+        // Fetch videos for these jobs
+        let videos: any[] = [];
+        if (wanJobIds.length > 0) {
+          videos = await prisma.generatedVideo.findMany({
+            where: {
+              clerkId: userId,
+              jobId: {
+                in: wanJobIds,
+              },
+              awsS3Url: {
+                not: null,
+              },
+            },
+            include: {
+              job: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 20,
+          });
+        }
+
+        console.log('[Wan T2V] Found generated videos:', videos.length);
+
+        // Filter by profileId if provided
+        let filteredVideos = videos;
+        if (profileId && !isAllProfiles) {
+          filteredVideos = videos.filter((video) => {
+            const params = video.job.params as any;
+            // Include if profileId matches OR if no profileId was set (backward compatibility)
+            return params?.vaultProfileId === profileId || !params?.vaultProfileId;
+          });
+        }
+
+        console.log('[Wan T2V] Filtered videos by profile:', filteredVideos.length);
+
+        // Map generated videos for response
+        const mappedVideos = filteredVideos.map((video) => {
+          const params = video.job.params as any;
+          const videoProfileId = params?.vaultProfileId || null;
+          return {
+            id: video.id,
+            videoUrl: video.awsS3Url || video.s3Key || '',
+            prompt: params?.prompt || 'Unknown prompt',
+            negativePrompt: params?.negativePrompt || '',
+            width: params?.width || 832,
+            height: params?.height || 480,
+            videoLength: params?.videoLength || 81,
+            highNoiseSteps: params?.highNoiseSteps || 20,
+            highNoiseCfg: params?.highNoiseCfg || 5.5,
+            highNoiseSeed: params?.highNoiseSeed || 0,
+            lowNoiseSteps: params?.lowNoiseSteps || 20,
+            lowNoiseCfg: params?.lowNoiseCfg || 5.5,
+            presetMode: params?.presetMode || 'none',
+            customHighNoiseLoraList: params?.customHighNoiseLoraList || [],
+            customLowNoiseLoraList: params?.customLowNoiseLoraList || [],
+            createdAt: video.createdAt.toISOString(),
+            status: 'completed' as const,
+            source: 'wan-t2v' as const,
+            profileName: isAllProfiles && videoProfileId ? profileMap[videoProfileId] || null : null,
+          };
+        });
+
+        return NextResponse.json({
+          success: true,
+          videos: mappedVideos,
+        });
+      } catch (historyError) {
+        console.error('[Wan T2V] Error fetching history:', historyError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to fetch history', videos: [] },
+          { status: 500 }
+        );
+      }
+    }
+
+    // No valid query parameter
+    return NextResponse.json(
+      { error: 'Invalid request. Use ?history=true to fetch history.' },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error('[Wan T2V] Error in GET:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();

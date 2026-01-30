@@ -501,6 +501,7 @@ export async function GET(request: NextRequest) {
         // Verify vault folder if saving to vault
         let vaultFolder = null;
         if (saveToVault && vaultProfileId && vaultFolderId) {
+          // First check if user owns the folder
           vaultFolder = await prisma.vaultFolder.findFirst({
             where: {
               id: vaultFolderId,
@@ -508,6 +509,66 @@ export async function GET(request: NextRequest) {
               clerkId: userId,
             },
           });
+
+          // If not owned, check if folder is shared via organization membership
+          if (!vaultFolder) {
+            // Get the user's internal ID for organization membership checks
+            const currentUser = await prisma.user.findUnique({
+              where: { clerkId: userId },
+              select: { id: true, currentOrganizationId: true },
+            });
+
+            // Get the profile to check organization membership
+            const profile = await prisma.instagramProfile.findUnique({
+              where: { id: vaultProfileId },
+              select: {
+                id: true,
+                clerkId: true,
+                organizationId: true,
+              },
+            });
+
+            // Check if user has access via organization
+            let isOrgMember = false;
+            
+            if (profile?.organizationId && currentUser) {
+              if (currentUser.currentOrganizationId === profile.organizationId) {
+                isOrgMember = true;
+              } else {
+                const membership = await prisma.teamMember.findFirst({
+                  where: {
+                    userId: currentUser.id,
+                    organizationId: profile.organizationId,
+                  },
+                });
+                isOrgMember = !!membership;
+              }
+            }
+
+            console.log('[Kling I2V] Access check:', {
+              userId,
+              userInternalId: currentUser?.id,
+              profileId: vaultProfileId,
+              profileOrgId: profile?.organizationId,
+              userCurrentOrgId: currentUser?.currentOrganizationId,
+              isOrgMember,
+            });
+
+            if (isOrgMember) {
+              // User has access to the profile through organization membership
+              vaultFolder = await prisma.vaultFolder.findFirst({
+                where: {
+                  id: vaultFolderId,
+                  profileId: vaultProfileId,
+                },
+              });
+
+              if (vaultFolder) {
+                console.log('[Kling I2V] Using organization shared vault folder:', vaultFolder.name);
+              }
+            }
+          }
+
           if (!vaultFolder) {
             return NextResponse.json(
               { error: "Vault folder not found or access denied" },
@@ -531,9 +592,9 @@ export async function GET(request: NextRequest) {
         let s3Key: string;
         let subfolder = "";
 
-        if (saveToVault && vaultProfileId && vaultFolderId) {
-          // Save to vault folder
-          s3Key = `vault/${userId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
+        if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
+          // Save to vault folder - use folder owner's clerkId for shared profiles
+          s3Key = `vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
         } else if (targetFolder) {
           s3Key = `${targetFolder.replace(/\/$/, "")}/${filename}`;
           const parts = targetFolder.split("/");
@@ -611,10 +672,10 @@ export async function GET(request: NextRequest) {
         };
 
         // ADDITIONALLY create VaultItem if saving to vault
-        if (saveToVault && vaultProfileId && vaultFolderId) {
+        if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
           await prisma.vaultItem.create({
             data: {
-              clerkId: userId,
+              clerkId: vaultFolder.clerkId, // Use folder owner's clerkId for shared profiles
               profileId: vaultProfileId,
               folderId: vaultFolderId,
               fileName: filename,
@@ -636,6 +697,7 @@ export async function GET(request: NextRequest) {
                 cameraControl: params?.camera_control || null,
                 referenceImageUrl: params?.imageUrl || null, // Add reference image URL for vault reuse
                 generatedAt: new Date().toISOString(),
+                generatedByClerkId: userId, // Track who actually generated it
               },
             },
           });

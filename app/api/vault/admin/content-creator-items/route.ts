@@ -10,13 +10,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify that the requesting user is an admin
+    // Verify that the requesting user is an admin (ADMIN or SUPER_ADMIN)
     const requestingUser = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { role: true }
     });
 
-    if (!requestingUser || requestingUser.role !== 'ADMIN') {
+    if (!requestingUser || (requestingUser.role !== 'ADMIN' && requestingUser.role !== 'SUPER_ADMIN')) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
@@ -91,13 +91,23 @@ export async function GET(request: NextRequest) {
         ]
       });
 
-      // Map folders with item count
+      // Count items per profile for default folders (All Media)
+      const profileItemCounts = await prisma.vaultItem.groupBy({
+        by: ['profileId'],
+        where: { clerkId: contentCreator.clerkId },
+        _count: { id: true }
+      });
+      const profileItemCountMap = new Map(profileItemCounts.map(p => [p.profileId, p._count.id]));
+
+      // Map folders with item count - default folders show total profile items
       const foldersWithCount = folders.map(folder => ({
         id: folder.id,
         name: folder.name,
         profileId: folder.profileId,
         isDefault: folder.isDefault,
-        itemCount: folder._count.items,
+        itemCount: folder.isDefault 
+          ? (profileItemCountMap.get(folder.profileId) || 0)
+          : folder._count.items,
         profileName: profileMap.get(folder.profileId)?.name || 'Unknown Profile'
       }));
 
