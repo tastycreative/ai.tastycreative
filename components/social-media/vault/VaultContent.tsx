@@ -622,6 +622,8 @@ export function VaultContent() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [showPreviewInfo, setShowPreviewInfo] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showAllReferenceImages, setShowAllReferenceImages] = useState(false);
+  const [referenceImagePopup, setReferenceImagePopup] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Import from Google Drive state
@@ -658,6 +660,12 @@ export function VaultContent() {
       setSelectionMode(true);
     }
   }, [selectedItems.size, selectionMode]);
+
+  // Reset showAllReferenceImages and referenceImagePopup when preview item changes
+  useEffect(() => {
+    setShowAllReferenceImages(false);
+    setReferenceImagePopup(null);
+  }, [previewItem?.id]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
@@ -2520,7 +2528,7 @@ export function VaultContent() {
                     </div>
                   )}
                   
-                  {/* Reference Images - Show full images with max dimensions */}
+                  {/* Reference Images - Show in 2x2 grid with popup */}
                   {(() => {
                     // Collect all reference images from various metadata fields
                     const refImages: string[] = [];
@@ -2531,30 +2539,38 @@ export function VaultContent() {
                     
                     if (refImages.length === 0) return null;
                     
+                    const displayedImages = showAllReferenceImages ? refImages : refImages.slice(0, 4);
+                    
                     return (
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Reference Image{refImages.length > 1 ? 's' : ''}</label>
-                        <div className="flex flex-col gap-2">
-                          {refImages.slice(0, 4).map((url, idx) => (
-                            <a 
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {displayedImages.map((url, idx) => (
+                            <button 
                               key={idx} 
-                              href={url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="block rounded-lg overflow-hidden border border-gray-700 hover:border-violet-500/50 transition-all bg-gray-800/50 p-1"
+                              onClick={() => setReferenceImagePopup(url)}
+                              className="block rounded-lg overflow-hidden border border-gray-700 hover:border-violet-500/50 transition-all bg-gray-800/50 p-0.5 cursor-pointer"
                               title="Click to view full size"
                             >
                               <img 
                                 src={url} 
                                 alt={`Reference ${idx + 1}`}
-                                className="max-w-full max-h-40 w-auto h-auto mx-auto rounded object-contain"
+                                className="w-full h-16 object-cover rounded"
                                 onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
                               />
-                            </a>
+                            </button>
                           ))}
                         </div>
                         {refImages.length > 4 && (
-                          <span className="text-xs text-gray-400">+{refImages.length - 4} more (click to view all)</span>
+                          <button
+                            onClick={() => setShowAllReferenceImages(!showAllReferenceImages)}
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors cursor-pointer"
+                          >
+                            {showAllReferenceImages 
+                              ? 'Show less' 
+                              : `+${refImages.length - 4} more (click to view all)`
+                            }
+                          </button>
                         )}
                       </div>
                     );
@@ -3993,6 +4009,28 @@ export function VaultContent() {
               </div>
             )}
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reference Image Popup Modal */}
+      {referenceImagePopup && typeof window !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          onClick={() => setReferenceImagePopup(null)}
+        >
+          <button 
+            onClick={() => setReferenceImagePopup(null)} 
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors z-10"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <img 
+            src={referenceImagePopup} 
+            alt="Reference Image"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>,
         document.body
       )}

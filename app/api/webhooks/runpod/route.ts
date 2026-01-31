@@ -241,24 +241,26 @@ export async function POST(request: NextRequest) {
               try {
                 const { prisma } = await import('@/lib/database');
                 
-                // Verify vault folder exists and user has access
+                // IMPORTANT: Look up the vault folder to get the correct owner clerkId
+                // For shared profiles, the folder owner's clerkId must be used
                 console.log('🔍 VAULT: Looking for folder with ID:', jobParamsData.vaultFolderId);
-                const vaultFolder = await prisma.vaultFolder.findFirst({
-                  where: {
-                    id: jobParamsData.vaultFolderId,
-                    clerkId: targetClerkId,
-                    profileId: jobParamsData.vaultProfileId,
-                  },
+                const vaultFolder = await prisma.vaultFolder.findUnique({
+                  where: { id: jobParamsData.vaultFolderId },
+                  select: { id: true, name: true, clerkId: true, profileId: true }
                 });
                 
                 console.log('🔍 VAULT: Folder query result:', vaultFolder ? `Found: ${vaultFolder.name}` : 'NOT FOUND');
                 
                 if (vaultFolder) {
+                  // Use the folder owner's clerkId to ensure proper ownership
+                  const folderOwnerClerkId = vaultFolder.clerkId;
+                  console.log(`📁 Vault folder owner: ${folderOwnerClerkId}, Generator: ${existingJob?.clerkId}`);
+                  
                   // Create vault item
                   const vaultItem = await prisma.vaultItem.create({
                     data: {
-                      clerkId: targetClerkId,
-                      profileId: jobParamsData.vaultProfileId,
+                      clerkId: folderOwnerClerkId, // Use folder owner's clerkId, not job creator
+                      profileId: vaultFolder.profileId, // Use folder's profileId for consistency
                       folderId: jobParamsData.vaultFolderId,
                       fileName: filename,
                       fileType: 'image/png',
@@ -289,17 +291,15 @@ export async function POST(request: NextRequest) {
                         referenceImage: generationMetadata.referenceImage,
                         referenceImageUrl: generationMetadata.referenceImageUrl,
                         generatedAt: generationMetadata.generatedAt,
-                        generatedByClerkId: existingJob?.clerkId, // Track who generated this item
+                        generatedByClerkId: existingJob?.clerkId, // Track who generated this item (may be different from folder owner)
                       },
                     },
                   });
-                  console.log(`✅ VAULT: Successfully saved to vault: ${vaultItem.id} in folder ${vaultFolder.name}`);
+                  console.log(`✅ VAULT: Successfully saved to vault: ${vaultItem.id} in folder ${vaultFolder.name} (owner: ${folderOwnerClerkId})`);
                 } else {
-                  console.error('❌ VAULT: Folder not found or user does not have access');
+                  console.error('❌ VAULT: Folder not found');
                   console.error('❌ VAULT: Search criteria:', {
                     id: jobParamsData.vaultFolderId,
-                    clerkId: targetClerkId,
-                    profileId: jobParamsData.vaultProfileId,
                   });
                 }
               } catch (vaultError) {
@@ -480,24 +480,26 @@ export async function POST(request: NextRequest) {
               try {
                 const { prisma } = await import('@/lib/database');
                 
-                // Verify vault folder exists and user has access
+                // IMPORTANT: Look up the vault folder to get the correct owner clerkId
+                // For shared profiles, the folder owner's clerkId must be used
                 console.log('🔍 VAULT (network_volume): Looking for folder with ID:', jobParamsData.vaultFolderId);
-                const vaultFolder = await prisma.vaultFolder.findFirst({
-                  where: {
-                    id: jobParamsData.vaultFolderId,
-                    clerkId: targetClerkId,
-                    profileId: jobParamsData.vaultProfileId,
-                  },
+                const vaultFolder = await prisma.vaultFolder.findUnique({
+                  where: { id: jobParamsData.vaultFolderId },
+                  select: { id: true, name: true, clerkId: true, profileId: true }
                 });
                 
                 console.log('🔍 VAULT (network_volume): Folder query result:', vaultFolder ? `Found: ${vaultFolder.name}` : 'NOT FOUND');
                 
                 if (vaultFolder) {
+                  // Use the folder owner's clerkId to ensure proper ownership
+                  const folderOwnerClerkId = vaultFolder.clerkId;
+                  console.log(`📁 Vault folder owner: ${folderOwnerClerkId}, Generator: ${existingJob?.clerkId}`);
+                  
                   // Create vault item
                   const vaultItem = await prisma.vaultItem.create({
                     data: {
-                      clerkId: targetClerkId,
-                      profileId: jobParamsData.vaultProfileId,
+                      clerkId: folderOwnerClerkId, // Use folder owner's clerkId, not job creator
+                      profileId: vaultFolder.profileId, // Use folder's profileId for consistency
                       folderId: jobParamsData.vaultFolderId,
                       fileName: filename,
                       fileType: 'image/png',
@@ -528,16 +530,15 @@ export async function POST(request: NextRequest) {
                         referenceImage: generationMetadata.referenceImage,
                         referenceImageUrl: generationMetadata.referenceImageUrl,
                         generatedAt: generationMetadata.generatedAt,
-                        generatedByClerkId: existingJob?.clerkId, // Track who generated this item
+                        generatedByClerkId: existingJob?.clerkId, // Track who generated this item (may be different from folder owner)
                       },
                     },
                   });
-                  console.log(`✅ VAULT (network_volume): Successfully saved to vault: ${vaultItem.id} in folder ${vaultFolder.name}`);
+                  console.log(`✅ VAULT (network_volume): Successfully saved to vault: ${vaultItem.id} in folder ${vaultFolder.name} (owner: ${folderOwnerClerkId})`);
                 } else {
-                  console.error('❌ VAULT (network_volume): Folder not found or user does not have access');
+                  console.error('❌ VAULT (network_volume): Folder not found');
                   console.error('❌ VAULT (network_volume): Search criteria:', {
                     id: jobParamsData.vaultFolderId,
-                    clerkId: targetClerkId,
                     profileId: jobParamsData.vaultProfileId,
                   });
                 }

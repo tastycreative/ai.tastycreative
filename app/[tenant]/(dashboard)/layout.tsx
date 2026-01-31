@@ -417,6 +417,11 @@ export default function DashboardLayout({
             collapsible: true,
             items: [
               {
+                name: "My LoRA Models",
+                href: `/${tenant}/workspace/my-lora-models`,
+                icon: Users,
+              },
+              {
                 name: "Instagram Extractor",
                 href: `/${tenant}/workspace/ai-tools/instagram-extractor`,
                 icon: Instagram,

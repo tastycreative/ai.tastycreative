@@ -1,2201 +1,1084 @@
-// app/(dashboard)/workspace/my-influencers/page.tsx - Complete component with direct ComfyUI upload
+// app/(dashboard)/workspace/my-influencers/page.tsx - Modern Influencer Profile Management
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
-import { useAuth } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import {
-  Upload,
   Users,
-  Trash2,
-  Download,
-  Eye,
-  AlertCircle,
-  CheckCircle,
-  Loader2,
   Plus,
-  Image as ImageIcon,
-  ImagePlus,
-  User,
-  Settings,
-  Info,
-  RefreshCw,
-  Clock,
-  XCircle,
-  FileText,
-  Copy,
-  Calendar,
-  HardDrive,
-  BarChart3,
-  Sparkles,
+  Edit3,
+  Trash2,
+  AlertCircle,
+  Loader2,
   Share2,
   X,
+  CheckCircle,
+  Instagram,
+  User,
+  Heart,
+  Palette,
+  MessageCircle,
+  Camera,
+  FileText,
+  Star,
+  BookOpen,
+  MoreVertical,
+  Building2,
+  Search,
+  ChevronRight,
+  Settings,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
-import ShareLoRAModal from "@/components/ShareLoRAModal";
-import SelectThumbnailModal from "@/components/SelectThumbnailModal";
 
 // Types
-interface InfluencerLoRA {
+interface InfluencerProfile {
   id: string;
-  userId: string;
+  clerkId: string;
   name: string;
-  displayName: string;
-  fileName: string;
-  originalFileName: string;
-  fileSize: number;
-  uploadedAt: string;
   description?: string;
-  thumbnailUrl?: string;
-  isActive: boolean;
-  usageCount: number;
-  syncStatus?: "pending" | "synced" | "missing" | "error";
-  lastUsedAt?: string;
-  comfyUIPath?: string;
+  instagramUsername?: string;
+  instagramAccountId?: string;
+  profileImageUrl?: string;
+  isDefault: boolean;
+  organizationId?: string;
+  createdAt: string;
+  updatedAt: string;
+  modelBible?: ModelBible;
+  linkedLoRAs?: LinkedLoRA[];
+  _count?: {
+    posts: number;
+    feedPosts: number;
+  };
+  organization?: {
+    id: string;
+    name: string;
+    logoUrl: string | null;
+  } | null;
+  user?: {
+    id: string;
+    clerkId: string;
+    name: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    imageUrl: string | null;
+    email: string | null;
+  };
   isShared?: boolean;
-  sharedBy?: string;
-  ownerClerkId?: string;
-  hasShares?: boolean;
 }
 
-interface UploadProgress {
+interface LinkedLoRA {
+  id: string;
+  displayName: string;
+  thumbnailUrl: string | null;
   fileName: string;
-  progress: number;
-  status: "uploading" | "processing" | "completed" | "failed";
-  error?: string;
-  uploadMethod?: "multipart-s3";
 }
 
-interface UploadInstructions {
-  title: string;
-  steps: string[];
-  note: string;
+interface ModelBible {
+  age?: string;
+  location?: string;
+  nationality?: string;
+  occupation?: string;
+  relationshipStatus?: string;
+  backstory?: string;
+  family?: string;
+  pets?: string;
+  education?: string;
+  pastJobs?: string;
+  contentCreationOrigin?: string;
+  city?: string;
+  livingSituation?: string;
+  coreTraits?: string[];
+  personalityDescription?: string;
+  morningVibe?: string;
+  afternoonVibe?: string;
+  nightVibe?: string;
+  primaryNiche?: string;
+  feedAesthetic?: string;
+  commonThemes?: string;
+  signatureLook?: string;
+  uniqueHook?: string;
+  willDo?: string[];
+  wontDo?: string[];
+  maybeOrPremium?: string[];
+  pricingMenu?: PricingItem[];
+  tone?: string;
+  emojiOften?: string[];
+  emojiSometimes?: string[];
+  emojiNever?: string[];
+  signaturePhrases?: string[];
+  messageLength?: string;
+  capitalization?: string;
+  punctuation?: string;
+  responseSpeed?: string;
+  sampleGreeting?: string;
+  sampleFlirty?: string;
+  samplePPV?: string;
+  sampleFreeRequest?: string;
+  instagramBio?: string;
+  instagramPostingStyle?: string;
+  instagramStoryVibe?: string;
+  instagramDMApproach?: string;
+  redditSubreddits?: string;
+  redditPostingCadence?: string;
+  redditTitleStyle?: string;
+  onlyfansWelcome?: string;
+  onlyfansMassDM?: string;
+  onlyfansPPVStyle?: string;
+  twitterVoice?: string;
+  twitterEngagement?: string;
+  hair?: string;
+  eyes?: string;
+  bodyType?: string;
+  tattoosPiercings?: string;
+  signatureVisualLook?: string;
+  moodboardKeywords?: string;
+  faqAreYouReal?: string;
+  faqMeetUp?: string;
+  faqVoiceNotes?: string;
+  faqFreeContent?: string;
+  faqRealName?: string;
+  faqTooAttached?: string;
+  dayChatter?: string;
+  nightChatter?: string;
+  internalNotes?: string;
 }
+
+interface PricingItem {
+  item: string;
+  price: string;
+}
+
+type FilterMode = "all" | "mine" | "shared";
+
+const CORE_TRAITS_OPTIONS = [
+  "Flirty", "Bratty", "Sweet/Girl-next-door", "Dominant", "Submissive",
+  "Mysterious", "Bubbly/Energetic", "Chill/Laid-back", "Nerdy/Gamer",
+  "Fitness-focused", "Artistic/Creative", "Other",
+];
+
+const DEFAULT_PRICING_ITEMS: PricingItem[] = [
+  { item: "Dick rating (text)", price: "" },
+  { item: "Dick rating (video)", price: "" },
+  { item: "Custom photo (SFW)", price: "" },
+  { item: "Custom photo (NSFW)", price: "" },
+  { item: "Custom video (per min)", price: "" },
+  { item: "Sexting session (10 min)", price: "" },
+  { item: "GFE (daily)", price: "" },
+  { item: "GFE (weekly)", price: "" },
+  { item: "Video call (per min)", price: "" },
+  { item: "Worn items", price: "" },
+];
 
 export default function MyInfluencersPage() {
-  const [influencers, setInfluencers] = useState<InfluencerLoRA[]>([]);
+  const [profiles, setProfiles] = useState<InfluencerProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [comfyUIStatus, setComfyUIStatus] = useState<{
-    status: string;
-    url: string;
-    lastChecked?: Date;
-  } | null>(null);
-  const [showInstructions, setShowInstructions] =
-    useState<UploadInstructions | null>(null);
-  const [selectedInfluencer, setSelectedInfluencer] =
-    useState<InfluencerLoRA | null>(null);
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [thumbnailUploadingId, setThumbnailUploadingId] = useState<string | null>(
-    null
-  );
-  const [deleteCandidate, setDeleteCandidate] = useState<InfluencerLoRA | null>(
-    null
-  );
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [shareLoRAModalOpen, setShareLoRAModalOpen] = useState(false);
-  const [loraToShare, setLoraToShare] = useState<InfluencerLoRA | null>(null);
-  const [selectThumbnailModalOpen, setSelectThumbnailModalOpen] = useState(false);
-  const [loraForThumbnail, setLoraForThumbnail] = useState<InfluencerLoRA | null>(null);
-  const [thumbnailOptionsModalOpen, setThumbnailOptionsModalOpen] = useState(false);
-  const [thumbnailOptionsInfluencer, setThumbnailOptionsInfluencer] = useState<InfluencerLoRA | null>(null);
-  const [activeView, setActiveView] = useState<'my-loras' | 'shared'>('my-loras');
+  const [selectedProfile, setSelectedProfile] = useState<InfluencerProfile | null>(null);
 
-  // ✅ Get the authenticated API client and user
   const apiClient = useApiClient();
-  const { userId } = useAuth();
+  const { user: clerkUser } = useUser();
 
-  // Fetch user's influencers on load
   useEffect(() => {
-    if (apiClient) {
-      fetchInfluencers();
-    }
-  }, [apiClient]); // ✅ Depend on apiClient
+    if (apiClient) loadProfiles();
+  }, [apiClient]);
 
-  const fetchInfluencers = async () => {
-    if (!apiClient) {
-      console.log("⚠️ API client not ready");
-      return;
-    }
-
+  const loadProfiles = async () => {
+    if (!apiClient) return;
     try {
       setLoading(true);
       setError(null);
-      console.log("Fetching influencers...");
-
-      const response = await apiClient.get("/api/user/influencers");
-      console.log("Fetch response status:", response.status);
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch influencers: ${response.status}`);
-      }
-
+      const response = await apiClient.get("/api/instagram-profiles");
+      if (!response.ok) throw new Error(`Failed to load profiles: ${response.status}`);
       const data = await response.json();
-      console.log("Fetched influencers data:", data);
-
-      // Backend returns array directly, not wrapped in { influencers: [...] }
-      setInfluencers(Array.isArray(data) ? data : []);
-
-      if (Array.isArray(data) && data.length > 0) {
-        console.log(`Successfully loaded ${data.length} influencers`);
-      } else {
-        console.log("No influencers found for this user");
-      }
-    } catch (error) {
-      console.error("Error fetching influencers:", error);
-      setError(
-        `Failed to load your influencers: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      setProfiles(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Error loading profiles:", err);
+      setError(err instanceof Error ? err.message : "Failed to load profiles");
     } finally {
       setLoading(false);
     }
   };
 
-  // Sync with ComfyUI (original function)
-  const syncWithComfyUI = async () => {
+  const isOwnProfile = (profile: InfluencerProfile) => {
+    if (profile.isShared !== undefined) return !profile.isShared;
+    return profile.clerkId === clerkUser?.id;
+  };
+
+  const getOwnerDisplayName = (profile: InfluencerProfile) => {
+    if (!profile.user) return "Unknown";
+    if (profile.user.name) return profile.user.name;
+    if (profile.user.firstName || profile.user.lastName) {
+      return `${profile.user.firstName || ""} ${profile.user.lastName || ""}`.trim();
+    }
+    return profile.user.email?.split("@")[0] || "Unknown";
+  };
+
+  const handleSetDefault = async (profileId: string) => {
     if (!apiClient) return;
-
     try {
-      setSyncing(true);
-      console.log("=== SYNC WITH COMFYUI ===");
-      console.log("Calling sync endpoint...");
-
-      const response = await apiClient.post("/api/models/loras", {
-        action: "sync_user_loras",
-      });
-
-      console.log("Sync response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Sync response error:", errorText);
-        throw new Error(
-          `Sync request failed: ${response.status} - ${errorText}`
-        );
-      }
-
-      const data = await response.json();
-      console.log("Sync response data:", data);
-
-      if (data.success) {
-        await fetchInfluencers();
-
-        const { summary } = data;
-        alert(
-          `Sync completed:\n${summary.synced} models synced\n${summary.missing} models missing\n${summary.total} total models checked`
-        );
-      } else {
-        throw new Error(data.error || "Sync failed");
-      }
-    } catch (error) {
-      console.error("Sync error:", error);
-
-      if (error instanceof Error) {
-        if (error.message.includes("Missing workflow data")) {
-          alert(
-            "Sync endpoint error: Wrong API called. Please check the routing configuration."
-          );
-        } else if (error.message.includes("Unexpected end of JSON input")) {
-          alert(
-            "Sync failed: Empty response from server. ComfyUI may not be accessible."
-          );
-        } else {
-          alert(`Sync failed: ${error.message}`);
-        }
-      } else {
-        alert("Sync failed: Unknown error");
-      }
-    } finally {
-      setSyncing(false);
-    }
+      const response = await apiClient.patch(`/api/instagram-profiles/${profileId}`, { isDefault: true });
+      if (!response.ok) throw new Error("Failed to set default");
+      toast.success("Default profile updated");
+      await loadProfiles();
+    } catch { toast.error("Failed to set default profile"); }
   };
 
-  // Sync uploaded files from Blob to ComfyUI
-  const syncUploadedFiles = async () => {
+  const handleToggleShare = async (profile: InfluencerProfile) => {
     if (!apiClient) return;
-
+    const isCurrentlyShared = !!profile.organizationId;
     try {
-      setSyncing(true);
-      console.log("=== SYNC UPLOADED FILES ===");
-      console.log("Syncing files from Vercel Blob to ComfyUI...");
-
-      const response = await apiClient.post(
-        "/api/user/influencers/sync-blob-files",
-        {}
-      );
-
-      console.log("Sync uploaded files response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Sync uploaded files response error:", errorText);
-        throw new Error(
-          `Sync request failed: ${response.status} - ${errorText}`
-        );
-      }
-
-      const data = await response.json();
-      console.log("Sync uploaded files response data:", data);
-
-      if (data.success) {
-        await fetchInfluencers();
-
-        alert(
-          `Sync completed:\n${data.synced} files synced to ComfyUI\n${data.failed} files failed\n${data.total} total files processed`
-        );
-      } else {
-        throw new Error(data.error || "Sync failed");
-      }
-    } catch (error) {
-      console.error("Sync uploaded files error:", error);
-
-      if (error instanceof Error) {
-        alert(`Sync failed: ${error.message}`);
-      } else {
-        alert("Sync failed: Unknown error");
-      }
-    } finally {
-      setSyncing(false);
-    }
+      const response = await apiClient.patch(`/api/instagram-profiles/${profile.id}`, { shareWithOrganization: !isCurrentlyShared });
+      if (!response.ok) throw new Error("Failed to update sharing");
+      toast.success(isCurrentlyShared ? "Profile unshared" : "Profile shared with organization");
+      await loadProfiles();
+    } catch { toast.error("Failed to update sharing settings"); }
   };
 
-    const uploadThumbnail = async (influencerId: string, file: File) => {
-      if (!apiClient) return;
+  const filteredProfiles = profiles.filter((profile) => {
+    const matchesSearch = profile.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      profile.instagramUsername?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      getOwnerDisplayName(profile).toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterMode === "all" ? true : filterMode === "mine" ? isOwnProfile(profile) : !isOwnProfile(profile);
+    return matchesSearch && matchesFilter;
+  });
 
-      setThumbnailUploadingId(influencerId);
+  const myProfilesCount = profiles.filter((p) => isOwnProfile(p)).length;
+  const sharedProfilesCount = profiles.filter((p) => !isOwnProfile(p)).length;
 
-      try {
-        const formData = new FormData();
-        formData.append("thumbnail", file);
-
-        const response = await apiClient.postFormData(
-          `/api/user/influencers/${influencerId}/thumbnail`,
-          formData
-        );
-
-        if (!response.ok) {
-          let message = `Failed to upload thumbnail (status ${response.status})`;
-          try {
-            const errorBody = await response.json();
-            if (errorBody?.error) {
-              message = errorBody.error;
-            }
-          } catch (parseError) {
-            console.warn("Could not parse thumbnail upload error:", parseError);
-          }
-
-          throw new Error(message);
-        }
-
-        const data = await response.json();
-
-        setInfluencers((prev) =>
-          prev.map((inf) =>
-            inf.id === influencerId
-              ? {
-                  ...inf,
-                  thumbnailUrl:
-                    data?.influencer?.thumbnailUrl ?? data?.thumbnailUrl ?? inf.thumbnailUrl,
-                }
-              : inf
-          )
-        );
-        
-        toast.success("Thumbnail updated successfully!");
-      } catch (error) {
-        console.error("Thumbnail upload error:", error);
-        alert(
-          `Failed to upload thumbnail: ${
-            error instanceof Error ? error.message : "Unknown error"
-          }`
-        );
-      } finally {
-        setThumbnailUploadingId(null);
-      }
-    };
-
-    const setThumbnailFromGeneratedImage = async (influencerId: string, imageUrl: string) => {
-      if (!apiClient) return;
-
-      setThumbnailUploadingId(influencerId);
-
-      try {
-        const formData = new FormData();
-        formData.append("imageUrl", imageUrl);
-
-        const response = await apiClient.postFormData(
-          `/api/user/influencers/${influencerId}/thumbnail`,
-          formData
-        );
-
-        if (!response.ok) {
-          let message = `Failed to set thumbnail (status ${response.status})`;
-          try {
-            const errorBody = await response.json();
-            if (errorBody?.error) {
-              message = errorBody.error;
-            }
-          } catch (parseError) {
-            console.warn("Could not parse thumbnail set error:", parseError);
-          }
-
-          throw new Error(message);
-        }
-
-        const data = await response.json();
-
-        setInfluencers((prev) =>
-          prev.map((inf) =>
-            inf.id === influencerId
-              ? {
-                  ...inf,
-                  thumbnailUrl:
-                    data?.influencer?.thumbnailUrl ?? data?.thumbnailUrl ?? inf.thumbnailUrl,
-                }
-              : inf
-          )
-        );
-        
-        toast.success("Thumbnail set successfully!");
-      } catch (error) {
-        console.error("Thumbnail set error:", error);
-        throw error; // Re-throw so modal can handle it
-      } finally {
-        setThumbnailUploadingId(null);
-      }
-    };
-
-    const handleThumbnailSelect = async (
-      influencerId: string,
-      event: React.ChangeEvent<HTMLInputElement>
-    ) => {
-      const file = event.target.files?.[0];
-      event.target.value = "";
-
-      if (!file) {
-        return;
-      }
-
-      if (!file.type.startsWith("image/")) {
-        alert("Please select an image file (JPG, PNG, WebP).");
-        return;
-      }
-
-      const maxSizeBytes = 5 * 1024 * 1024;
-      if (file.size > maxSizeBytes) {
-        alert("Thumbnail image is too large. Please choose a file under 5MB.");
-        return;
-      }
-
-      await uploadThumbnail(influencerId, file);
-    };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    const validFiles = files.filter((file) => {
-      const isValidType =
-        file.name.toLowerCase().endsWith(".safetensors") ||
-        file.name.toLowerCase().endsWith(".pt") ||
-        file.name.toLowerCase().endsWith(".ckpt");
-      const isValidSize = file.size <= 2 * 1024 * 1024 * 1024; // 2GB reasonable limit
-
-      if (!isValidType) {
-        alert(
-          `${file.name} is not a valid LoRA file. Please upload .safetensors, .pt, or .ckpt files.`
-        );
-        return false;
-      }
-
-      if (!isValidSize) {
-        const fileSizeMB = Math.round(file.size / 1024 / 1024);
-        alert(
-          `${file.name} is too large (${fileSizeMB}MB). Maximum file size is 2GB. Please use a smaller file.`
-        );
-        return false;
-      }
-
-      return true;
-    });
-
-    setSelectedFiles(validFiles);
-  };
-
-  // Check ComfyUI status
-  const checkComfyUIStatus = async () => {
-    try {
-      const response = await apiClient!.get("/api/env-check");
-      if (response.ok) {
-        const data = await response.json();
-        setComfyUIStatus({
-          status: data.comfyuiStatus,
-          url: data.comfyuiUrl,
-          lastChecked: new Date(),
-        });
-      }
-    } catch (error) {
-      console.error("Failed to check ComfyUI status:", error);
-      setComfyUIStatus({
-        status: "check-failed",
-        url: "unknown",
-        lastChecked: new Date(),
-      });
-    }
-  };
-
-  // ✅ Helper function to get ComfyUI URL from server
-  const getComfyUIUrl = async (): Promise<string> => {
-    try {
-      const response = await apiClient!.get("/api/env-check");
-      if (response.ok) {
-        const data = await response.json();
-        // The server should provide the ComfyUI URL
-        return (
-          data.comfyuiUrl ||
-          process.env.NEXT_PUBLIC_COMFYUI_URL ||
-          "http://localhost:8188"
-        );
-      }
-    } catch (error) {
-      console.warn("Could not fetch ComfyUI URL from server, using defaults");
-    }
-
-    // Fallback to environment variables
+  if (!apiClient || loading) {
     return (
-      process.env.NEXT_PUBLIC_COMFYUI_URL ||
-      process.env.NEXT_PUBLIC_RUNPOD_URL ||
-      "http://localhost:8188"
-    );
-  };
-
-  // ✅ MAIN UPLOAD FUNCTION: Multipart chunked upload to S3 (RELIABLE & WORKING)
-  const uploadToS3 = async (
-    file: File,
-    displayName: string,
-    onProgress?: (progress: number) => void
-  ): Promise<{
-    success: boolean;
-    uniqueFileName: string;
-    comfyUIPath: string;
-    networkVolumePath?: string;
-  }> => {
-    console.log(
-      `🚀 Starting multipart S3 upload for ${file.name} (${Math.round(
-        file.size / 1024 / 1024
-      )}MB)`
-    );
-
-    if (!apiClient) {
-      throw new Error("API client is not initialized");
-    }
-
-    // Define chunk size (4MB to stay under Vercel's 4.5MB limit - S3 multipart minimum is 5MB)
-    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks (safe for Vercel)
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
-    console.log(
-      `📦 Using ${totalChunks} parts of ~${Math.round(
-        CHUNK_SIZE / 1024 / 1024
-      )}MB each`
-    );
-
-    try {
-      // Step 1: Start multipart upload
-      const startFormData = new FormData();
-      startFormData.append("action", "start");
-      startFormData.append("fileName", file.name);
-      startFormData.append("displayName", displayName);
-      startFormData.append("totalParts", totalChunks.toString());
-
-      const startResponse = await apiClient.postFormData(
-        "/api/user/influencers/multipart-s3-upload",
-        startFormData
-      );
-      if (!startResponse.ok) {
-        const errorData = await startResponse
-          .json()
-          .catch(() => ({ error: `HTTP ${startResponse.status}` }));
-        throw new Error(
-          errorData.error ||
-            `Failed to start multipart upload: ${startResponse.status}`
-        );
-      }
-
-      const startResult = await startResponse.json();
-      const { sessionId, uploadId, uniqueFileName, s3Key } = startResult;
-
-      console.log(`✅ Multipart upload started: ${uploadId}`);
-
-      // Step 2: Upload all parts sequentially with 4MB chunks (Vercel limit: 4.5MB)
-      // This balances speed and reliability while staying under Vercel's body size limit
-      for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
-        const start = (partNumber - 1) * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-
-        console.log(
-          `📤 Uploading part ${partNumber}/${totalChunks} (${Math.round(
-            chunk.size / 1024 / 1024
-          )}MB)`
-        );
-
-        // Retry logic for individual parts
-        let partSuccess = false;
-        let lastError = null;
-
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          try {
-            const partFormData = new FormData();
-            partFormData.append("action", "upload");
-            partFormData.append("chunk", chunk);
-            partFormData.append("partNumber", partNumber.toString());
-            partFormData.append("sessionId", sessionId);
-            partFormData.append("uploadId", uploadId);
-            partFormData.append("s3Key", s3Key);
-            partFormData.append("uniqueFileName", uniqueFileName);
-            partFormData.append("totalParts", totalChunks.toString());
-
-            const partResponse = await apiClient.postFormData(
-              "/api/user/influencers/multipart-s3-upload",
-              partFormData
-            );
-            
-            if (!partResponse.ok) {
-              const errorData = await partResponse
-                .json()
-                .catch(() => ({ error: `HTTP ${partResponse.status}` }));
-              throw new Error(
-                errorData.error ||
-                  `Part ${partNumber} upload failed: ${partResponse.status}`
-              );
-            }
-
-            const partResult = await partResponse.json();
-            if (!partResult.success) {
-              throw new Error(
-                `Part ${partNumber} upload failed: ${
-                  partResult.error || "Unknown error"
-                }`
-              );
-            }
-
-            partSuccess = true;
-            break; // Success, exit retry loop
-          } catch (error) {
-            lastError = error;
-            if (attempt < 3) {
-              console.log(
-                `⚠️ Part ${partNumber} failed (attempt ${attempt}/3), retrying...`
-              );
-              await new Promise((resolve) =>
-                setTimeout(resolve, 1000 * attempt)
-              );
-            }
-          }
-        }
-
-        if (!partSuccess) {
-          throw new Error(
-            `Part ${partNumber} failed after 3 attempts: ${
-              lastError instanceof Error ? lastError.message : "Unknown error"
-            }`
-          );
-        }
-
-        // Update progress after each part
-        if (onProgress) {
-          const progress = Math.round((partNumber / totalChunks) * 100);
-          onProgress(progress);
-        }
-      }
-
-      // Step 3: Complete multipart upload
-      console.log(`🏁 Completing multipart upload...`);
-
-      const completeFormData = new FormData();
-      completeFormData.append("action", "complete");
-      completeFormData.append("sessionId", sessionId);
-
-      const completeResponse = await apiClient.postFormData(
-        "/api/user/influencers/multipart-s3-upload",
-        completeFormData
-      );
-      if (!completeResponse.ok) {
-        const errorData = await completeResponse
-          .json()
-          .catch(() => ({ error: `HTTP ${completeResponse.status}` }));
-        throw new Error(
-          errorData.error ||
-            `Failed to complete multipart upload: ${completeResponse.status}`
-        );
-      }
-
-      const completeResult = await completeResponse.json();
-      if (!completeResult.success) {
-        throw new Error(
-          `Failed to complete multipart upload: ${
-            completeResult.error || "Unknown error"
-          }`
-        );
-      }
-
-      console.log(
-        `✅ Multipart S3 upload completed: ${completeResult.uniqueFileName}`
-      );
-
-      return {
-        success: true,
-        uniqueFileName: completeResult.uniqueFileName,
-        comfyUIPath: completeResult.comfyUIPath,
-        networkVolumePath: completeResult.networkVolumePath,
-      };
-    } catch (error) {
-      console.error(`❌ Multipart upload failed:`, error);
-      throw error;
-    }
-  };
-  const createDatabaseRecord = async (
-    uniqueFileName: string,
-    file: File,
-    displayName: string,
-    syncStatus: "synced" | "pending" = "pending",
-    comfyUIPath?: string
-  ) => {
-    if (!apiClient) {
-      throw new Error("API client is not initialized.");
-    }
-    try {
-      console.log(`💾 Creating database record for ${uniqueFileName}`);
-
-      const response = await apiClient.post(
-        "/api/user/influencers/create-record",
-        {
-          name: displayName,
-          displayName: displayName,
-          fileName: uniqueFileName,
-          originalFileName: file.name,
-          fileSize: file.size,
-          uploadedAt: new Date().toISOString(),
-          syncStatus: syncStatus.toUpperCase(), // Convert to enum format
-          isActive: true,
-          usageCount: 0,
-          comfyUIPath:
-            comfyUIPath ||
-            (syncStatus === "synced"
-              ? `models/loras/${userId}/${uniqueFileName}`
-              : undefined),
-        }
-      );
-
-      if (!response.ok) {
-        console.warn(
-          "⚠️ Failed to create database record, but file was uploaded successfully"
-        );
-        throw new Error("Database record creation failed");
-      }
-
-      const result = await response.json();
-      console.log("✅ Database record created successfully:", result);
-      return result;
-    } catch (error) {
-      console.error("❌ Database record creation failed:", error);
-      throw error;
-    }
-  };
-
-  // ✅ UPDATED: Upload influencers with direct ComfyUI upload and fallback
-  const uploadInfluencers = async () => {
-    if (selectedFiles.length === 0 || !apiClient || !userId) return;
-
-    setUploading(true);
-    setUploadProgress([]);
-
-    for (const file of selectedFiles) {
-      try {
-        const progressItem: UploadProgress = {
-          fileName: file.name,
-          progress: 0,
-          status: "uploading",
-          uploadMethod: "multipart-s3",
-        };
-
-        setUploadProgress((prev) => [...prev, progressItem]);
-
-        console.log(
-          `🎯 Uploading ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`
-        );
-
-        const displayName = file.name.replace(/\.[^/.]+$/, "");
-
-        // Update progress to show upload starting
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? { ...item, progress: 5, status: "uploading" }
-              : item
-          )
-        );
-
-        let uploadResult;
-        let syncStatus: "synced" | "pending" = "pending";
-        let comfyUIPath: string | undefined;
-
-        try {
-          // ✅ MULTIPART S3 UPLOAD (RELIABLE & WORKING - for all files)
-          console.log(
-            `🚀 Uploading ${file.name} (${Math.round(
-              file.size / 1024 / 1024
-            )}MB) using multipart S3 upload...`
-          );
-
-          const s3UploadResult = await uploadToS3(
-            file,
-            displayName,
-            (progress: number) => {
-              setUploadProgress((prev) =>
-                prev.map((item) =>
-                  item.fileName === file.name
-                    ? {
-                        ...item,
-                        progress: Math.round(progress),
-                        status: "uploading",
-                        uploadMethod: "multipart-s3",
-                      }
-                    : item
-                )
-              );
-            }
-          );
-
-          uploadResult = {
-            success: true,
-            uniqueFileName: s3UploadResult.uniqueFileName,
-            comfyResult: {
-              networkVolumePath: s3UploadResult.networkVolumePath,
-            },
-          };
-          syncStatus = "synced";
-          comfyUIPath = s3UploadResult.comfyUIPath;
-
-          console.log(`✅ Multipart S3 upload successful for ${file.name}`);
-        } catch (error) {
-          console.error(`❌ Upload failed for ${file.name}:`, error);
-
-          const errorMsg =
-            error instanceof Error ? error.message : "Unknown upload error";
-
-          throw new Error(`Upload failed: ${errorMsg}`);
-        }
-
-        // Create database record via Vercel API (small data, no file)
-        console.log("💾 Creating database record...");
-        await createDatabaseRecord(
-          uploadResult.uniqueFileName,
-          file,
-          displayName,
-          syncStatus,
-          comfyUIPath
-        );
-
-        // Update progress to completed
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? {
-                  ...item,
-                  progress: 100,
-                  status: "completed",
-                }
-              : item
-          )
-        );
-
-        // Show success message
-        console.log(`✅ Complete upload pipeline finished for ${file.name}`);
-      } catch (error) {
-        console.error("❌ Upload pipeline error:", error);
-        setUploadProgress((prev) =>
-          prev.map((item) =>
-            item.fileName === file.name
-              ? {
-                  ...item,
-                  status: "failed",
-                  error:
-                    error instanceof Error ? error.message : "Upload failed",
-                }
-              : item
-          )
-        );
-
-        // Show user-friendly error message
-        if (error instanceof Error) {
-          alert(
-            `Upload failed for ${file.name}: ${error.message}\n\nPlease try again or contact support if the issue persists.`
-          );
-        }
-      }
-    }
-
-    // Show final success message for all uploads
-    const completedUploads = uploadProgress.filter(
-      (p) => p.status === "completed"
-    ).length;
-    const failedUploads = uploadProgress.filter(
-      (p) => p.status === "failed"
-    ).length;
-
-    if (completedUploads > 0) {
-      const multipartUploads = uploadProgress.filter(
-        (p) => p.status === "completed" && p.uploadMethod === "multipart-s3"
-      ).length;
-
-      let message = `🎉 Upload Results:\n\n✅ ${completedUploads} file(s) uploaded successfully\n`;
-
-      if (multipartUploads > 0) {
-        message += `🚀 ${multipartUploads} file(s) uploaded to S3 network volume (ready for text-to-image generation!)\n`;
-      }
-      if (failedUploads > 0) {
-        message += `❌ ${failedUploads} file(s) failed\n`;
-      }
-
-      alert(message);
-    }
-
-    // Refresh the influencers list
-    await fetchInfluencers();
-
-    setUploading(false);
-    setShowUploadModal(false);
-    setSelectedFiles([]);
-    setUploadProgress([]);
-  };
-
-  // Delete influencer
-  const deleteInfluencer = async (influencer: InfluencerLoRA) => {
-    if (!apiClient) return;
-
-    try {
-      setIsDeleting(true);
-      console.log(`🗑️ Deleting influencer: ${influencer.displayName}`);
-
-      const response = await apiClient.delete(
-        `/api/user/influencers/${influencer.id}`
-      );
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: "Unknown error" }));
-        throw new Error(errorData.error || "Failed to delete influencer");
-      }
-
-      await response.json();
-
-      setInfluencers((prev) =>
-        prev.filter((inf) => inf.id !== influencer.id)
-      );
-
-      toast.success(`Deleted ${influencer.displayName}`, {
-        description: "Removed from database and storage.",
-      });
-
-      console.log(
-        `✅ Influencer deleted successfully: ${influencer.displayName}`
-      );
-    } catch (error) {
-      console.error("Delete error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to delete influencer";
-      toast.error(`Failed to delete ${influencer.displayName}`, {
-        description: errorMessage,
-      });
-    } finally {
-      setIsDeleting(false);
-      setDeleteCandidate(null);
-    }
-  };
-
-  // Toggle influencer status
-  const toggleInfluencerStatus = async (id: string, isActive: boolean) => {
-    if (!apiClient) return;
-
-    try {
-      const response = await apiClient.patch(`/api/user/influencers/${id}`, {
-        isActive,
-      });
-
-      if (!response.ok) throw new Error("Failed to update influencer");
-
-      setInfluencers((prev) =>
-        prev.map((inf) => (inf.id === id ? { ...inf, isActive } : inf))
-      );
-    } catch (error) {
-      console.error("Update error:", error);
-      alert("Failed to update influencer status");
-    }
-  };
-
-  // Handle share button click
-  const handleShareLoRA = (influencer: InfluencerLoRA) => {
-    setLoraToShare(influencer);
-    setShareLoRAModalOpen(true);
-  };
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Copied to clipboard!");
-    } catch (err) {
-      console.error("Failed to copy text: ", err);
-    }
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  const getSyncStatusIcon = (syncStatus?: string) => {
-    switch (syncStatus) {
-      case "synced":
-        return (
-          <span title="Synced with ComfyUI">
-            <CheckCircle className="w-4 h-4 text-green-500" />
-          </span>
-        );
-      case "pending":
-        return (
-          <span title="Pending sync">
-            <Clock className="w-4 h-4 text-yellow-500" />
-          </span>
-        );
-      case "missing":
-        return (
-          <span title="Missing from ComfyUI">
-            <XCircle className="w-4 h-4 text-red-500" />
-          </span>
-        );
-      case "error":
-        return (
-          <span title="Sync error">
-            <AlertCircle className="w-4 h-4 text-red-500" />
-          </span>
-        );
-      default:
-        return (
-          <span title="Unknown status">
-            <Clock className="w-4 h-4 text-gray-400" />
-          </span>
-        );
-    }
-  };
-
-  const getSyncStatusText = (syncStatus?: string) => {
-    switch (syncStatus) {
-      case "synced":
-        return "Ready to use";
-      case "pending":
-        return "Needs setup";
-      case "missing":
-        return "Not found in ComfyUI";
-      case "error":
-        return "Sync error";
-      default:
-        return "Unknown";
-    }
-  };
-
-  const showInfluencerDetails = (influencer: InfluencerLoRA) => {
-    setSelectedInfluencer(influencer);
-    setShowDetailsModal(true);
-  };
-
-  // Enhanced loading state if API client isn't ready
-  if (!apiClient) {
-    return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <div className="text-center space-y-6">
-          <div className="relative">
-            <div className="w-20 h-20 border-4 border-purple-200 dark:border-purple-800 border-t-purple-600 dark:border-t-purple-400 rounded-full animate-spin mx-auto"></div>
-            <Users className="absolute inset-0 w-8 h-8 text-pink-500 animate-pulse m-auto" />
+      <div className="flex items-center justify-center min-h-[80vh]">
+        <div className="text-center space-y-4">
+          <div className="relative w-16 h-16 mx-auto">
+            <div className="absolute inset-0 rounded-full border-2 border-zinc-200 dark:border-zinc-800" />
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-violet-500 animate-spin" />
           </div>
-          <div className="space-y-2">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Setting Up Your Influencer Studio
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md">
-              Preparing your personal LoRA model management system...
-            </p>
-          </div>
-          <div className="flex items-center justify-center space-x-2 text-sm text-pink-600 dark:text-pink-400">
-            <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce"></div>
-            <div
-              className="w-2 h-2 bg-pink-500 rounded-full animate-bounce"
-              style={{ animationDelay: "0.1s" }}
-            ></div>
-            <div
-              className="w-2 h-2 bg-pink-500 rounded-full animate-bounce"
-              style={{ animationDelay: "0.2s" }}
-            ></div>
-          </div>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading profiles...</p>
         </div>
       </div>
     );
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-      </div>
-    );
-  }
-
-  const syncedCount = influencers.filter(
-    (inf) => inf.syncStatus === "synced"
-  ).length;
-  const pendingCount = influencers.filter(
-    (inf) => inf.syncStatus === "pending"
-  ).length;
-  const missingCount = influencers.filter(
-    (inf) => inf.syncStatus === "missing"
-  ).length;
-
-  // Separate owned and shared LoRAs
-  const ownedInfluencers = influencers.filter((inf) => !inf.isShared);
-  const sharedInfluencers = influencers.filter((inf) => inf.isShared);
-
   return (
-    <div className="space-y-6">
-      {/* Enhanced Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl shadow-lg border border-purple-200 dark:border-pink-800 p-4 sm:p-6 text-white">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3 sm:space-x-4">
-            <div className="p-2 sm:p-3 bg-white/20 rounded-xl backdrop-blur-sm flex-shrink-0">
-              <Users className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+      {/* Header */}
+      <div className="sticky top-0 z-40 backdrop-blur-xl bg-white/80 dark:bg-zinc-900/80 border-b border-zinc-200/60 dark:border-zinc-800/60">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 shadow-lg shadow-violet-500/25">
+                <Users className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-zinc-900 dark:text-white tracking-tight">Influencers</h1>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">{profiles.length} profile{profiles.length !== 1 ? "s" : ""}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">My Influencers</h1>
-              <p className="text-purple-100 text-xs sm:text-sm hidden sm:block">
-                Manage your personal LoRA models for AI-generated content
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-3 w-full sm:w-auto">
-            <button
-              onClick={() => {
-                setShowUploadModal(true);
-                checkComfyUIStatus();
-              }}
-              className="flex items-center justify-center space-x-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-white text-purple-600 hover:bg-gray-50 font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 w-full sm:w-auto text-sm sm:text-base"
-            >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>Add Influencer</span>
+            <button onClick={() => { setSelectedProfile(null); setShowCreateModal(true); }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-medium rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all shadow-lg shadow-zinc-900/10 dark:shadow-white/10">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">New Profile</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <p className="text-red-700 dark:text-red-400">{error}</p>
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        {/* Search & Filters */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-8">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+            <input type="text" placeholder="Search profiles..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-11 pl-11 pr-4 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all placeholder:text-zinc-400" />
           </div>
-        </div>
-      )}
-
-      {/* Filter Buttons - Only show when there are LoRAs */}
-      {influencers.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 pb-2">
-          <button
-            onClick={() => setActiveView('my-loras')}
-            className={`flex items-center justify-center sm:justify-start gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-200 text-sm sm:text-base ${
-              activeView === 'my-loras'
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg sm:scale-105'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-          >
-            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>My LoRAs</span>
-            <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-              activeView === 'my-loras'
-                ? 'bg-white/20'
-                : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-            }`}>
-              {ownedInfluencers.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('shared')}
-            className={`flex items-center justify-center sm:justify-start gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-semibold transition-all duration-200 text-sm sm:text-base ${
-              activeView === 'shared'
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg sm:scale-105'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
-          >
-            <Share2 className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Shared With Me</span>
-            <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-              activeView === 'shared'
-                ? 'bg-white/20'
-                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-            }`}>
-              {sharedInfluencers.length}
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* Enhanced Empty State */}
-      {influencers.length === 0 ? (
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl shadow-sm border-2 border-dashed border-purple-200 dark:border-purple-800 p-12 text-center">
-          <div className="flex flex-col items-center space-y-6">
-            <div className="relative">
-              <div className="p-6 bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-800/50 dark:to-pink-800/50 rounded-2xl">
-                <Users className="w-12 h-12 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="absolute -top-2 -right-2 w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center">
-                <Plus className="w-4 h-4 text-white" />
-              </div>
-            </div>
-
-            <div className="space-y-4 max-w-md">
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Your Influencer Collection Awaits
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                Upload your first LoRA model directly to the network volume storage. Each model becomes instantly available for text-to-image generation with consistent, personalized results.
-              </p>
-
-              <div className="grid grid-cols-3 gap-4 py-4">
-                <div className="text-center">
-                  <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <Upload className="w-4 h-4 text-green-600 dark:text-green-400" />
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    Smart Upload
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <Settings className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    Auto Sync
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <ImageIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    Generate
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowUploadModal(true);
-                  checkComfyUIStatus();
-                }}
-                className="inline-flex items-center space-x-3 px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-xl transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl"
-              >
-                <Upload className="w-5 h-5" />
-                <span>Upload Your First Influencer</span>
-                <Sparkles className="w-5 h-5" />
+          <div className="inline-flex items-center p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl">
+            {[{ key: "all", label: "All", count: profiles.length }, { key: "mine", label: "Mine", count: myProfilesCount }, { key: "shared", label: "Shared", count: sharedProfilesCount }].map((filter) => (
+              <button key={filter.key} onClick={() => setFilterMode(filter.key as FilterMode)}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${filterMode === filter.key ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"}`}>
+                {filter.label}<span className="ml-1.5 text-xs opacity-60">{filter.count}</span>
               </button>
-
-              <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                ✨ Supports .safetensors, .pt, .ckpt • Up to 500MB • Direct network volume storage
-              </p>
-            </div>
+            ))}
           </div>
         </div>
-      ) : (
-        <>
-          {/* My Own LoRAs */}
-          {activeView === 'my-loras' && ownedInfluencers.length > 0 && (
-            <div id="my-loras-section" className="space-y-4 scroll-mt-24">
-              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                {ownedInfluencers.map((influencer) => {
-            const isThumbnailUploading =
-              thumbnailUploadingId === influencer.id;
-            const statusClass =
-              influencer.syncStatus === "synced"
-                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                : influencer.syncStatus === "pending"
-                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-                : influencer.syncStatus === "missing" ||
-                  influencer.syncStatus === "error"
-                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                : "bg-gray-200 text-gray-700 dark:bg-gray-700/40 dark:text-gray-200";
-            const activeButtonClass = influencer.isActive
-              ? "bg-green-600 hover:bg-green-700 text-white"
-              : "bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700/50 dark:hover:bg-gray-600 dark:text-gray-200";
-            const uploadInputId = `thumbnail-upload-${influencer.id}`;
 
-            return (
-              <div
-                key={influencer.id}
-                className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800/50 dark:to-blue-900/20 shadow-md rounded-xl border border-blue-200/30 dark:border-blue-700/20 p-3 sm:p-4 backdrop-blur-sm hover:shadow-lg transition-all duration-300"
-              >
-                <div className="space-y-2 sm:space-y-2.5">
-                  <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-blue-100/40 dark:from-gray-700/40 dark:to-blue-900/30 flex items-center justify-center">
-                    {influencer.thumbnailUrl ? (
-                      <img
-                        src={influencer.thumbnailUrl}
-                        alt={influencer.displayName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon className="w-12 h-12 text-purple-400" />
-                    )}
+        {error && (
+          <div className="mb-8 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl">
+            <div className="flex items-center gap-3"><AlertCircle className="w-5 h-5 text-red-500" /><p className="text-sm text-red-600 dark:text-red-400">{error}</p></div>
+          </div>
+        )}
 
-                    {isThumbnailUploading && (
-                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <Loader2 className="w-5 h-5 text-white animate-spin" />
-                      </div>
-                    )}
-
-                    {influencer.usageCount > 0 && (
-                      <div className="absolute top-1.5 left-1.5 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full shadow-sm">
-                        {influencer.usageCount} uses
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-center space-y-1.5">
-                    <div className="space-y-0.5">
-                      <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white line-clamp-1">
-                        {influencer.displayName}
-                      </h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {influencer.fileName}
-                      </p>
-                    </div>
-
-                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[24px] sm:min-h-[28px]">
-                      {influencer.description || "No description provided"}
-                    </p>
-
-                    <div className="flex flex-wrap items-center justify-center gap-1.5">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}>
-                        {getSyncStatusText(influencer.syncStatus)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          toggleInfluencerStatus(
-                            influencer.id,
-                            !influencer.isActive
-                          )
-                        }
-                        className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${activeButtonClass}`}
-                      >
-                        {influencer.isActive ? "Active" : "Inactive"}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                      <span>{formatFileSize(influencer.fileSize)}</span>
-                      <span>•</span>
-                      <span>{new Date(influencer.uploadedAt).toLocaleDateString()}</span>
-                    </div>
-
-                    {/* Action Buttons - Organized in sections */}
-                    <div className="space-y-2 pt-1">
-                      {/* Primary Actions */}
-                      <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-                        <button
-                          type="button"
-                          onClick={() => showInfluencerDetails(influencer)}
-                          className="flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors active:scale-95"
-                        >
-                          <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          <span className="hidden xs:inline">View</span>
-                        </button>
-                        
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setThumbnailOptionsInfluencer(influencer);
-                            setThumbnailOptionsModalOpen(true);
-                          }}
-                          disabled={isThumbnailUploading}
-                          className={`flex-1 inline-flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-2.5 rounded-lg text-xs font-medium bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-sm transition-all active:scale-95 ${
-                            isThumbnailUploading ? "opacity-70 cursor-not-allowed" : ""
-                          }`}
-                        >
-                          {isThumbnailUploading ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
-                              <span className="hidden xs:inline">Uploading...</span>
-                            </>
-                          ) : (
-                            <>
-                              <ImagePlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                              <span className="hidden xs:inline">Image</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Secondary Actions */}
-                      <div className="flex items-center justify-between px-1 sm:px-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            alert("Download functionality coming soon!");
-                          }}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors p-1.5 rounded active:scale-95"
-                        >
-                          <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          <span className="hidden xs:inline">Download</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setDeleteCandidate(influencer)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors p-1.5 rounded active:scale-95"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          <span className="hidden xs:inline">Delete</span>
-                        </button>
-                      </div>
-
-                      {/* Share button - only for owned LoRAs */}
-                      {!influencer.isShared && (
-                        <button
-                          type="button"
-                          onClick={() => handleShareLoRA(influencer)}
-                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800/40 transition-colors"
-                        >
-                          <Share2 className="w-3.5 h-3.5" />
-                          <span>{influencer.hasShares ? 'Shared' : 'Share'}</span>
-                        </button>
-                      )}
-
-                      {/* Shared badge - only for shared LoRAs */}
-                      {influencer.isShared && (
-                        <div className="flex items-center justify-center gap-1 px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-semibold rounded-full">
-                          <Users className="w-3 h-3" />
-                          <span>Shared by {influencer.sharedBy}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <input
-                    id={uploadInputId}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) =>
-                      handleThumbnailSelect(influencer.id, event)
-                    }
-                    disabled={isThumbnailUploading}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-              </div>
+        {filteredProfiles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24">
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 flex items-center justify-center mb-8 shadow-xl">
+              <Users className="w-12 h-12 text-zinc-400 dark:text-zinc-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-zinc-900 dark:text-white mb-2">{searchQuery ? "No profiles found" : "No influencer profiles yet"}</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-sm mb-8">{searchQuery ? "Try adjusting your search or filters" : "Create your first influencer profile with comprehensive Model Bible documentation"}</p>
+            {!searchQuery && (
+              <button onClick={() => { setSelectedProfile(null); setShowCreateModal(true); }}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-sm font-semibold rounded-xl hover:from-violet-700 hover:to-fuchsia-700 transition-all shadow-xl shadow-violet-500/30">
+                <Plus className="w-4 h-4" />Create Profile
+              </button>
             )}
-
-          {/* Shared With Me LoRAs */}
-          {activeView === 'shared' && (
-            <div id="shared-loras-section" className="space-y-4 mt-8 scroll-mt-24">
-              {sharedInfluencers.length > 0 ? (
-                <>
-                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                    {sharedInfluencers.map((influencer) => {
-                  const statusClass =
-                    influencer.syncStatus === "synced"
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                      : influencer.syncStatus === "pending"
-                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-                      : influencer.syncStatus === "missing" ||
-                        influencer.syncStatus === "error"
-                      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                      : "bg-gray-200 text-gray-700 dark:bg-gray-700/40 dark:text-gray-200";
-
-                  return (
-                    <div
-                      key={influencer.id}
-                      className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 shadow-lg rounded-xl border-2 border-purple-300 dark:border-purple-700 p-3 sm:p-4 backdrop-blur-sm hover:shadow-xl transition-all duration-300 relative"
-                    >
-                      {/* Shared badge */}
-                      <div className="absolute top-2 right-2 z-10">
-                        <div className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs font-semibold rounded-full shadow-sm">
-                          <Users className="w-3 h-3" />
-                          <span>Shared</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="relative w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-purple-100/40 dark:from-gray-700/40 dark:to-purple-900/30 flex items-center justify-center">
-                          {influencer.thumbnailUrl ? (
-                            <img
-                              src={influencer.thumbnailUrl}
-                              alt={influencer.displayName}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <ImageIcon className="w-14 h-14 text-purple-400" />
-                          )}
-
-                          {influencer.usageCount > 0 && (
-                            <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs px-2 py-1 rounded-full shadow-sm">
-                              {influencer.usageCount} uses
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="text-center space-y-2">
-                          <div className="space-y-1">
-                            <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white line-clamp-1">
-                              {influencer.displayName}
-                            </h3>
-                            <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                              Shared by {influencer.sharedBy}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {influencer.fileName}
-                            </p>
-                          </div>
-
-                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 line-clamp-2 min-h-[32px]">
-                            {influencer.description || "No description provided"}
-                          </p>
-
-                          <div className="flex flex-wrap items-center justify-center gap-2">
-                            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusClass}`}>
-                              {getSyncStatusText(influencer.syncStatus)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                            <span>{formatFileSize(influencer.fileSize)}</span>
-                            <span>•</span>
-                            <span>{new Date(influencer.uploadedAt).toLocaleDateString()}</span>
-                          </div>
-
-                          <div className="flex flex-wrap items-center justify-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => showInfluencerDetails(influencer)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-200 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>View Details</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-                </>
-              ) : (
-                // Empty state for shared LoRAs
-                <div className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl shadow-sm border-2 border-dashed border-blue-200 dark:border-blue-800 p-12 text-center">
-                  <div className="flex flex-col items-center space-y-6">
-                    <div className="relative">
-                      <div className="p-6 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-800/50 dark:to-purple-800/50 rounded-2xl">
-                        <Share2 className="w-12 h-12 text-blue-600 dark:text-blue-400" />
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 max-w-md">
-                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        No Shared LoRAs Yet
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        When other users share their LoRA models with you, they will appear here. You'll be able to use them in your text-to-image generations.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Influencer Details Modal */}
-      {showDetailsModal && selectedInfluencer && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Influencer Details
-                </h2>
-                <button
-                  onClick={() => setShowDetailsModal(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                {selectedInfluencer.thumbnailUrl && (
-                  <div className="w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                    <img
-                      src={selectedInfluencer.thumbnailUrl}
-                      alt={selectedInfluencer.displayName}
-                      className="w-full h-64 object-cover"
-                    />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Display Name
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {selectedInfluencer.displayName}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      File Name
-                    </label>
-                    <p className="text-gray-900 dark:text-white font-mono text-sm">
-                      {selectedInfluencer.fileName}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      File Size
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {formatFileSize(selectedInfluencer.fileSize)}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Usage Count
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {selectedInfluencer.usageCount} times
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Status
-                    </label>
-                    <div className="flex items-center space-x-2">
-                      {getSyncStatusIcon(selectedInfluencer.syncStatus)}
-                      <span className="text-gray-900 dark:text-white">
-                        {getSyncStatusText(selectedInfluencer.syncStatus)}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Active
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {selectedInfluencer.isActive ? "Yes" : "No"}
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Uploaded
-                  </label>
-                  <p className="text-gray-900 dark:text-white">
-                    {new Date(selectedInfluencer.uploadedAt).toLocaleString()}
-                  </p>
-                </div>
-
-                {selectedInfluencer.lastUsedAt && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Last Used
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {new Date(selectedInfluencer.lastUsedAt).toLocaleString()}
-                    </p>
-                  </div>
-                )}
-
-                {selectedInfluencer.comfyUIPath && (
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      ComfyUI Path
-                    </label>
-                    <div className="flex items-center space-x-2">
-                      <p className="text-gray-900 dark:text-white font-mono text-sm bg-gray-100 dark:bg-gray-700 p-2 rounded flex-1">
-                        {selectedInfluencer.comfyUIPath}
-                      </p>
-                      <button
-                        onClick={() =>
-                          copyToClipboard(selectedInfluencer.comfyUIPath!)
-                        }
-                        className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Description
-                  </label>
-                  <p className="text-gray-900 dark:text-white">
-                    {selectedInfluencer.description ||
-                      "No description provided"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => setShowDetailsModal(false)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
           </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteCandidate && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-md border-t sm:border border-gray-200 dark:border-gray-700">
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Delete Influencer
-                </h3>
-                <button
-                  onClick={() => {
-                    if (!isDeleting) {
-                      setDeleteCandidate(null);
-                    }
-                  }}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  aria-label="Close delete confirmation"
-                  disabled={isDeleting}
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                <p>
-                  Are you sure you want to delete <strong>{deleteCandidate.displayName}</strong>?
-                </p>
-                <p className="text-xs text-red-500 dark:text-red-400">
-                  This permanently removes the model, associated files, and cannot be undone.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/60 rounded-lg text-xs text-gray-500 dark:text-gray-400">
-                <span>File name</span>
-                <span className="font-mono truncate max-w-[180px]">
-                  {deleteCandidate.fileName}
-                </span>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-2">
-                <button
-                  onClick={() => {
-                    if (!isDeleting) {
-                      setDeleteCandidate(null);
-                    }
-                  }}
-                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-60"
-                  disabled={isDeleting}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => deleteInfluencer(deleteCandidate)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Deleting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {filteredProfiles.map((profile) => (
+              <ProfileCard key={profile.id} profile={profile} isOwn={isOwnProfile(profile)} ownerName={getOwnerDisplayName(profile)}
+                onEdit={() => { setSelectedProfile(profile); setShowEditModal(true); }}
+                onDelete={() => { setSelectedProfile(profile); setShowDeleteModal(true); }}
+                onView={() => { setSelectedProfile(profile); setShowDetailsModal(true); }}
+                onSetDefault={() => handleSetDefault(profile.id)}
+                onToggleShare={() => handleToggleShare(profile)} />
+            ))}
           </div>
-        </div>,
-        document.body
-      )}
+        )}
+      </div>
 
-      {/* Manual Instructions Modal */}
-      {showInstructions && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
-                  <FileText className="w-5 h-5" />
-                  <span>{showInstructions.title}</span>
-                </h2>
-                <button
-                  onClick={() => setShowInstructions(null)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                <p className="text-yellow-800 dark:text-yellow-200">
-                  <strong>
-                    Upload completed, but manual setup is required.
-                  </strong>{" "}
-                  ComfyUI doesn't appear to have an automatic file upload API
-                  enabled.
-                </p>
-              </div>
-
-              <div className="space-y-3 mb-6">
-                <h3 className="font-medium text-gray-900 dark:text-white">
-                  Follow these steps:
-                </h3>
-                {showInstructions.steps.map((step, index) => (
-                  <div
-                    key={index}
-                    className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                  >
-                    <div className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-gray-900 dark:text-white">{step}</p>
-                      {step.includes("ComfyUI/models/loras/") && (
-                        <button
-                          onClick={() => copyToClipboard(step.split(": ")[1])}
-                          className="mt-1 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center space-x-1"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>Copy path</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-blue-800 dark:text-blue-200 text-sm">
-                  <strong>Note:</strong> {showInstructions.note}
-                </p>
-              </div>
-
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => setShowInstructions(null)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-                >
-                  I'll do this later
-                </button>
-                <button
-                  onClick={() => {
-                    setShowInstructions(null);
-                    syncWithComfyUI();
-                  }}
-                  className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition-colors"
-                >
-                  I've completed the setup, sync now
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Upload Modal */}
-      {showUploadModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-xl shadow-xl w-full sm:max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Upload New Influencer
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowUploadModal(false);
-                    setSelectedFiles([]);
-                    setUploadProgress([]);
-                  }}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* File Upload Area */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Select LoRA Files
-                </label>
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-purple-400 transition-colors">
-                  <input
-                    type="file"
-                    accept=".safetensors,.pt,.ckpt"
-                    multiple
-                    onChange={handleFileSelect}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <label htmlFor="file-upload" className="cursor-pointer">
-                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600 dark:text-gray-400">
-                      Click to select LoRA files or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                      Supports .safetensors, .pt, .ckpt files (max 6MB each)
-                    </p>
-                  </label>
-                </div>
-              </div>
-
-              {/* ComfyUI Status Indicator */}
-              {comfyUIStatus && (
-                <div
-                  className={`mb-4 p-3 rounded-lg border ${
-                    comfyUIStatus.status === "connected"
-                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                      : "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      {comfyUIStatus.status === "connected" ? (
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 text-yellow-600" />
-                      )}
-                      <span
-                        className={`text-sm font-medium ${
-                          comfyUIStatus.status === "connected"
-                            ? "text-green-800 dark:text-green-200"
-                            : "text-yellow-800 dark:text-yellow-200"
-                        }`}
-                      >
-                        ComfyUI Status:{" "}
-                        {comfyUIStatus.status === "connected"
-                          ? "Ready for direct upload"
-                          : "Will use fallback storage"}
-                      </span>
-                    </div>
-                    <button
-                      onClick={checkComfyUIStatus}
-                      className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                    >
-                      Refresh
-                    </button>
-                  </div>
-                  {comfyUIStatus.status !== "connected" && (
-                    <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                      Files will be uploaded to secure storage and can be synced
-                      to ComfyUI later.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* New upload process info */}
-              <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <p className="text-sm text-green-700 dark:text-green-300">
-                  <strong>🚀 Network Volume Upload:</strong> Your LoRA files
-                  will be uploaded directly to the RunPod network volume storage
-                  where they'll be immediately available for text-to-image
-                  generation. Fallback to secure storage if needed.
-                </p>
-              </div>
-
-              {/* Selected Files */}
-              {selectedFiles.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Selected Files ({selectedFiles.length})
-                  </h3>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {selectedFiles.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded"
-                      >
-                        <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                          {file.name}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {formatFileSize(file.size)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Upload Progress */}
-              {uploadProgress.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Upload Progress
-                  </h3>
-                  <div className="space-y-2">
-                    {uploadProgress.map((progress, index) => (
-                      <div key={index} className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                            {progress.fileName}
-                          </span>
-                          <div className="flex items-center space-x-2">
-                            {progress.status === "uploading" && (
-                              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                            )}
-                            {progress.status === "processing" && (
-                              <Loader2 className="w-4 h-4 animate-spin text-yellow-500" />
-                            )}
-                            {progress.status === "completed" && (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                            )}
-                            {progress.status === "failed" && (
-                              <AlertCircle className="w-4 h-4 text-red-500" />
-                            )}
-                            <span className="text-xs text-gray-500">
-                              {progress.progress}%
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span>
-                            {progress.uploadMethod === "multipart-s3" &&
-                              "🚀 Multipart S3 Upload"}
-                            {!progress.uploadMethod && "🚀 Uploading..."}
-                          </span>
-                          {progress.status === "uploading" &&
-                            progress.uploadMethod === "multipart-s3" && (
-                              <span>
-                                Uploading to S3 in chunks...
-                              </span>
-                            )}
-                          {progress.status === "processing" && (
-                            <span>Creating database record...</span>
-                          )}
-                        </div>
-                        {progress.status !== "completed" && (
-                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1">
-                            <div
-                              className="bg-blue-500 h-1 rounded-full transition-all duration-300"
-                              style={{ width: `${progress.progress}%` }}
-                            />
-                          </div>
-                        )}
-                        {progress.error && (
-                          <p className="text-xs text-red-500">
-                            {progress.error}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex items-center justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setShowUploadModal(false);
-                    setSelectedFiles([]);
-                    setUploadProgress([]);
-                  }}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
-                  disabled={uploading}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={uploadInfluencers}
-                  disabled={uploading || selectedFiles.length === 0}
-                  className="px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
-                >
-                  {uploading ? "Uploading to ComfyUI..." : "Upload Influencers"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Share LoRA Modal */}
-      {loraToShare && (
-        <ShareLoRAModal
-          isOpen={shareLoRAModalOpen}
-          onClose={() => {
-            setShareLoRAModalOpen(false);
-            setLoraToShare(null);
-          }}
-          loraId={loraToShare.id}
-          loraName={loraToShare.displayName}
-          onShareComplete={() => {
-            fetchInfluencers(); // Refresh the list to show share status
-          }}
-        />
-      )}
-
-      {/* Select Thumbnail Modal */}
-      {loraForThumbnail && (
-        <SelectThumbnailModal
-          isOpen={selectThumbnailModalOpen}
-          onClose={() => {
-            setSelectThumbnailModalOpen(false);
-            setLoraForThumbnail(null);
-          }}
-          influencerId={loraForThumbnail.id}
-          influencerName={loraForThumbnail.displayName}
-          onThumbnailSelected={async (imageUrl) => {
-            await setThumbnailFromGeneratedImage(loraForThumbnail.id, imageUrl);
-            await fetchInfluencers(); // Refresh to show new thumbnail
-          }}
-        />
-      )}
-
-      {/* Thumbnail Options Modal */}
-      {thumbnailOptionsInfluencer && typeof document !== 'undefined' && createPortal(
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
-          onClick={() => {
-            setThumbnailOptionsModalOpen(false);
-            setThumbnailOptionsInfluencer(null);
-          }}
-        >
-          <div 
-            className="bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-xl shadow-2xl w-full sm:max-w-md border-t sm:border border-gray-200 dark:border-gray-700 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                    <ImagePlus className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">Set Thumbnail</h3>
-                    <p className="text-sm text-blue-100">{thumbnailOptionsInfluencer.displayName}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setThumbnailOptionsModalOpen(false);
-                    setThumbnailOptionsInfluencer(null);
-                  }}
-                  className="text-white/80 hover:text-white transition-colors"
-                  aria-label="Close modal"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Options */}
-            <div className="p-6 space-y-3">
-              {/* Upload Option */}
-              <label
-                htmlFor={`thumbnail-upload-${thumbnailOptionsInfluencer.id}`}
-                className="flex items-center gap-4 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-all group"
-              >
-                <div className="flex-shrink-0 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-800/40 transition-colors">
-                  <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-gray-900 dark:text-white">Upload Image</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Choose a file from your computer</p>
-                </div>
-              </label>
-
-              {/* Select from Generations Option */}
-              <button
-                type="button"
-                onClick={() => {
-                  setLoraForThumbnail(thumbnailOptionsInfluencer);
-                  setSelectThumbnailModalOpen(true);
-                  setThumbnailOptionsModalOpen(false);
-                  setThumbnailOptionsInfluencer(null);
-                }}
-                className="w-full flex items-center gap-4 p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all group"
-              >
-                <div className="flex-shrink-0 p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-800/40 transition-colors">
-                  <ImageIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="flex-1 text-left">
-                  <h4 className="font-semibold text-gray-900 dark:text-white">Select from Generations</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Choose from images you've generated</p>
-                </div>
-              </button>
-            </div>
-
-            {/* Footer */}
-            <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 flex justify-end">
-              <button
-                onClick={() => {
-                  setThumbnailOptionsModalOpen(false);
-                  setThumbnailOptionsInfluencer(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      {showCreateModal && <CreateEditProfileModal mode="create" onClose={() => setShowCreateModal(false)} onSuccess={() => { setShowCreateModal(false); loadProfiles(); }} />}
+      {showEditModal && selectedProfile && <CreateEditProfileModal mode="edit" profile={selectedProfile} onClose={() => { setShowEditModal(false); setSelectedProfile(null); }} onSuccess={() => { setShowEditModal(false); setSelectedProfile(null); loadProfiles(); }} />}
+      {showDeleteModal && selectedProfile && <DeleteProfileModal profile={selectedProfile} onClose={() => { setShowDeleteModal(false); setSelectedProfile(null); }} onSuccess={() => { setShowDeleteModal(false); setSelectedProfile(null); loadProfiles(); }} />}
+      {showDetailsModal && selectedProfile && <ProfileDetailsModal profile={selectedProfile} onClose={() => { setShowDetailsModal(false); setSelectedProfile(null); }} />}
     </div>
   );
+}
+
+function ProfileCard({ profile, isOwn, ownerName, onEdit, onDelete, onView, onSetDefault, onToggleShare }: {
+  profile: InfluencerProfile; isOwn: boolean; ownerName: string; onEdit: () => void; onDelete: () => void; onView: () => void; onSetDefault: () => void; onToggleShare: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const totalPosts = (profile._count?.posts || 0) + (profile._count?.feedPosts || 0);
+
+  return (
+    <div className="group relative bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 overflow-hidden hover:shadow-2xl hover:shadow-zinc-200/50 dark:hover:shadow-zinc-900/50 hover:-translate-y-1 transition-all duration-300">
+      <div className="relative aspect-[4/5] bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 overflow-hidden">
+        {profile.profileImageUrl ? (
+          <img src={profile.profileImageUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center"><User className="w-20 h-20 text-zinc-300 dark:text-zinc-700" /></div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute top-3 left-3 flex flex-wrap gap-2">
+          {profile.isDefault && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Star className="w-3 h-3" />Default</span>}
+          {!isOwn && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Share2 className="w-3 h-3" />Shared</span>}
+          {profile.organizationId && isOwn && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Building2 className="w-3 h-3" />Org</span>}
+        </div>
+        {isOwn && (
+          <div className="absolute top-3 right-3" ref={menuRef}>
+            <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 bg-black/20 hover:bg-black/40 backdrop-blur-md rounded-lg transition-colors">
+              <MoreVertical className="w-4 h-4 text-white" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden z-20">
+                <button onClick={() => { onEdit(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
+                  <Edit3 className="w-4 h-4 text-zinc-400" />Edit Profile
+                </button>
+                {!profile.isDefault && (
+                  <button onClick={() => { onSetDefault(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
+                    <Star className="w-4 h-4 text-zinc-400" />Set as Default
+                  </button>
+                )}
+                <button onClick={() => { onToggleShare(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
+                  <Share2 className="w-4 h-4 text-zinc-400" />{profile.organizationId ? "Unshare" : "Share with Org"}
+                </button>
+                <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                <button onClick={() => { onDelete(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center gap-3 transition-colors">
+                  <Trash2 className="w-4 h-4" />Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        <div className="absolute left-0 right-0 bottom-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <button onClick={onView} className="w-full py-2.5 bg-white/95 backdrop-blur-sm text-zinc-900 text-sm font-semibold rounded-xl hover:bg-white transition-colors flex items-center justify-center gap-2">
+            View Profile<ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      <div className="p-4">
+        <div className="mb-3">
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-white truncate">{profile.name}</h3>
+          {profile.instagramUsername && <p className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 mt-0.5"><Instagram className="w-3.5 h-3.5" />@{profile.instagramUsername}</p>}
+          {!isOwn && <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Shared by {ownerName}</p>}
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400"><Camera className="w-3.5 h-3.5" />{totalPosts} posts</span>
+          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-md ${profile.modelBible ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"}`}>
+            <BookOpen className="w-3 h-3" />{profile.modelBible ? "Bible" : "No Bible"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "create" | "edit"; profile?: InfluencerProfile; onClose: () => void; onSuccess: () => void; }) {
+  const [activeSection, setActiveSection] = useState("basic");
+  const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const apiClient = useApiClient();
+
+  const [formData, setFormData] = useState({
+    name: profile?.name || "", description: profile?.description || "", instagramUsername: profile?.instagramUsername || "",
+    profileImageUrl: profile?.profileImageUrl || "",
+    isDefault: profile?.isDefault || false, shareWithOrganization: !!profile?.organizationId,
+    age: profile?.modelBible?.age || "", location: profile?.modelBible?.location || "",
+    nationality: profile?.modelBible?.nationality || "", occupation: profile?.modelBible?.occupation || "",
+    relationshipStatus: profile?.modelBible?.relationshipStatus || "", backstory: profile?.modelBible?.backstory || "",
+    family: profile?.modelBible?.family || "", pets: profile?.modelBible?.pets || "",
+    education: profile?.modelBible?.education || "", pastJobs: profile?.modelBible?.pastJobs || "",
+    contentCreationOrigin: profile?.modelBible?.contentCreationOrigin || "", city: profile?.modelBible?.city || "",
+    livingSituation: profile?.modelBible?.livingSituation || "", coreTraits: profile?.modelBible?.coreTraits || [],
+    personalityDescription: profile?.modelBible?.personalityDescription || "", morningVibe: profile?.modelBible?.morningVibe || "",
+    afternoonVibe: profile?.modelBible?.afternoonVibe || "", nightVibe: profile?.modelBible?.nightVibe || "",
+    primaryNiche: profile?.modelBible?.primaryNiche || "", feedAesthetic: profile?.modelBible?.feedAesthetic || "",
+    commonThemes: profile?.modelBible?.commonThemes || "", signatureLook: profile?.modelBible?.signatureLook || "",
+    uniqueHook: profile?.modelBible?.uniqueHook || "", willDo: profile?.modelBible?.willDo || [],
+    wontDo: profile?.modelBible?.wontDo || [], maybeOrPremium: profile?.modelBible?.maybeOrPremium || [],
+    pricingMenu: profile?.modelBible?.pricingMenu || DEFAULT_PRICING_ITEMS, tone: profile?.modelBible?.tone || "",
+    emojiOften: profile?.modelBible?.emojiOften || [], signaturePhrases: profile?.modelBible?.signaturePhrases || [],
+    messageLength: profile?.modelBible?.messageLength || "", capitalization: profile?.modelBible?.capitalization || "",
+    punctuation: profile?.modelBible?.punctuation || "", responseSpeed: profile?.modelBible?.responseSpeed || "",
+    sampleGreeting: profile?.modelBible?.sampleGreeting || "", sampleFlirty: profile?.modelBible?.sampleFlirty || "",
+    samplePPV: profile?.modelBible?.samplePPV || "", sampleFreeRequest: profile?.modelBible?.sampleFreeRequest || "",
+    instagramBio: profile?.modelBible?.instagramBio || "", instagramPostingStyle: profile?.modelBible?.instagramPostingStyle || "",
+    onlyfansWelcome: profile?.modelBible?.onlyfansWelcome || "", hair: profile?.modelBible?.hair || "",
+    eyes: profile?.modelBible?.eyes || "", bodyType: profile?.modelBible?.bodyType || "",
+    tattoosPiercings: profile?.modelBible?.tattoosPiercings || "", moodboardKeywords: profile?.modelBible?.moodboardKeywords || "",
+    faqAreYouReal: profile?.modelBible?.faqAreYouReal || "", faqMeetUp: profile?.modelBible?.faqMeetUp || "",
+    faqFreeContent: profile?.modelBible?.faqFreeContent || "", faqRealName: profile?.modelBible?.faqRealName || "",
+    faqTooAttached: profile?.modelBible?.faqTooAttached || "", internalNotes: profile?.modelBible?.internalNotes || "",
+  });
+
+  useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
+
+  const handleSubmit = async () => {
+    if (!formData.name.trim() || !apiClient) { toast.error("Please enter a profile name"); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        name: formData.name, description: formData.description, instagramUsername: formData.instagramUsername,
+        profileImageUrl: formData.profileImageUrl || null,
+        isDefault: formData.isDefault, shareWithOrganization: formData.shareWithOrganization,
+        modelBible: {
+          age: formData.age, location: formData.location, nationality: formData.nationality, occupation: formData.occupation,
+          relationshipStatus: formData.relationshipStatus, backstory: formData.backstory, family: formData.family, pets: formData.pets,
+          education: formData.education, pastJobs: formData.pastJobs, contentCreationOrigin: formData.contentCreationOrigin,
+          city: formData.city, livingSituation: formData.livingSituation, coreTraits: formData.coreTraits,
+          personalityDescription: formData.personalityDescription, morningVibe: formData.morningVibe,
+          afternoonVibe: formData.afternoonVibe, nightVibe: formData.nightVibe, primaryNiche: formData.primaryNiche,
+          feedAesthetic: formData.feedAesthetic, commonThemes: formData.commonThemes, signatureLook: formData.signatureLook,
+          uniqueHook: formData.uniqueHook, willDo: formData.willDo, wontDo: formData.wontDo, maybeOrPremium: formData.maybeOrPremium,
+          pricingMenu: formData.pricingMenu, tone: formData.tone, signaturePhrases: formData.signaturePhrases,
+          messageLength: formData.messageLength, capitalization: formData.capitalization, punctuation: formData.punctuation,
+          responseSpeed: formData.responseSpeed, sampleGreeting: formData.sampleGreeting, sampleFlirty: formData.sampleFlirty,
+          samplePPV: formData.samplePPV, sampleFreeRequest: formData.sampleFreeRequest, instagramBio: formData.instagramBio,
+          instagramPostingStyle: formData.instagramPostingStyle, onlyfansWelcome: formData.onlyfansWelcome, hair: formData.hair,
+          eyes: formData.eyes, bodyType: formData.bodyType, tattoosPiercings: formData.tattoosPiercings,
+          moodboardKeywords: formData.moodboardKeywords, faqAreYouReal: formData.faqAreYouReal, faqMeetUp: formData.faqMeetUp,
+          faqFreeContent: formData.faqFreeContent, faqRealName: formData.faqRealName, faqTooAttached: formData.faqTooAttached,
+          internalNotes: formData.internalNotes,
+        },
+      };
+      const response = mode === "create" ? await apiClient.post("/api/instagram-profiles", payload) : await apiClient.patch(`/api/instagram-profiles/${profile?.id}`, payload);
+      if (!response.ok) throw new Error("Failed to save profile");
+      toast.success(mode === "create" ? "Profile created!" : "Profile updated!");
+      onSuccess();
+    } catch { toast.error("Failed to save profile"); }
+    finally { setSaving(false); }
+  };
+
+  const sections = [
+    { id: "basic", name: "Basic", icon: User }, { id: "identity", name: "Identity", icon: FileText },
+    { id: "backstory", name: "Backstory", icon: BookOpen }, { id: "personality", name: "Personality", icon: Heart },
+    { id: "content", name: "Content", icon: Camera }, { id: "boundaries", name: "Boundaries", icon: AlertCircle },
+    { id: "communication", name: "Comms", icon: MessageCircle }, { id: "visual", name: "Visual", icon: Palette },
+    { id: "faqs", name: "FAQs", icon: FileText }, { id: "team", name: "Team", icon: Settings },
+  ];
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">{mode === "create" ? "Create Profile" : "Edit Profile"}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"><X className="w-5 h-5 text-zinc-500" /></button>
+        </div>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="w-44 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto">
+            <nav className="p-2 space-y-0.5">
+              {sections.map((section) => { const Icon = section.icon; return (
+                <button key={section.id} onClick={() => setActiveSection(section.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-xl transition-all ${activeSection === section.id ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-zinc-900/50"}`}>
+                  <Icon className="w-4 h-4" />{section.name}
+                </button>
+              ); })}
+            </nav>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6">
+            {activeSection === "basic" && (
+              <FormSection title="Basic Information">
+                {/* Profile Image Upload */}
+                <div className="flex items-start gap-6 mb-6">
+                  <div className="relative group">
+                    <div className="w-24 h-24 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center overflow-hidden ring-2 ring-zinc-200 dark:ring-zinc-700">
+                      {formData.profileImageUrl ? (
+                        <img src={formData.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="w-10 h-10 text-zinc-400" />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingImage}
+                      className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      {uploadingImage ? (
+                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                      ) : (
+                        <Upload className="w-6 h-6 text-white" />
+                      )}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (!file.type.startsWith('image/')) {
+                          toast.error('Please select an image file');
+                          return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                          toast.error('Image must be less than 5MB');
+                          return;
+                        }
+                        setUploadingImage(true);
+                        try {
+                          const presignedRes = await fetch('/api/reference-bank/presigned-url', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ fileName: file.name, fileType: file.type, folderId: 'profile-images' }),
+                          });
+                          if (!presignedRes.ok) throw new Error('Failed to get upload URL');
+                          const { presignedUrl, url } = await presignedRes.json();
+                          const uploadRes = await fetch(presignedUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
+                          if (!uploadRes.ok) throw new Error('Failed to upload image');
+                          setFormData({ ...formData, profileImageUrl: url });
+                          toast.success('Image uploaded!');
+                        } catch (err) {
+                          console.error('Upload error:', err);
+                          toast.error('Failed to upload image');
+                        } finally {
+                          setUploadingImage(false);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 pt-1">
+                    <p className="text-sm font-medium text-zinc-900 dark:text-white mb-1">Profile Picture</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3">Upload an image for this influencer profile. Max 5MB.</p>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingImage}
+                        className="px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/50 hover:bg-violet-100 dark:hover:bg-violet-950 rounded-lg transition-colors disabled:opacity-50">
+                        {uploadingImage ? 'Uploading...' : 'Upload'}
+                      </button>
+                      {formData.profileImageUrl && (
+                        <button type="button" onClick={() => setFormData({ ...formData, profileImageUrl: '' })}
+                          className="px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-950 rounded-lg transition-colors">
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <FormField label="Profile Name" required>
+                  <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g., Luna Rose"
+                    className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" />
+                </FormField>
+                <FormField label="Description">
+                  <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} placeholder="Brief description..."
+                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                </FormField>
+                <FormField label="Instagram Username">
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">@</span>
+                    <input type="text" value={formData.instagramUsername} onChange={(e) => setFormData({ ...formData, instagramUsername: e.target.value.replace("@", "") })} placeholder="username"
+                      className="w-full h-11 pl-9 pr-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" />
+                  </div>
+                </FormField>
+                <div className="flex items-center gap-6 pt-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={formData.isDefault} onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })} className="w-5 h-5 rounded-md border-zinc-300 text-violet-600 focus:ring-violet-500" />
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300">Default profile</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={formData.shareWithOrganization} onChange={(e) => setFormData({ ...formData, shareWithOrganization: e.target.checked })} className="w-5 h-5 rounded-md border-zinc-300 text-violet-600 focus:ring-violet-500" />
+                    <span className="text-sm text-zinc-700 dark:text-zinc-300">Share with org</span>
+                  </label>
+                </div>
+              </FormSection>
+            )}
+            {activeSection === "identity" && (
+              <FormSection title="Basic Identity">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Age"><input type="text" value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="e.g., 24" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Location"><input type="text" value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} placeholder="e.g., Los Angeles, CA" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Nationality"><input type="text" value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} placeholder="e.g., American" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Occupation"><input type="text" value={formData.occupation} onChange={(e) => setFormData({ ...formData, occupation: e.target.value })} placeholder="e.g., Fitness model" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                </div>
+                <FormField label="Relationship Status"><input type="text" value={formData.relationshipStatus} onChange={(e) => setFormData({ ...formData, relationshipStatus: e.target.value })} placeholder="e.g., Single" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+              </FormSection>
+            )}
+            {activeSection === "backstory" && (
+              <FormSection title="Backstory & Lore">
+                <FormField label="Background Story">
+                  <textarea value={formData.backstory} onChange={(e) => setFormData({ ...formData, backstory: e.target.value })} rows={4} placeholder="Write 2-3 sentences about her 'life story'..."
+                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                </FormField>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Family"><input type="text" value={formData.family} onChange={(e) => setFormData({ ...formData, family: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Pets"><input type="text" value={formData.pets} onChange={(e) => setFormData({ ...formData, pets: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Education"><input type="text" value={formData.education} onChange={(e) => setFormData({ ...formData, education: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Past Jobs"><input type="text" value={formData.pastJobs} onChange={(e) => setFormData({ ...formData, pastJobs: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                </div>
+                <FormField label="How she got into content creation">
+                  <textarea value={formData.contentCreationOrigin} onChange={(e) => setFormData({ ...formData, contentCreationOrigin: e.target.value })} rows={2}
+                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                </FormField>
+              </FormSection>
+            )}
+            {activeSection === "personality" && (
+              <FormSection title="Personality Profile">
+                <FormField label="Core Traits (select 3-5)">
+                  <div className="flex flex-wrap gap-2">
+                    {CORE_TRAITS_OPTIONS.map((trait) => (
+                      <button key={trait} type="button" onClick={() => {
+                        const current = formData.coreTraits || [];
+                        if (current.includes(trait)) setFormData({ ...formData, coreTraits: current.filter((t) => t !== trait) });
+                        else setFormData({ ...formData, coreTraits: [...current, trait] });
+                      }}
+                        className={`px-4 py-2 text-sm font-medium rounded-xl transition-all ${(formData.coreTraits || []).includes(trait) ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700"}`}>
+                        {trait}
+                      </button>
+                    ))}
+                  </div>
+                </FormField>
+                <FormField label="Personality Description">
+                  <textarea value={formData.personalityDescription} onChange={(e) => setFormData({ ...formData, personalityDescription: e.target.value })} rows={3} placeholder="2-3 sentences describing how she comes across..."
+                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                </FormField>
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField label="Morning Vibe"><input type="text" value={formData.morningVibe} onChange={(e) => setFormData({ ...formData, morningVibe: e.target.value })} placeholder="Sleepy, cozy" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Afternoon Vibe"><input type="text" value={formData.afternoonVibe} onChange={(e) => setFormData({ ...formData, afternoonVibe: e.target.value })} placeholder="Playful, chatty" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Night Vibe"><input type="text" value={formData.nightVibe} onChange={(e) => setFormData({ ...formData, nightVibe: e.target.value })} placeholder="Flirty, spicy" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                </div>
+              </FormSection>
+            )}
+            {activeSection === "content" && (
+              <FormSection title="Content & Niche">
+                <FormField label="Primary Niche"><input type="text" value={formData.primaryNiche} onChange={(e) => setFormData({ ...formData, primaryNiche: e.target.value })} placeholder="e.g., Fitness / GFE / Cosplay" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Feed Aesthetic"><input type="text" value={formData.feedAesthetic} onChange={(e) => setFormData({ ...formData, feedAesthetic: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Common Themes"><input type="text" value={formData.commonThemes} onChange={(e) => setFormData({ ...formData, commonThemes: e.target.value })} className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                </div>
+                <FormField label="What Makes Her Unique">
+                  <textarea value={formData.uniqueHook} onChange={(e) => setFormData({ ...formData, uniqueHook: e.target.value })} rows={3} placeholder="What's her hook?"
+                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                </FormField>
+              </FormSection>
+            )}
+            {activeSection === "boundaries" && (
+              <FormSection title="Boundaries & Menu">
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField label="✅ Will Do">
+                    <textarea value={(formData.willDo || []).join("\n")} onChange={(e) => setFormData({ ...formData, willDo: e.target.value.split("\n").filter(Boolean) })} rows={6} placeholder="One item per line..."
+                      className="w-full px-4 py-3 text-sm bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all resize-none" />
+                  </FormField>
+                  <FormField label="❌ Won't Do">
+                    <textarea value={(formData.wontDo || []).join("\n")} onChange={(e) => setFormData({ ...formData, wontDo: e.target.value.split("\n").filter(Boolean) })} rows={6} placeholder="One item per line..."
+                      className="w-full px-4 py-3 text-sm bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all resize-none" />
+                  </FormField>
+                  <FormField label="⚠️ Maybe/Premium">
+                    <textarea value={(formData.maybeOrPremium || []).join("\n")} onChange={(e) => setFormData({ ...formData, maybeOrPremium: e.target.value.split("\n").filter(Boolean) })} rows={6} placeholder="One item per line..."
+                      className="w-full px-4 py-3 text-sm bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all resize-none" />
+                  </FormField>
+                </div>
+              </FormSection>
+            )}
+            {activeSection === "communication" && (
+              <FormSection title="Communication Style">
+                <FormField label="Tone"><input type="text" value={formData.tone} onChange={(e) => setFormData({ ...formData, tone: e.target.value })} placeholder='e.g., Casual, uses lowercase, lots of "haha"' className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                <FormField label="Signature Phrases">
+                  <textarea value={(formData.signaturePhrases || []).join("\n")} onChange={(e) => setFormData({ ...formData, signaturePhrases: e.target.value.split("\n").filter(Boolean) })} rows={3} placeholder="One phrase per line..."
+                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                </FormField>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Sample Greeting"><textarea value={formData.sampleGreeting} onChange={(e) => setFormData({ ...formData, sampleGreeting: e.target.value })} rows={2} placeholder="How she greets new subs..." className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+                  <FormField label="Sample Flirty"><textarea value={formData.sampleFlirty} onChange={(e) => setFormData({ ...formData, sampleFlirty: e.target.value })} rows={2} placeholder="Flirty example..." className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+                </div>
+                <FormField label="Sample PPV Pitch"><textarea value={formData.samplePPV} onChange={(e) => setFormData({ ...formData, samplePPV: e.target.value })} rows={2} placeholder="How she sells PPV..." className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+              </FormSection>
+            )}
+            {activeSection === "visual" && (
+              <FormSection title="Visual Reference">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField label="Hair"><input type="text" value={formData.hair} onChange={(e) => setFormData({ ...formData, hair: e.target.value })} placeholder="e.g., Long brunette" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Eyes"><input type="text" value={formData.eyes} onChange={(e) => setFormData({ ...formData, eyes: e.target.value })} placeholder="e.g., Hazel" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Body Type"><input type="text" value={formData.bodyType} onChange={(e) => setFormData({ ...formData, bodyType: e.target.value })} placeholder="e.g., Athletic" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                  <FormField label="Tattoos/Piercings"><input type="text" value={formData.tattoosPiercings} onChange={(e) => setFormData({ ...formData, tattoosPiercings: e.target.value })} placeholder="e.g., Small rose on wrist" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+                </div>
+                <FormField label="Moodboard Keywords"><input type="text" value={formData.moodboardKeywords} onChange={(e) => setFormData({ ...formData, moodboardKeywords: e.target.value })} placeholder="e.g., golden hour, beach vibes, mirror selfies" className="w-full h-11 px-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" /></FormField>
+              </FormSection>
+            )}
+            {activeSection === "faqs" && (
+              <FormSection title="FAQs & Scenarios">
+                <FormField label='"Are you real?"'><textarea value={formData.faqAreYouReal} onChange={(e) => setFormData({ ...formData, faqAreYouReal: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+                <FormField label='"Can we meet up?"'><textarea value={formData.faqMeetUp} onChange={(e) => setFormData({ ...formData, faqMeetUp: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+                <FormField label='"Can I get free content?"'><textarea value={formData.faqFreeContent} onChange={(e) => setFormData({ ...formData, faqFreeContent: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+                <FormField label="Fan gets too attached"><textarea value={formData.faqTooAttached} onChange={(e) => setFormData({ ...formData, faqTooAttached: e.target.value })} rows={2} className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" /></FormField>
+              </FormSection>
+            )}
+            {activeSection === "team" && (
+              <FormSection title="Team Notes">
+                <FormField label="Internal Notes">
+                  <textarea value={formData.internalNotes} onChange={(e) => setFormData({ ...formData, internalNotes: e.target.value })} rows={6} placeholder="Notes for the team (not part of the persona)..."
+                    className="w-full px-4 py-3 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all resize-none" />
+                </FormField>
+              </FormSection>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
+          <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving || !formData.name.trim()}
+            className="px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-semibold rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg">
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><CheckCircle className="w-4 h-4" />{mode === "create" ? "Create" : "Save"}</>}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function DeleteProfileModal({ profile, onClose, onSuccess }: { profile: InfluencerProfile; onClose: () => void; onSuccess: () => void; }) {
+  const [deleting, setDeleting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const apiClient = useApiClient();
+
+  useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
+
+  const handleDelete = async () => {
+    if (!apiClient) return;
+    setDeleting(true);
+    try {
+      const response = await apiClient.delete(`/api/instagram-profiles/${profile.id}`);
+      if (!response.ok) throw new Error("Failed to delete profile");
+      toast.success("Profile deleted");
+      onSuccess();
+    } catch { toast.error("Failed to delete profile"); }
+    finally { setDeleting(false); }
+  };
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md p-6 border border-zinc-200 dark:border-zinc-800">
+        <div className="w-14 h-14 rounded-2xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center mx-auto mb-5"><Trash2 className="w-7 h-7 text-red-600 dark:text-red-400" /></div>
+        <h3 className="text-xl font-semibold text-zinc-900 dark:text-white text-center mb-2">Delete Profile</h3>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center mb-6">Are you sure you want to delete <span className="font-semibold text-zinc-900 dark:text-white">{profile.name}</span>? This action cannot be undone.</p>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 px-5 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-colors">Cancel</button>
+          <button onClick={handleDelete} disabled={deleting} className="flex-1 px-5 py-2.5 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}Delete
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile; onClose: () => void; }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); return () => setMounted(false); }, []);
+  if (!mounted) return null;
+
+  const bible = profile.modelBible;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800">
+        {/* Header */}
+        <div className="relative h-40 bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 flex-shrink-0">
+          {profile.profileImageUrl && <img src={profile.profileImageUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay" />}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-5">
+            <div className="flex items-end gap-4">
+              <div className="w-16 h-16 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center overflow-hidden ring-2 ring-white/20 shadow-xl">
+                {profile.profileImageUrl ? <img src={profile.profileImageUrl} alt={profile.name} className="w-full h-full object-cover" /> : <User className="w-8 h-8 text-white/50" />}
+              </div>
+              <div className="flex-1 min-w-0 pb-0.5">
+                <h2 className="text-xl font-bold text-white truncate tracking-tight">{profile.name}</h2>
+                <div className="flex items-center gap-3 mt-0.5">
+                  {profile.instagramUsername && <p className="text-white/70 flex items-center gap-1 text-sm"><Instagram className="w-3.5 h-3.5" />@{profile.instagramUsername}</p>}
+                  {bible?.occupation && <p className="text-white/70 text-sm">• {bible.occupation}</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+          <button onClick={onClose} className="absolute top-3 right-3 p-2 bg-black/20 hover:bg-black/40 backdrop-blur-md rounded-lg text-white transition-colors"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Content - ALL sections on one page */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {bible ? (
+            <div className="space-y-8">
+              {/* SECTION 1: Identity */}
+              {(bible.age || bible.location || bible.nationality || bible.occupation || bible.relationshipStatus) && (
+                <DetailSection title="Identity" icon={User}>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {bible.age && <InfoPill label="Age" value={bible.age} />}
+                    {bible.location && <InfoPill label="Location" value={bible.location} />}
+                    {bible.nationality && <InfoPill label="Nationality" value={bible.nationality} />}
+                    {bible.occupation && <InfoPill label="Occupation" value={bible.occupation} />}
+                    {bible.relationshipStatus && <InfoPill label="Relationship" value={bible.relationshipStatus} />}
+                  </div>
+                </DetailSection>
+              )}
+
+              {/* SECTION 2: Backstory & Lore */}
+              {(bible.backstory || bible.family || bible.pets || bible.education || bible.pastJobs || bible.contentCreationOrigin || bible.city || bible.livingSituation) && (
+                <DetailSection title="Backstory & Lore" icon={BookOpen}>
+                  {bible.backstory && <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mb-4">{bible.backstory}</p>}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {bible.family && <InfoPill label="Family" value={bible.family} />}
+                    {bible.pets && <InfoPill label="Pets" value={bible.pets} />}
+                    {bible.education && <InfoPill label="Education" value={bible.education} />}
+                    {bible.pastJobs && <InfoPill label="Past Jobs" value={bible.pastJobs} />}
+                    {bible.city && <InfoPill label="City" value={bible.city} />}
+                    {bible.livingSituation && <InfoPill label="Living Situation" value={bible.livingSituation} />}
+                  </div>
+                  {bible.contentCreationOrigin && <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">How she got into content creation</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.contentCreationOrigin}</p></div>}
+                </DetailSection>
+              )}
+
+              {/* SECTION 3: Personality */}
+              {((bible.coreTraits?.length ?? 0) > 0 || bible.personalityDescription || bible.morningVibe || bible.afternoonVibe || bible.nightVibe) && (
+                <DetailSection title="Personality" icon={Heart}>
+                  {bible.coreTraits && bible.coreTraits.length > 0 && <div className="flex flex-wrap gap-2 mb-4">{bible.coreTraits.map((trait) => <span key={trait} className="px-4 py-2 bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 text-sm font-medium rounded-xl">{trait}</span>)}</div>}
+                  {bible.personalityDescription && <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mb-4">{bible.personalityDescription}</p>}
+                  {(bible.morningVibe || bible.afternoonVibe || bible.nightVibe) && (
+                    <div className="grid grid-cols-3 gap-3">
+                      {bible.morningVibe && <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-xl text-center"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1">☀️ Morning</p><p className="text-sm text-amber-600 dark:text-amber-400">{bible.morningVibe}</p></div>}
+                      {bible.afternoonVibe && <div className="p-3 bg-orange-50 dark:bg-orange-950/30 rounded-xl text-center"><p className="text-xs font-semibold text-orange-700 dark:text-orange-300 mb-1">🌤️ Afternoon</p><p className="text-sm text-orange-600 dark:text-orange-400">{bible.afternoonVibe}</p></div>}
+                      {bible.nightVibe && <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-center"><p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-1">🌙 Night</p><p className="text-sm text-indigo-600 dark:text-indigo-400">{bible.nightVibe}</p></div>}
+                    </div>
+                  )}
+                </DetailSection>
+              )}
+
+              {/* SECTION 4: Content & Niche */}
+              {(bible.primaryNiche || bible.feedAesthetic || bible.commonThemes || bible.signatureLook || bible.uniqueHook) && (
+                <DetailSection title="Content & Niche" icon={Camera}>
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {bible.primaryNiche && <InfoPill label="Primary Niche" value={bible.primaryNiche} />}
+                    {bible.feedAesthetic && <InfoPill label="Feed Aesthetic" value={bible.feedAesthetic} />}
+                    {bible.commonThemes && <InfoPill label="Common Themes" value={bible.commonThemes} />}
+                    {bible.signatureLook && <InfoPill label="Signature Look" value={bible.signatureLook} />}
+                  </div>
+                  {bible.uniqueHook && <div className="p-4 bg-violet-50 dark:bg-violet-950/30 rounded-xl"><p className="text-xs font-semibold text-violet-700 dark:text-violet-300 mb-2">✨ What Makes Her Unique</p><p className="text-sm text-violet-600 dark:text-violet-400">{bible.uniqueHook}</p></div>}
+                </DetailSection>
+              )}
+
+              {/* SECTION 5: Boundaries */}
+              {((bible.willDo?.length ?? 0) > 0 || (bible.wontDo?.length ?? 0) > 0 || (bible.maybeOrPremium?.length ?? 0) > 0) && (
+                <DetailSection title="Boundaries" icon={AlertCircle}>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {bible.willDo && bible.willDo.length > 0 && <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl"><p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-3 flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" />Will Do</p><ul className="text-xs text-emerald-600 dark:text-emerald-400 space-y-1.5">{bible.willDo.map((item, i) => <li key={i}>• {item}</li>)}</ul></div>}
+                    {bible.wontDo && bible.wontDo.length > 0 && <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-xl"><p className="text-xs font-semibold text-red-700 dark:text-red-300 mb-3 flex items-center gap-1.5"><X className="w-3.5 h-3.5" />Won&apos;t Do</p><ul className="text-xs text-red-600 dark:text-red-400 space-y-1.5">{bible.wontDo.map((item, i) => <li key={i}>• {item}</li>)}</ul></div>}
+                    {bible.maybeOrPremium && bible.maybeOrPremium.length > 0 && <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-3 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" />Maybe/Premium</p><ul className="text-xs text-amber-600 dark:text-amber-400 space-y-1.5">{bible.maybeOrPremium.map((item, i) => <li key={i}>• {item}</li>)}</ul></div>}
+                  </div>
+                </DetailSection>
+              )}
+
+              {/* SECTION 6: Communication Style */}
+              {(bible.tone || (bible.signaturePhrases?.length ?? 0) > 0 || bible.messageLength || bible.capitalization || bible.punctuation || bible.responseSpeed) && (
+                <DetailSection title="Communication Style" icon={MessageCircle}>
+                  {bible.tone && <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4"><span className="font-semibold text-zinc-900 dark:text-white">Tone:</span> {bible.tone}</p>}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    {bible.messageLength && <InfoPill label="Message Length" value={bible.messageLength} />}
+                    {bible.capitalization && <InfoPill label="Capitalization" value={bible.capitalization} />}
+                    {bible.punctuation && <InfoPill label="Punctuation" value={bible.punctuation} />}
+                    {bible.responseSpeed && <InfoPill label="Response Speed" value={bible.responseSpeed} />}
+                  </div>
+                  {bible.signaturePhrases && bible.signaturePhrases.length > 0 && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2 font-medium">Signature Phrases</p><div className="flex flex-wrap gap-2">{bible.signaturePhrases.map((phrase, i) => <span key={i} className="px-3 py-1.5 bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 text-xs font-medium rounded-lg">&ldquo;{phrase}&rdquo;</span>)}</div></div>}
+                </DetailSection>
+              )}
+
+              {/* SECTION 7: Sample Messages */}
+              {(bible.sampleGreeting || bible.sampleFlirty || bible.samplePPV || bible.sampleFreeRequest) && (
+                <DetailSection title="Sample Messages" icon={MessageCircle}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {bible.sampleGreeting && <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl"><p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-2">👋 Greeting</p><p className="text-sm text-emerald-600 dark:text-emerald-400 italic">&ldquo;{bible.sampleGreeting}&rdquo;</p></div>}
+                    {bible.sampleFlirty && <div className="p-4 bg-pink-50 dark:bg-pink-950/30 rounded-xl"><p className="text-xs font-semibold text-pink-700 dark:text-pink-300 mb-2">💋 Flirty</p><p className="text-sm text-pink-600 dark:text-pink-400 italic">&ldquo;{bible.sampleFlirty}&rdquo;</p></div>}
+                    {bible.samplePPV && <div className="p-4 bg-violet-50 dark:bg-violet-950/30 rounded-xl"><p className="text-xs font-semibold text-violet-700 dark:text-violet-300 mb-2">💰 PPV Pitch</p><p className="text-sm text-violet-600 dark:text-violet-400 italic">&ldquo;{bible.samplePPV}&rdquo;</p></div>}
+                    {bible.sampleFreeRequest && <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">🆓 Free Request Response</p><p className="text-sm text-amber-600 dark:text-amber-400 italic">&ldquo;{bible.sampleFreeRequest}&rdquo;</p></div>}
+                  </div>
+                </DetailSection>
+              )}
+
+              {/* SECTION 8: Platform Presence */}
+              {(bible.instagramBio || bible.instagramPostingStyle || bible.instagramStoryVibe || bible.instagramDMApproach || bible.onlyfansWelcome || bible.onlyfansMassDM || bible.onlyfansPPVStyle || bible.redditSubreddits || bible.redditPostingCadence || bible.redditTitleStyle || bible.twitterVoice || bible.twitterEngagement) && (
+                <DetailSection title="Platform Presence" icon={Instagram}>
+                  <div className="space-y-3">
+                    {bible.instagramBio && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Instagram Bio</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.instagramBio}</p></div>}
+                    {bible.instagramPostingStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Instagram Posting Style</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.instagramPostingStyle}</p></div>}
+                    {bible.instagramStoryVibe && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Instagram Story Vibe</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.instagramStoryVibe}</p></div>}
+                    {bible.instagramDMApproach && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Instagram DM Approach</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.instagramDMApproach}</p></div>}
+                    {bible.onlyfansWelcome && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">OnlyFans Welcome Message</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.onlyfansWelcome}</p></div>}
+                    {bible.onlyfansMassDM && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">OnlyFans Mass DM Style</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.onlyfansMassDM}</p></div>}
+                    {bible.onlyfansPPVStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">OnlyFans PPV Style</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.onlyfansPPVStyle}</p></div>}
+                    {bible.redditSubreddits && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Reddit Subreddits</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.redditSubreddits}</p></div>}
+                    {bible.redditPostingCadence && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Reddit Posting Cadence</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.redditPostingCadence}</p></div>}
+                    {bible.redditTitleStyle && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Reddit Title Style</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.redditTitleStyle}</p></div>}
+                    {bible.twitterVoice && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Twitter Voice</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.twitterVoice}</p></div>}
+                    {bible.twitterEngagement && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Twitter Engagement</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.twitterEngagement}</p></div>}
+                  </div>
+                </DetailSection>
+              )}
+
+              {/* SECTION 9: Visual / Physical Appearance */}
+              {(bible.hair || bible.eyes || bible.bodyType || bible.tattoosPiercings || bible.signatureVisualLook || bible.moodboardKeywords) && (
+                <DetailSection title="Visual Reference" icon={Palette}>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    {bible.hair && <InfoPill label="Hair" value={bible.hair} />}
+                    {bible.eyes && <InfoPill label="Eyes" value={bible.eyes} />}
+                    {bible.bodyType && <InfoPill label="Body Type" value={bible.bodyType} />}
+                    {bible.tattoosPiercings && <InfoPill label="Tattoos/Piercings" value={bible.tattoosPiercings} />}
+                  </div>
+                  {bible.signatureVisualLook && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl mb-4"><p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 font-medium">Signature Visual Look</p><p className="text-sm text-zinc-700 dark:text-zinc-300">{bible.signatureVisualLook}</p></div>}
+                  {bible.moodboardKeywords && (
+                    <div className="p-4 bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-950/30 dark:to-fuchsia-950/30 rounded-xl">
+                      <p className="text-xs text-violet-600 dark:text-violet-400 mb-2 font-medium">Moodboard Keywords</p>
+                      <div className="flex flex-wrap gap-2">
+                        {bible.moodboardKeywords.split(",").map((keyword, i) => (
+                          <span key={i} className="px-3 py-1.5 bg-white/80 dark:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 text-sm rounded-lg">{keyword.trim()}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </DetailSection>
+              )}
+
+              {/* SECTION 10: Emojis */}
+              {((bible.emojiOften?.length ?? 0) > 0 || (bible.emojiSometimes?.length ?? 0) > 0 || (bible.emojiNever?.length ?? 0) > 0) && (
+                <DetailSection title="Emoji Usage" icon={Heart}>
+                  <div className="grid grid-cols-3 gap-4">
+                    {bible.emojiOften && bible.emojiOften.length > 0 && <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl"><p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-2">Often</p><p className="text-2xl">{bible.emojiOften.join(" ")}</p></div>}
+                    {bible.emojiSometimes && bible.emojiSometimes.length > 0 && <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">Sometimes</p><p className="text-2xl">{bible.emojiSometimes.join(" ")}</p></div>}
+                    {bible.emojiNever && bible.emojiNever.length > 0 && <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-xl"><p className="text-xs font-semibold text-red-700 dark:text-red-300 mb-2">Never</p><p className="text-2xl">{bible.emojiNever.join(" ")}</p></div>}
+                  </div>
+                </DetailSection>
+              )}
+
+              {/* SECTION 11: FAQ Responses */}
+              {(bible.faqAreYouReal || bible.faqMeetUp || bible.faqFreeContent || bible.faqRealName || bible.faqVoiceNotes || bible.faqTooAttached) && (
+                <DetailSection title="FAQ Responses" icon={FileText}>
+                  <div className="space-y-3">
+                    {bible.faqAreYouReal && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;Are you real?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqAreYouReal}</p></div>}
+                    {bible.faqMeetUp && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;Can we meet up?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqMeetUp}</p></div>}
+                    {bible.faqVoiceNotes && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;Can you send voice notes?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqVoiceNotes}</p></div>}
+                    {bible.faqFreeContent && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;Can I get free content?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqFreeContent}</p></div>}
+                    {bible.faqRealName && <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">&ldquo;What&apos;s your real name?&rdquo;</p><p className="text-sm text-zinc-600 dark:text-zinc-400 italic">{bible.faqRealName}</p></div>}
+                    {bible.faqTooAttached && <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">⚠️ Fan gets too attached</p><p className="text-sm text-amber-600 dark:text-amber-400 italic">{bible.faqTooAttached}</p></div>}
+                  </div>
+                </DetailSection>
+              )}
+
+              {/* SECTION 12: Pricing Menu */}
+              {bible.pricingMenu && bible.pricingMenu.length > 0 && bible.pricingMenu.some(item => item.price) && (
+                <DetailSection title="Pricing Menu" icon={FileText}>
+                  <div className="grid grid-cols-2 gap-3">
+                    {bible.pricingMenu.filter(item => item.price).map((item, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl">
+                        <span className="text-sm text-zinc-700 dark:text-zinc-300">{item.item}</span>
+                        <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">${item.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </DetailSection>
+              )}
+
+              {/* SECTION 13: Team Notes */}
+              {(bible.dayChatter || bible.nightChatter || bible.internalNotes) && (
+                <DetailSection title="Team Notes" icon={Settings}>
+                  <div className="space-y-3">
+                    {bible.dayChatter && <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl"><p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">☀️ Day Chatter Notes</p><p className="text-sm text-amber-600 dark:text-amber-400">{bible.dayChatter}</p></div>}
+                    {bible.nightChatter && <div className="p-4 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl"><p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">🌙 Night Chatter Notes</p><p className="text-sm text-indigo-600 dark:text-indigo-400">{bible.nightChatter}</p></div>}
+                    {bible.internalNotes && <div className="p-4 bg-zinc-100 dark:bg-zinc-800 rounded-xl border-l-4 border-zinc-400 dark:border-zinc-600"><p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">📝 Internal Notes</p><p className="text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap">{bible.internalNotes}</p></div>}
+                  </div>
+                </DetailSection>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <div className="w-20 h-20 rounded-3xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mx-auto mb-6"><BookOpen className="w-10 h-10 text-zinc-400 dark:text-zinc-500" /></div>
+              <h3 className="text-xl font-semibold text-zinc-900 dark:text-white mb-2">No Model Bible</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Edit this profile to add Model Bible details.</p>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
+          <button onClick={onClose} className="px-6 py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded-xl transition-colors">Close</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return <div className="space-y-5"><h3 className="text-lg font-semibold text-zinc-900 dark:text-white tracking-tight">{title}</h3>{children}</div>;
+}
+
+function FormField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return <div><label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">{label}{required && <span className="text-red-500 ml-1">*</span>}</label>{children}</div>;
+}
+
+function DetailSection({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
+  return <div><h3 className="text-sm font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2"><Icon className="w-4 h-4 text-violet-500" />{title}</h3>{children}</div>;
+}
+
+function InfoPill({ label, value }: { label: string; value: string }) {
+  return <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl"><p className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1 font-medium">{label}</p><p className="text-sm font-semibold text-zinc-900 dark:text-white">{value}</p></div>;
 }
