@@ -623,10 +623,10 @@ model MarketplaceModel {
   description    String
   included       String[]          @default([])
   usedFor        String[]          @default([])
-  organizationId String?
-  organization   Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
+  organizationId String?
+  organization   Organization?     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([createdAt])
@@ -1051,12 +1051,13 @@ model Organization {
   updatedAt            DateTime                      @default(now()) @updatedAt
   customPermissions    CustomOrganizationPermission?
   instagramProfiles    InstagramProfile[]
-  invites              OrganizationInvite[]
   marketplaceModels    MarketplaceModel[]
+  invites              OrganizationInvite[]
   subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   members              TeamMember[]
   usageLogs            UsageLog[]
   workspaces           Workspace[]
+  gallery_items        gallery_items[]
 
   @@index([slug])
   @@index([subscriptionPlanId])
@@ -1393,9 +1394,46 @@ model of_models {
   of_model_assets             of_model_assets[]
   of_model_details            of_model_details?
   of_model_pricing_categories of_model_pricing_categories[]
+  gallery_items               gallery_items[]
 
   @@index([slug])
   @@index([status])
+}
+
+model gallery_items {
+  id               String        @id @default(cuid())
+  organizationId   String?
+  previewUrl       String
+  thumbnailUrl     String?
+  originalAssetUrl String?
+  title            String?
+  contentType      String
+  tags             String[]      @default([])
+  platform         String
+  pricingAmount    Decimal?      @db.Decimal(10, 2)
+  modelId          String?
+  pipelineItemId   String?       @unique
+  captionUsed      String?       @db.Text
+  revenue          Decimal       @default(0) @db.Decimal(12, 2)
+  salesCount       Int           @default(0)
+  conversionRate   Decimal?      @db.Decimal(5, 4)
+  viewCount        Int           @default(0)
+  postedAt         DateTime
+  origin           String?
+  sourceId         String?
+  isArchived       Boolean       @default(false)
+  archivedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  createdBy        String?
+  model            of_models?    @relation(fields: [modelId], references: [id])
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([modelId])
+  @@index([contentType])
+  @@index([platform])
+  @@index([postedAt])
 }
 
 model plan_features {
@@ -1526,8 +1564,8 @@ enum UserRole {
   USER
   MANAGER
   ADMIN
-  SUPER_ADMIN
   CONTENT_CREATOR
+  SUPER_ADMIN
 }
 
 enum ProductionStatus {
