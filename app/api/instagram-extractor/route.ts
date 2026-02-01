@@ -42,54 +42,57 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if ApifyClient is available
-    if (!ApifyClient) {
-      return NextResponse.json(
-        { error: "Apify client not available. Please install apify-client." },
-        { status: 500 }
-      );
-    }
+    console.log("🚀 Starting Instagram scraping for URL:", url);
 
-    // Check for API token
-    if (!process.env.APIFY_API_TOKEN) {
-      return NextResponse.json(
-        { error: "Apify API token not configured" },
-        { status: 500 }
-      );
-    }
-
-    // Initialize Apify client
-    const apifyClient = new ApifyClient({
-      token: process.env.APIFY_API_TOKEN,
-    });
-
-    console.log("Starting Instagram scraping for URL:", url);
-
-    // Try multiple Apify actors for better success rate
+    // STRATEGY: Try free methods first, then paid fallbacks
     let result;
+    
+    // 1. Try Instagram GraphQL API (FREE, best quality)
     try {
-      result = await extractWithPrimaryActor(apifyClient, url);
-    } catch (primaryError) {
-      console.log("Primary actor failed, trying alternative:", primaryError);
-      try {
-        result = await extractWithAlternativeActor(apifyClient, url);
-      } catch (alternativeError) {
-        console.log("Alternative actor failed, trying enhanced methods:", alternativeError);
-        try {
-          result = await extractWithEnhancedActor(apifyClient, url);
-        } catch (enhancedError) {
-          console.log("Enhanced actor failed, trying direct scraping:", enhancedError);
-          try {
-            result = await extractWithDirectScraping(url);
-          } catch (directError) {
-            console.log("Direct scraping failed, trying URL manipulation:", directError);
-            result = await extractWithUrlManipulation(apifyClient, url);
-          }
-        }
-      }
+      console.log("📡 Trying Instagram GraphQL API (free)...");
+      result = await extractWithInstagramGraphQL(url);
+      console.log("✅ GraphQL succeeded!");
+      return NextResponse.json(result);
+    } catch (graphqlError) {
+      console.log("❌ GraphQL failed:", graphqlError);
     }
 
-    return NextResponse.json(result);
+    // 2. Try Instagram Embed endpoint (FREE)
+    try {
+      console.log("📡 Trying Instagram Embed endpoint (free)...");
+      result = await extractWithInstagramEmbed(url);
+      console.log("✅ Embed succeeded!");
+      return NextResponse.json(result);
+    } catch (embedError) {
+      console.log("❌ Embed failed:", embedError);
+    }
+
+    // 3. Try Instagram oEmbed API (FREE)
+    try {
+      console.log("📡 Trying Instagram oEmbed API (free)...");
+      result = await extractWithInstagramOEmbed(url);
+      console.log("✅ oEmbed succeeded!");
+      return NextResponse.json(result);
+    } catch (oembedError) {
+      console.log("❌ oEmbed failed:", oembedError);
+    }
+
+    // 4. Try RapidAPI Instagram Scraper (PAID fallback)
+    if (process.env.RAPIDAPI_KEY) {
+      try {
+        console.log("💳 Trying RapidAPI Instagram Scraper (paid fallback)...");
+        result = await extractWithRapidAPI(url);
+        console.log("✅ RapidAPI succeeded!");
+        return NextResponse.json(result);
+      } catch (rapidApiError) {
+        console.log("❌ RapidAPI failed:", rapidApiError);
+      }
+    } else {
+      console.log("⚠️  RapidAPI key not configured, skipping paid fallback");
+    }
+
+    // If all methods failed
+    throw new Error("All extraction methods failed. The post may be private, deleted, or requires authentication.");
 
   } catch (error) {
     console.error("Instagram extraction error:", error);
@@ -125,6 +128,480 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// ============================================
+// FREE METHODS (Try these first)
+// ============================================
+
+// Method 1: Instagram GraphQL API (FREE, best quality for public posts)
+async function extractWithInstagramGraphQL(url: string): Promise<InstagramPost> {
+  // Extract shortcode from URL
+  const shortcodeMatch = url.match(/\/(p|reel)\/([A-Za-z0-9_-]+)/);
+  if (!shortcodeMatch) {
+    throw new Error("Could not extract shortcode from URL");
+  }
+  
+  const shortcode = shortcodeMatch[2];
+  
+  // Try multiple API endpoint formats
+  const endpoints = [
+    `https://www.instagram.com/p/${shortcode}/?__a=1&__d=dis`,
+    `https://www.instagram.com/graphql/query/?query_hash=477b65a610463740ccdb83135b2014db&variables={"shortcode":"${shortcode}"}`,
+    `https://i.instagram.com/api/v1/media/${shortcode}/info/`,
+  ];
+  
+  const userAgents = [
+    'Instagram 123.0.0.21.114 (iPhone; CPU iPhone OS 11_4 like Mac OS X; en_US; en-US; scale=2.00; 750x1334) AppleWebKit/605.1.15',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+    'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+  ];
+  
+  for (const endpoint of endpoints) {
+    for (const userAgent of userAgents) {
+      try {
+        console.log(`🔍 Trying endpoint: ${endpoint.substring(0, 60)}...`);
+        
+        const response = await fetch(endpoint, {
+          headers: {
+            'User-Agent': userAgent,
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Origin': 'https://www.instagram.com',
+            'Referer': 'https://www.instagram.com/',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+          },
+        });
+        
+        if (!response.ok) continue;
+        
+        const text = await response.text();
+        
+        // Skip if we got login page
+        if (text.includes('loginForm') || text.includes('"require_login":true')) {
+          console.log("⚠️ Got login page, trying next endpoint...");
+          continue;
+        }
+        
+        const data = JSON.parse(text);
+        
+        // Find the media object in various possible response structures
+        const mediaItem = data?.items?.[0] ||
+                         data?.graphql?.shortcode_media ||
+                         data?.data?.shortcode_media ||
+                         data?.shortcode_media ||
+                         data?.media;
+        
+        if (!mediaItem) continue;
+        
+        return parseGraphQLMedia(mediaItem, url);
+        
+      } catch (error) {
+        console.log(`Failed with endpoint/UA combo:`, error);
+        continue;
+      }
+    }
+  }
+  
+  throw new Error("Instagram GraphQL API failed");
+}
+
+// Method 2: Instagram Embed endpoint (FREE)
+async function extractWithInstagramEmbed(url: string): Promise<InstagramPost> {
+  const shortcodeMatch = url.match(/\/(p|reel)\/([A-Za-z0-9_-]+)/);
+  if (!shortcodeMatch) {
+    throw new Error("Could not extract shortcode from URL");
+  }
+  
+  const shortcode = shortcodeMatch[2];
+  const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/captioned/`;
+  
+  console.log(`🔍 Fetching embed page: ${embedUrl}`);
+  
+  const response = await fetch(embedUrl, {
+    headers: {
+      'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Embed endpoint returned ${response.status}`);
+  }
+  
+  const html = await response.text();
+  
+  // Extract JSON data from the embed page
+  const scriptMatch = html.match(/window\.__additionalDataLoaded\([^,]+,({[\s\S]+?})\);/);
+  if (scriptMatch) {
+    try {
+      const jsonData = JSON.parse(scriptMatch[1]);
+      const mediaItem = jsonData?.graphql?.shortcode_media || jsonData?.shortcode_media;
+      
+      if (mediaItem) {
+        return parseGraphQLMedia(mediaItem, url);
+      }
+    } catch (e) {
+      console.log("Failed to parse embed JSON:", e);
+    }
+  }
+  
+  // Fallback: Extract images from HTML
+  const images = extractImagesFromEmbedHtml(html);
+  
+  if (images.length === 0) {
+    throw new Error("No images found in embed page");
+  }
+  
+  return {
+    url: url,
+    images: images,
+    caption: extractCaptionFromHtml(html),
+    likes: undefined,
+    timestamp: undefined,
+  };
+}
+
+// Method 3: Instagram oEmbed API (FREE, limited data but reliable)
+async function extractWithInstagramOEmbed(url: string): Promise<InstagramPost> {
+  const oembedUrl = `https://www.instagram.com/p/oembed/?url=${encodeURIComponent(url)}&maxwidth=1080`;
+  
+  console.log(`🔍 Trying oEmbed API: ${oembedUrl}`);
+  
+  const response = await fetch(oembedUrl, {
+    headers: {
+      'User-Agent': 'facebookexternalhit/1.1',
+      'Accept': 'application/json',
+    },
+  });
+  
+  if (!response.ok) {
+    throw new Error(`oEmbed returned ${response.status}`);
+  }
+  
+  const data = await response.json();
+  
+  if (!data.thumbnail_url) {
+    throw new Error("No thumbnail in oEmbed response");
+  }
+  
+  // The thumbnail URL from oEmbed is usually good quality
+  return {
+    url: url,
+    images: [{
+      url: data.thumbnail_url,
+      alt: data.title || "Instagram image",
+      width: data.thumbnail_width || 1080,
+      height: data.thumbnail_height || 1440,
+    }],
+    caption: data.title,
+    likes: undefined,
+    timestamp: undefined,
+  };
+}
+
+// ============================================
+// PAID FALLBACK METHODS
+// ============================================
+
+// Method 4: RapidAPI Instagram Scraper (PAID fallback)
+async function extractWithRapidAPI(url: string): Promise<InstagramPost> {
+  if (!process.env.RAPIDAPI_KEY) {
+    throw new Error("RapidAPI key not configured");
+  }
+  
+  const shortcodeMatch = url.match(/\/(p|reel)\/([A-Za-z0-9_-]+)/);
+  if (!shortcodeMatch) {
+    throw new Error("Could not extract shortcode from URL");
+  }
+  
+  const shortcode = shortcodeMatch[2];
+  
+  // Try multiple RapidAPI Instagram scrapers
+  const apis = [
+    // Instagram Scraper Stable API - v2 endpoint (best for shortcode)
+    {
+      name: 'instagram-scraper-stable-v2',
+      url: `https://instagram-scraper-stable-api.p.rapidapi.com/get_media_data_v2.php?media_code=${shortcode}`,
+      host: 'instagram-scraper-stable-api.p.rapidapi.com',
+      method: 'GET',
+    },
+    // Instagram Scraper Stable API - v1 endpoint (takes full URL)
+    {
+      name: 'instagram-scraper-stable-v1',
+      url: `https://instagram-scraper-stable-api.p.rapidapi.com/get_media_data.php?reel_post_code_or_url=${encodeURIComponent(url)}&type=post`,
+      host: 'instagram-scraper-stable-api.p.rapidapi.com',
+      method: 'GET',
+    },
+    // Try other popular Instagram APIs
+    {
+      name: 'instagram-scraper-api2',
+      url: `https://instagram-scraper-api2.p.rapidapi.com/v1/post_info?code_or_id_or_url=${shortcode}`,
+      host: 'instagram-scraper-api2.p.rapidapi.com',
+      method: 'GET',
+    },
+    {
+      name: 'instagram-bulk-scraper',
+      url: `https://instagram-bulk-scraper-latest.p.rapidapi.com/media_info_v2/${shortcode}`,
+      host: 'instagram-bulk-scraper-latest.p.rapidapi.com',
+      method: 'GET',
+    },
+    {
+      name: 'instagram-scraper-2022',
+      url: `https://instagram-scraper-2022.p.rapidapi.com/ig/post_info/?shortcode=${shortcode}`,
+      host: 'instagram-scraper-2022.p.rapidapi.com',
+      method: 'GET',
+    },
+  ];
+  
+  for (const api of apis) {
+    try {
+      console.log(`🔍 Trying RapidAPI: ${api.name}`);
+      
+      const fetchOptions: RequestInit = {
+        method: api.method,
+        headers: {
+          'X-RapidAPI-Key': process.env.RAPIDAPI_KEY,
+          'X-RapidAPI-Host': api.host,
+        },
+      };
+      
+      const response = await fetch(api.url, fetchOptions);
+      
+      if (!response.ok) {
+        console.log(`❌ ${api.name} returned ${response.status}`);
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      if (!data || data.status === 'error' || data.error) {
+        console.log(`❌ ${api.name} returned error:`, data);
+        continue;
+      }
+      
+      console.log(`✅ ${api.name} succeeded!`);
+      return parseRapidAPIStableMedia(data, url);
+      
+    } catch (error) {
+      console.log(`❌ ${api.name} failed:`, error);
+      continue;
+    }
+  }
+  
+  throw new Error("All RapidAPI endpoints failed");
+}
+
+// ============================================
+// PARSERS FOR DIFFERENT DATA FORMATS
+// ============================================
+
+// Parse Instagram's GraphQL media format
+function parseGraphQLMedia(mediaItem: any, originalUrl: string): InstagramPost {
+  const images: Array<{url: string; alt?: string; width?: number; height?: number}> = [];
+  
+  // Get the main display URL (this is the original full-size image)
+  if (mediaItem.display_url || mediaItem.image_versions2?.candidates?.[0]?.url) {
+    images.push({
+      url: mediaItem.display_url || mediaItem.image_versions2.candidates[0].url,
+      alt: mediaItem.accessibility_caption || mediaItem.caption?.text || "Instagram image",
+      width: mediaItem.dimensions?.width || mediaItem.original_width || 1080,
+      height: mediaItem.dimensions?.height || mediaItem.original_height || 1440,
+    });
+  }
+  
+  // Handle carousel posts
+  const carouselItems = mediaItem.carousel_media || 
+                       mediaItem.edge_sidecar_to_children?.edges ||
+                       mediaItem.carousel_media_v2;
+  
+  if (carouselItems && carouselItems.length > 0) {
+    // Clear single image if we have carousel
+    images.length = 0;
+    
+    carouselItems.forEach((item: any) => {
+      const media = item.node || item;
+      
+      if (media.media_type === 1 || media.__typename === 'GraphImage' || !media.media_type) {
+        const imageUrl = media.display_url || 
+                        media.image_versions2?.candidates?.[0]?.url ||
+                        media.display_resources?.[media.display_resources.length - 1]?.src;
+        
+        if (imageUrl) {
+          images.push({
+            url: imageUrl,
+            alt: media.accessibility_caption || "Instagram image",
+            width: media.dimensions?.width || media.original_width || 1080,
+            height: media.dimensions?.height || media.original_height || 1440,
+          });
+        }
+      }
+    });
+  }
+  
+  if (images.length === 0) {
+    throw new Error("No images found in GraphQL media");
+  }
+  
+  console.log(`✅ Extracted ${images.length} full-size image(s) from GraphQL`);
+  
+  return {
+    url: mediaItem.shortcode ? `https://www.instagram.com/p/${mediaItem.shortcode}/` : originalUrl,
+    images: images,
+    caption: mediaItem.edge_media_to_caption?.edges?.[0]?.node?.text || 
+            mediaItem.caption?.text ||
+            mediaItem.title,
+    likes: mediaItem.edge_media_preview_like?.count || 
+           mediaItem.like_count ||
+           mediaItem.likes?.count,
+    timestamp: mediaItem.taken_at_timestamp || mediaItem.taken_at,
+  };
+}
+
+// Parse RapidAPI response format
+function parseRapidAPIMedia(data: any, originalUrl: string): InstagramPost {
+  const images: Array<{url: string; alt?: string; width?: number; height?: number}> = [];
+  
+  // RapidAPI returns display_url which is full size
+  if (data.display_url) {
+    images.push({
+      url: data.display_url,
+      alt: data.caption || "Instagram image",
+      width: data.dimensions?.width || 1080,
+      height: data.dimensions?.height || 1440,
+    });
+  }
+  
+  // Handle carousel
+  if (data.carousel_media && data.carousel_media.length > 0) {
+    images.length = 0;
+    
+    data.carousel_media.forEach((item: any) => {
+      if (item.display_url) {
+        images.push({
+          url: item.display_url,
+          alt: "Instagram image",
+          width: item.dimensions?.width || 1080,
+          height: item.dimensions?.height || 1440,
+        });
+      }
+    });
+  }
+  
+  if (images.length === 0) {
+    throw new Error("No images in RapidAPI data");
+  }
+  
+  console.log(`✅ Extracted ${images.length} image(s) from RapidAPI`);
+  
+  return {
+    url: originalUrl,
+    images: images,
+    caption: data.caption,
+    likes: data.like_count,
+    timestamp: data.taken_at,
+  };
+}
+
+// Parse RapidAPI Stable API response format
+function parseRapidAPIStableMedia(data: any, originalUrl: string): InstagramPost {
+  const images: Array<{url: string; alt?: string; width?: number; height?: number}> = [];
+  
+  // Extract from various possible response structures
+  const post = data.data || data;
+  
+  // Get display_url (original quality)
+  const mainImage = post.display_url || 
+                   post.image_versions2?.candidates?.[0]?.url ||
+                   post.thumbnail_url;
+  
+  if (mainImage) {
+    images.push({
+      url: mainImage,
+      alt: post.caption?.text || post.title || "Instagram image",
+      width: post.dimensions?.width || post.original_width || 1080,
+      height: post.dimensions?.height || post.original_height || 1440,
+    });
+  }
+  
+  // Handle carousel media
+  const carouselMedia = post.carousel_media || 
+                       post.edge_sidecar_to_children?.edges ||
+                       post.media;
+  
+  if (carouselMedia && carouselMedia.length > 0) {
+    images.length = 0; // Clear single image
+    
+    carouselMedia.forEach((item: any) => {
+      const media = item.node || item;
+      const imageUrl = media.display_url || 
+                      media.image_versions2?.candidates?.[0]?.url ||
+                      media.url;
+      
+      if (imageUrl && (media.media_type === 1 || !media.media_type)) {
+        images.push({
+          url: imageUrl,
+          alt: media.caption?.text || "Instagram image",
+          width: media.dimensions?.width || media.original_width || 1080,
+          height: media.dimensions?.height || media.original_height || 1440,
+        });
+      }
+    });
+  }
+  
+  if (images.length === 0) {
+    throw new Error("No images in RapidAPI Stable data");
+  }
+  
+  console.log(`✅ Extracted ${images.length} image(s) from RapidAPI Stable API`);
+  
+  return {
+    url: originalUrl,
+    images: images,
+    caption: post.caption?.text || post.title,
+    likes: post.like_count || post.edge_media_preview_like?.count,
+    timestamp: post.taken_at || post.taken_at_timestamp,
+  };
+}
+
+// Extract images from embed HTML as fallback
+function extractImagesFromEmbedHtml(html: string): Array<{url: string; alt?: string; width?: number; height?: number}> {
+  const images: Array<{url: string; alt?: string; width?: number; height?: number}> = [];
+  
+  // Look for high-resolution display URLs in the HTML
+  const displayUrlMatches = html.matchAll(/"display_url":"([^"]+)"/g);
+  
+  for (const match of displayUrlMatches) {
+    let imageUrl = match[1];
+    // Unescape the URL
+    imageUrl = imageUrl.replace(/\\u0026/g, '&').replace(/\\\//g, '/');
+    
+    if (imageUrl && imageUrl.includes('cdninstagram')) {
+      images.push({
+        url: imageUrl,
+        alt: "Instagram image",
+        width: 1080,
+        height: 1440,
+      });
+    }
+  }
+  
+  // Deduplicate
+  const uniqueUrls = new Set();
+  return images.filter(img => {
+    const key = img.url.split('?')[0];
+    if (uniqueUrls.has(key)) return false;
+    uniqueUrls.add(key);
+    return true;
+  });
+}
+
+// ============================================
+// APIFY FALLBACK (Keep as last resort)
+// ============================================
+
 // Primary Apify actor
 async function extractWithPrimaryActor(apifyClient: any, url: string): Promise<InstagramPost> {
   console.log("Using primary actor: apify/instagram-scraper");
@@ -150,16 +627,15 @@ async function extractWithPrimaryActor(apifyClient: any, url: string): Promise<I
   console.log("Primary actor response:", JSON.stringify(post, null, 2));
 
   // Check if we got a restricted response but still have some data
-  if (post.error === "restricted_page" && post.image) {
+  if (post.error === "restricted_page") {
     console.log("Got restricted page but found image data, attempting to parse");
+    
+    // Try to extract all images including carousel images from the restricted response
+    const restrictedImages = await extractImagesFromRestrictedPost(url, post);
+    
     return {
       url: post.url || url,
-      images: [{
-        url: post.image,
-        alt: post.title || "Instagram image",
-        width: 1080,
-        height: 1080,
-      }],
+      images: restrictedImages,
       caption: extractCaptionFromDescription(post.description),
       likes: extractLikesFromDescription(post.description),
       timestamp: undefined,
@@ -252,8 +728,8 @@ function parseInstagramData(post: any, originalUrl: string): InstagramPost {
     if (!isCroppedImage(url)) score += 100;
     
     // Prefer larger sizes
-    if (url.includes('s1080x1080')) score += 50;
-    if (url.includes('p1080x1080')) score += 40;
+    if (url.includes('s1080x1440')) score += 50;
+    if (url.includes('p1080x1440')) score += 40;
     if (url.includes('e35')) score += 30; // High quality indicator
     if (url.includes('_e15_')) score += 20; // Another quality indicator
     
@@ -317,7 +793,7 @@ function parseInstagramData(post: any, originalUrl: string): InstagramPost {
           url: imageUrl,
           alt: post.accessibility_caption || post.alt || "Instagram image",
           width: source?.width || post.dimensionsWidth || 1080,
-          height: source?.height || post.dimensionsHeight || 1080,
+          height: source?.height || post.dimensionsHeight || 1440,
           qualityScore: qualityScore,
           isCropped: isCroppedImage(imageUrl)
         });
@@ -389,7 +865,7 @@ function parseInstagramDataAlternative(post: any, originalUrl: string): Instagra
             url: imageUrl,
             alt: post.edge_media_to_caption?.edges?.[0]?.node?.text || "Instagram image",
             width: media.dimensions?.width || 1080,
-            height: media.dimensions?.height || 1080,
+            height: media.dimensions?.height || 1440,
           });
         }
       }
@@ -405,7 +881,7 @@ function parseInstagramDataAlternative(post: any, originalUrl: string): Instagra
         url: imageUrl,
         alt: "Instagram image",
         width: 1080,
-        height: 1080,
+        height: 1440,
       });
     }
   }
@@ -454,7 +930,7 @@ function parseInstagramDataThird(post: any, originalUrl: string): InstagramPost 
         url: imageUrl,
         alt: post.caption || "Instagram image",
         width: 1080,
-        height: 1080,
+        height: 1440,
       });
       break;
     }
@@ -477,24 +953,407 @@ function parseInstagramDataThird(post: any, originalUrl: string): InstagramPost 
 function convertToHighQualityUrl(url: string): string {
   if (!url || typeof url !== 'string') return '';
   
-  // Replace low quality indicators with high quality ones
+  // Parse URL to work with query parameters
   let newUrl = url;
-  newUrl = newUrl.replace(/s640x640_sh0\.08/g, 's1080x1080_sh0.08');
-  newUrl = newUrl.replace(/s640x640/g, 's1080x1080');
-  newUrl = newUrl.replace(/s320x320/g, 's1080x1080');
-  newUrl = newUrl.replace(/s150x150/g, 's1080x1080');
-  newUrl = newUrl.replace(/s480x480/g, 's1080x1080');
   
-  // Try to remove crop parameters for uncropped versions
-  newUrl = newUrl.replace(/c\d+\.\d+\.\d+\.\d+a/g, ''); // Remove crop params like c288.0.864.864a
-  newUrl = newUrl.replace(/_a\./g, '.'); // Remove _a. crop indicator
+  try {
+    const urlObj = new URL(url);
+    
+    // Remove the stp parameter entirely - it contains all cropping/sizing instructions
+    urlObj.searchParams.delete('stp');
+    
+    // Remove other transformation parameters
+    urlObj.searchParams.delete('_nc_cat');
+    urlObj.searchParams.delete('ccb');
+    urlObj.searchParams.delete('_nc_sid');
+    urlObj.searchParams.delete('efg');
+    urlObj.searchParams.delete('_nc_ohc');
+    urlObj.searchParams.delete('_nc_oc');
+    urlObj.searchParams.delete('_nc_zt');
+    urlObj.searchParams.delete('_nc_gid');
+    
+    newUrl = urlObj.toString();
+  } catch (e) {
+    // If URL parsing fails, use regex fallback
+    newUrl = url;
+  }
   
-  // Clean up any double dots or invalid params
+  // Additional regex cleanup for inline parameters in the path
+  newUrl = newUrl.replace(/c\d+\.\d+\.\d+\.\d+a_/g, ''); // Remove crop params like c288.0.864.864a_
+  newUrl = newUrl.replace(/_c\d+\.\d+\.\d+\.\d+a/g, ''); // Remove crop params like _c288.0.864.864a
+  newUrl = newUrl.replace(/_a_/g, '_'); // Remove _a_ crop indicator
+  newUrl = newUrl.replace(/s\d+x\d+_/g, ''); // Remove size restrictions like s640x640_
+  newUrl = newUrl.replace(/_s\d+x\d+/g, ''); // Remove size restrictions like _s640x640
+  
+  // Replace low quality indicators with high quality ones
+  newUrl = newUrl.replace(/s640x640_sh0\.08/g, 's1080x1440_sh0.08');
+  newUrl = newUrl.replace(/s640x640/g, 's1080x1440');
+  newUrl = newUrl.replace(/s320x320/g, 's1080x1440');
+  newUrl = newUrl.replace(/s150x150/g, 's1080x1440');
+  newUrl = newUrl.replace(/s480x480/g, 's1080x1440');
+  
+  // Clean up any double underscores, dots or invalid params
+  newUrl = newUrl.replace(/__+/g, '_');
   newUrl = newUrl.replace(/\.\./g, '.');
   newUrl = newUrl.replace(/\?&/g, '?');
   newUrl = newUrl.replace(/&&/g, '&');
+  newUrl = newUrl.replace(/_\./g, '.');
+  newUrl = newUrl.replace(/\._/g, '.');
   
   return newUrl;
+}
+
+// Extract images from restricted posts with enhanced methods
+async function extractImagesFromRestrictedPost(url: string, post: any): Promise<Array<{url: string; alt?: string; width?: number; height?: number}>> {
+  const images: Array<{url: string; alt?: string; width?: number; height?: number}> = [];
+  
+  // Helper to convert cropped URLs to full-size
+  const convertCroppedToFullSize = (imageUrl: string): string[] => {
+    const variations: string[] = [];
+    
+    // Variation 1: Remove entire query string (original uncropped image)
+    try {
+      const urlObj = new URL(imageUrl);
+      const pathOnly = `${urlObj.origin}${urlObj.pathname}`;
+      variations.push(pathOnly);
+      
+      // Variation 2: Keep only essential params, remove stp entirely
+      const essentialUrl = new URL(imageUrl);
+      const keepParams = ['_nc_ht', 'oh', 'oe']; // Only keep these
+      const paramsToKeep = new URLSearchParams();
+      keepParams.forEach(param => {
+        const value = essentialUrl.searchParams.get(param);
+        if (value) paramsToKeep.set(param, value);
+      });
+      variations.push(`${urlObj.origin}${urlObj.pathname}?${paramsToKeep.toString()}`);
+      
+      // Variation 3: Original with stp removed
+      const noStp = new URL(imageUrl);
+      noStp.searchParams.delete('stp');
+      variations.push(noStp.toString());
+      
+    } catch (e) {
+      // If URL parsing fails, continue with regex methods
+    }
+    
+    // Variation 4: Aggressive regex removal of all cropping/sizing in path
+    let uncropped = imageUrl;
+    
+    // Remove stp query parameter and its value
+    uncropped = uncropped.replace(/[?&]stp=[^&]*/g, '');
+    
+    // Remove crop parameters from the filename itself
+    uncropped = uncropped.replace(/c\d+\.\d+\.\d+\.\d+a_/g, '');
+    uncropped = uncropped.replace(/_c\d+\.\d+\.\d+\.\d+a/g, '');
+    
+    // Remove ALL size restrictions from filename
+    uncropped = uncropped.replace(/[_-]s\d+x\d+[_-]/g, '_');
+    uncropped = uncropped.replace(/[_-]p\d+x\d+[_-]/g, '_');
+    uncropped = uncropped.replace(/_sh\d+\.\d+/g, '');
+    
+    // Remove _a suffix that indicates cropping
+    uncropped = uncropped.replace(/_a\./g, '.');
+    uncropped = uncropped.replace(/_a_/g, '_');
+    
+    // Remove dst-jpg processing indicators that include cropping
+    uncropped = uncropped.replace(/dst-jpg_[^_]*_/g, 'dst-jpg_e35_');
+    
+    // Clean up multiple underscores and dots
+    uncropped = uncropped.replace(/__+/g, '_');
+    uncropped = uncropped.replace(/\.\./g, '.');
+    uncropped = uncropped.replace(/_\./g, '.');
+    uncropped = uncropped.replace(/\._/g, '.');
+    
+    variations.push(uncropped);
+    
+    // Variation 5: Remove everything between filename and extension
+    let minimal = imageUrl.split('?')[0]; // Remove query params
+    const parts = minimal.split('/');
+    const filename = parts[parts.length - 1];
+    
+    // Extract just the ID and extension (remove all transformations)
+    const match = filename.match(/^(\d+)_.*\.([a-z]+)$/);
+    if (match) {
+      const [, id, ext] = match;
+      parts[parts.length - 1] = `${id}.${ext}`;
+      variations.push(parts.join('/'));
+    }
+    
+    // Original URL (as fallback)
+    variations.push(imageUrl);
+    
+    // Remove duplicates and filter out invalid URLs
+    return [...new Set(variations)].filter(url => url && url.startsWith('http'));
+  };
+  
+  // Try to extract images from the post object
+  const possibleImageSources = [
+    post.image,
+    post.imageUrl,
+    post.displayUrl,
+    post.thumbnail,
+  ].filter(Boolean);
+  
+  // If we have an image URL, try to get full size and check for carousel
+  if (possibleImageSources.length > 0) {
+    for (const sourceUrl of possibleImageSources) {
+      const urlVariations = convertCroppedToFullSize(sourceUrl);
+      
+      // Test each variation to find the best quality one
+      for (const variation of urlVariations) {
+        try {
+          const response = await fetch(variation, { method: 'HEAD' });
+          if (response.ok) {
+            images.push({
+              url: variation,
+              alt: post.title || "Instagram image",
+              width: 1080,
+              height: 1440,
+            });
+            console.log(`✅ Found valid image URL: ${variation.includes('c288') ? '🔲 Cropped' : '🖼️  Full size'}`);
+            break; // Use first valid variation
+          }
+        } catch (error) {
+          console.log(`❌ Failed to fetch: ${variation.substring(0, 100)}...`);
+        }
+      }
+    }
+  }
+  
+  // Try to get carousel images by manipulating the URL
+  if (url.includes('?img_index=')) {
+    console.log('🎠 Detected carousel post, attempting to extract all images');
+    
+    // Extract the base URL without img_index
+    const baseUrl = url.split('?img_index=')[0];
+    
+    // Try indices 1-10 (most carousels have 2-10 images)
+    for (let i = 1; i <= 10; i++) {
+      const carouselUrl = `${baseUrl}?img_index=${i}`;
+      
+      try {
+        // Fetch the post with different index
+        console.log(`Attempting to fetch carousel image ${i}`);
+        
+        // Try using the embed endpoint to get the image
+        const embedUrl = `${carouselUrl.replace('/p/', '/p/')}/embed/`;
+        const response = await fetch(embedUrl, {
+          headers: {
+            'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+            'Accept': 'text/html',
+          },
+        });
+        
+        if (response.ok) {
+          const html = await response.text();
+          
+          // Extract image URL from the embed HTML
+          const imageMatch = html.match(/https:\/\/[^"']*\.cdninstagram\.com[^"']*\.jpg[^"']*/);
+          if (imageMatch) {
+            const carouselImageUrl = imageMatch[0];
+            const fullSizeVariations = convertCroppedToFullSize(carouselImageUrl);
+            
+            // Try to find a working full-size version
+            for (const variation of fullSizeVariations) {
+              try {
+                const imgResponse = await fetch(variation, { method: 'HEAD' });
+                if (imgResponse.ok) {
+                  // Check if this image is already in our list
+                  const isDuplicate = images.some(img => 
+                    img.url.split('?')[0] === variation.split('?')[0]
+                  );
+                  
+                  if (!isDuplicate) {
+                    images.push({
+                      url: variation,
+                      alt: `Instagram image ${i}`,
+                      width: 1080,
+                      height: 1440,
+                    });
+                    console.log(`✅ Found carousel image ${i}: ${variation.includes('c288') ? '🔲 Cropped' : '🖼️  Full size'}`);
+                  }
+                  break;
+                }
+              } catch (imgError) {
+                continue;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`Could not fetch carousel image ${i}`);
+        // If we fail to fetch, we've likely reached the end of the carousel
+        if (i > 2) break; // Stop if we've tried at least 2 images and failed
+      }
+    }
+  }
+  
+  // If we still don't have any images, try the direct scraping method
+  if (images.length === 0) {
+    console.log('No images found with restricted post extraction, falling back to direct scraping');
+    try {
+      const directResult = await extractWithDirectScraping(url);
+      return directResult.images;
+    } catch (error) {
+      console.log('Direct scraping also failed:', error);
+    }
+  }
+  
+  // Try to get better quality by fetching the post's GraphQL data
+  if (images.length > 0) {
+    console.log('Attempting to upgrade image quality via GraphQL/embed...');
+    try {
+      const betterImages = await tryGetOriginalImagesFromPost(url, images);
+      if (betterImages.length > 0 && betterImages[0].url !== images[0].url) {
+        console.log('✅ Successfully upgraded to original quality images');
+        return betterImages;
+      } else {
+        console.log('⚠️  No better quality images found, using URL manipulation to remove crop parameters');
+        // Manually try to uncrop the URLs we have
+        return images.map(img => ({
+          ...img,
+          url: aggressivelyUncropUrl(img.url)
+        }));
+      }
+    } catch (error) {
+      console.log('Could not upgrade image quality:', error);
+      // Try to uncrop URLs manually
+      return images.map(img => ({
+        ...img,
+        url: aggressivelyUncropUrl(img.url)
+      }));
+    }
+  }
+  
+  // Last resort: use the original cropped image if nothing else worked
+  if (images.length === 0 && possibleImageSources.length > 0) {
+    console.log('⚠️  Using cropped image as last resort');
+    images.push({
+      url: possibleImageSources[0],
+      alt: post.title || "Instagram image",
+      width: 1080,
+      height: 1440,
+    });
+  }
+  
+  console.log(`📊 Total images extracted from restricted post: ${images.length}`);
+  return images;
+}
+
+// Try to get original full-size images by fetching the post directly
+async function tryGetOriginalImagesFromPost(url: string, fallbackImages: Array<{url: string; alt?: string; width?: number; height?: number}>): Promise<Array<{url: string; alt?: string; width?: number; height?: number}>> {
+  const images: Array<{url: string; alt?: string; width?: number; height?: number}> = [];
+  
+  try {
+    // Try Instagram's ?__a=1&__d=dis API endpoint
+    const apiUrl = url.includes('?') ? `${url}&__a=1&__d=dis` : `${url}?__a=1&__d=dis`;
+    
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+        'Accept': 'application/json,text/html',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+      },
+    });
+    
+    if (response.ok) {
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType?.includes('application/json')) {
+        const data = await response.json();
+        
+        // Extract display_url from GraphQL response
+        const mediaItem = data?.items?.[0] || 
+                         data?.graphql?.shortcode_media ||
+                         data?.data?.shortcode_media;
+        
+        if (mediaItem) {
+          // Get main image
+          if (mediaItem.display_url) {
+            images.push({
+              url: mediaItem.display_url,
+              alt: mediaItem.accessibility_caption || "Instagram image",
+              width: mediaItem.dimensions?.width || 1080,
+              height: mediaItem.dimensions?.height || 1440,
+            });
+          }
+          
+          // Get carousel images if available
+          const carouselMedia = mediaItem.carousel_media || 
+                               mediaItem.edge_sidecar_to_children?.edges;
+          
+          if (carouselMedia) {
+            carouselMedia.forEach((item: any) => {
+              const media = item.node || item;
+              if (media.display_url) {
+                images.push({
+                  url: media.display_url,
+                  alt: media.accessibility_caption || "Instagram image",
+                  width: media.dimensions?.width || 1080,
+                  height: media.dimensions?.height || 1440,
+                });
+              }
+            });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.log('GraphQL fetch failed:', error);
+  }
+  
+  // If we got better images, return them, otherwise return fallback
+  return images.length > 0 ? images : fallbackImages;
+}
+
+// Aggressively remove all cropping/transformation from Instagram CDN URLs
+function aggressivelyUncropUrl(url: string): string {
+  if (!url || !url.includes('cdninstagram.com')) return url;
+  
+  console.log(`🔧 Attempting to uncrop: ${url.substring(0, 100)}...`);
+  
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/');
+    const filename = pathParts[pathParts.length - 1];
+    
+    // Extract just the media ID and extension, removing all transformations
+    // Format: 547785432_18097300732734568_6744760680453348796_n.jpg
+    const mediaIdMatch = filename.match(/^(\d+_\d+_\d+_n\.[a-z]+)$/);
+    
+    if (mediaIdMatch) {
+      // Build clean URL with just the media ID
+      pathParts[pathParts.length - 1] = mediaIdMatch[1];
+      urlObj.pathname = pathParts.join('/');
+      
+      // Keep only essential params
+      const essentialParams = new URLSearchParams();
+      ['_nc_ht', 'oh', 'oe'].forEach(key => {
+        const value = urlObj.searchParams.get(key);
+        if (value) essentialParams.set(key, value);
+      });
+      
+      urlObj.search = essentialParams.toString();
+      const cleanUrl = urlObj.toString();
+      console.log(`✅ Uncropped URL: ${cleanUrl.substring(0, 100)}...`);
+      return cleanUrl;
+    }
+    
+    // Fallback: just remove the stp parameter which contains transformations
+    urlObj.searchParams.delete('stp');
+    const cleanedUrl = urlObj.toString();
+    console.log(`✅ Removed transformations: ${cleanedUrl.substring(0, 100)}...`);
+    return cleanedUrl;
+    
+  } catch (e) {
+    console.log(`❌ Failed to parse URL:`, e);
+    // Regex fallback
+    let cleaned = url.replace(/[?&]stp=[^&]*/g, '');
+    return cleaned;
+  }
 }
 
 // Enhanced Apify actor with different parameters to bypass restrictions
@@ -608,7 +1467,7 @@ async function extractWithDirectScraping(url: string): Promise<InstagramPost> {
             url: data.thumbnail_url,
             alt: data.title || "Instagram image",
             width: data.thumbnail_width || 1080,
-            height: data.thumbnail_height || 1080,
+            height: data.thumbnail_height || 1440,
           }],
           caption: data.title,
           likes: undefined,
@@ -685,7 +1544,7 @@ function extractImagesFromHtml(html: string): Array<{url: string; alt?: string; 
           url: url,
           alt: "Instagram image",
           width: 1080,
-          height: 1080,
+          height: 1440,
         });
       }
     });
