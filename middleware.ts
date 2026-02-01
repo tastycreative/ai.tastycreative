@@ -31,6 +31,7 @@ const isPublicApiRoute = createRouteMatcher([
   '/api/webhooks(.*)',  // ✅ Add webhooks as public API routes
   '/api/webhook(.*)', // ✅ Add singular webhook routes (fps-boost, flux-kontext, etc.)
   '/api/webhook-test(.*)', // ✅ Also add your test webhook
+  '/api/billing/webhook', // ✅ Stripe billing webhook
   '/api/models/upload-from-training(.*)', // ✅ Add training upload endpoint
   '/api/training/jobs(.*)', // ✅ Add training jobs endpoint for RunPod handler
   '/api/influencers/training-complete(.*)', // ✅ Add training complete endpoint for RunPod handler

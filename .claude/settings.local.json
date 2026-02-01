@@ -5,7 +5,8 @@
       "Bash(mkdir:*)",
       "Bash(move \"register\\page.tsx\" \"register\\[[...rest]]\\page.tsx\")",
       "Bash(mv:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }
