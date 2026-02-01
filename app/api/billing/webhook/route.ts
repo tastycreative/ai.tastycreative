@@ -96,15 +96,10 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     session.subscription as string
   );
 
-  // Debug: log to see actual property names
-  console.log(`   Raw subscription object keys:`, Object.keys(subscriptionData));
-
-  // Try both snake_case and camelCase property names
-  const periodStart = subscriptionData.current_period_start || subscriptionData.currentPeriodStart;
-  const periodEnd = subscriptionData.current_period_end || subscriptionData.currentPeriodEnd;
-
-  console.log(`   Period start value:`, periodStart, `type:`, typeof periodStart);
-  console.log(`   Period end value:`, periodEnd, `type:`, typeof periodEnd);
+  // Extract period dates from the subscription items
+  const firstItem = subscriptionData.items?.data?.[0];
+  const periodStart = firstItem?.current_period_start;
+  const periodEnd = firstItem?.current_period_end;
 
   console.log(`   Subscription details:`, {
     id: subscriptionData.id,
@@ -115,7 +110,6 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
   if (!periodStart || !periodEnd) {
     console.error(`❌ Missing period dates in subscription data`);
-    console.error(`   Full subscription:`, JSON.stringify(subscriptionData, null, 2));
     return;
   }
 
@@ -162,12 +156,17 @@ async function handleSubscriptionUpdated(subscription: any) {
     subscriptionStatus = 'TRIAL';
   }
 
+  // Extract period dates from subscription items
+  const firstItem = subscription.items?.data?.[0];
+  const periodStart = firstItem?.current_period_start;
+  const periodEnd = firstItem?.current_period_end;
+
   await prisma.organization.update({
     where: { id: organization.id },
     data: {
       subscriptionStatus,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodStart: periodStart ? new Date(periodStart * 1000) : undefined,
+      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : undefined,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     },
   });
