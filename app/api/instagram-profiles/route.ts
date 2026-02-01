@@ -3,23 +3,39 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 
 export async function GET(request: NextRequest) {
+  let userId: string | null = null;
   try {
-    const { userId } = await auth();
+    console.log('🔍 [instagram-profiles] Starting GET request');
+    console.log('🔍 [instagram-profiles] Request URL:', request.url);
+    console.log('🔍 [instagram-profiles] Request headers:', Object.fromEntries(request.headers.entries()));
+    
+    const auth_result = await auth();
+    userId = auth_result.userId;
+    
+    console.log('🔍 [instagram-profiles] Auth result:', { userId, sessionId: auth_result.sessionId });
 
     if (!userId) {
+      console.log('❌ [instagram-profiles] No userId found, returning 401');
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
       );
     }
+    
+    console.log('✅ [instagram-profiles] User authenticated:', userId);
+
+    console.log('✅ [instagram-profiles] User authenticated:', userId);
 
     // Get the user's current organization
+    console.log('🔍 [instagram-profiles] Fetching user organization...');
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
       select: { currentOrganizationId: true },
     });
+    console.log('🔍 [instagram-profiles] User organization:', user?.currentOrganizationId || 'none');
 
     // Get user's own profiles
+    console.log('🔍 [instagram-profiles] Fetching own profiles...');
     const ownProfiles = await prisma.instagramProfile.findMany({
       where: {
         clerkId: userId,
@@ -58,6 +74,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get organization shared profiles (profiles shared with the user's org, but not owned by the user)
+    console.log('🔍 [instagram-profiles] Fetching shared profiles...');
     const sharedProfiles = user?.currentOrganizationId
       ? await prisma.instagramProfile.findMany({
           where: {
@@ -97,18 +114,33 @@ export async function GET(request: NextRequest) {
         })
       : [];
 
+    console.log('✅ [instagram-profiles] Own profiles count:', ownProfiles.length);
+    console.log('✅ [instagram-profiles] Shared profiles count:', sharedProfiles.length);
+
     // Mark profiles as owned or shared
     const ownProfilesWithFlag = ownProfiles.map(p => ({ ...p, isShared: false }));
     const sharedProfilesWithFlag = sharedProfiles.map(p => ({ ...p, isShared: true }));
 
     // Combine and return all accessible profiles
     const allProfiles = [...ownProfilesWithFlag, ...sharedProfilesWithFlag];
+    
+    console.log('✅ [instagram-profiles] Total profiles:', allProfiles.length);
+    console.log('✅ [instagram-profiles] Returning profiles');
 
     return NextResponse.json(allProfiles);
   } catch (error) {
     console.error("Error fetching Instagram profiles:", error);
+    console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : 'Unknown',
+      userId,
+    });
     return NextResponse.json(
-      { error: "Failed to fetch profiles" },
+      { 
+        error: "Failed to fetch profiles",
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
@@ -116,8 +148,10 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new profile
 export async function POST(request: NextRequest) {
+  let userId: string | null = null;
   try {
-    const { userId } = await auth();
+    const auth_result = await auth();
+    userId = auth_result.userId;
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -213,8 +247,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(newProfile, { status: 201 });
   } catch (error) {
     console.error("Error creating profile:", error);
+    console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+    console.error("Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : 'Unknown',
+      userId,
+    });
     return NextResponse.json(
-      { error: "Failed to create profile" },
+      { 
+        error: "Failed to create profile",
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
