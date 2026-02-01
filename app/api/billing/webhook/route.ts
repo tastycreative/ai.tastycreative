@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   console.log('🔔 Webhook received!');
 
   const body = await req.text();
-  const headersList = headers();
+  const headersList = await headers();
   const signature = headersList.get('stripe-signature');
 
   if (!signature) {
