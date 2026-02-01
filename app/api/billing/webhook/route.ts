@@ -96,12 +96,28 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     session.subscription as string
   );
 
+  // Debug: log to see actual property names
+  console.log(`   Raw subscription object keys:`, Object.keys(subscriptionData));
+
+  // Try both snake_case and camelCase property names
+  const periodStart = subscriptionData.current_period_start || subscriptionData.currentPeriodStart;
+  const periodEnd = subscriptionData.current_period_end || subscriptionData.currentPeriodEnd;
+
+  console.log(`   Period start value:`, periodStart, `type:`, typeof periodStart);
+  console.log(`   Period end value:`, periodEnd, `type:`, typeof periodEnd);
+
   console.log(`   Subscription details:`, {
     id: subscriptionData.id,
     status: subscriptionData.status,
-    current_period_start: new Date(subscriptionData.current_period_start * 1000),
-    current_period_end: new Date(subscriptionData.current_period_end * 1000),
+    current_period_start: periodStart ? new Date(periodStart * 1000) : 'MISSING',
+    current_period_end: periodEnd ? new Date(periodEnd * 1000) : 'MISSING',
   });
+
+  if (!periodStart || !periodEnd) {
+    console.error(`❌ Missing period dates in subscription data`);
+    console.error(`   Full subscription:`, JSON.stringify(subscriptionData, null, 2));
+    return;
+  }
 
   const updated = await prisma.organization.update({
     where: { id: organizationId },
@@ -110,8 +126,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       subscriptionStatus: 'ACTIVE',
       stripeCustomerId: session.customer as string,
       stripeSubscriptionId: subscriptionData.id,
-      currentPeriodStart: new Date(subscriptionData.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscriptionData.current_period_end * 1000),
+      currentPeriodStart: new Date(periodStart * 1000),
+      currentPeriodEnd: new Date(periodEnd * 1000),
       billingEmail: session.customer_details?.email || null,
       billingName: session.customer_details?.name || null,
     },
