@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus,
@@ -46,7 +46,10 @@ import {
   PlusCircle,
   AlertCircle,
   LogOut,
+  Info,
 } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import KeycardGenerator from "./KeycardGenerator";
 import EmbeddedVoiceGenerator from "./EmbeddedVoiceGenerator";
 
@@ -217,6 +220,32 @@ export default function SextingSetOrganizer({
 
   // Check if "All Profiles" is selected
   const isAllProfiles = profileId === "all";
+
+  // Access the user and profiles from hooks for shared profile detection
+  const { user: clerkUser } = useUser();
+  const { profiles: globalProfiles } = useInstagramProfile();
+
+  // Helper to check if selected profile is shared (not owned by current user)
+  const isSharedProfile = useMemo(() => {
+    if (!profileId || profileId === "all" || !clerkUser?.id) return false;
+    const profile = globalProfiles.find(p => p.id === profileId);
+    if (!profile) return false;
+    // Check if the profile's clerkId matches the current user
+    return profile.clerkId !== clerkUser.id;
+  }, [profileId, globalProfiles, clerkUser?.id]);
+
+  // Helper to get owner name for shared profiles
+  const getSharedProfileOwnerName = useMemo(() => {
+    if (!isSharedProfile) return null;
+    const profile = globalProfiles.find(p => p.id === profileId);
+    if (!profile?.user) return null;
+    if (profile.user.firstName && profile.user.lastName) {
+      return `${profile.user.firstName} ${profile.user.lastName}`;
+    }
+    if (profile.user.firstName) return profile.user.firstName;
+    if (profile.user.name) return profile.user.name;
+    return null;
+  }, [isSharedProfile, profileId, globalProfiles]);
 
   // Set mounted state for portals
   useEffect(() => {
@@ -1275,12 +1304,22 @@ export default function SextingSetOrganizer({
             <Flame className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent">
-              Sexting Set Organizer
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold bg-gradient-to-r from-pink-500 to-rose-500 bg-clip-text text-transparent">
+                Sexting Set Organizer
+              </h2>
+              {isSharedProfile && !isAllProfiles && (
+                <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs font-medium rounded-full border border-blue-500/30">
+                  <Share2 className="w-3 h-3" />
+                  Shared
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-400">
               {isAllProfiles && <span className="text-pink-400">All Profiles • </span>}
-              {sets.length} set{sets.length !== 1 ? "s" : ""} • Drag to reorder
+              {isSharedProfile 
+                ? `Viewing ${getSharedProfileOwnerName ? `${getSharedProfileOwnerName}'s` : "shared"} sets`
+                : `${sets.length} set${sets.length !== 1 ? "s" : ""} • Drag to reorder`}
             </p>
           </div>
         </div>
@@ -1299,6 +1338,17 @@ export default function SextingSetOrganizer({
           <span>New Set</span>
         </button>
       </div>
+
+      {/* Shared Profile Notice */}
+      {isSharedProfile && !isAllProfiles && (
+        <div className="flex items-center gap-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+          <Info className="w-5 h-5 text-blue-400 shrink-0" />
+          <p className="text-sm text-blue-300">
+            You are viewing a shared profile{getSharedProfileOwnerName ? ` from ${getSharedProfileOwnerName}` : ""}. 
+            You can view, organize, and add content to these sets.
+          </p>
+        </div>
+      )}
 
       {/* All Profiles Notice */}
       {isAllProfiles && (

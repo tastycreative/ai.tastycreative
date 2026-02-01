@@ -11,6 +11,42 @@ const s3Client = new S3Client({
   },
 });
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // POST - Import vault items to a sexting set
 export async function POST(request: NextRequest) {
   try {
@@ -36,9 +72,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify ownership of the sexting set
+    // Find the sexting set
     const sextingSet = await prisma.sextingSet.findFirst({
-      where: { id: setId, userId },
+      where: { id: setId },
       include: {
         images: {
           orderBy: { sequence: "desc" },
@@ -49,15 +85,26 @@ export async function POST(request: NextRequest) {
 
     if (!sextingSet) {
       return NextResponse.json(
-        { error: "Set not found or unauthorized" },
+        { error: "Set not found" },
         { status: 404 }
+      );
+    }
+
+    // Verify access via the set's category (profileId)
+    const { hasAccess } = await hasAccessToProfile(userId, sextingSet.category);
+
+    // Also allow if user owns the set directly
+    if (!hasAccess && sextingSet.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized to modify this set" },
+        { status: 403 }
       );
     }
 
     // Get starting sequence number (after existing images)
     const startSequence = (sextingSet.images[0]?.sequence || 0) + 1;
 
-    // Fetch all vault items
+    // Fetch all vault items (vault items belong to current user)
     const vaultItems = await prisma.vaultItem.findMany({
       where: {
         id: { in: vaultItemIds },

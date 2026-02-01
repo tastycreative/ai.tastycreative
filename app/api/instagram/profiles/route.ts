@@ -4,13 +4,61 @@ import { prisma } from '@/lib/database';
 
 // GET - List all profiles for the current user and their organization
 export async function GET(request: NextRequest) {
+  let userId: string | null = null;
   try {
-    const { userId } = await auth();
+    const auth_result = await auth();
+    userId = auth_result.userId;
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check if this is a request for specific profile IDs
+    const { searchParams } = new URL(request.url);
+    const idsParam = searchParams.get('ids');
+
+    if (idsParam) {
+      // Fetch specific profiles by IDs
+      const profileIds = idsParam.split(',').filter(Boolean);
+
+      if (profileIds.length === 0) {
+        return NextResponse.json({
+          success: true,
+          profiles: [],
+        });
+      }
+
+      const profiles = await prisma.instagramProfile.findMany({
+        where: {
+          id: { in: profileIds },
+        },
+        select: {
+          id: true,
+          name: true,
+          instagramUsername: true,
+          profileImageUrl: true,
+          clerkId: true,
+          organizationId: true,
+          user: {
+            select: {
+              id: true,
+              clerkId: true,
+              firstName: true,
+              lastName: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        profiles,
+      });
+    }
+
+    // Otherwise, return all accessible profiles for the user
     // Get user's current organization
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
@@ -115,8 +163,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, profiles: profilesWithFriends });
   } catch (error) {
     console.error('Error fetching profiles:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : 'Unknown',
+      userId,
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch profiles' },
+      { 
+        error: 'Failed to fetch profiles',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
@@ -124,8 +181,10 @@ export async function GET(request: NextRequest) {
 
 // POST - Create a new profile
 export async function POST(request: NextRequest) {
+  let userId: string | null = null;
   try {
-    const { userId } = await auth();
+    const auth_result = await auth();
+    userId = auth_result.userId;
 
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -175,8 +234,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, profile }, { status: 201 });
   } catch (error) {
     console.error('Error creating profile:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : 'Unknown',
+      userId,
+    });
     return NextResponse.json(
-      { error: 'Failed to create profile' },
+      { 
+        error: 'Failed to create profile',
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }

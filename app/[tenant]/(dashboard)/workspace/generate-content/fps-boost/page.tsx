@@ -1,10 +1,12 @@
 // app/(dashboard)/workspace/generate-content/fps-boost/page.tsx
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
 import { useGenerationProgress } from "@/lib/generationContext";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import {
   Video,
   Upload,
@@ -27,6 +29,8 @@ import {
   XCircle,
   Sparkles,
   Archive,
+  FolderOpen,
+  Check,
 } from "lucide-react";
 
 // Types
@@ -75,19 +79,17 @@ interface DatabaseVideo {
   createdAt: Date | string;
 }
 
-// Vault interfaces
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername?: string | null;
-  isDefault?: boolean;
-}
-
+// Vault interface
 interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
+  clerkId: string; // Owner of the folder (important for shared profiles)
+  profileName?: string;
+  profileUsername?: string | null;
   isDefault?: boolean;
+  isOwnedProfile?: boolean;
+  ownerName?: string | null;
 }
 
 const formatJobTime = (createdAt: Date | string | undefined): string => {
@@ -216,6 +218,9 @@ export default function FPSBoostPage() {
   const apiClient = useApiClient();
   const { user } = useUser();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
+  
+  // Use global profile from header
+  const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
 
   const STORAGE_KEYS = {
     currentJob: 'fps-boost-current-job',
@@ -244,9 +249,14 @@ export default function FPSBoostPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
 
-  // Vault folder states
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  // Folder selection dropdown state
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderButtonRef = useRef<HTMLButtonElement>(null);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  
+  // Vault folder states - single list based on selected profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -256,18 +266,38 @@ export default function FPSBoostPage() {
   const getSelectedFolderDisplay = (): string => {
     if (!params.targetFolder) return 'Select a vault folder to save your output';
     
-    if (params.targetFolder.startsWith('vault:')) {
-      const parts = params.targetFolder.replace('vault:', '').split(':');
-      const profileId = parts[0];
-      const folderId = parts[1];
-      const profile = vaultProfiles.find(p => p.id === profileId);
-      const folders = vaultFoldersByProfile[profileId] || [];
-      const folder = folders.find(f => f.id === folderId);
-      return `Saving to Vault: ${profile?.name || 'Profile'} / ${folder?.name || 'Folder'}`;
+    const folder = vaultFolders.find(f => f.id === params.targetFolder);
+    if (folder) {
+      // When viewing all profiles, show the folder's profile name
+      if (isAllProfiles && folder.profileName) {
+        const ownerInfo = !folder.isOwnedProfile && folder.ownerName ? ` (Shared by ${folder.ownerName})` : '';
+        return `${folder.profileName} / ${folder.name}${ownerInfo}`;
+      }
+      // When viewing single profile, just show folder name
+      if (selectedProfile) {
+        return `${selectedProfile.name} / ${folder.name}`;
+      }
+      return folder.name;
     }
     
     return 'Select a vault folder to save your output';
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        folderDropdownRef.current && 
+        !folderDropdownRef.current.contains(event.target as Node) &&
+        folderButtonRef.current &&
+        !folderButtonRef.current.contains(event.target as Node)
+      ) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const isJobCancelled = (job: GenerationJob) => {
     return job.status === 'failed' && job.error === 'Job canceled by user';
@@ -284,59 +314,31 @@ export default function FPSBoostPage() {
     clearGlobalProgress();
   };
 
-  // Load vault profiles and their folders
-  useEffect(() => {
-    const loadVaultData = async () => {
-      if (!apiClient) return;
+  // Load vault folders for the selected profile (or all profiles)
+  const loadVaultData = useCallback(async () => {
+    if (!apiClient || !globalProfileId) return;
 
-      setIsLoadingVaultData(true);
-      try {
-        // First, load all Instagram profiles
-        const profilesResponse = await fetch('/api/instagram/profiles');
-        if (!profilesResponse.ok) {
-          throw new Error('Failed to load profiles');
-        }
-
-        const profilesData = await profilesResponse.json();
-        const profileList: InstagramProfile[] = Array.isArray(profilesData)
-          ? profilesData
-          : profilesData.profiles || [];
-
-        // Sort profiles alphabetically
-        const sortedProfiles = [...profileList].sort((a, b) =>
-          (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
-        );
-
-        setVaultProfiles(sortedProfiles);
-
-        // Now load vault folders for each profile
-        const foldersByProfile: Record<string, VaultFolder[]> = {};
-
-        await Promise.all(
-          sortedProfiles.map(async (profile) => {
-            try {
-              const foldersResponse = await fetch(`/api/vault/folders?profileId=${profile.id}`);
-              if (foldersResponse.ok) {
-                const folders = await foldersResponse.json();
-                foldersByProfile[profile.id] = Array.isArray(folders) ? folders : [];
-              }
-            } catch (error) {
-              console.error(`Failed to load folders for profile ${profile.id}:`, error);
-              foldersByProfile[profile.id] = [];
-            }
-          })
-        );
-
-        setVaultFoldersByProfile(foldersByProfile);
-      } catch (error) {
-        console.error('Failed to load vault data:', error);
-      } finally {
-        setIsLoadingVaultData(false);
+    setIsLoadingVaultData(true);
+    try {
+      const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
+      if (foldersResponse.ok) {
+        const folders = await foldersResponse.json();
+        setVaultFolders(folders);
       }
-    };
+    } catch (error) {
+      console.error('Failed to load vault folders:', error);
+      setVaultFolders([]);
+    } finally {
+      setIsLoadingVaultData(false);
+    }
+  }, [apiClient, globalProfileId]);
 
+  // Load vault data when profile changes
+  useEffect(() => {
     loadVaultData();
-  }, [apiClient]);
+    // Clear selected folder when profile changes
+    setParams(prev => ({ ...prev, targetFolder: '' }));
+  }, [loadVaultData]);
 
   // Handle video upload
   const handleVideoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -488,10 +490,10 @@ export default function FPSBoostPage() {
     try {
       console.log("=== STARTING FPS BOOST GENERATION ===");
       
-      // Parse vault folder
-      const parts = params.targetFolder.replace('vault:', '').split(':');
-      const profileId = parts[0];
-      const folderId = parts[1];
+      // Get vault profile and folder IDs from selected folder
+      const selectedFolder = vaultFolders.find(f => f.id === params.targetFolder);
+      const profileId = selectedFolder?.profileId;
+      const folderId = params.targetFolder;
       
       // Use temporary path for vault storage - vault path handled by webhook
       const normalizedTargetFolder = `outputs/${user?.id}/`;
@@ -799,42 +801,180 @@ export default function FPSBoostPage() {
                     <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin text-purple-400" />
                   )}
                 </label>
+                
+                {/* Custom Dropdown */}
                 <div className="relative">
-                  <select
-                    value={params.targetFolder}
-                    onChange={(e) => {
-                      const selectedValue = e.target.value;
-                      console.log("🔄 Folder selection changed to:", selectedValue);
-                      setParams((prev) => ({ ...prev, targetFolder: selectedValue }));
+                  <button
+                    ref={folderButtonRef}
+                    type="button"
+                    onClick={() => {
+                      if (!folderDropdownOpen && folderButtonRef.current) {
+                        const rect = folderButtonRef.current.getBoundingClientRect();
+                        setDropdownPosition({
+                          top: rect.bottom + window.scrollY + 8,
+                          left: rect.left + window.scrollX,
+                          width: rect.width,
+                        });
+                      }
+                      setFolderDropdownOpen(!folderDropdownOpen);
                     }}
                     disabled={isGenerating || isLoadingVaultData}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-gray-800 border border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm sm:text-base [&>option]:bg-gray-800 [&>option]:text-white [&>optgroup]:bg-gray-800 [&>optgroup]:text-gray-400"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-gray-800 border border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm sm:text-base flex items-center justify-between"
                   >
-                    <option value="">📁 Select a vault folder...</option>
-                    
-                    {/* Vault Folders by Profile */}
-                    {vaultProfiles.map((profile) => {
-                      const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                      if (folders.length === 0) return null;
+                    <span className={`truncate ${!params.targetFolder ? 'text-gray-400' : 'text-white'}`}>
+                      {params.targetFolder ? getSelectedFolderDisplay() : '📁 Select a vault folder...'}
+                    </span>
+                    <div className="flex-shrink-0 ml-2">
+                      {isLoadingVaultData ? (
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-gray-400" />
+                      ) : (
+                        <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 text-gray-400 transition-transform ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                      )}
+                    </div>
+                  </button>
+                  
+                  {/* Dropdown Menu - Portal */}
+                  {folderDropdownOpen && typeof document !== 'undefined' && createPortal(
+                    <div 
+                      ref={folderDropdownRef}
+                      className="fixed z-[9999] bg-gray-800 border-2 border-gray-600 rounded-xl shadow-xl max-h-80 overflow-y-auto"
+                      style={{
+                        top: dropdownPosition.top,
+                        left: dropdownPosition.left,
+                        width: dropdownPosition.width,
+                      }}
+                    >
+                      {/* No selection option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setParams(prev => ({ ...prev, targetFolder: '' }));
+                          setFolderDropdownOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left text-gray-400 hover:bg-gray-700 flex items-center gap-2 border-b border-gray-700"
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                        <span>Select a vault folder...</span>
+                      </button>
                       
-                      return (
-                        <optgroup 
-                          key={profile.id} 
-                          label={`📸 ${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                        >
-                          {folders.map((folder) => (
-                            <option 
-                              key={folder.id} 
-                              value={`vault:${profile.id}:${folder.id}`}
+                      {/* Group by owned/shared when isAllProfiles */}
+                      {isAllProfiles ? (
+                        <>
+                          {/* Owned profiles group */}
+                          {vaultFolders.filter(f => !f.isDefault && f.isOwnedProfile).length > 0 && (
+                            <div>
+                              <div className="px-4 py-2 text-xs font-semibold text-purple-400 uppercase tracking-wider bg-gray-900/50">
+                                Your Profiles
+                              </div>
+                              {vaultFolders
+                                .filter(f => !f.isDefault && f.isOwnedProfile)
+                                .map((folder) => (
+                                  <button
+                                    key={folder.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setParams(prev => ({ ...prev, targetFolder: folder.id }));
+                                      setFolderDropdownOpen(false);
+                                    }}
+                                    className={`w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-3 ${
+                                      params.targetFolder === folder.id ? 'bg-purple-600/20 text-purple-300' : 'text-white'
+                                    }`}
+                                  >
+                                    <FolderOpen className="w-4 h-4 flex-shrink-0 text-purple-400" />
+                                    <div className="flex-1 min-w-0">
+                                      <span className="block truncate">{folder.name}</span>
+                                      {folder.profileName && (
+                                        <span className="block text-xs text-gray-400 truncate">
+                                          📸 {folder.profileName}
+                                          {folder.profileUsername && ` (@${folder.profileUsername})`}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {params.targetFolder === folder.id && (
+                                      <Check className="w-4 h-4 flex-shrink-0 text-purple-400" />
+                                    )}
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                          
+                          {/* Shared profiles group */}
+                          {vaultFolders.filter(f => !f.isDefault && !f.isOwnedProfile).length > 0 && (
+                            <div>
+                              <div className="px-4 py-2 text-xs font-semibold text-blue-400 uppercase tracking-wider bg-gray-900/50">
+                                Shared With You
+                              </div>
+                              {vaultFolders
+                                .filter(f => !f.isDefault && !f.isOwnedProfile)
+                                .map((folder) => (
+                                  <button
+                                    key={folder.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setParams(prev => ({ ...prev, targetFolder: folder.id }));
+                                      setFolderDropdownOpen(false);
+                                    }}
+                                    className={`w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-3 ${
+                                      params.targetFolder === folder.id ? 'bg-blue-600/20 text-blue-300' : 'text-white'
+                                    }`}
+                                  >
+                                    <FolderOpen className="w-4 h-4 flex-shrink-0 text-blue-400" />
+                                    <div className="flex-1 min-w-0">
+                                      <span className="block truncate">{folder.name}</span>
+                                      {folder.profileName && (
+                                        <span className="block text-xs text-gray-400 truncate">
+                                          📸 {folder.profileName}
+                                          {folder.profileUsername && ` (@${folder.profileUsername})`}
+                                          {folder.ownerName && ` • Shared by ${folder.ownerName}`}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {params.targetFolder === folder.id && (
+                                      <Check className="w-4 h-4 flex-shrink-0 text-blue-400" />
+                                    )}
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        /* Single profile selected - show folders without grouping */
+                        vaultFolders
+                          .filter(f => !f.isDefault)
+                          .map((folder) => (
+                            <button
+                              key={folder.id}
+                              type="button"
+                              onClick={() => {
+                                setParams(prev => ({ ...prev, targetFolder: folder.id }));
+                                setFolderDropdownOpen(false);
+                              }}
+                              className={`w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-3 ${
+                                params.targetFolder === folder.id ? 'bg-purple-600/20 text-purple-300' : 'text-white'
+                              }`}
                             >
-                              📁 {folder.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                              <FolderOpen className="w-4 h-4 flex-shrink-0 text-purple-400" />
+                              <div className="flex-1 min-w-0">
+                                <span className="block truncate">{folder.name}</span>
+                              </div>
+                              {params.targetFolder === folder.id && (
+                                <Check className="w-4 h-4 flex-shrink-0 text-purple-400" />
+                              )}
+                            </button>
+                          ))
+                      )}
+                      
+                      {/* No folders available */}
+                      {vaultFolders.filter(f => !f.isDefault).length === 0 && !isLoadingVaultData && (
+                        <div className="px-4 py-6 text-center text-gray-400">
+                          <FolderOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No folders available</p>
+                          <p className="text-xs mt-1">Select a profile or create folders in the Vault tab</p>
+                        </div>
+                      )}
+                    </div>,
+                    document.body
+                  )}
                 </div>
                 
                 {/* Folder indicator */}
@@ -845,9 +985,6 @@ export default function FPSBoostPage() {
                       <span>Vault Storage</span>
                     </div>
                   )}
-                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 flex-1">
-                    {getSelectedFolderDisplay()}
-                  </p>
                 </div>
               </div>
 

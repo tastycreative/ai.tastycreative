@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, memo } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 
@@ -65,6 +65,7 @@ import {
   RefreshCw,
   LogOut,
   CheckCircle2,
+  User,
 } from "lucide-react";
 
 import { PlatformExportModal } from "@/components/export";
@@ -140,7 +141,11 @@ interface VaultItemMetadata {
   aspectRatio?: string;
   watermark?: boolean;
   numReferenceImages?: number;
-  referenceImageUrls?: string[];
+  referenceImageUrl?: string | null; // Single reference image (for I2V, I2I)
+  referenceImageUrls?: string[]; // Multiple reference images
+  referenceVideoUrl?: string | null; // Reference video (for motion control)
+  sourceImageUrls?: string[]; // Source images (for multi-image to video)
+  imageUrl?: string | null; // Alternative field name for reference image
   generatedAt?: string;
   // Additional fields for other generation types
   negativePrompt?: string;
@@ -148,6 +153,10 @@ interface VaultItemMetadata {
   cfgScale?: number;
   seed?: number;
   sampler?: string;
+  // Generator info - who created this item
+  generatedByClerkId?: string;
+  generatedByName?: string;
+  generatedByImageUrl?: string | null;
   [key: string]: any; // Allow other custom fields
 }
 
@@ -533,6 +542,8 @@ const VaultListItem = memo(function VaultListItem({
 export function VaultContent() {
   // Router for navigation
   const router = useRouter();
+  const params = useParams();
+  const tenant = params.tenant as string;
   
   // Use global profile selector - now includes isAllProfiles
   const { profileId: globalProfileId, profiles: globalProfiles, loadingProfiles, isAllProfiles } = useInstagramProfile();
@@ -611,6 +622,8 @@ export function VaultContent() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [showPreviewInfo, setShowPreviewInfo] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showAllReferenceImages, setShowAllReferenceImages] = useState(false);
+  const [referenceImagePopup, setReferenceImagePopup] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Import from Google Drive state
@@ -647,6 +660,12 @@ export function VaultContent() {
       setSelectionMode(true);
     }
   }, [selectedItems.size, selectionMode]);
+
+  // Reset showAllReferenceImages and referenceImagePopup when preview item changes
+  useEffect(() => {
+    setShowAllReferenceImages(false);
+    setReferenceImagePopup(null);
+  }, [previewItem?.id]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ message, type });
@@ -1586,7 +1605,11 @@ export function VaultContent() {
         method: "DELETE",
       });
 
-      if (!response.ok) throw new Error("Failed to delete item");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to delete item" }));
+        console.error("Delete failed with status:", response.status, errorData);
+        throw new Error(errorData.error || "Failed to delete item");
+      }
 
       if (selectedSharedFolder) {
         setSharedFolderItems(sharedFolderItems.filter((item) => item.id !== id));
@@ -1594,9 +1617,9 @@ export function VaultContent() {
         setVaultItems(vaultItems.filter((item) => item.id !== id));
       }
       showToast("File deleted", "success");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting item:", error);
-      showToast("Failed to delete file", "error");
+      showToast(error.message || "Failed to delete file", "error");
     }
   };
 
@@ -1621,7 +1644,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to SeeDream Image-to-Image page
-    router.push('/workspace/generate-content/seedream-image-to-image');
+    router.push(`/${tenant}/workspace/generate-content/seedream-image-to-image`);
   };
 
   // Handle reuse in SeeDream T2I - stores data in sessionStorage and navigates
@@ -1645,7 +1668,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to SeeDream Text-to-Image page
-    router.push('/workspace/generate-content/seedream-text-to-image');
+    router.push(`/${tenant}/workspace/generate-content/seedream-text-to-image`);
   };
 
   // Handle reuse in FLUX T2I - stores data in sessionStorage and navigates
@@ -1675,7 +1698,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to FLUX Text-to-Image page
-    router.push('/workspace/generate-content/text-to-image');
+    router.push(`/${tenant}/workspace/generate-content/text-to-image`);
   };
 
   // Handle reuse in FLUX Style Transfer - stores data in sessionStorage and navigates
@@ -1711,7 +1734,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to FLUX Style Transfer page
-    router.push('/workspace/generate-content/style-transfer');
+    router.push(`/${tenant}/workspace/generate-content/style-transfer`);
   };
 
   // Handle reuse in SeeDream T2V - stores data in sessionStorage and navigates
@@ -1736,7 +1759,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to SeeDream Text-to-Video page
-    router.push('/workspace/generate-content/seedream-text-to-video');
+    router.push(`/${tenant}/workspace/generate-content/seedream-text-to-video`);
   };
 
   // Handle reuse in SeeDream I2V - stores data in sessionStorage and navigates
@@ -1762,7 +1785,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to SeeDream Image-to-Video page
-    router.push('/workspace/generate-content/seedream-image-to-video');
+    router.push(`/${tenant}/workspace/generate-content/seedream-image-to-video`);
   };
 
   // Handle reuse in Kling T2V - stores data in sessionStorage and navigates
@@ -1790,7 +1813,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to Kling Text-to-Video page
-    router.push('/workspace/generate-content/kling-text-to-video');
+    router.push(`/${tenant}/workspace/generate-content/kling-text-to-video`);
   };
 
   // Handle reuse in Kling I2V - stores data in sessionStorage and navigates
@@ -1819,7 +1842,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to Kling Image-to-Video page
-    router.push('/workspace/generate-content/kling-image-to-video');
+    router.push(`/${tenant}/workspace/generate-content/kling-image-to-video`);
   };
 
   // Handle reuse in Kling Motion Control - stores data in sessionStorage and navigates
@@ -1844,7 +1867,7 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to Kling Motion Control page
-    router.push('/workspace/generate-content/kling-motion-control');
+    router.push(`/${tenant}/workspace/generate-content/kling-motion-control`);
   };
 
   // Handle reuse in Kling Multi-Image to Video - stores data in sessionStorage and navigates
@@ -1872,7 +1895,39 @@ export function VaultContent() {
     setShowPreviewInfo(false);
     
     // Navigate to Kling Multi-Image to Video page
-    router.push('/workspace/generate-content/kling-multi-image-to-video');
+    router.push(`/${tenant}/workspace/generate-content/kling-multi-image-to-video`);
+  };
+
+  // Handle reuse in Wan T2V (Text to Video Studio) - stores data in sessionStorage and navigates
+  const handleReuseInWanT2V = (item: VaultItem) => {
+    if (!item.metadata) return;
+    
+    // Prepare reuse data
+    const reuseData = {
+      prompt: item.metadata.prompt || '',
+      negativePrompt: item.metadata.negativePrompt || '',
+      width: item.metadata.width || 640,
+      height: item.metadata.height || 640,
+      videoLength: item.metadata.videoLength || 81,
+      highNoiseSteps: item.metadata.highNoiseSteps || 4,
+      highNoiseCfg: item.metadata.highNoiseCfg || 1,
+      highNoiseSeed: item.metadata.highNoiseSeed || Math.floor(Math.random() * 1000000000000),
+      lowNoiseSteps: item.metadata.lowNoiseSteps || 4,
+      lowNoiseCfg: item.metadata.lowNoiseCfg || 1,
+      presetMode: item.metadata.presetMode || '',
+      customHighNoiseLoraList: item.metadata.customHighNoiseLoraList || [],
+      customLowNoiseLoraList: item.metadata.customLowNoiseLoraList || [],
+    };
+    
+    // Store in sessionStorage for the Wan T2V page to pick up
+    sessionStorage.setItem('wan-t2v-reuse', JSON.stringify(reuseData));
+    
+    // Close preview and navigate
+    setPreviewItem(null);
+    setShowPreviewInfo(false);
+    
+    // Navigate to Text to Video Studio page
+    router.push(`/${tenant}/workspace/generate-content/text-to-video`);
   };
 
   // All filtered items (not paginated)
@@ -2012,6 +2067,10 @@ export function VaultContent() {
   const allFilteredCreatorItems = useMemo(() => {
     if (!isAdmin || adminViewMode !== 'creators') return [];
     
+    // Find the selected folder to check if it's a default folder
+    const selectedFolder = creatorFolders.find(f => f.id === selectedCreatorFolderId);
+    const isDefaultFolder = selectedFolder?.isDefault === true;
+    
     return contentCreatorItems
       .filter((item) => {
         // Filter by selected content creator if one is selected
@@ -2023,6 +2082,11 @@ export function VaultContent() {
       .filter((item) => {
         // Filter by selected folder if one is selected
         if (selectedCreatorFolderId) {
+          // If it's a default folder (like "All Media"), show all items from that profile
+          if (isDefaultFolder && selectedFolder) {
+            return item.profileId === selectedFolder.profileId;
+          }
+          // Otherwise filter by the specific folder
           return item.folderId === selectedCreatorFolderId;
         }
         return true;
@@ -2041,7 +2105,7 @@ export function VaultContent() {
         const dateB = new Date(b.createdAt).getTime();
         return dateB - dateA;
       });
-  }, [isAdmin, adminViewMode, contentCreatorItems, selectedContentCreator, selectedCreatorFolderId, debouncedSearchQuery, contentFilter]);
+  }, [isAdmin, adminViewMode, contentCreatorItems, selectedContentCreator, selectedCreatorFolderId, creatorFolders, debouncedSearchQuery, contentFilter]);
 
   // Combined filtered items based on current view
   const currentFilteredItems = useMemo(() => {
@@ -2388,6 +2452,29 @@ export function VaultContent() {
                 </div>
                 
                 <div className="space-y-4">
+                  {/* Generated By - show who created this content */}
+                  {previewItem.metadata.generatedByName && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Generated By</label>
+                      <div className="flex items-center gap-2 bg-gradient-to-r from-violet-500/10 to-purple-500/10 rounded-lg p-2.5 border border-violet-500/20">
+                        {previewItem.metadata.generatedByImageUrl ? (
+                          <img 
+                            src={previewItem.metadata.generatedByImageUrl} 
+                            alt={previewItem.metadata.generatedByName}
+                            className="w-7 h-7 rounded-full object-cover ring-2 ring-violet-500/30"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center">
+                            <User className="w-4 h-4 text-white" />
+                          </div>
+                        )}
+                        <span className="text-sm font-medium text-violet-200">
+                          {previewItem.metadata.generatedByName}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Source/Type */}
                   {(previewItem.metadata.source || previewItem.metadata.generationType) && (
                     <div className="space-y-1">
@@ -2441,11 +2528,75 @@ export function VaultContent() {
                     </div>
                   )}
                   
-                  {/* Reference Images */}
-                  {previewItem.metadata.numReferenceImages && previewItem.metadata.numReferenceImages > 0 && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Reference Images</label>
-                      <span className="text-sm text-gray-200">{previewItem.metadata.numReferenceImages}</span>
+                  {/* Reference Images - Show in 2x2 grid with popup */}
+                  {(() => {
+                    // Collect all reference images from various metadata fields
+                    const refImages: string[] = [];
+                    if (previewItem.metadata.referenceImageUrl) refImages.push(previewItem.metadata.referenceImageUrl);
+                    if (previewItem.metadata.imageUrl && !refImages.includes(previewItem.metadata.imageUrl)) refImages.push(previewItem.metadata.imageUrl);
+                    if (previewItem.metadata.referenceImageUrls) refImages.push(...previewItem.metadata.referenceImageUrls.filter((url: string) => !refImages.includes(url)));
+                    if (previewItem.metadata.sourceImageUrls) refImages.push(...previewItem.metadata.sourceImageUrls.filter((url: string) => !refImages.includes(url)));
+                    
+                    if (refImages.length === 0) return null;
+                    
+                    const displayedImages = showAllReferenceImages ? refImages : refImages.slice(0, 4);
+                    
+                    return (
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Reference Image{refImages.length > 1 ? 's' : ''}</label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {displayedImages.map((url, idx) => (
+                            <button 
+                              key={idx} 
+                              onClick={() => setReferenceImagePopup(url)}
+                              className="block rounded-lg overflow-hidden border border-gray-700 hover:border-violet-500/50 transition-all bg-gray-800/50 p-0.5 cursor-pointer"
+                              title="Click to view full size"
+                            >
+                              <img 
+                                src={url} 
+                                alt={`Reference ${idx + 1}`}
+                                className="w-full h-16 object-cover rounded"
+                                onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                        {refImages.length > 4 && (
+                          <button
+                            onClick={() => setShowAllReferenceImages(!showAllReferenceImages)}
+                            className="text-xs text-violet-400 hover:text-violet-300 transition-colors cursor-pointer"
+                          >
+                            {showAllReferenceImages 
+                              ? 'Show less' 
+                              : `+${refImages.length - 4} more (click to view all)`
+                            }
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* Reference Video - Show full video with max dimensions */}
+                  {previewItem.metadata.referenceVideoUrl && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Reference Video</label>
+                      <a 
+                        href={previewItem.metadata.referenceVideoUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="block rounded-lg overflow-hidden border border-gray-700 hover:border-violet-500/50 transition-all bg-gray-800/50 p-1"
+                        title="Click to view full size"
+                      >
+                        <video 
+                          src={previewItem.metadata.referenceVideoUrl}
+                          className="max-w-full max-h-40 w-auto h-auto mx-auto rounded object-contain"
+                          muted
+                          loop
+                          playsInline
+                          onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                          onMouseLeave={(e) => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = 0; }}
+                        />
+                      </a>
                     </div>
                   )}
                   
@@ -2618,6 +2769,16 @@ export function VaultContent() {
                 title="Reuse settings in Kling Multi-Image to Video"
               >
                 <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-violet-400" />
+              </button>
+            )}
+            {/* Reuse in Wan T2V button - only for wan-t2v source items */}
+            {previewItem.metadata?.source === 'wan-t2v' && (
+              <button 
+                onClick={() => handleReuseInWanT2V(previewItem)}
+                className="p-1.5 sm:p-2 bg-pink-500/20 hover:bg-pink-500/30 rounded-full transition-colors"
+                title="Reuse settings in Text to Video Studio"
+              >
+                <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-pink-400" />
               </button>
             )}
             <a href={previewItem.awsS3Url} download={previewItem.fileName} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></a>
@@ -3848,6 +4009,28 @@ export function VaultContent() {
               </div>
             )}
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Reference Image Popup Modal */}
+      {referenceImagePopup && typeof window !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          onClick={() => setReferenceImagePopup(null)}
+        >
+          <button 
+            onClick={() => setReferenceImagePopup(null)} 
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors z-10"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+          <img 
+            src={referenceImagePopup} 
+            alt="Reference Image"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>,
         document.body
       )}

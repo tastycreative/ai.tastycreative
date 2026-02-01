@@ -2,8 +2,75 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { PrismaClient } from "@/lib/generated/prisma";
+import { v4 as uuidv4 } from "uuid";
 
 const prisma = new PrismaClient();
+
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null; isShared: boolean }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile, isShared: false };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile, isShared: true };
+    }
+  }
+
+  return { hasAccess: false, profile: null, isShared: false };
+}
+
+// Helper to get all accessible profile IDs for a user
+async function getAccessibleProfileIds(userId: string): Promise<string[]> {
+  // Get user's own profiles
+  const ownProfiles = await prisma.instagramProfile.findMany({
+    where: { clerkId: userId },
+    select: { id: true },
+  });
+
+  const profileIds = ownProfiles.map(p => p.id);
+
+  // Get organization shared profiles
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfiles = await prisma.instagramProfile.findMany({
+      where: {
+        organizationId: user.currentOrganizationId,
+        clerkId: { not: userId },
+      },
+      select: { id: true },
+    });
+    profileIds.push(...orgProfiles.map(p => p.id));
+  }
+
+  return profileIds;
+}
 
 // GET: Fetch reel slots for a date range
 export async function GET(request: NextRequest) {
@@ -27,28 +94,35 @@ export async function GET(request: NextRequest) {
 
     const isAllProfiles = !profileId || profileId === "all";
 
-    // Build profile map for "all profiles" mode
-    let profileMap: Record<string, string> = {};
-    if (isAllProfiles) {
-      const profiles = await prisma.instagramProfile.findMany({
-        where: { clerkId: user.id },
-        select: { id: true, name: true },
-      });
-      profileMap = profiles.reduce((acc, p) => {
-        acc[p.id] = p.name;
-        return acc;
-      }, {} as Record<string, string>);
-    }
+    // Get all accessible profile IDs (own + shared)
+    const accessibleProfileIds = await getAccessibleProfileIds(user.id);
 
-    const whereClause: any = {
-      clerkId: user.id,
+    // Build profile map for all accessible profiles
+    const allProfiles = await prisma.instagramProfile.findMany({
+      where: { id: { in: accessibleProfileIds } },
+      select: { id: true, name: true, clerkId: true },
+    });
+    const profileMap = allProfiles.reduce((acc, p) => {
+      acc[p.id] = p.name;
+      return acc;
+    }, {} as Record<string, string>);
+
+    let whereClause: any = {
       date: {
         gte: new Date(startDate),
         lte: new Date(endDate),
       },
     };
 
-    if (!isAllProfiles) {
+    if (isAllProfiles) {
+      // For "all profiles", query by accessible profile IDs
+      whereClause.profileId = { in: accessibleProfileIds };
+    } else {
+      // Verify access to the specific profile
+      const { hasAccess } = await hasAccessToProfile(user.id, profileId);
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Unauthorized to access this profile" }, { status: 403 });
+      }
       whereClause.profileId = profileId;
     }
 
@@ -71,10 +145,10 @@ export async function GET(request: NextRequest) {
       ],
     });
 
-    // Add profileName to each slot when in "all profiles" mode
+    // Add profileName to each slot
     const slotsWithProfileName = slots.map((slot) => ({
       ...slot,
-      profileName: isAllProfiles && slot.profileId ? profileMap[slot.profileId] || "Unknown" : undefined,
+      profileName: slot.profileId ? profileMap[slot.profileId] || "Unknown" : undefined,
     }));
 
     return NextResponse.json({ slots: slotsWithProfileName });
@@ -119,29 +193,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify access to the profile if provided
+    let targetClerkId = user.id;
+    if (profileId) {
+      const { hasAccess, profile } = await hasAccessToProfile(user.id, profileId);
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Unauthorized to access this profile" }, { status: 403 });
+      }
+      // Use the profile owner's clerkId for the slot
+      targetClerkId = profile.clerkId;
+    }
+
     // Parse timeSlot as DateTime
     const timeSlotDate = new Date(timeSlot);
 
-    // Generate unique content ID
+    // Generate unique content ID with UUID suffix to prevent collisions
     const reelDate = new Date(date);
     const year = reelDate.getFullYear();
     const month = String(reelDate.getMonth() + 1).padStart(2, '0');
     const day = String(reelDate.getDate()).padStart(2, '0');
+    const shortUuid = uuidv4().split('-')[0]; // Use first segment of UUID for brevity
     
-    // Count existing reels for this day to generate sequence number
-    const existingReelsCount = await prisma.reelPlanningSlot.count({
-      where: {
-        clerkId: user.id,
-        date: reelDate,
-      },
-    });
-    
-    const contentId = `REEL-${year}${month}${day}-${String(existingReelsCount + 1).padStart(3, '0')}`;
+    const contentId = `REEL-${year}${month}${day}-${shortUuid}`;
 
     // Create reel slot
     const slot = await prisma.reelPlanningSlot.create({
       data: {
-        clerkId: user.id,
+        clerkId: targetClerkId,
         profileId,
         contentId,
         pipelineItemId: null,

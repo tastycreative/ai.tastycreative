@@ -192,16 +192,39 @@ export async function POST(
               const { PrismaClient } = await import('@/lib/generated/prisma');
               const prisma = new PrismaClient();
               
+              // IMPORTANT: Look up the vault folder to get the correct owner clerkId
+              // For shared profiles, the folder owner's clerkId must be used
+              const vaultFolder = await prisma.vaultFolder.findUnique({
+                where: { id: jobParams.vaultFolderId },
+                select: { clerkId: true, profileId: true }
+              });
+              
+              if (!vaultFolder) {
+                console.error(`❌ Vault folder not found: ${jobParams.vaultFolderId}`);
+                await prisma.$disconnect();
+                continue;
+              }
+              
+              // Use the folder owner's clerkId to ensure proper ownership
+              const folderOwnerClerkId = vaultFolder.clerkId;
+              console.log(`📁 Vault folder owner: ${folderOwnerClerkId}, Generator: ${existingJob.clerkId}`);
+              
               const vaultItem = await prisma.vaultItem.create({
                 data: {
-                  clerkId: targetClerkId,
-                  profileId: jobParams.vaultProfileId,
+                  clerkId: folderOwnerClerkId, // Use folder owner's clerkId, not job creator
+                  profileId: vaultFolder.profileId, // Use folder's profileId for consistency
                   folderId: jobParams.vaultFolderId,
                   fileName: filename,
                   fileType: isVideo ? 'video/mp4' : 'image/png',
                   fileSize: fileSize || 0,
                   awsS3Key: awsS3Key,
                   awsS3Url: awsS3Url,
+                  metadata: {
+                    source: jobParams?.source || (isVideo ? 'video-generation' : 'image-generation'),
+                    generationType: isVideo ? 'video' : 'image',
+                    generatedAt: new Date().toISOString(),
+                    generatedByClerkId: existingJob.clerkId, // Track who generated this item (may be different from folder owner)
+                  },
                 },
               });
               
@@ -215,7 +238,7 @@ export async function POST(
                 savedToVault: true,
               });
               
-              console.log(`✅ AWS S3 ${isVideo ? 'video' : 'image'} saved to vault: ${vaultItem.id}`);
+              console.log(`✅ AWS S3 ${isVideo ? 'video' : 'image'} saved to vault: ${vaultItem.id} (owner: ${folderOwnerClerkId})`);
             } catch (vaultError) {
               console.error('❌ Error saving to vault:', vaultError);
             }
@@ -407,6 +430,12 @@ export async function POST(
                     fileSize: file_size || 0,
                     awsS3Key: s3_key,
                     awsS3Url: publicUrl,
+                    metadata: {
+                      source: jobParams?.source || 'image-generation',
+                      generationType: 'image',
+                      generatedAt: new Date().toISOString(),
+                      generatedByClerkId: existingJob.clerkId, // Track who generated this item
+                    },
                   },
                 });
                 
@@ -838,6 +867,12 @@ export async function POST(
                     fileSize: videoInfo.fileSize || 0,
                     awsS3Key: s3Key,
                     awsS3Url: publicUrl,
+                    metadata: {
+                      source: jobParams?.source || 'video-generation',
+                      generationType: 'video',
+                      generatedAt: new Date().toISOString(),
+                      generatedByClerkId: existingJob.clerkId, // Track who generated this item
+                    },
                   },
                 });
                 
@@ -1004,6 +1039,12 @@ export async function POST(
                     fileSize: videoBuffer.length,
                     awsS3Key: s3Key,
                     awsS3Url: publicUrl,
+                    metadata: {
+                      source: jobParams?.source || 'video-generation',
+                      generationType: 'video',
+                      generatedAt: new Date().toISOString(),
+                      generatedByClerkId: existingJob.clerkId, // Track who generated this item
+                    },
                   },
                 });
                 

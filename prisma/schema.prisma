@@ -476,6 +476,7 @@ model InstagramProfile {
   updatedAt              DateTime              @updatedAt
   profileImageUrl        String?
   organizationId         String?
+  modelBible             Json?
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")

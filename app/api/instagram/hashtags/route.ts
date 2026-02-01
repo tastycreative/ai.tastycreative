@@ -4,7 +4,57 @@ import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
-// GET all hashtag sets for the user
+// Helper to get all accessible clerkIds for a user (self + organization members who share profiles)
+async function getAccessibleClerkIds(userId: string): Promise<string[]> {
+  const clerkIds = [userId];
+  
+  // Get user from database to check organization memberships
+  const currentUser = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { id: true, currentOrganizationId: true },
+  });
+
+  let organizationIds: string[] = [];
+
+  if (currentUser) {
+    // Get all organizations the user is a member of
+    const memberships = await prisma.teamMember.findMany({
+      where: { userId: currentUser.id },
+      select: { organizationId: true },
+    });
+
+    organizationIds = memberships
+      .map(m => m.organizationId)
+      .filter((id): id is string => id !== null);
+
+    // Add current organization if set
+    if (currentUser.currentOrganizationId && !organizationIds.includes(currentUser.currentOrganizationId)) {
+      organizationIds.push(currentUser.currentOrganizationId);
+    }
+  }
+  
+  if (organizationIds.length > 0) {
+    // Get unique clerkIds from profiles shared with the user's organizations
+    const sharedProfiles = await prisma.instagramProfile.findMany({
+      where: {
+        organizationId: { in: organizationIds },
+        clerkId: { not: userId },
+      },
+      select: { clerkId: true },
+      distinct: ['clerkId'],
+    });
+    
+    sharedProfiles.forEach(p => {
+      if (!clerkIds.includes(p.clerkId)) {
+        clerkIds.push(p.clerkId);
+      }
+    });
+  }
+
+  return clerkIds;
+}
+
+// GET all hashtag sets for the user (includes shared organization members' sets)
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -13,8 +63,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get accessible clerkIds (self + org members who share profiles)
+    const accessibleClerkIds = await getAccessibleClerkIds(userId);
+
     const sets = await prisma.hashtagSet.findMany({
-      where: { clerkId: userId },
+      where: { clerkId: { in: accessibleClerkIds } },
       orderBy: { order: "asc" },
     });
 

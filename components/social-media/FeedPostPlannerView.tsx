@@ -537,28 +537,56 @@ export default function FeedPostPlannerView({ profileId }: FeedPostPlannerViewPr
           mimeType: item.fileType,
         }));
       }
-      // Otherwise, upload new files if any
+      // Otherwise, upload new files if any - use direct S3 upload via presigned URLs
       else if (uploadedFiles.length > 0) {
-        for (const file of uploadedFiles) {
-          const formDataUpload = new FormData();
-          formDataUpload.append("file", file);
-          formDataUpload.append("folder", "instagram/feed-posts");
+        const targetProfileId = isAllProfiles ? selectedProfileId : profileId;
+        
+        // Step 1: Get presigned URLs for all files at once
+        const presignedResponse = await fetch('/api/instagram/planner/get-upload-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profileId: targetProfileId,
+            plannerType: 'feed-post',
+            files: uploadedFiles.map(file => ({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+            })),
+          }),
+        });
 
-          const uploadResponse = await fetch("/api/s3/upload", {
-            method: "POST",
-            body: formDataUpload,
+        if (!presignedResponse.ok) {
+          const errorData = await presignedResponse.json();
+          throw new Error(errorData.error || 'Failed to get upload URLs');
+        }
+
+        const { uploadUrls } = await presignedResponse.json();
+
+        // Step 2: Upload each file directly to S3 using presigned URLs
+        for (let i = 0; i < uploadedFiles.length; i++) {
+          const file = uploadedFiles[i];
+          const uploadInfo = uploadUrls[i];
+
+          const s3UploadResponse = await fetch(uploadInfo.uploadUrl, {
+            method: 'PUT',
+            body: file,
+            headers: {
+              'Content-Type': file.type,
+            },
           });
 
-          if (!uploadResponse.ok) {
-            throw new Error("Failed to upload file");
+          if (!s3UploadResponse.ok) {
+            throw new Error(`Failed to upload file ${file.name} to S3`);
           }
 
-          const uploadData = await uploadResponse.json();
+          console.log('✅ File uploaded directly to S3:', uploadInfo.finalUrl);
+
           filesData.push({
-            awsS3Key: uploadData.file.key,
-            awsS3Url: uploadData.file.url,
-            fileName: uploadData.file.name,
-            mimeType: uploadData.file.mimeType,
+            awsS3Key: uploadInfo.key,
+            awsS3Url: uploadInfo.finalUrl,
+            fileName: uploadInfo.originalName,
+            mimeType: file.type,
           });
         }
       }

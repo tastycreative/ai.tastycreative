@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
+import { useRouter, useParams } from "next/navigation";
 import { useApiClient } from "@/lib/apiClient";
-import { Wand2, X, Download, Share2, Sparkles, Video, AlertCircle, Loader2, Clock, CheckCircle, RefreshCw, Archive, Layers, Gauge, Zap } from "lucide-react";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
+import { Wand2, X, Download, Share2, Sparkles, Video, AlertCircle, Loader2, Clock, CheckCircle, RefreshCw, Archive, Layers, Gauge, Zap, FolderOpen, ChevronDown, Check, Maximize2, Play, RotateCcw, History } from "lucide-react";
 
 interface JobStatus {
   id: string;
@@ -34,18 +36,36 @@ interface DatabaseVideo {
   createdAt: Date | string;
 }
 
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername?: string | null;
-  isDefault?: boolean;
-}
-
 interface VaultFolder {
   id: string;
   name: string;
   profileId: string;
+  profileName?: string;
   isDefault?: boolean;
+}
+
+interface GeneratedVideoHistory {
+  id: string;
+  videoUrl: string;
+  prompt: string;
+  createdAt: string;
+  status: "completed" | "processing" | "failed";
+  profileName?: string;
+  metadata?: {
+    negativePrompt?: string;
+    width?: number;
+    height?: number;
+    videoLength?: number;
+    highNoiseSteps?: number;
+    highNoiseCfg?: number;
+    highNoiseSeed?: number;
+    lowNoiseSteps?: number;
+    lowNoiseCfg?: number;
+    presetMode?: string;
+    customHighNoiseLoraList?: Array<{fileName: string; strength: number}>;
+    customLowNoiseLoraList?: Array<{fileName: string; strength: number}>;
+    profileId?: string | null;
+  };
 }
 
 interface LoRAModel {
@@ -70,6 +90,16 @@ const formatDuration = (milliseconds: number) => {
 
 export default function TextToVideoPage() {
   const { user } = useUser();
+  const router = useRouter();
+  const params = useParams();
+  const tenant = params.tenant as string;
+  
+  // Use global profile from header
+  const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
+  
+  // Hydration fix - track if component is mounted
+  const [mounted, setMounted] = useState(false);
+  
   const [prompt, setPrompt] = useState<string>('');
   const [negativePrompt, setNegativePrompt] = useState<string>('色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走,');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -84,10 +114,20 @@ export default function TextToVideoPage() {
   const [lastJobDuration, setLastJobDuration] = useState<string | null>(null);
   const [targetFolder, setTargetFolder] = useState<string>('');
   
-  // Vault Integration State
-  const [vaultProfiles, setVaultProfiles] = useState<InstagramProfile[]>([]);
-  const [vaultFoldersByProfile, setVaultFoldersByProfile] = useState<Record<string, VaultFolder[]>>({});
+  // Folder dropdown state
+  const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Vault Integration State - using global profile
+  const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
   const [isLoadingVaultData, setIsLoadingVaultData] = useState(false);
+  
+  // Generation history state
+  const [generationHistory, setGenerationHistory] = useState<GeneratedVideoHistory[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedHistoryVideo, setSelectedHistoryVideo] = useState<GeneratedVideoHistory | null>(null);
+  const [showVideoModal, setShowVideoModal] = useState(false);
   
   const apiClient = useApiClient();
 
@@ -140,72 +180,75 @@ export default function TextToVideoPage() {
     batchSize: 1
   };
 
-  // Load vault profiles and their folders
+  // Load vault folders for the selected profile
   const loadVaultData = useCallback(async () => {
-    if (!apiClient) return;
-
+    if (!apiClient || !globalProfileId) return;
     setIsLoadingVaultData(true);
     try {
-      // First, load all Instagram profiles
-      const profilesResponse = await fetch('/api/instagram/profiles');
-      if (!profilesResponse.ok) {
-        throw new Error('Failed to load profiles');
+      const foldersResponse = await fetch(`/api/vault/folders?profileId=${globalProfileId}`);
+      if (foldersResponse.ok) {
+        const data = await foldersResponse.json();
+        const folders = Array.isArray(data) ? data : (data.folders || []);
+        // Add profileName from response if available (for "all" profiles view)
+        setVaultFolders(folders.map((f: any) => ({
+          ...f,
+          profileName: f.profileName || null
+        })));
       }
-
-      const profilesData = await profilesResponse.json();
-      const profileList: InstagramProfile[] = Array.isArray(profilesData)
-        ? profilesData
-        : profilesData.profiles || [];
-
-      // Sort profiles alphabetically
-      const sortedProfiles = [...profileList].sort((a, b) =>
-        (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
-      );
-
-      setVaultProfiles(sortedProfiles);
-
-      // Now load vault folders for each profile
-      const foldersByProfile: Record<string, VaultFolder[]> = {};
-
-      await Promise.all(
-        sortedProfiles.map(async (profile) => {
-          try {
-            const foldersResponse = await fetch(`/api/vault/folders?profileId=${profile.id}`);
-            if (foldersResponse.ok) {
-              const folders = await foldersResponse.json();
-              foldersByProfile[profile.id] = folders;
-            }
-          } catch (error) {
-            console.error(`Failed to load folders for profile ${profile.id}:`, error);
-            foldersByProfile[profile.id] = [];
-          }
-        })
-      );
-
-      setVaultFoldersByProfile(foldersByProfile);
-    } catch (error) {
-      console.error('Failed to load vault data:', error);
+    } catch (err) {
+      console.error("Failed to load vault folders:", err);
+      setVaultFolders([]);
     } finally {
       setIsLoadingVaultData(false);
     }
-  }, [apiClient]);
+  }, [apiClient, globalProfileId]);
 
-  // Get display text for the selected folder (vault-only)
+  // Get display name for selected folder
   const getSelectedFolderDisplay = useCallback((): string => {
-    if (!targetFolder) return 'Please select a vault folder';
+    if (!targetFolder || !globalProfileId) return "Select a vault folder to save videos";
     
-    if (targetFolder.startsWith('vault:')) {
-      const parts = targetFolder.replace('vault:', '').split(':');
-      const profileId = parts[0];
-      const folderId = parts[1];
-      const profile = vaultProfiles.find(p => p.id === profileId);
-      const folders = vaultFoldersByProfile[profileId] || [];
-      const folder = folders.find(f => f.id === folderId);
-      return `Saving to Vault: ${profile?.name || 'Profile'} / ${folder?.name || 'Folder'}`;
+    const folder = vaultFolders.find((f) => f.id === targetFolder);
+    if (folder) {
+      // When viewing all profiles, use folder's profileName
+      if (isAllProfiles && folder.profileName) {
+        return `Saving to Vault: ${folder.profileName} / ${folder.name}`;
+      }
+      // When viewing specific profile, use selectedProfile
+      if (selectedProfile && selectedProfile.id !== 'all') {
+        const profileDisplay = (selectedProfile as any).instagramUsername ? `@${(selectedProfile as any).instagramUsername}` : selectedProfile.name;
+        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+      }
+      return `Saving to Vault: ${folder.name}`;
     }
-    
-    return 'Please select a vault folder';
-  }, [targetFolder, vaultProfiles, vaultFoldersByProfile]);
+    return "Select a vault folder to save videos";
+  }, [targetFolder, globalProfileId, vaultFolders, isAllProfiles, selectedProfile]);
+
+  // Load generation history
+  const loadGenerationHistory = useCallback(async () => {
+    if (!apiClient) return;
+    setIsLoadingHistory(true);
+    try {
+      // Add profileId to filter by selected profile
+      const url = globalProfileId
+        ? `/api/generation/text-to-video?history=true&profileId=${globalProfileId}`
+        : "/api/generation/text-to-video?history=true";
+      const response = await apiClient.get(url);
+      if (response.ok) {
+        const data = await response.json();
+        const videos = data.videos || [];
+        setGenerationHistory(videos);
+      } else {
+        // Handle non-ok response gracefully
+        console.warn("Failed to load generation history, status:", response.status);
+        setGenerationHistory([]);
+      }
+    } catch (err) {
+      console.error("Failed to load generation history:", err);
+      setGenerationHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [apiClient, globalProfileId]);
 
   // Load available LoRAs
   const loadLoRAs = useCallback(async () => {
@@ -244,8 +287,80 @@ export default function TextToVideoPage() {
     if (apiClient && user) {
       loadLoRAs();
       loadVaultData();
+      loadGenerationHistory();
+      // Clear selected folder when profile changes
+      setTargetFolder('');
     }
-  }, [apiClient, user, loadLoRAs, loadVaultData]);
+  }, [apiClient, user, loadLoRAs, loadVaultData, loadGenerationHistory, globalProfileId]);
+
+  // Component mount and reuse data check
+  useEffect(() => {
+    setMounted(true);
+    
+    // Check for reuse data from Vault
+    const reuseData = sessionStorage.getItem('wan-t2v-reuse');
+    if (reuseData) {
+      try {
+        const data = JSON.parse(reuseData);
+        console.log('Restoring Wan T2V settings from Vault:', data);
+        
+        // Set prompt and negative prompt
+        if (data.prompt) setPrompt(data.prompt);
+        if (data.negativePrompt) setNegativePrompt(data.negativePrompt);
+        
+        // Set video parameters
+        if (data.width) setWidth(data.width);
+        if (data.height) setHeight(data.height);
+        if (data.videoLength) setVideoLength(data.videoLength);
+        
+        // Set high noise parameters
+        if (data.highNoiseSteps) setHighNoiseSteps(data.highNoiseSteps);
+        if (typeof data.highNoiseCfg === 'number') setHighNoiseCfg(data.highNoiseCfg);
+        if (data.highNoiseSeed) setHighNoiseSeed(data.highNoiseSeed);
+        
+        // Set low noise parameters
+        if (data.lowNoiseSteps) setLowNoiseSteps(data.lowNoiseSteps);
+        if (typeof data.lowNoiseCfg === 'number') setLowNoiseCfg(data.lowNoiseCfg);
+        
+        // Set preset mode
+        if (data.presetMode) setPresetMode(data.presetMode);
+        
+        // Set custom LoRAs
+        if (data.customHighNoiseLoraList && data.customHighNoiseLoraList.length > 0) {
+          setCustomHighNoiseLoraList(data.customHighNoiseLoraList.map((l: any, i: number) => ({
+            id: i + 1,
+            fileName: l.fileName,
+            strength: l.strength
+          })));
+          setNextLoraId(data.customHighNoiseLoraList.length + 1);
+        }
+        if (data.customLowNoiseLoraList && data.customLowNoiseLoraList.length > 0) {
+          setCustomLowNoiseLoraList(data.customLowNoiseLoraList.map((l: any, i: number) => ({
+            id: i + 1,
+            fileName: l.fileName,
+            strength: l.strength
+          })));
+        }
+        
+        // Clear the sessionStorage after reading
+        sessionStorage.removeItem('wan-t2v-reuse');
+      } catch (err) {
+        console.error('Error parsing Wan T2V reuse data:', err);
+        sessionStorage.removeItem('wan-t2v-reuse');
+      }
+    }
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setFolderDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -585,6 +700,7 @@ export default function TextToVideoPage() {
 
       // Build params object
       const params: any = {
+        source: 'wan-t2v', // Identify source for history filtering
         prompt,
         negativePrompt,
         width,
@@ -600,14 +716,16 @@ export default function TextToVideoPage() {
         lowNoiseStartStep,
         lowNoiseEndStep,
         presetMode,
+        customHighNoiseLoraList: customHighNoiseLoraList.filter(l => l.fileName).map(l => ({ fileName: l.fileName, strength: l.strength })),
+        customLowNoiseLoraList: customLowNoiseLoraList.filter(l => l.fileName).map(l => ({ fileName: l.fileName, strength: l.strength })),
       };
 
-      // Handle vault folder selection
-      if (targetFolder.startsWith('vault:')) {
-        const parts = targetFolder.replace('vault:', '').split(':');
+      // Handle vault folder selection (using folder ID directly now)
+      if (targetFolder && globalProfileId) {
         params.saveToVault = true;
-        params.vaultProfileId = parts[0];
-        params.vaultFolderId = parts[1];
+        // Use folder's profileId for proper association (works for both single and all profiles views)
+        params.vaultProfileId = vaultFolders.find(f => f.id === targetFolder)?.profileId || globalProfileId;
+        params.vaultFolderId = targetFolder;
       }
 
       const response = await apiClient.post('/api/generation/text-to-video', {
@@ -713,6 +831,72 @@ export default function TextToVideoPage() {
     setLightboxTitle(title);
   }, []);
 
+  // Handle reuse settings from a selected history video
+  const handleReuseSettings = useCallback((video: GeneratedVideoHistory) => {
+    // Set prompt
+    setPrompt(video.prompt || '');
+    
+    // Set negative prompt from metadata
+    if (video.metadata?.negativePrompt) {
+      setNegativePrompt(video.metadata.negativePrompt);
+    }
+    
+    // Set video parameters
+    if (video.metadata?.width) setWidth(video.metadata.width);
+    if (video.metadata?.height) setHeight(video.metadata.height);
+    if (video.metadata?.videoLength) setVideoLength(video.metadata.videoLength);
+    
+    // Set high noise parameters
+    if (video.metadata?.highNoiseSteps) setHighNoiseSteps(video.metadata.highNoiseSteps);
+    if (typeof video.metadata?.highNoiseCfg === 'number') setHighNoiseCfg(video.metadata.highNoiseCfg);
+    if (video.metadata?.highNoiseSeed) setHighNoiseSeed(video.metadata.highNoiseSeed);
+    
+    // Set low noise parameters
+    if (video.metadata?.lowNoiseSteps) setLowNoiseSteps(video.metadata.lowNoiseSteps);
+    if (typeof video.metadata?.lowNoiseCfg === 'number') setLowNoiseCfg(video.metadata.lowNoiseCfg);
+    
+    // Set preset mode
+    if (video.metadata?.presetMode) setPresetMode(video.metadata.presetMode);
+    
+    // Set custom LoRAs
+    if (video.metadata?.customHighNoiseLoraList && video.metadata.customHighNoiseLoraList.length > 0) {
+      setCustomHighNoiseLoraList(video.metadata.customHighNoiseLoraList.map((l, i) => ({
+        id: i + 1,
+        fileName: l.fileName,
+        strength: l.strength
+      })));
+    }
+    if (video.metadata?.customLowNoiseLoraList && video.metadata.customLowNoiseLoraList.length > 0) {
+      setCustomLowNoiseLoraList(video.metadata.customLowNoiseLoraList.map((l, i) => ({
+        id: i + 1,
+        fileName: l.fileName,
+        strength: l.strength
+      })));
+    }
+    
+    // Close modal
+    setShowVideoModal(false);
+    setShowHistoryModal(false);
+  }, []);
+
+  const openHistoryVideoModal = useCallback((video: GeneratedVideoHistory) => {
+    setSelectedHistoryVideo(video);
+    setShowVideoModal(true);
+  }, []);
+
+  // Handle escape key for modals
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowVideoModal(false);
+        setShowHistoryModal(false);
+        setLightboxVideo(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
@@ -735,7 +919,7 @@ export default function TextToVideoPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
           {/* Left Column - Input */}
           <div className="space-y-4 sm:space-y-6">
-            {/* Folder Selection - Moved to top */}
+            {/* Folder Selection - Modern Dropdown */}
             <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
                 <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
@@ -746,49 +930,187 @@ export default function TextToVideoPage() {
                   <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-purple-500" />
                 )}
               </div>
-              <select
-                value={targetFolder}
-                onChange={(e) => setTargetFolder(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-transparent bg-gray-800 text-white transition-all duration-300 [&>option]:bg-gray-800 [&>option]:text-white [&>optgroup]:bg-gray-800 [&>optgroup]:text-gray-400"
-                disabled={isProcessing || isLoadingVaultData}
-              >
-                <option value="">Select a vault folder...</option>
-                
-                {/* Vault Folders by Profile */}
-                {vaultProfiles.map((profile) => {
-                  const folders = (vaultFoldersByProfile[profile.id] || []).filter(f => !f.isDefault);
-                  if (folders.length === 0) return null;
-                  
-                  return (
-                    <optgroup 
-                      key={profile.id} 
-                      label={`${profile.name}${profile.instagramUsername ? ` (@${profile.instagramUsername})` : ''}`}
-                    >
-                      {folders.map((folder) => (
-                        <option 
-                          key={folder.id} 
-                          value={`vault:${profile.id}:${folder.id}`}
-                        >
-                          {folder.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  );
-                })}
-              </select>
               
-              {/* Folder indicator */}
-              <div className="mt-3 flex items-center gap-2">
-                {targetFolder && (
-                  <div className="flex items-center gap-1.5 rounded-full bg-purple-100 dark:bg-purple-500/20 px-2.5 py-1 text-[11px] text-purple-600 dark:text-purple-200">
-                    <Archive className="w-3 h-3" />
-                    <span>Vault Storage</span>
+              {/* Modern Custom Dropdown */}
+              <div ref={folderDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => !(!mounted || isProcessing || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                  disabled={!mounted || isProcessing || isLoadingVaultData || !globalProfileId}
+                  className={`
+                    w-full flex items-center justify-between gap-3 px-4 py-3.5
+                    rounded-2xl border transition-all duration-200
+                    ${folderDropdownOpen 
+                      ? 'border-purple-400 bg-purple-500/10 ring-2 ring-purple-400/30' 
+                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-purple-400/50 hover:bg-purple-50 dark:hover:bg-gray-600'
+                    }
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  `}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`
+                      flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
+                      ${targetFolder 
+                        ? 'bg-gradient-to-br from-purple-500/30 to-pink-500/30 border border-purple-400/30' 
+                        : 'bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600'
+                      }
+                    `}>
+                      <FolderOpen className={`w-4 h-4 ${targetFolder ? 'text-purple-500 dark:text-purple-300' : 'text-gray-400'}`} />
+                    </div>
+                    <div className="text-left min-w-0">
+                      <p className={`text-sm font-medium truncate ${targetFolder ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                        {targetFolder 
+                          ? vaultFolders.find(f => f.id === targetFolder)?.name || 'Select folder...'
+                          : 'Select a folder...'
+                        }
+                      </p>
+                      {targetFolder && (
+                        <p className="text-[11px] text-purple-500 dark:text-purple-300/70 truncate">
+                          {isAllProfiles 
+                            ? vaultFolders.find(f => f.id === targetFolder)?.profileName || ''
+                            : selectedProfile && selectedProfile.id !== 'all' 
+                              ? ((selectedProfile as any).instagramUsername ? `@${(selectedProfile as any).instagramUsername}` : selectedProfile.name)
+                              : ''
+                          }
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-200 flex-shrink-0 ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {folderDropdownOpen && mounted && (
+                  <div className="absolute z-50 w-full bottom-full mb-2 py-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/95 backdrop-blur-xl shadow-2xl shadow-black/20 dark:shadow-black/40 overflow-hidden">
+                    {/* Clear Selection Option */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetFolder('');
+                        setFolderDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center">
+                        <X className="w-4 h-4 text-gray-400" />
+                      </div>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">No folder selected</span>
+                      {!targetFolder && <Check className="w-4 h-4 text-purple-500 dark:text-purple-400 ml-auto" />}
+                    </button>
+
+                    {vaultFolders.filter(f => !f.isDefault).length > 0 && (
+                      <div className="my-2 mx-3 h-px bg-gray-200 dark:bg-white/5" />
+                    )}
+
+                    {/* Folder Options - Grouped by profile when viewing all profiles */}
+                    <div className="max-h-[200px] overflow-y-auto">
+                      {isAllProfiles ? (
+                        // Group folders by profile
+                        Object.entries(
+                          vaultFolders.filter(f => !f.isDefault).reduce((acc, folder) => {
+                            const profileKey = folder.profileName || 'Unknown Profile';
+                            if (!acc[profileKey]) acc[profileKey] = [];
+                            acc[profileKey].push(folder);
+                            return acc;
+                          }, {} as Record<string, VaultFolder[]>)
+                        ).map(([profileName, folders]) => (
+                          <div key={profileName}>
+                            <div className="px-4 py-2 text-xs font-semibold text-purple-600 dark:text-purple-300 uppercase tracking-wider bg-purple-50 dark:bg-purple-500/10 sticky top-0">
+                              {profileName}
+                            </div>
+                            {folders.map((folder) => (
+                              <button
+                                key={folder.id}
+                                type="button"
+                                onClick={() => {
+                                  setTargetFolder(folder.id);
+                                  setFolderDropdownOpen(false);
+                                }}
+                                className={`
+                                  w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                                  ${targetFolder === folder.id 
+                                    ? 'bg-purple-50 dark:bg-purple-500/15' 
+                                    : 'hover:bg-gray-50 dark:hover:bg-white/5'
+                                  }
+                                `}
+                              >
+                                <div className={`
+                                  w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                                  ${targetFolder === folder.id 
+                                    ? 'bg-gradient-to-br from-purple-500/40 to-pink-500/40 border border-purple-400/40' 
+                                    : 'bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600'
+                                  }
+                                `}>
+                                  <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-500 dark:text-purple-300' : 'text-gray-400'}`} />
+                                </div>
+                                <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-700 dark:text-gray-200'}`}>
+                                  {folder.name}
+                                </span>
+                                {targetFolder === folder.id && (
+                                  <Check className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ))
+                      ) : (
+                        // Single profile view - flat list
+                        vaultFolders.filter(f => !f.isDefault).map((folder) => (
+                          <button
+                            key={folder.id}
+                            type="button"
+                            onClick={() => {
+                              setTargetFolder(folder.id);
+                              setFolderDropdownOpen(false);
+                            }}
+                            className={`
+                              w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-150
+                              ${targetFolder === folder.id 
+                                ? 'bg-purple-50 dark:bg-purple-500/15' 
+                                : 'hover:bg-gray-50 dark:hover:bg-white/5'
+                              }
+                            `}
+                          >
+                            <div className={`
+                              w-8 h-8 rounded-lg flex items-center justify-center transition-colors
+                              ${targetFolder === folder.id 
+                                ? 'bg-gradient-to-br from-purple-500/40 to-pink-500/40 border border-purple-400/40' 
+                                : 'bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600'
+                              }
+                            `}>
+                              <FolderOpen className={`w-4 h-4 ${targetFolder === folder.id ? 'text-purple-500 dark:text-purple-300' : 'text-gray-400'}`} />
+                            </div>
+                            <span className={`text-sm flex-1 truncate ${targetFolder === folder.id ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-700 dark:text-gray-200'}`}>
+                              {folder.name}
+                            </span>
+                            {targetFolder === folder.id && (
+                              <Check className="w-4 h-4 text-purple-500 dark:text-purple-400 flex-shrink-0" />
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+
+                    {vaultFolders.filter(f => !f.isDefault).length === 0 && (
+                      <div className="px-4 py-6 text-center">
+                        <FolderOpen className="w-8 h-8 text-gray-400 dark:text-gray-600 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No folders available</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Create folders in the Vault tab</p>
+                      </div>
+                    )}
                   </div>
                 )}
-                <p className="text-xs text-gray-500 dark:text-gray-400 flex-1">
-                  {getSelectedFolderDisplay()}
-                </p>
               </div>
+
+              {/* Status Indicator */}
+              {targetFolder && (
+                <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20">
+                  <div className="w-2 h-2 rounded-full bg-purple-500 dark:bg-purple-400 animate-pulse" />
+                  <p className="text-xs text-purple-600 dark:text-purple-200 flex-1 truncate">
+                    {getSelectedFolderDisplay()}
+                  </p>
+                </div>
+              )}
               
               {!targetFolder && (
                 <div className="mt-3 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
@@ -1353,8 +1675,275 @@ export default function TextToVideoPage() {
               </button>
             </div>
           )}
+
+          {/* Generation History */}
+          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                  <History className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Recent Generations</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Your generated videos</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryModal(true)}
+                  className="inline-flex items-center gap-1 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1 text-xs text-gray-700 dark:text-white transition hover:-translate-y-0.5 hover:shadow"
+                >
+                  <Maximize2 className="w-3 h-3" />
+                  View All
+                </button>
+                <button
+                  type="button"
+                  onClick={loadGenerationHistory}
+                  className="inline-flex items-center gap-1 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1 text-xs text-gray-700 dark:text-white transition hover:-translate-y-0.5 hover:shadow"
+                  disabled={isLoadingHistory}
+                >
+                  {isLoadingHistory ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {generationHistory.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 p-6 text-center text-gray-500 dark:text-gray-400">
+                <Clock className="w-6 h-6 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">No generation history yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[320px] overflow-y-auto pr-1">
+                {generationHistory.slice(0, 8).map((video) => (
+                  <div
+                    key={video.id}
+                    role="button"
+                    aria-label="Open video"
+                    tabIndex={0}
+                    onClick={() => video.videoUrl && openHistoryVideoModal(video)}
+                    className="group overflow-hidden rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/50 cursor-pointer hover:shadow-lg transition-all"
+                  >
+                    {video.videoUrl ? (
+                      <video
+                        data-role="preview"
+                        preload="metadata"
+                        src={video.videoUrl}
+                        className="w-full h-24 object-cover pointer-events-none"
+                        controlsList="nodownload noplaybackrate noremoteplayback"
+                      />
+                    ) : (
+                      <div className="w-full h-24 flex items-center justify-center bg-gray-100 dark:bg-gray-800/50">
+                        <div className="text-center text-gray-400">
+                          <Video className="w-5 h-5 mx-auto mb-1 opacity-50" />
+                          <span className="text-[10px]">Unavailable</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="px-2 py-2 text-[10px] text-gray-600 dark:text-gray-200">
+                      <p className="font-medium text-gray-900 dark:text-white truncate text-xs">{video.prompt}</p>
+                      <p className="text-gray-500 dark:text-gray-400 truncate">
+                        {video.metadata?.width}x{video.metadata?.height} · {video.metadata?.presetMode || 'Custom'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Video Detail Modal */}
+      {showVideoModal && selectedHistoryVideo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowVideoModal(false);
+          }}
+        >
+          <div
+            className="relative w-full max-w-4xl max-h-[85vh] rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="absolute right-4 top-4 z-10 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
+              onClick={() => setShowVideoModal(false)}
+            >
+              <span className="sr-only">Close</span>
+              <X className="w-4 h-4" />
+            </button>
+            
+            <div className="flex flex-col lg:flex-row max-h-[85vh] overflow-hidden">
+              {/* Video Section */}
+              <div className="lg:w-2/3 bg-black flex items-center justify-center">
+                {selectedHistoryVideo.videoUrl ? (
+                  <video
+                    controls
+                    autoPlay
+                    src={selectedHistoryVideo.videoUrl}
+                    className="max-w-full max-h-[60vh] lg:max-h-[85vh]"
+                  />
+                ) : (
+                  <div className="text-center text-gray-400 py-12">
+                    <Video className="w-12 h-12 mx-auto mb-2" />
+                    <p>Video unavailable</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Details Section */}
+              <div className="lg:w-1/3 p-4 sm:p-6 overflow-y-auto border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Video Details</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Prompt</p>
+                    <p className="text-sm text-gray-900 dark:text-white">{selectedHistoryVideo.prompt}</p>
+                  </div>
+                  
+                  {selectedHistoryVideo.metadata?.negativePrompt && (
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Negative Prompt</p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{selectedHistoryVideo.metadata.negativePrompt}</p>
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Resolution</p>
+                      <p className="text-gray-900 dark:text-white">{selectedHistoryVideo.metadata?.width}x{selectedHistoryVideo.metadata?.height}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Video Length</p>
+                      <p className="text-gray-900 dark:text-white">{selectedHistoryVideo.metadata?.videoLength} frames</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Preset Mode</p>
+                      <p className="text-gray-900 dark:text-white capitalize">{selectedHistoryVideo.metadata?.presetMode || 'Custom'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">High Noise Steps</p>
+                      <p className="text-gray-900 dark:text-white">{selectedHistoryVideo.metadata?.highNoiseSteps}</p>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col gap-2 pt-4">
+                    <button
+                      onClick={() => handleReuseSettings(selectedHistoryVideo)}
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Reuse Settings
+                    </button>
+                    {selectedHistoryVideo.videoUrl && (
+                      <button
+                        onClick={() => {
+                          const a = document.createElement('a');
+                          a.href = selectedHistoryVideo.videoUrl;
+                          a.download = `wan-t2v-${selectedHistoryVideo.id}.mp4`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                        }}
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-white transition hover:-translate-y-0.5 hover:shadow-lg"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download Video
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History Modal */}
+      {showHistoryModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowHistoryModal(false);
+          }}
+        >
+          <div
+            className="relative w-full max-w-6xl max-h-[90vh] rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl">
+                  <History className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Generation History</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">All your Wan T2V generations</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="rounded-full bg-gray-100 dark:bg-gray-700 p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                onClick={() => setShowHistoryModal(false)}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+              {generationHistory.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg">No generation history</p>
+                  <p className="text-sm">Your generated videos will appear here</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {generationHistory.map((video) => (
+                    <div
+                      key={video.id}
+                      role="button"
+                      aria-label="Open video"
+                      tabIndex={0}
+                      onClick={() => {
+                        setShowHistoryModal(false);
+                        setTimeout(() => openHistoryVideoModal(video), 100);
+                      }}
+                      className="group overflow-hidden rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/50 cursor-pointer hover:shadow-lg transition-all"
+                    >
+                      {video.videoUrl ? (
+                        <video
+                          preload="metadata"
+                          src={video.videoUrl}
+                          className="w-full h-32 object-cover pointer-events-none"
+                        />
+                      ) : (
+                        <div className="w-full h-32 flex items-center justify-center bg-gray-100 dark:bg-gray-800/50">
+                          <div className="text-center text-gray-400">
+                            <Video className="w-6 h-6 mx-auto mb-1" />
+                            <span className="text-xs">Unavailable</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="p-3">
+                        <p className="font-medium text-gray-900 dark:text-white truncate text-sm mb-1">{video.prompt}</p>
+                        <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                          <span>{video.metadata?.width}x{video.metadata?.height}</span>
+                          <span>{new Date(video.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox */}
       {lightboxVideo && (

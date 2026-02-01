@@ -148,27 +148,41 @@ export async function POST(request: NextRequest) {
           if (shouldSaveToVault) {
             console.log(`💾 Also saving to vault - Profile: ${jobParams.vaultProfileId}, Folder: ${jobParams.vaultFolderId}`);
             
-            const vaultItem = await prisma.vaultItem.create({
-              data: {
-                clerkId: ownerClerkId,
-                profileId: jobParams.vaultProfileId,
-                folderId: jobParams.vaultFolderId,
-                fileName: imageData.filename,
-                fileType: 'image/png',
-                fileSize: imageData.fileSize || 0,
-                awsS3Key: imageData.awsS3Key,
-                awsS3Url: imageData.awsS3Url,
-                metadata: {
-                  source: "flux-kontext",
-                  generationType: "image-editing",
-                  model: jobParams?.model || "flux-kontext",
-                  prompt: jobParams?.prompt || "",
-                  generatedAt: new Date().toISOString(),
-                },
-              },
+            // Look up the vault folder to get the proper owner's clerkId
+            // This is critical for shared profiles - we need the folder owner's clerkId, not the job creator's
+            const vaultFolder = await prisma.vaultFolder.findUnique({
+              where: { id: jobParams.vaultFolderId },
             });
+            
+            if (!vaultFolder) {
+              console.error(`❌ Vault folder not found: ${jobParams.vaultFolderId}`);
+            } else {
+              const folderOwnerClerkId = vaultFolder.clerkId;
+              console.log(`📁 Folder owner clerkId: ${folderOwnerClerkId}, Job creator clerkId: ${job.clerkId}`);
+              
+              const vaultItem = await prisma.vaultItem.create({
+                data: {
+                  clerkId: folderOwnerClerkId, // Use folder owner's clerkId, not job creator's
+                  profileId: jobParams.vaultProfileId,
+                  folderId: jobParams.vaultFolderId,
+                  fileName: imageData.filename,
+                  fileType: 'image/png',
+                  fileSize: imageData.fileSize || 0,
+                  awsS3Key: imageData.awsS3Key,
+                  awsS3Url: imageData.awsS3Url,
+                  metadata: {
+                    source: "flux-kontext",
+                    generationType: "image-editing",
+                    model: jobParams?.model || "flux-kontext",
+                    prompt: jobParams?.prompt || "",
+                    generatedAt: new Date().toISOString(),
+                    generatedByClerkId: job.clerkId, // Track who generated this item
+                  },
+                },
+              });
 
-            console.log(`✅ Saved image to vault: ${imageData.filename} (vault item: ${vaultItem.id})`);
+              console.log(`✅ Saved image to vault: ${imageData.filename} (vault item: ${vaultItem.id})`);
+            }
           }
         } catch (imageError) {
           console.error(`❌ Error saving image ${imageData.filename}:`, imageError);

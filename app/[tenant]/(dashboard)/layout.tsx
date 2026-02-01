@@ -234,101 +234,6 @@ export default function DashboardLayout({
             name: "Generate Content",
       collapsible: true,
       items: [
-        // Flux Models section - only show if user has at least one Flux feature
-        ...(permissions.canTextToImage || permissions.canStyleTransfer || permissions.canSkinEnhancer || permissions.canFluxKontext ? [
-          {
-            name: "FLUX_GROUP_LABEL",
-            href: "#",
-            icon: Sparkles,
-          },
-          ...(permissions.canTextToImage ? [{
-            name: "Text to Image",
-            href: `/${tenant}/workspace/generate-content/text-to-image`,
-            icon: ImageIcon,
-          }] : []),
-          ...(permissions.canStyleTransfer ? [{
-            name: "Style Transfer",
-            href: `/${tenant}/workspace/generate-content/style-transfer`,
-            icon: Palette,
-          }] : []),
-          ...(permissions.canSkinEnhancer ? [{
-            name: "Skin Enhancer",
-            href: `/${tenant}/workspace/generate-content/skin-enhancer`,
-            icon: Sparkles,
-          }] : []),
-          ...(permissions.canFluxKontext ? [{
-            name: "Flux Kontext",
-            href: `/${tenant}/workspace/generate-content/flux-kontext`,
-            icon: Wand2,
-          }] : []),
-        ] : []),
-        // Divider only if we have Flux features AND other features below
-        ...((permissions.canTextToImage || permissions.canStyleTransfer || permissions.canSkinEnhancer || permissions.canFluxKontext) &&
-            (permissions.canTextToVideo || permissions.canImageToVideo || permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ||
-             permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
-             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
-          name: "DIVIDER_1",
-          href: "#",
-          icon: Sparkles,
-        }] : []),
-        // Wan 2.2 Models section - only show if user has Wan features
-        ...(permissions.canTextToVideo || permissions.canImageToVideo ? [
-          {
-            name: "WAN_22_GROUP_LABEL",
-            href: "#",
-            icon: Video,
-          },
-          ...(permissions.canTextToVideo ? [{
-            name: "Text to Video",
-            href: `/${tenant}/workspace/generate-content/text-to-video`,
-            icon: PlayCircle,
-          }] : []),
-          ...(permissions.canImageToVideo ? [{
-            name: "Image to Video",
-            href: `/${tenant}/workspace/generate-content/image-to-video`,
-            icon: Video,
-          }] : []),
-        ] : []),
-        // Divider only if we have Wan features AND other features below
-        ...((permissions.canTextToVideo || permissions.canImageToVideo) &&
-            (permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ||
-             permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
-             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
-          name: "DIVIDER_2",
-          href: "#",
-          icon: Sparkles,
-        }] : []),
-        // Advanced Tools section - only show if user has advanced features
-        ...(permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ? [
-          {
-            name: "ADVANCED_TOOLS_GROUP_LABEL",
-            href: "#",
-            icon: Wand2,
-          },
-          ...(permissions.canFaceSwap ? [{
-            name: "Face Swapping",
-            href: `/${tenant}/workspace/generate-content/face-swapping`,
-            icon: Shuffle,
-          }] : []),
-          ...(permissions.canImageToImageSkinEnhancer ? [{
-            name: "Image-to-Image Skin Enhancer",
-            href: `/${tenant}/workspace/generate-content/image-to-image-skin-enhancer`,
-            icon: Palette,
-          }] : []),
-          ...(permissions.canVideoFpsBoost ? [{
-            name: "FPS Boost",
-            href: `/${tenant}/workspace/generate-content/fps-boost`,
-            icon: PlayCircle,
-          }] : []),
-        ] : []),
-        // Divider only if we have Advanced features AND other features below
-        ...((permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost) &&
-            (permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ||
-             permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
-          name: "DIVIDER_3",
-          href: "#",
-          icon: Sparkles,
-        }] : []),
         // SeeDream 4.5 section - only show if user has SeeDream features
         ...(permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo ? [
           {
@@ -360,7 +265,7 @@ export default function DashboardLayout({
         // Divider only if we have SeeDream features AND Kling features below
         ...((permissions.canSeeDreamTextToImage || permissions.canSeeDreamImageToImage || permissions.canSeeDreamTextToVideo || permissions.canSeeDreamImageToVideo) &&
             (permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) ? [{
-          name: "DIVIDER_4",
+          name: "DIVIDER_1",
           href: "#",
           icon: Sparkles,
         }] : []),
@@ -395,7 +300,7 @@ export default function DashboardLayout({
         // Divider only if we have Kling features AND AI Voice feature below
         ...((permissions.canKlingTextToVideo || permissions.canKlingImageToVideo || permissions.canKlingMultiImageToVideo || permissions.canKlingMotionControl) &&
             permissions.canAIVoice ? [{
-          name: "DIVIDER_5",
+          name: "DIVIDER_2",
           href: "#",
           icon: Sparkles,
         }] : []),
@@ -411,6 +316,36 @@ export default function DashboardLayout({
             href: `/${tenant}/workspace/generate-content/ai-voice`,
             icon: Mic,
           },
+        ] : []),
+        // Divider only if we have AI Voice AND Advanced Tools below
+        ...(permissions.canAIVoice &&
+            (permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost) ? [{
+          name: "DIVIDER_3",
+          href: "#",
+          icon: Sparkles,
+        }] : []),
+        // Advanced Tools section - only show if user has advanced features
+        ...(permissions.canFaceSwap || permissions.canImageToImageSkinEnhancer || permissions.canVideoFpsBoost ? [
+          {
+            name: "ADVANCED_TOOLS_GROUP_LABEL",
+            href: "#",
+            icon: Wand2,
+          },
+          ...(permissions.canFaceSwap ? [{
+            name: "Face Swapping",
+            href: `/${tenant}/workspace/generate-content/face-swapping`,
+            icon: Shuffle,
+          }] : []),
+          ...(permissions.canImageToImageSkinEnhancer ? [{
+            name: "Image-to-Image Skin Enhancer",
+            href: `/${tenant}/workspace/generate-content/image-to-image-skin-enhancer`,
+            icon: Palette,
+          }] : []),
+          ...(permissions.canVideoFpsBoost ? [{
+            name: "FPS Boost",
+            href: `/${tenant}/workspace/generate-content/fps-boost`,
+            icon: PlayCircle,
+          }] : []),
         ] : []),
       ].flat(), // Flatten to remove nested arrays
           },
@@ -481,6 +416,11 @@ export default function DashboardLayout({
             name: "AI Tools",
             collapsible: true,
             items: [
+              {
+                name: "My LoRA Models",
+                href: `/${tenant}/workspace/my-lora-models`,
+                icon: Users,
+              },
               {
                 name: "Instagram Extractor",
                 href: `/${tenant}/workspace/ai-tools/instagram-extractor`,

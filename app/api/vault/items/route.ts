@@ -2,6 +2,68 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/database";
 
+// Helper function to resolve generator user info from clerkId
+async function resolveGeneratorInfo(items: any[]): Promise<any[]> {
+  // Collect unique generatedByClerkIds from metadata
+  const generatorClerkIds = new Set<string>();
+  items.forEach((item) => {
+    const metadata = item.metadata as any;
+    if (metadata?.generatedByClerkId) {
+      generatorClerkIds.add(metadata.generatedByClerkId);
+    }
+  });
+
+  // If no generator clerkIds found, return items as-is
+  if (generatorClerkIds.size === 0) {
+    return items;
+  }
+
+  // Fetch user info for all generator clerkIds
+  const users = await prisma.user.findMany({
+    where: {
+      clerkId: { in: Array.from(generatorClerkIds) },
+    },
+    select: {
+      clerkId: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      imageUrl: true,
+    },
+  });
+
+  // Create a map for quick lookup
+  const userMap = users.reduce((acc, user) => {
+    acc[user.clerkId] = {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      imageUrl: user.imageUrl,
+      displayName: user.firstName && user.lastName 
+        ? `${user.firstName} ${user.lastName}`
+        : user.firstName || user.email?.split('@')[0] || 'Unknown User',
+    };
+    return acc;
+  }, {} as Record<string, { firstName: string | null; lastName: string | null; email: string | null; imageUrl: string | null; displayName: string }>);
+
+  // Enrich items with generator info
+  return items.map((item) => {
+    const metadata = item.metadata as any;
+    if (metadata?.generatedByClerkId && userMap[metadata.generatedByClerkId]) {
+      const generatorInfo = userMap[metadata.generatedByClerkId];
+      return {
+        ...item,
+        metadata: {
+          ...metadata,
+          generatedByName: generatorInfo.displayName,
+          generatedByImageUrl: generatorInfo.imageUrl,
+        },
+      };
+    }
+    return item;
+  });
+}
+
 // Helper function to check if user has access to a profile (own profile or shared via organization)
 async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
   // First check if it's the user's own profile
@@ -87,7 +149,10 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      return NextResponse.json(items);
+      // Resolve generator info for shared folder items
+      const enrichedItems = await resolveGeneratorInfo(items);
+
+      return NextResponse.json(enrichedItems);
     }
 
     // Get user's organization for "all profiles" mode
@@ -157,7 +222,10 @@ export async function GET(request: NextRequest) {
         profileName: item.profileId ? profileMap[item.profileId] || "Unknown" : undefined,
       }));
 
-      return NextResponse.json(itemsWithProfileName);
+      // Resolve generator info for items
+      const enrichedItems = await resolveGeneratorInfo(itemsWithProfileName);
+
+      return NextResponse.json(enrichedItems);
     }
 
     // For specific profile, check if user has access
@@ -193,7 +261,10 @@ export async function GET(request: NextRequest) {
         },
       });
 
-      return NextResponse.json(items);
+      // Resolve generator info for items
+      const enrichedItems = await resolveGeneratorInfo(items);
+
+      return NextResponse.json(enrichedItems);
     }
 
     // This should not be reached, but return empty array as fallback
@@ -226,7 +297,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user has access to this profile
-    const { hasAccess } = await hasAccessToProfile(userId, profileId);
+    const { hasAccess, profile } = await hasAccessToProfile(userId, profileId);
     if (!hasAccess) {
       return NextResponse.json(
         { error: "Access denied to this profile" },
@@ -234,9 +305,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify the folder exists and belongs to this profile
+    const folder = await prisma.vaultFolder.findFirst({
+      where: {
+        id: folderId,
+        profileId: profileId,
+      },
+    });
+
+    if (!folder) {
+      return NextResponse.json(
+        { error: "Folder not found or access denied" },
+        { status: 404 }
+      );
+    }
+
+    // Determine the profile owner's clerkId for consistency
+    const profileOwnerClerkId = profile?.clerkId || profile?.user?.clerkId || userId;
+
     const item = await prisma.vaultItem.create({
       data: {
-        clerkId: userId,
+        clerkId: profileOwnerClerkId,
         profileId,
         folderId,
         fileName,

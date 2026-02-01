@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
     const runpodResult = await runpodResponse.json();
     console.log('📡 RunPod face swap response:', runpodResult);
 
-    // Update job with RunPod details
+    // Update job with RunPod details - IMPORTANT: preserve jobParams (includes vault info)
     await prisma.generationJob.update({
       where: { id: jobId },
       data: { 
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
         progress: 5,
         comfyUIPromptId: runpodResult.id, // Store RunPod job ID for cancellation
         params: {
-          ...(validatedData.params || {}),
+          ...jobParams, // Use jobParams which includes saveToVault, vaultProfileId, vaultFolderId
           runpodJobId: runpodResult.id, // Also store in params for reference
         }
       },

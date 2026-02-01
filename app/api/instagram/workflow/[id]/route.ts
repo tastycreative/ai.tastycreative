@@ -1,15 +1,56 @@
 // app/api/instagram/workflow/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
+// Helper function to check if user has access to a profile (owner or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{hasAccess: boolean, profile: any}> {
+  const profile = await prisma.instagramProfile.findUnique({
+    where: { id: profileId },
+  });
+
+  if (!profile) return { hasAccess: false, profile: null };
+
+  // Check if user owns the profile
+  if (profile.clerkId === userId) {
+    return { hasAccess: true, profile };
+  }
+
+  // Check if profile is shared via organization
+  if (profile.organizationId) {
+    const currentUser = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (currentUser) {
+      if (currentUser.currentOrganizationId === profile.organizationId) {
+        return { hasAccess: true, profile };
+      }
+
+      const membership = await prisma.teamMember.findFirst({
+        where: {
+          userId: currentUser.id,
+          organizationId: profile.organizationId,
+        },
+      });
+
+      if (membership) {
+        return { hasAccess: true, profile };
+      }
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 // PATCH: Update a workflow phase
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await currentUser();
-    if (!user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -21,7 +62,7 @@ export async function PATCH(request: NextRequest) {
     const parts = url.pathname.split('/').filter(Boolean);
     const id = parts[parts.length - 1];
 
-    // Verify ownership
+    // Verify access via profile
     const existingPhase = await prisma.workflowPhase.findUnique({
       where: { id },
     });
@@ -33,7 +74,14 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (existingPhase.clerkId !== user.id) {
+    // Check access through the phase's profile
+    if (existingPhase.profileId) {
+      const { hasAccess } = await hasAccessToProfile(userId, existingPhase.profileId);
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (existingPhase.clerkId !== userId) {
+      // Fallback to clerkId check for phases without profileId
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -67,8 +115,8 @@ export async function PATCH(request: NextRequest) {
 // DELETE: Remove a workflow phase
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await currentUser();
-    if (!user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -77,7 +125,7 @@ export async function DELETE(request: NextRequest) {
     const parts = url.pathname.split('/').filter(Boolean);
     const id = parts[parts.length - 1];
 
-    // Verify ownership
+    // Verify access via profile
     const existingPhase = await prisma.workflowPhase.findUnique({
       where: { id },
     });
@@ -89,7 +137,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (existingPhase.clerkId !== user.id) {
+    // Check access through the phase's profile
+    if (existingPhase.profileId) {
+      const { hasAccess } = await hasAccessToProfile(userId, existingPhase.profileId);
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    } else if (existingPhase.clerkId !== userId) {
+      // Fallback to clerkId check for phases without profileId
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

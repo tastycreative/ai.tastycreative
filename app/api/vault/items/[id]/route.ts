@@ -11,6 +11,42 @@ const s3Client = new S3Client({
   },
 });
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<boolean> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return true;
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // PATCH /api/vault/items/[id] - Update item (e.g., move to different folder)
 export async function PATCH(
   request: NextRequest,
@@ -39,10 +75,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    // Check if user is the owner OR has EDIT permission on the folder
+    // Check if user is the owner OR has access to the profile via organization sharing OR has EDIT permission on the folder
     const isOwner = item.clerkId === userId;
     
-    if (!isOwner) {
+    // Check if user has access to the profile (their own or via organization)
+    const hasProfileAccess = await hasAccessToProfile(userId, item.profileId);
+    
+    if (!isOwner && !hasProfileAccess) {
       // Check if user has EDIT permission on the folder via sharing
       const sharePermission = await prisma.vaultFolderShare.findUnique({
         where: {
@@ -73,10 +112,13 @@ export async function PATCH(
     // Determine folder ownership relationships
     const isDestinationOwnFolder = folder.clerkId === userId;
     const isDestinationOriginalOwnerFolder = folder.clerkId === item.clerkId;
+    
+    // Check if user has access to the destination folder's profile via organization
+    const hasDestinationProfileAccess = await hasAccessToProfile(userId, folder.profileId);
 
-    // Check if user has EDIT permission on destination folder (if not owner)
-    let hasEditOnDestination = isDestinationOwnFolder;
-    if (!isDestinationOwnFolder) {
+    // Check if user has EDIT permission on destination folder (if not owner and no profile access)
+    let hasEditOnDestination = isDestinationOwnFolder || hasDestinationProfileAccess;
+    if (!isDestinationOwnFolder && !hasDestinationProfileAccess) {
       const destSharePermission = await prisma.vaultFolderShare.findUnique({
         where: {
           vaultFolderId_sharedWithClerkId: {
@@ -89,7 +131,8 @@ export async function PATCH(
     }
 
     // Validate the move operation based on permissions
-    if (!isOwner) {
+    // If user has profile access (via organization), they can move items freely within that profile
+    if (!isOwner && !hasProfileAccess) {
       // User with EDIT permission on source can:
       // 1. Move to their own folder (transfer ownership to self)
       // 2. Move to another folder they have EDIT access to
@@ -163,6 +206,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    console.log("[DELETE Vault Item] Attempting to delete item:", id, "by user:", userId);
 
     // First, find the item (without ownership check)
     const item = await prisma.vaultItem.findUnique({
@@ -170,13 +214,21 @@ export async function DELETE(
     });
 
     if (!item) {
+      console.log("[DELETE Vault Item] Item not found:", id);
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    // Check if user is the owner OR has EDIT permission on the folder
+    console.log("[DELETE Vault Item] Found item:", { id: item.id, folderId: item.folderId, clerkId: item.clerkId, profileId: item.profileId });
+
+    // Check if user is the owner OR has access to the profile via organization sharing OR has EDIT permission on the folder
     const isOwner = item.clerkId === userId;
+    console.log("[DELETE Vault Item] Is owner:", isOwner, "item.clerkId:", item.clerkId, "userId:", userId);
     
-    if (!isOwner) {
+    // Check if user has access to the profile (their own or via organization)
+    const hasProfileAccess = await hasAccessToProfile(userId, item.profileId);
+    console.log("[DELETE Vault Item] Has profile access:", hasProfileAccess);
+    
+    if (!isOwner && !hasProfileAccess) {
       // Check if user has EDIT permission on the folder via sharing
       const sharePermission = await prisma.vaultFolderShare.findUnique({
         where: {
@@ -187,7 +239,15 @@ export async function DELETE(
         },
       });
 
+      console.log("[DELETE Vault Item] Share permission check:", { 
+        folderId: item.folderId, 
+        sharedWithClerkId: userId,
+        shareFound: !!sharePermission,
+        permission: sharePermission?.permission 
+      });
+
       if (!sharePermission || sharePermission.permission !== 'EDIT') {
+        console.log("[DELETE Vault Item] Permission denied - not owner, no profile access, and no EDIT permission");
         return NextResponse.json(
           { error: "You don't have permission to delete this item" },
           { status: 403 }
@@ -203,19 +263,21 @@ export async function DELETE(
           Key: item.awsS3Key,
         })
       );
+      console.log("[DELETE Vault Item] S3 delete successful for key:", item.awsS3Key);
     } catch (s3Error) {
-      console.error("Error deleting from S3:", s3Error);
+      console.error("[DELETE Vault Item] Error deleting from S3:", s3Error);
       // Continue with database deletion even if S3 deletion fails
     }
 
     // Delete from database
-    await prisma.vaultItem.delete({
+    const deleteResult = await prisma.vaultItem.delete({
       where: { id },
     });
+    console.log("[DELETE Vault Item] Database delete successful:", deleteResult.id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting vault item:", error);
+    console.error("[DELETE Vault Item] Error deleting vault item:", error);
     return NextResponse.json(
       { error: "Failed to delete item" },
       { status: 500 }

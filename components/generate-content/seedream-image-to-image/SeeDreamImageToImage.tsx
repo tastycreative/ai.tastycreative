@@ -26,6 +26,7 @@ import {
   FolderOpen,
   Check,
   Library,
+  Share2,
 } from "lucide-react";
 
 // Image compression utility - optimizes large images while preserving quality for AI generation
@@ -228,6 +229,21 @@ export default function SeeDreamImageToImage() {
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
 
+  // Helper to check if current profile is shared (not owned by current user)
+  const isSharedProfile = selectedProfile && selectedProfile.clerkId !== user?.id && selectedProfile.user?.clerkId !== user?.id;
+  
+  // Helper to get owner display name for shared profiles
+  const getOwnerDisplayName = () => {
+    if (!selectedProfile?.user) return null;
+    if (selectedProfile.user.firstName && selectedProfile.user.lastName) {
+      return `${selectedProfile.user.firstName} ${selectedProfile.user.lastName}`;
+    }
+    if (selectedProfile.user.firstName) return selectedProfile.user.firstName;
+    if (selectedProfile.user.name) return selectedProfile.user.name;
+    if (selectedProfile.user.email) return selectedProfile.user.email.split('@')[0];
+    return null;
+  };
+
   // Hydration fix - track if component is mounted
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -426,7 +442,8 @@ export default function SeeDreamImageToImage() {
       // Otherwise use the selected profile
       if (selectedProfile) {
         const profileDisplay = selectedProfile.instagramUsername ? `@${selectedProfile.instagramUsername}` : selectedProfile.name;
-        return `Saving to Vault: ${profileDisplay} / ${folder.name}`;
+        const sharedIndicator = isSharedProfile ? ' (Shared)' : '';
+        return `Saving to Vault: ${profileDisplay}${sharedIndicator} / ${folder.name}`;
       }
     }
     return 'Please select a vault folder';
@@ -1070,6 +1087,26 @@ export default function SeeDreamImageToImage() {
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+        {/* Shared Profile Indicator */}
+        {mounted && isSharedProfile && selectedProfile && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <Share2 className="w-5 h-5 text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-blue-300 mb-1 flex items-center gap-2">
+                Working with Shared Profile
+              </h3>
+              <p className="text-xs text-blue-200/70 leading-relaxed">
+                You're generating content for <span className="font-semibold text-blue-300">{selectedProfile.name}</span>
+                {getOwnerDisplayName() && (
+                  <span> (shared by <span className="font-semibold">{getOwnerDisplayName()}</span>)</span>
+                )}. Generated images will be saved to this profile's vault and history.
+              </p>
+            </div>
+          </div>
+        )}
+        
         {/* Header */}
         <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-center">
           <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-cyan-900/30 backdrop-blur">

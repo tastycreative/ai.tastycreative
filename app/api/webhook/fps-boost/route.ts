@@ -75,20 +75,42 @@ export async function POST(req: NextRequest) {
             // Save to VaultItem instead of GeneratedVideo
             console.log("💾 Creating VaultItem for:", video.filename);
             
+            // IMPORTANT: Look up the vault folder to get the correct owner clerkId
+            // For shared profiles, the folder owner's clerkId must be used
+            const vaultFolder = await prisma.vaultFolder.findUnique({
+              where: { id: vaultFolderId },
+              select: { clerkId: true, profileId: true }
+            });
+            
+            if (!vaultFolder) {
+              console.error(`❌ Vault folder not found: ${vaultFolderId}`);
+              continue;
+            }
+            
+            // Use the folder owner's clerkId to ensure proper ownership
+            const folderOwnerClerkId = vaultFolder.clerkId;
+            console.log(`📁 Vault folder owner: ${folderOwnerClerkId}, Generator: ${job.clerkId}`);
+            
             await prisma.vaultItem.create({
               data: {
-                clerkId: job.clerkId,
-                profileId: vaultProfileId,
+                clerkId: folderOwnerClerkId, // Use folder owner's clerkId, not job creator
+                profileId: vaultFolder.profileId, // Use folder's profileId for consistency
                 folderId: vaultFolderId,
                 fileName: video.filename || `fps_boosted_${Date.now()}.mp4`,
                 fileType: "video/mp4",
                 fileSize: video.fileSize || 0,
                 awsS3Key: video.awsS3Key,
                 awsS3Url: video.awsS3Url,
+                metadata: {
+                  source: 'fps-boost',
+                  generationType: 'video',
+                  generatedAt: new Date().toISOString(),
+                  generatedByClerkId: job.clerkId, // Track who generated this item
+                },
               },
             });
 
-            console.log(`✅ VaultItem saved: ${video.filename} to folder ${vaultFolderId}`);
+            console.log(`✅ VaultItem saved: ${video.filename} to folder ${vaultFolderId} (owner: ${folderOwnerClerkId})`);
           } else {
             // Save to GeneratedVideo (original behavior)
             // Determine the correct clerkId to use

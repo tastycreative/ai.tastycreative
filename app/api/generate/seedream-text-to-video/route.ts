@@ -354,6 +354,7 @@ export async function GET(request: NextRequest) {
         // Verify vault folder if saving to vault
         let vaultFolder = null;
         if (saveToVault && vaultProfileId && vaultFolderId) {
+          // First check if user owns the folder
           vaultFolder = await prisma.vaultFolder.findFirst({
             where: {
               id: vaultFolderId,
@@ -361,6 +362,108 @@ export async function GET(request: NextRequest) {
               clerkId: userId,
             },
           });
+
+          // If not owned, check if folder is shared with user OR if profile is shared via organization
+          if (!vaultFolder) {
+            // Get the user's internal ID for organization membership checks
+            const currentUser = await prisma.user.findUnique({
+              where: { clerkId: userId },
+              select: { id: true, currentOrganizationId: true },
+            });
+
+            // Get the profile to check organization membership
+            const profile = await prisma.instagramProfile.findUnique({
+              where: { id: vaultProfileId },
+              select: {
+                id: true,
+                clerkId: true,
+                organizationId: true,
+              },
+            });
+
+            // Check if user has access via organization
+            let isOrgMember = false;
+            
+            if (profile?.organizationId && currentUser) {
+              if (currentUser.currentOrganizationId === profile.organizationId) {
+                isOrgMember = true;
+              } else {
+                const membership = await prisma.teamMember.findFirst({
+                  where: {
+                    userId: currentUser.id,
+                    organizationId: profile.organizationId,
+                  },
+                });
+                isOrgMember = !!membership;
+              }
+            }
+
+            console.log('🔍 T2V Access check:', {
+              userId,
+              userInternalId: currentUser?.id,
+              profileId: vaultProfileId,
+              profileOrgId: profile?.organizationId,
+              userCurrentOrgId: currentUser?.currentOrganizationId,
+              isOrgMember,
+            });
+
+            if (isOrgMember) {
+              // User has access to the profile through organization membership
+              vaultFolder = await prisma.vaultFolder.findFirst({
+                where: {
+                  id: vaultFolderId,
+                  profileId: vaultProfileId,
+                },
+              });
+
+              if (vaultFolder) {
+                console.log('📂 Using organization shared vault folder:', vaultFolder.name);
+              }
+            } else {
+              // Check if folder is explicitly shared via VaultFolderShare
+              const sharedFolder = await prisma.vaultFolder.findFirst({
+                where: {
+                  id: vaultFolderId,
+                  profileId: vaultProfileId,
+                  shares: {
+                    some: {
+                      sharedWithClerkId: userId,
+                    },
+                  },
+                },
+                include: {
+                  shares: {
+                    where: {
+                      sharedWithClerkId: userId,
+                    },
+                    select: {
+                      permission: true,
+                    },
+                  },
+                },
+              });
+
+              if (sharedFolder) {
+                const hasEditPermission = sharedFolder.shares.some(
+                  (share) => share.permission === 'EDIT'
+                );
+                
+                if (hasEditPermission) {
+                  vaultFolder = sharedFolder;
+                  console.log('📂 Using explicitly shared vault folder (EDIT access):', vaultFolder.name);
+                } else {
+                  console.error('❌ Vault folder found but user only has VIEW permission');
+                  return NextResponse.json(
+                    { error: 'Insufficient permissions. EDIT access required to generate content in this folder.' },
+                    { status: 403 }
+                  );
+                }
+              }
+            }
+          } else {
+            console.log('📂 Using owned vault folder:', vaultFolder.name);
+          }
+
           if (!vaultFolder) {
             return NextResponse.json(
               { error: "Vault folder not found or access denied" },
@@ -384,9 +487,9 @@ export async function GET(request: NextRequest) {
         let s3Key: string;
         let subfolder = '';
         
-        if (saveToVault && vaultProfileId && vaultFolderId) {
-          // Save to vault folder
-          s3Key = `vault/${userId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
+        if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
+          // Save to vault folder - use folder owner's clerkId
+          s3Key = `vault/${vaultFolder.clerkId}/${vaultProfileId}/${vaultFolderId}/${filename}`;
         } else if (targetFolder) {
           s3Key = `${targetFolder.replace(/\/$/, '')}/${filename}`;
           const parts = targetFolder.split('/');
@@ -456,10 +559,10 @@ export async function GET(request: NextRequest) {
         };
         
         // Additionally create VaultItem if saving to vault
-        if (saveToVault && vaultProfileId && vaultFolderId) {
+        if (saveToVault && vaultProfileId && vaultFolderId && vaultFolder) {
           const vaultItem = await prisma.vaultItem.create({
             data: {
-              clerkId: userId,
+              clerkId: vaultFolder.clerkId, // Use folder owner's clerkId, not current user
               profileId: vaultProfileId,
               folderId: vaultFolderId,
               fileName: filename,
@@ -480,6 +583,7 @@ export async function GET(request: NextRequest) {
                 cameraFixed: params?.cameraFixed,
                 generateAudio: params?.generateAudio ?? true,
                 generatedAt: new Date().toISOString(),
+                generatedByClerkId: userId, // Track who actually generated it
               },
             },
           });

@@ -5,6 +5,72 @@ import { PrismaClient } from "@/lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
+// Helper to get all accessible profile IDs for a user
+async function getAccessibleProfileIds(userId: string): Promise<string[]> {
+  // Get user's own profiles
+  const ownProfiles = await prisma.instagramProfile.findMany({
+    where: { clerkId: userId },
+    select: { id: true },
+  });
+
+  const profileIds = ownProfiles.map(p => p.id);
+
+  // Get organization shared profiles
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfiles = await prisma.instagramProfile.findMany({
+      where: {
+        organizationId: user.currentOrganizationId,
+        clerkId: { not: userId },
+      },
+      select: { id: true },
+    });
+    profileIds.push(...orgProfiles.map(p => p.id));
+  }
+
+  return profileIds;
+}
+
 // GET: Fetch performance metrics for a date range
 export async function GET(request: NextRequest) {
   try {
@@ -25,31 +91,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const whereClause: any = {
-      clerkId: user.id,
+    const isAllProfiles = !profileId || profileId === "all";
+
+    // Get all accessible profile IDs (own + shared)
+    const accessibleProfileIds = await getAccessibleProfileIds(user.id);
+
+    // Build profile map for all accessible profiles
+    const allProfiles = await prisma.instagramProfile.findMany({
+      where: { id: { in: accessibleProfileIds } },
+      select: { id: true, name: true, clerkId: true },
+    });
+    const profileMap = allProfiles.reduce((acc, profile) => {
+      acc[profile.id] = profile.name;
+      return acc;
+    }, {} as Record<string, string>);
+
+    let whereClause: any = {
       date: {
         gte: new Date(startDate),
         lte: new Date(endDate),
       },
     };
 
-    const isAllProfiles = !profileId || profileId === "all";
-
-    if (profileId && profileId !== "all") {
-      whereClause.profileId = profileId;
-    }
-
-    // If fetching all profiles, build a profile map for names
-    let profileMap: Record<string, string> = {};
     if (isAllProfiles) {
-      const profiles = await prisma.instagramProfile.findMany({
-        where: { clerkId: user.id },
-        select: { id: true, name: true },
-      });
-      profileMap = profiles.reduce((acc, profile) => {
-        acc[profile.id] = profile.name;
-        return acc;
-      }, {} as Record<string, string>);
+      // For "all profiles", query by accessible profile IDs
+      whereClause.profileId = { in: accessibleProfileIds };
+    } else {
+      // Verify access to the specific profile
+      const { hasAccess } = await hasAccessToProfile(user.id, profileId);
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Unauthorized to access this profile" }, { status: 403 });
+      }
+      whereClause.profileId = profileId;
     }
 
     const metrics = await prisma.performanceMetric.findMany({
@@ -57,13 +130,11 @@ export async function GET(request: NextRequest) {
       orderBy: { date: "desc" },
     });
 
-    // Add profileName to each metric if in all profiles mode
-    const metricsWithProfile = isAllProfiles
-      ? metrics.map((metric) => ({
-          ...metric,
-          profileName: profileMap[metric.profileId] || "Unknown Profile",
-        }))
-      : metrics;
+    // Add profileName to each metric
+    const metricsWithProfile = metrics.map((metric) => ({
+      ...metric,
+      profileName: profileMap[metric.profileId] || "Unknown Profile",
+    }));
 
     return NextResponse.json({ metrics: metricsWithProfile });
   } catch (error) {
@@ -107,6 +178,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "date is required" }, { status: 400 });
     }
 
+    // Determine the target clerkId - if this is a shared profile, use the profile owner's clerkId
+    let targetClerkId = user.id;
+    if (profileId) {
+      const { hasAccess, profile } = await hasAccessToProfile(user.id, profileId);
+      if (!hasAccess) {
+        return NextResponse.json({ error: "Unauthorized to access this profile" }, { status: 403 });
+      }
+      // Use the profile owner's clerkId for data association
+      targetClerkId = profile.clerkId;
+    }
+
     // Calculate derived metrics
     const totalContent = (reelsPosted || 0) + (storiesPosted || 0) + (feedPostsPosted || 0);
     const averageViews = totalContent > 0 ? (totalViews || 0) / totalContent : 0;
@@ -118,7 +200,7 @@ export async function POST(request: NextRequest) {
     const metric = await prisma.performanceMetric.upsert({
       where: {
         clerkId_date_profileId: {
-          clerkId: user.id,
+          clerkId: targetClerkId,
           date: new Date(date),
           profileId: profileId || "",
         },
@@ -143,7 +225,7 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       },
       create: {
-        clerkId: user.id,
+        clerkId: targetClerkId,
         profileId: profileId || "",
         date: new Date(date),
         reelsPosted: reelsPosted || 0,

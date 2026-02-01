@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Info } from 'lucide-react';
 
-type UserRole = 'ADMIN' | 'MANAGER' | 'CONTENT_CREATOR' | 'USER';
+type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'CONTENT_CREATOR' | 'USER';
 
 interface WorkflowGuideProps {
   userRole: UserRole;
@@ -13,6 +13,20 @@ export default function WorkflowGuide({ userRole }: WorkflowGuideProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const rolePermissions = {
+    SUPER_ADMIN: {
+      title: 'Super Administrator',
+      color: 'purple',
+      permissions: [
+        'Full system access',
+        'Create and edit all posts',
+        'Submit posts for review',
+        'Approve or reject posts',
+        'Schedule posts for publishing',
+        'Mark posts as published',
+        'Delete any post',
+        'Manage all users and roles'
+      ]
+    },
     ADMIN: {
       title: 'Administrator',
       color: 'red',
@@ -58,6 +72,7 @@ export default function WorkflowGuide({ userRole }: WorkflowGuideProps) {
 
   const role = rolePermissions[userRole];
   const colorClasses = {
+    purple: 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400',
     red: 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400',
     blue: 'bg-blue-500/10 border-blue-500/30 text-blue-600 dark:text-blue-400',
     green: 'bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400',

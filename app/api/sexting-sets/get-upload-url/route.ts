@@ -15,6 +15,42 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || "tastycreative-media";
 
+// Helper function to check if user has access to a profile (own profile or shared via organization)
+async function hasAccessToProfile(userId: string, profileId: string): Promise<{ hasAccess: boolean; profile: any | null }> {
+  // First check if it's the user's own profile
+  const ownProfile = await prisma.instagramProfile.findFirst({
+    where: {
+      id: profileId,
+      clerkId: userId,
+    },
+  });
+
+  if (ownProfile) {
+    return { hasAccess: true, profile: ownProfile };
+  }
+
+  // Check if it's a shared organization profile
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId },
+    select: { currentOrganizationId: true },
+  });
+
+  if (user?.currentOrganizationId) {
+    const orgProfile = await prisma.instagramProfile.findFirst({
+      where: {
+        id: profileId,
+        organizationId: user.currentOrganizationId,
+      },
+    });
+
+    if (orgProfile) {
+      return { hasAccess: true, profile: orgProfile };
+    }
+  }
+
+  return { hasAccess: false, profile: null };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -31,11 +67,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the set belongs to the user
+    // Find the set
     const set = await prisma.sextingSet.findFirst({
       where: {
         id: setId,
-        userId: userId,
       },
       include: {
         images: {
@@ -49,6 +84,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Set not found" }, { status: 404 });
     }
 
+    // Verify access via the set's category (profileId)
+    const { hasAccess } = await hasAccessToProfile(userId, set.category);
+
+    // Also allow if user owns the set directly
+    if (!hasAccess && set.userId !== userId) {
+      return NextResponse.json(
+        { error: "Unauthorized to upload to this set" },
+        { status: 403 }
+      );
+    }
+
+    // Use the set owner's userId for the S3 path (for consistency)
+    const ownerUserId = set.userId;
+
     // Get the current max sequence
     let currentSequence = set.images[0]?.sequence || 0;
 
@@ -57,7 +106,7 @@ export async function POST(request: NextRequest) {
       files.map(async (file: { name: string; type: string; size: number }) => {
         const fileId = uuidv4();
         const extension = file.name.split(".").pop() || "";
-        const key = `sexting-sets/${userId}/${setId}/${fileId}.${extension}`;
+        const key = `sexting-sets/${ownerUserId}/${setId}/${fileId}.${extension}`;
         
         currentSequence++;
 
@@ -69,7 +118,7 @@ export async function POST(request: NextRequest) {
           Metadata: {
             originalName: encodeURIComponent(file.name),
             setId: setId,
-            userId: userId,
+            userId: ownerUserId,
           },
         });
 
