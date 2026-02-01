@@ -92,15 +92,15 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return;
   }
 
-  const subscription = await stripe.subscriptions.retrieve(
+  const subscriptionData: any = await stripe.subscriptions.retrieve(
     session.subscription as string
   );
 
   console.log(`   Subscription details:`, {
-    id: subscription.id,
-    status: subscription.status,
-    current_period_start: new Date(subscription.current_period_start * 1000),
-    current_period_end: new Date(subscription.current_period_end * 1000),
+    id: subscriptionData.id,
+    status: subscriptionData.status,
+    current_period_start: new Date(subscriptionData.current_period_start * 1000),
+    current_period_end: new Date(subscriptionData.current_period_end * 1000),
   });
 
   const updated = await prisma.organization.update({
@@ -109,9 +109,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       subscriptionPlanId: planId,
       subscriptionStatus: 'ACTIVE',
       stripeCustomerId: session.customer as string,
-      stripeSubscriptionId: subscription.id,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      stripeSubscriptionId: subscriptionData.id,
+      currentPeriodStart: new Date(subscriptionData.current_period_start * 1000),
+      currentPeriodEnd: new Date(subscriptionData.current_period_end * 1000),
       billingEmail: session.customer_details?.email || null,
       billingName: session.customer_details?.name || null,
     },
@@ -122,7 +122,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   console.log(`   Subscription status: ${updated.subscriptionStatus}`);
 }
 
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+async function handleSubscriptionUpdated(subscription: any) {
   const organization = await prisma.organization.findUnique({
     where: { stripeSubscriptionId: subscription.id },
   });
@@ -159,7 +159,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   console.log(`✅ Subscription updated for organization ${organization.id}`);
 }
 
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+async function handleSubscriptionDeleted(subscription: any) {
   const organization = await prisma.organization.findUnique({
     where: { stripeSubscriptionId: subscription.id },
   });
