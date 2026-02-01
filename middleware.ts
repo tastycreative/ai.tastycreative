@@ -54,20 +54,6 @@ const isCustomAuthApiRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  // ✅ CRITICAL: Check public API routes FIRST before any auth calls
-  // This prevents Clerk from intercepting webhook requests
-  if (req.nextUrl.pathname.startsWith('/api/')) {
-    // Skip middleware completely for truly public API routes (webhooks, etc.)
-    if (isPublicApiRoute(req)) {
-      return NextResponse.next();
-    }
-    
-    // Skip middleware for routes that handle their own authentication
-    if (isCustomAuthApiRoute(req)) {
-      return NextResponse.next();
-    }
-  }
-
   const { userId } = await auth();
 
   // If user is logged in and trying to access auth routes, redirect to /dashboard (temp landing)
