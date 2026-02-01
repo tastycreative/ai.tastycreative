@@ -26,6 +26,9 @@ import {
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useOfModelStore } from '@/stores/of-model-store';
+import { OfModelStatsCards, type OfModelStatsData } from '@/components/of-models/OfModelStatsCards';
+import { OfModelsTable } from '@/components/of-models/OfModelsTable';
+import { OfModelQuickFilters, type QuickFilterType, isRecentModel, isHighRevenueModel } from '@/components/of-models/OfModelQuickFilters';
 
 interface OfModel {
   id: string;
@@ -140,8 +143,31 @@ export default function OfModelsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
+  const [stats, setStats] = useState<OfModelStatsData | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [quickFilter, setQuickFilter] = useState<QuickFilterType>('all');
 
   const setStoreSelectedModel = useOfModelStore((state) => state.setSelectedModel);
+
+  // Load stats on mount
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      setStatsLoading(true);
+      const response = await fetch('/api/of-models/stats');
+      if (response.ok) {
+        const result = await response.json();
+        setStats(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -201,7 +227,7 @@ export default function OfModelsPage() {
   const paginatedModels = models.slice(startIndex, endIndex);
 
   const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    setCurrentPage(Math.max(1, Math.min(page, totalPagesFiltered)));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -209,6 +235,35 @@ export default function OfModelsPage() {
     acc[model.status] = (acc[model.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
+
+  // Calculate quick filter counts
+  const quickFilterCounts: Record<QuickFilterType, number> = {
+    all: models.length,
+    active: models.filter((m) => m.status === 'ACTIVE').length,
+    dropped: models.filter((m) => m.status === 'INACTIVE' || m.status === 'ARCHIVED').length,
+    recent: models.filter((m) => isRecentModel(m.launchDate)).length,
+    'high-revenue': models.filter((m) => isHighRevenueModel((m as any).guaranteedAmount)).length,
+  };
+
+  // Apply quick filter to models
+  const filteredModels = models.filter((model) => {
+    switch (quickFilter) {
+      case 'active':
+        return model.status === 'ACTIVE';
+      case 'dropped':
+        return model.status === 'INACTIVE' || model.status === 'ARCHIVED';
+      case 'recent':
+        return isRecentModel(model.launchDate);
+      case 'high-revenue':
+        return isHighRevenueModel((model as any).guaranteedAmount);
+      default:
+        return true;
+    }
+  });
+
+  const totalModelsFiltered = filteredModels.length;
+  const totalPagesFiltered = Math.ceil(totalModelsFiltered / ITEMS_PER_PAGE);
+  const paginatedModelsFiltered = filteredModels.slice(startIndex, endIndex);
 
   return (
     <div className="min-h-screen bg-[#0a0a0b]">
@@ -257,6 +312,19 @@ export default function OfModelsPage() {
             </div>
           </div>
         </header>
+
+        {/* Stats Cards */}
+        <OfModelStatsCards stats={stats} loading={statsLoading} />
+
+        {/* Quick Filters */}
+        <OfModelQuickFilters
+          activeFilter={quickFilter}
+          onFilterChange={(filter) => {
+            setQuickFilter(filter);
+            setCurrentPage(1);
+          }}
+          counts={quickFilterCounts}
+        />
 
         {/* Actions Bar */}
         <div className="mb-8">
@@ -364,11 +432,16 @@ export default function OfModelsPage() {
         </div>
 
         {/* Results Count */}
-        {!loading && totalModels > 0 && (
+        {!loading && totalModelsFiltered > 0 && (
           <div className="mb-6 flex items-center justify-between">
             <p className="text-zinc-500 text-sm">
-              Showing <span className="text-zinc-300 font-medium">{startIndex + 1}-{Math.min(endIndex, totalModels)}</span> of{' '}
-              <span className="text-zinc-300 font-medium">{totalModels}</span> models
+              Showing <span className="text-zinc-300 font-medium">{startIndex + 1}-{Math.min(endIndex, totalModelsFiltered)}</span> of{' '}
+              <span className="text-zinc-300 font-medium">{totalModelsFiltered}</span> models
+              {quickFilter !== 'all' && (
+                <span className="text-zinc-600 ml-1">
+                  (filtered from {models.length})
+                </span>
+              )}
             </p>
           </div>
         )}
@@ -409,7 +482,7 @@ export default function OfModelsPage() {
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {paginatedModels.map((model, index) => (
+            {paginatedModelsFiltered.map((model, index) => (
               <ModelCard
                 key={model.id}
                 model={model}
@@ -421,22 +494,16 @@ export default function OfModelsPage() {
             ))}
           </div>
         ) : (
-          <div className="space-y-3">
-            {paginatedModels.map((model, index) => (
-              <ModelListItem
-                key={model.id}
-                model={model}
-                index={index}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                setStoreSelectedModel={setStoreSelectedModel}
-              />
-            ))}
-          </div>
+          <OfModelsTable
+            models={paginatedModelsFiltered}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onModelClick={(model) => setStoreSelectedModel(model as any)}
+          />
         )}
 
         {/* Pagination */}
-        {!loading && totalPages > 1 && (
+        {!loading && totalPagesFiltered > 1 && (
           <div className="mt-12 flex items-center justify-center gap-2">
             <button
               onClick={() => goToPage(currentPage - 1)}
@@ -448,14 +515,14 @@ export default function OfModelsPage() {
             </button>
 
             <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              {Array.from({ length: Math.min(5, totalPagesFiltered) }, (_, i) => {
                 let page: number;
-                if (totalPages <= 5) {
+                if (totalPagesFiltered <= 5) {
                   page = i + 1;
                 } else if (currentPage <= 3) {
                   page = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  page = totalPages - 4 + i;
+                } else if (currentPage >= totalPagesFiltered - 2) {
+                  page = totalPagesFiltered - 4 + i;
                 } else {
                   page = currentPage - 2 + i;
                 }
@@ -477,7 +544,7 @@ export default function OfModelsPage() {
 
             <button
               onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
+              disabled={currentPage === totalPagesFiltered}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800/50 text-zinc-400 hover:text-white hover:border-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
             >
               <span className="hidden sm:inline text-sm">Next</span>
@@ -494,6 +561,7 @@ export default function OfModelsPage() {
           onSuccess={() => {
             setShowCreateModal(false);
             loadModels();
+            loadStats();
           }}
         />
       )}
@@ -509,6 +577,7 @@ export default function OfModelsPage() {
             setShowEditModal(false);
             setSelectedModel(null);
             loadModels();
+            loadStats();
           }}
         />
       )}
@@ -524,6 +593,7 @@ export default function OfModelsPage() {
             setShowDeleteModal(false);
             setSelectedModel(null);
             loadModels();
+            loadStats();
           }}
         />
       )}
