@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         await prisma.organization.update({
           where: { id: currentOrg.id },
           data: {
-            subscriptionStatus: 'CANCELED',
+            subscriptionStatus: 'CANCELLED',
             cancelAtPeriodEnd: false,
           },
         });

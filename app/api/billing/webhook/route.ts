@@ -133,13 +133,13 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   }
 
   const status = subscription.status;
-  let subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'PAUSED' =
+  let subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'PAUSED' =
     'ACTIVE';
 
   if (status === 'past_due') {
     subscriptionStatus = 'PAST_DUE';
   } else if (status === 'canceled' || status === 'unpaid') {
-    subscriptionStatus = 'CANCELED';
+    subscriptionStatus = 'CANCELLED';
   } else if (status === 'paused') {
     subscriptionStatus = 'PAUSED';
   } else if (status === 'trialing') {
@@ -172,12 +172,12 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   await prisma.organization.update({
     where: { id: organization.id },
     data: {
-      subscriptionStatus: 'CANCELED',
+      subscriptionStatus: 'CANCELLED',
       cancelAtPeriodEnd: false,
     },
   });
 
-  console.log(`✅ Subscription canceled for organization ${organization.id}`);
+  console.log(`✅ Subscription cancelled for organization ${organization.id}`);
 }
 
 async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
