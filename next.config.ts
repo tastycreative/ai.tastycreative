@@ -140,7 +140,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  
+
   // Turbopack configuration to handle @vercel/blob properly
   turbopack: {
     resolveAlias: {
