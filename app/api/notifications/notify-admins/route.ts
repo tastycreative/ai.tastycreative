@@ -15,12 +15,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { type, postId, fileName, instagramUrl, publishedAt } = body;
 
-    // Get all admins and managers
-    const adminsAndManagers = await prisma.user.findMany({
+    // Get all admins
+    const admins = await prisma.user.findMany({
       where: {
-        role: {
-          in: ['ADMIN', 'MANAGER']
-        }
+        role: 'ADMIN'
       },
       select: {
         id: true,
@@ -44,8 +42,8 @@ export async function POST(request: NextRequest) {
       ? `${publisher.firstName} ${publisher.lastName || ''}`.trim()
       : publisher?.email || 'A content creator';
 
-    // Create notifications for each admin/manager
-    const notificationPromises = adminsAndManagers.map(async (admin) => {
+    // Create notifications for each admin
+    const notificationPromises = admins.map(async (admin) => {
       // Don't notify if they're the one who published it
       if (admin.clerkId === userId) return null;
 
@@ -75,11 +73,11 @@ export async function POST(request: NextRequest) {
 
     await Promise.all(notificationPromises);
 
-    console.log(`📬 Notified ${adminsAndManagers.length} admins/managers about post publication`);
+    console.log(`📬 Notified ${admins.length} admins about post publication`);
 
     return NextResponse.json({
       success: true,
-      notifiedCount: adminsAndManagers.filter(a => a.clerkId !== userId).length,
+      notifiedCount: admins.filter(a => a.clerkId !== userId).length,
     });
 
   } catch (error) {

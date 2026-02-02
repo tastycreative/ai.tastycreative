@@ -38,8 +38,8 @@ export async function GET(request: NextRequest) {
       : dbUser.firstName || dbUser.lastName || dbUser.email || 'Unknown';
 
     // Fetch production entries assigned to this user
-    // Content creators see their own tasks, admins/managers see all
-    const whereClause = dbUser.role === 'CONTENT_CREATOR'
+    // Regular users see their assigned tasks, admins see all
+    const whereClause = dbUser.role !== 'ADMIN'
       ? { assignee: assigneeName }
       : {};
 

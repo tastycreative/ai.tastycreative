@@ -11,7 +11,12 @@ import {
   ImageIcon,
   Copy,
   Eye,
+  Archive,
+  Database,
+  Sparkles,
+  Link as LinkIcon,
 } from "lucide-react";
+import JSZip from "jszip";
 
 interface ExtractedImage {
   url: string;
@@ -37,6 +42,8 @@ export default function InstagramExtractorPage() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  const [savingIndex, setSavingIndex] = useState<number | null>(null);
+  const [savingAll, setSavingAll] = useState(false);
   const [imageLoadingStates, setImageLoadingStates] = useState<{
     [key: number]: boolean;
   }>({});
@@ -82,7 +89,6 @@ export default function InstagramExtractorPage() {
 
       const data = await response.json();
 
-      // Validate that we got some images
       if (!data.images || data.images.length === 0) {
         throw new Error("No images found in this Instagram post");
       }
@@ -100,15 +106,11 @@ export default function InstagramExtractorPage() {
   };
 
   const handleDownloadImage = async (imageUrl: string, index: number) => {
-    // Clear any previous messages and set loading state
     setError("");
     setSuccess("");
     setDownloadingIndex(index);
 
     try {
-      console.log(`Attempting to download image ${index + 1}...`);
-
-      // Use proxy with download=true parameter for downloads
       const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(
         imageUrl
       )}&download=true`;
@@ -117,17 +119,13 @@ export default function InstagramExtractorPage() {
       if (response.ok) {
         const contentType = response.headers.get("content-type");
 
-        // Check if it's JSON (error response) or actual image
         if (contentType?.includes("application/json")) {
           const errorData = await response.json();
-          console.log("Proxy returned error:", errorData);
           throw new Error("Instagram blocked the download request");
         }
 
-        // Success: Download the image
         const blob = await response.blob();
 
-        // Verify we got actual image data
         if (blob.size === 0) {
           throw new Error("Received empty image data");
         }
@@ -140,54 +138,181 @@ export default function InstagramExtractorPage() {
         document.body.appendChild(a);
         a.click();
 
-        // Clean up
         setTimeout(() => {
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
         }, 100);
 
-        console.log(`✅ Successfully downloaded image ${index + 1}`);
         setSuccess(`Image ${index + 1} downloaded successfully!`);
-
-        // Clear success message after a few seconds
         setTimeout(() => setSuccess(""), 3000);
-      } else if (response.status === 500) {
-        // Check if it's our custom error response
-        try {
-          const errorData = await response.json();
-          if (!errorData.success) {
-            throw new Error("Instagram blocked the download request");
-          }
-        } catch {
-          throw new Error(`Server error: ${response.status}`);
-        }
       } else {
         throw new Error(`Failed to fetch image: ${response.status}`);
       }
     } catch (err) {
-      console.error("Failed to download image:", err);
-
-      // Show error but also provide fallback
       const errorMessage =
         err instanceof Error ? err.message : "Download failed";
       setError(
-        `${errorMessage}. Opening image in new tab as fallback - you can right-click and save manually.`
+        `${errorMessage}. Opening image in new tab as fallback.`
       );
-
-      // Fallback: Open the original Instagram image in new tab
       window.open(imageUrl, "_blank");
     } finally {
       setDownloadingIndex(null);
     }
   };
 
-  const handleDownloadAll = async () => {
-    if (!result?.images) return;
+  const handleSaveToReferenceBank = async (imageUrl: string, index: number) => {
+    setError("");
+    setSuccess("");
+    setSavingIndex(index);
 
-    for (let i = 0; i < result.images.length; i++) {
-      await handleDownloadImage(result.images[i].url, i);
-      // Add a small delay between downloads
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const response = await fetch("/api/reference-bank/direct-upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          imageUrl,
+          fileName: `instagram-image-${index + 1}.jpg`,
+          fileType: "image/jpeg",
+          width: result?.images[index].width || 1080,
+          height: result?.images[index].height || 1440,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save to Reference Bank");
+      }
+
+      const data = await response.json();
+      setSuccess(`Image ${index + 1} saved to Reference Bank!`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to save to Reference Bank. Please try again."
+      );
+    } finally {
+      setSavingIndex(null);
+    }
+  };
+
+  const handleSaveAllToReferenceBank = async () => {
+    if (!result?.images || result.images.length === 0) return;
+
+    setSavingAll(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < result.images.length; i++) {
+        try {
+          const response = await fetch("/api/reference-bank/direct-upload", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              imageUrl: result.images[i].url,
+              fileName: `instagram-image-${i + 1}.jpg`,
+              fileType: "image/jpeg",
+              width: result.images[i].width || 1080,
+              height: result.images[i].height || 1440,
+            }),
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (err) {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        setSuccess(
+          `Saved ${successCount} image${successCount > 1 ? "s" : ""} to Reference Bank!${
+            failCount > 0 ? ` (${failCount} failed)` : ""
+          }`
+        );
+        setTimeout(() => setSuccess(""), 5000);
+      } else {
+        setError("Failed to save any images to Reference Bank.");
+      }
+    } catch (err) {
+      setError("Failed to save images to Reference Bank.");
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    if (!result?.images || result.images.length === 0) return;
+
+    setDownloadingAll(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const zip = new JSZip();
+      const imgFolder = zip.folder("instagram-images");
+      
+      if (!imgFolder) {
+        throw new Error("Failed to create zip folder");
+      }
+
+      for (let i = 0; i < result.images.length; i++) {
+        try {
+          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(
+            result.images[i].url
+          )}`;
+          const response = await fetch(proxyUrl);
+
+          if (!response.ok) continue;
+
+          const blob = await response.blob();
+          
+          if (blob.size === 0) continue;
+
+          imgFolder.file(`image-${i + 1}.jpg`, blob);
+        } catch (err) {
+          console.error(`Error processing image ${i + 1}:`, err);
+        }
+      }
+
+      const zipBlob = await zip.generateAsync({ 
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 }
+      });
+
+      const url = window.URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = `instagram-images-${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 100);
+
+      setSuccess(`Downloaded ${result.images.length} images as zip!`);
+      setTimeout(() => setSuccess(""), 3000);
+
+    } catch (err) {
+      setError("Failed to create zip file. Try downloading individually.");
+    } finally {
+      setDownloadingAll(false);
     }
   };
 
@@ -201,252 +326,215 @@ export default function InstagramExtractorPage() {
     }
   };
 
-  const openImageInNewTab = (imageUrl: string) => {
-    window.open(imageUrl, "_blank");
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white to-gray-50/50 dark:bg-gradient-to-br dark:from-black dark:to-gray-900/30">
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
-        {/* Header */}
-        <div className="text-center mb-4 sm:mb-6 md:mb-8">
-          <div className="flex items-center justify-center mb-2 sm:mb-3 md:mb-4">
-            <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-2 sm:p-2.5 md:p-3 rounded-xl sm:rounded-2xl shadow-lg">
-              <Instagram className="h-5 w-5 sm:h-6 sm:w-6 md:h-8 md:w-8 text-white" />
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-950 dark:via-gray-900 dark:to-black">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        
+        {/* Modern Header */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-pink-500 via-purple-500 to-indigo-600 mb-6 shadow-2xl shadow-purple-500/30 animate-pulse">
+            <Instagram className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 dark:from-pink-400 dark:to-purple-400 bg-clip-text text-transparent mb-1.5 sm:mb-2 px-2">
-            Instagram Image Extractor
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
+            <span className="bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 bg-clip-text text-transparent">
+              Instagram Extractor
+            </span>
           </h1>
-          <p className="text-xs xs:text-sm sm:text-base text-gray-600 dark:text-gray-400 max-w-2xl mx-auto px-3 sm:px-4">
-            Extract and download all images from any Instagram post. Simply
-            paste the URL and get high-quality images instantly.
+          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            Extract high-quality images from any Instagram post instantly
           </p>
         </div>
 
-        {/* URL Input Form */}
-        <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/30 p-3 sm:p-4 md:p-6 mb-4 sm:mb-6 md:mb-8">
-          <div className="space-y-3 sm:space-y-4">
-            <div>
-              <label
-                htmlFor="instagram-url"
-                className="block text-xs xs:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2"
-              >
-                Instagram Post URL
-              </label>
-              <div className="relative">
-                <input
-                  id="instagram-url"
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://www.instagram.com/p/..."
-                  className="w-full px-3 xs:px-3.5 sm:px-4 py-2 xs:py-2.5 sm:py-3 pr-10 xs:pr-11 sm:pr-12 border border-gray-300 dark:border-gray-600 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors text-xs xs:text-sm"
-                  disabled={isLoading}
-                />
-                <Instagram className="absolute right-3 xs:right-3.5 sm:right-4 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
-              </div>
-            </div>
-
-            {error && (
-              <div className="flex items-center justify-between text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 sm:p-3 rounded-lg border border-red-200 dark:border-red-800">
-                <div className="flex items-center space-x-1.5 sm:space-x-2">
-                  <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                  <span className="text-xs xs:text-sm">{error}</span>
+        {/* Modern Input Card */}
+        <div className="max-w-3xl mx-auto mb-12">
+          <div className="backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 rounded-3xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 p-8">
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  Instagram Post URL
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <LinkIcon className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="url"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://www.instagram.com/p/..."
+                    className="block w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-gray-900 dark:text-white placeholder-gray-400 text-base"
+                    disabled={isLoading}
+                    onKeyDown={(e) => e.key === "Enter" && handleExtract()}
+                  />
                 </div>
-                <button
-                  onClick={() => setError("")}
-                  className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200 active:scale-95 ml-2"
-                >
-                  <span className="sr-only">Dismiss</span>×
-                </button>
               </div>
-            )}
 
-            {success && (
-              <div className="flex items-center justify-between text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 sm:p-3 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="flex items-center space-x-1.5 sm:space-x-2">
-                  <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
-                  <span className="text-xs xs:text-sm">{success}</span>
+              {error && (
+                <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl animate-in slide-in-from-top-2">
+                  <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                  </div>
+                  <button
+                    onClick={() => setError("")}
+                    className="text-red-400 hover:text-red-600 transition-colors"
+                  >
+                    ×
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSuccess("")}
-                  className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-200 active:scale-95 ml-2"
-                >
-                  <span className="sr-only">Dismiss</span>×
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={handleExtract}
-              disabled={isLoading || !url.trim()}
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium py-2.5 xs:py-3 px-4 xs:px-5 sm:px-6 rounded-lg sm:rounded-xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center space-x-1.5 sm:space-x-2 shadow-lg hover:shadow-xl text-xs xs:text-sm sm:text-base active:scale-95"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                  <span>Extracting Images...</span>
-                </>
-              ) : (
-                <>
-                  <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-                  <span>Extract Images</span>
-                </>
               )}
-            </button>
+
+              {success && (
+                <div className="flex items-start gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl animate-in slide-in-from-top-2">
+                  <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-green-600 dark:text-green-400">{success}</p>
+                  </div>
+                  <button
+                    onClick={() => setSuccess("")}
+                    className="text-green-400 hover:text-green-600 transition-colors"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={handleExtract}
+                disabled={isLoading || !url.trim()}
+                className="w-full py-4 px-6 bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:via-purple-500 hover:to-indigo-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold rounded-2xl transition-all duration-300 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-xl shadow-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Extracting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5" />
+                    <span>Extract Images</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Results */}
+        {/* Results Section */}
         {result && (
-          <div className="bg-white/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/30 p-3 sm:p-4 md:p-6">
-            {/* Result Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-5 md:mb-6 pb-3 sm:pb-4 border-b border-gray-200 dark:border-gray-700 gap-3 sm:gap-4">
-              <div className="flex items-center space-x-2 sm:space-x-3">
-                <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-500 flex-shrink-0" />
-                <div>
-                  <h3 className="text-base xs:text-lg font-semibold text-gray-900 dark:text-white">
-                    Extraction Complete
-                  </h3>
-                  <p className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
-                    Found {result.images.length} image
-                    {result.images.length !== 1 ? "s" : ""}
-                  </p>
-                  <p className="text-[10px] xs:text-xs text-amber-600 dark:text-amber-400 mt-0.5 sm:mt-1">
-                    � Using advanced bypass methods (bot user-agents, base64
-                    encoding) to show previews
-                  </p>
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Action Bar */}
+            <div className="backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 rounded-3xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 p-6 mb-8">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg">
+                    <CheckCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                      {result.images.length} Image{result.images.length !== 1 ? "s" : ""} Found
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Ready to download or save
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto">
-                <button
-                  onClick={() => window.open(result.postUrl, "_blank")}
-                  className="inline-flex items-center space-x-1.5 sm:space-x-2 px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors text-xs xs:text-sm flex-1 sm:flex-initial justify-center active:scale-95"
-                >
-                  <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden xs:inline">View Original</span>
-                  <span className="xs:hidden">View</span>
-                </button>
-                {result.images.length > 1 && (
+
+                <div className="flex flex-wrap gap-3">
                   <button
-                    onClick={handleDownloadAll}
-                    disabled={downloadingAll || downloadingIndex !== null}
-                    className="inline-flex items-center space-x-1.5 sm:space-x-2 px-2.5 xs:px-3 sm:px-4 py-1.5 xs:py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 shadow-md disabled:cursor-not-allowed text-xs xs:text-sm flex-1 sm:flex-initial justify-center active:scale-95"
+                    onClick={() => window.open(result.postUrl, "_blank")}
+                    className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-xl transition-all flex items-center gap-2 hover:scale-105 active:scale-95"
                   >
-                    {downloadingAll ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
-                        <span className="hidden xs:inline">Downloading...</span>
-                        <span className="xs:hidden">...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                        <span className="hidden xs:inline">Download All</span>
-                        <span className="xs:hidden">All</span>
-                      </>
-                    )}
+                    <ExternalLink className="h-4 w-4" />
+                    <span>View Original</span>
                   </button>
-                )}
+                  {result.images.length > 1 && (
+                    <>
+                      <button
+                        onClick={handleDownloadAll}
+                        disabled={downloadingAll || downloadingIndex !== null}
+                        className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
+                      >
+                        {downloadingAll ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Creating Zip...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Archive className="h-4 w-4" />
+                            <span>Download Zip</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleSaveAllToReferenceBank}
+                        disabled={savingAll || savingIndex !== null}
+                        className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:from-gray-400 disabled:to-gray-500 text-white font-medium rounded-xl transition-all flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
+                      >
+                        {savingAll ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Database className="h-4 w-4" />
+                            <span>Save All to Reference Bank</span>
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Post Info */}
+            {/* Caption */}
             {result.caption && (
-              <div className="mb-4 sm:mb-5 md:mb-6 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg sm:rounded-xl">
-                <p className="text-xs xs:text-sm text-gray-700 dark:text-gray-300 line-clamp-3">
+              <div className="backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 rounded-3xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 p-6 mb-8">
+                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
                   {result.caption}
                 </p>
               </div>
             )}
 
             {/* Images Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {result.images.map((image, index) => (
                 <div
                   key={index}
-                  className="group relative bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-700"
+                  className="group relative backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 rounded-3xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]"
                 >
+                  {/* Image Container */}
                   <div className="aspect-square relative overflow-hidden bg-gray-100 dark:bg-gray-800">
                     {imageLoadingStates[index] && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
-                        <div className="flex flex-col items-center space-y-1.5 sm:space-y-2">
-                          <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-gray-400" />
-                          <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                            Loading image...
-                          </span>
-                        </div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100/90 dark:bg-gray-800/90 backdrop-blur-sm z-10">
+                        <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
                       </div>
                     )}
 
                     {imageErrorStates[index] ? (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 border-2 border-dashed border-gray-300 dark:border-gray-600">
-                        <div className="text-center p-3 sm:p-4">
-                          <ImageIcon className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 text-gray-400 mx-auto mb-1.5 sm:mb-2" />
-                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-1 sm:mb-2">
-                            Advanced bypass failed
-                          </p>
-                          <p className="text-[10px] xs:text-xs text-gray-400 dark:text-gray-500 mb-2 sm:mb-3">
-                            Tried multiple bypass methods including bot
-                            user-agents and base64 encoding
-                          </p>
-                          <div className="space-y-1.5 sm:space-y-2">
-                            <button
-                              onClick={() => window.open(image.url, "_blank")}
-                              className="block w-full text-[10px] xs:text-xs text-blue-500 hover:text-blue-600 underline active:scale-95"
-                            >
-                              Open in new tab
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleDownloadImage(image.url, index)
-                              }
-                              className="block w-full text-[10px] xs:text-xs text-green-500 hover:text-green-600 underline active:scale-95"
-                              disabled={downloadingIndex === index}
-                            >
-                              Try download anyway
-                            </button>
-                            <button
-                              onClick={async () => {
-                                // Try to force reload with a different bypass method
-                                setImageErrorStates((prev) => ({
-                                  ...prev,
-                                  [index]: false,
-                                }));
-                                setImageLoadingStates((prev) => ({
-                                  ...prev,
-                                  [index]: true,
-                                }));
-
-                                // Force reload the image with timestamp to bypass cache
-                                const img = document.querySelector(
-                                  `img[alt*="Instagram image ${index + 1}"]`
-                                ) as HTMLImageElement;
-                                if (img) {
-                                  img.src = `/api/proxy-image?url=${encodeURIComponent(
-                                    image.url
-                                  )}&bypass=whatsapp&t=${Date.now()}`;
-                                }
-                              }}
-                              className="block w-full text-[10px] xs:text-xs text-purple-500 hover:text-purple-600 underline active:scale-95"
-                            >
-                              Retry with WhatsApp bypass
-                            </button>
-                          </div>
-                        </div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                        <ImageIcon className="h-12 w-12 text-gray-400 mb-3" />
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                          Failed to load image
+                        </p>
+                        <button
+                          onClick={() => window.open(image.url, "_blank")}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-xl transition-all"
+                        >
+                          Open Original
+                        </button>
                       </div>
                     ) : (
                       <img
                         src={`/api/proxy-image?url=${encodeURIComponent(
                           image.url
                         )}&bypass=instagram`}
-                        alt={image.alt || `Instagram image ${index + 1}`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        alt={image.alt || `Image ${index + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                         onLoad={() => {
-                          console.log(
-                            `✅ Successfully loaded image ${index + 1}`
-                          );
                           setImageLoadingStates((prev) => ({
                             ...prev,
                             [index]: false,
@@ -459,55 +547,27 @@ export default function InstagramExtractorPage() {
                           }));
                         }}
                         onError={async (e) => {
-                          console.log(
-                            `❌ Failed to load proxied image ${
-                              index + 1
-                            }, trying base64 bypass`
-                          );
                           const target = e.target as HTMLImageElement;
-
                           if (
                             target.src.includes("/api/proxy-image") &&
                             !target.src.includes("format=base64")
                           ) {
-                            // Try base64 format for better bypass
                             try {
                               const base64Response = await fetch(
                                 `/api/proxy-image?url=${encodeURIComponent(
                                   image.url
                                 )}&format=base64&bypass=instagram`
                               );
-
                               if (base64Response.ok) {
                                 const data = await base64Response.json();
                                 if (data.success && data.dataUrl) {
                                   target.src = data.dataUrl;
-                                  console.log(
-                                    `✅ Base64 bypass successful for image ${
-                                      index + 1
-                                    }`
-                                  );
                                   return;
                                 }
                               }
-                            } catch (base64Error) {
-                              console.log(
-                                `❌ Base64 bypass failed for image ${
-                                  index + 1
-                                }:`,
-                                base64Error
-                              );
-                            }
-
-                            // If base64 fails, try original URL
+                            } catch {}
                             target.src = image.url;
-                          } else if (!target.src.includes("format=base64")) {
-                            // Original URL failed, show error state
-                            console.log(
-                              `❌ All bypass methods failed for image ${
-                                index + 1
-                              }`
-                            );
+                          } else {
                             setImageLoadingStates((prev) => ({
                               ...prev,
                               [index]: false,
@@ -521,95 +581,84 @@ export default function InstagramExtractorPage() {
                       />
                     )}
 
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+                    {/* Hover Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-                    {/* Image Overlay Actions */}
-                    <div className="absolute top-1.5 right-1.5 sm:top-2 sm:right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex space-x-1.5 sm:space-x-2">
+                    {/* Quick Actions */}
+                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-[-8px] group-hover:translate-y-0">
                       <button
-                        onClick={() => openImageInNewTab(image.url)}
-                        className="p-1.5 sm:p-2 bg-white/90 dark:bg-gray-800/90 rounded-lg shadow-md hover:bg-white dark:hover:bg-gray-800 transition-colors active:scale-95"
+                        onClick={() => window.open(image.url, "_blank")}
+                        className="p-2.5 bg-white/90 hover:bg-white dark:bg-gray-800/90 dark:hover:bg-gray-800 rounded-xl shadow-lg backdrop-blur-sm transition-all hover:scale-110 active:scale-95"
                         title="View full size"
                       >
-                        <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-700 dark:text-gray-300" />
+                        <Eye className="h-4 w-4 text-gray-700 dark:text-gray-300" />
                       </button>
                       <button
                         onClick={() => copyImageUrl(image.url, index)}
-                        className="p-1.5 sm:p-2 bg-white/90 dark:bg-gray-800/90 rounded-lg shadow-md hover:bg-white dark:hover:bg-gray-800 transition-colors active:scale-95"
-                        title="Copy image URL"
+                        className="p-2.5 bg-white/90 hover:bg-white dark:bg-gray-800/90 dark:hover:bg-gray-800 rounded-xl shadow-lg backdrop-blur-sm transition-all hover:scale-110 active:scale-95"
+                        title="Copy URL"
                       >
                         {copiedIndex === index ? (
-                          <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
+                          <CheckCircle className="h-4 w-4 text-green-500" />
                         ) : (
-                          <Copy className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-700 dark:text-gray-300" />
+                          <Copy className="h-4 w-4 text-gray-700 dark:text-gray-300" />
                         )}
                       </button>
                     </div>
                   </div>
 
-                  {/* Image Actions */}
-                  <div className="p-2.5 sm:p-3 md:p-4">
-                    <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 xs:gap-3">
-                      <div className="text-xs xs:text-sm text-gray-600 dark:text-gray-400">
-                        Image {index + 1}
+                  {/* Card Footer */}
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          Image {index + 1}
+                        </p>
                         {image.width && image.height && (
-                          <span className="ml-1.5 sm:ml-2 text-[10px] xs:text-xs">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
                             {image.width} × {image.height}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        {!image.url.includes("c288.0.864.864a") && (
+                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-lg">
+                            HD
                           </span>
                         )}
-                        <div className="mt-1 sm:mt-1.5 flex flex-wrap gap-0.5 xs:gap-1">
-                          {/* Quality indicators */}
-                          {!image.url.includes("c288.0.864.864a") && (
-                            <span className="inline-flex items-center px-1 xs:px-1.5 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                              Uncropped
-                            </span>
-                          )}
-                          {image.url.includes("s1080x1080") && (
-                            <span className="inline-flex items-center px-1 xs:px-1.5 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                              HD
-                            </span>
-                          )}
-                          {image.url.includes("_e15_") && (
-                            <span className="inline-flex items-center px-1 xs:px-1.5 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                              HQ
-                            </span>
-                          )}
-                          {!image.url.includes("stp=") && (
-                            <span className="inline-flex items-center px-1 xs:px-1.5 py-0.5 rounded text-[10px] xs:text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                              Original
-                            </span>
-                          )}
-                        </div>
                       </div>
-                      <div className="flex space-x-1.5 sm:space-x-2 w-full xs:w-auto">
-                        <button
-                          onClick={() => handleDownloadImage(image.url, index)}
-                          disabled={
-                            downloadingIndex === index || downloadingAll
-                          }
-                          className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 px-2 xs:px-2.5 sm:px-3 py-1 xs:py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 text-white text-[10px] xs:text-xs sm:text-sm rounded-lg transition-all duration-300 shadow-md hover:shadow-lg disabled:cursor-not-allowed flex-1 xs:flex-initial justify-center active:scale-95"
-                        >
-                          {downloadingIndex === index ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
-                              <span className="hidden xs:inline">Downloading...</span>
-                              <span className="xs:hidden">...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                              <span>Download</span>
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => window.open(image.url, "_blank")}
-                          className="flex items-center space-x-1 xs:space-x-1.5 sm:space-x-2 px-2 xs:px-2.5 sm:px-3 py-1 xs:py-1.5 bg-gray-500 hover:bg-gray-600 text-white text-[10px] xs:text-xs sm:text-sm rounded-lg transition-all duration-300 shadow-md hover:shadow-lg active:scale-95"
-                          title="Open in new tab for manual save"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                          <span className="hidden xs:inline">Open</span>
-                        </button>
-                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        onClick={() => handleDownloadImage(image.url, index)}
+                        disabled={downloadingIndex === index || downloadingAll}
+                        className="px-3 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:from-gray-400 disabled:to-gray-500 text-white text-xs font-medium rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                      >
+                        {downloadingIndex === index ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Download className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleSaveToReferenceBank(image.url, index)}
+                        disabled={savingIndex === index || savingAll}
+                        className="px-3 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:from-gray-400 disabled:to-gray-500 text-white text-xs font-medium rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                      >
+                        {savingIndex === index ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Database className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => window.open(image.url, "_blank")}
+                        className="px-3 py-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>

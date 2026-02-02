@@ -23,27 +23,41 @@ export async function GET() {
 
     console.log('Requesting user:', requestingUser);
 
-    if (!requestingUser || !['ADMIN', 'MANAGER'].includes(requestingUser.role)) {
-      console.log('User not admin/manager or not found');
-      return NextResponse.json({ error: 'Forbidden - Admin/Manager access required' }, { status: 403 });
+    if (!requestingUser || !['ADMIN', 'SUPER_ADMIN'].includes(requestingUser.role)) {
+      console.log('User not admin or not found');
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
-    // Fetch all users with CONTENT_CREATOR role
-    const contentCreators = await prisma.user.findMany({
+    // Fetch all team members with CREATOR role
+    const creatorMembers = await prisma.teamMember.findMany({
       where: {
-        role: 'CONTENT_CREATOR'
+        role: 'CREATOR'
       },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
+        }
       },
       orderBy: {
-        firstName: 'asc'
+        user: {
+          firstName: 'asc'
+        }
       }
     });
+
+    // Transform to the format expected by the frontend
+    const contentCreators = creatorMembers.map(member => ({
+      id: member.user.id,
+      firstName: member.user.firstName,
+      lastName: member.user.lastName,
+      email: member.user.email,
+      role: 'CREATOR' as const
+    }));
 
     console.log('Found content creators:', contentCreators.length);
     return NextResponse.json(contentCreators);

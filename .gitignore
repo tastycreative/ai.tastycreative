@@ -77,3 +77,4 @@ extra_model_paths.yaml
 # Example:
 # config/secrets.py
 # deploy-production.sh
+.claude/settings.local.json

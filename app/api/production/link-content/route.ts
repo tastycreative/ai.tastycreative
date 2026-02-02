@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user has access (owner, admin, manager, or assigned content creator)
+    // Check if user has access (owner, admin, or assigned content creator)
     const dbUser = await prisma.user.findUnique({
       where: { clerkId: user.id },
       select: {
@@ -72,7 +72,6 @@ export async function POST(request: NextRequest) {
     const hasAccess = 
       productionEntry.clerkId === user.id ||
       dbUser.role === 'ADMIN' ||
-      dbUser.role === 'MANAGER' ||
       productionEntry.assignee === assigneeName;
 
     if (!hasAccess) {
@@ -221,7 +220,6 @@ export async function DELETE(request: NextRequest) {
     const hasAccess = 
       productionEntry.clerkId === user.id ||
       dbUser.role === 'ADMIN' ||
-      dbUser.role === 'MANAGER' ||
       productionEntry.assignee === assigneeName;
 
     if (!hasAccess) {

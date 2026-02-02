@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
       select: { role: true }
     });
 
-    // Only allow SUPER_ADMIN, ADMIN and MANAGER to view all users
-    if (!currentUser || (currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'ADMIN' && currentUser.role !== 'MANAGER')) {
+    // Only allow SUPER_ADMIN and ADMIN to view all users
+    if (!currentUser || (currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'ADMIN')) {
       return NextResponse.json(
         { error: 'Unauthorized - insufficient permissions' },
         { status: 403 }

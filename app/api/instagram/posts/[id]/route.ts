@@ -45,7 +45,7 @@ export async function PATCH(
 
     const canEdit =
       post.clerkId === userId ||
-      (user && (user.role === 'ADMIN' || user.role === 'MANAGER'));
+      (user && user.role === 'ADMIN');
 
     if (!canEdit) {
       return NextResponse.json(

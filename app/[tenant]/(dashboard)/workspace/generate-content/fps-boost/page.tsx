@@ -136,7 +136,7 @@ const VideoPlayer = ({
         <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
           <div className="text-center">
             <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-            <p className="text-sm text-gray-600 dark:text-gray-400">Video URL not available</p>
+            <p className="text-sm text-slate-400">Video URL not available</p>
           </div>
         </div>
       </div>
@@ -149,7 +149,7 @@ const VideoPlayer = ({
         <div className="w-full h-48 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
           <div className="text-center">
             <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-            <p className="text-sm text-gray-600 dark:text-gray-400">Failed to load video</p>
+            <p className="text-sm text-slate-400">Failed to load video</p>
           </div>
         </div>
       </div>
@@ -682,7 +682,7 @@ export default function FPSBoostPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border p-6">
           <div className="flex items-center justify-center space-x-3">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-            <p className="text-gray-600 dark:text-gray-400">Initializing...</p>
+            <p className="text-slate-400">Initializing...</p>
           </div>
         </div>
       </div>
@@ -690,19 +690,26 @@ export default function FPSBoostPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-blue-950/30 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="relative min-h-screen bg-slate-950 text-slate-50">
+      {/* Background gradient effects */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 right-0 h-96 w-96 rounded-full bg-amber-400/10 blur-3xl" />
+        <div className="absolute inset-x-10 top-20 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8 md:mb-10 text-center">
           <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
             <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl sm:rounded-2xl shadow-lg animate-pulse">
               <Zap className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-white" />
             </div>
-            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 dark:from-purple-400 dark:via-pink-400 dark:to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-xl xs:text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
               FPS Boost Studio
             </h1>
           </div>
-          <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto px-2">
+          <p className="text-xs sm:text-sm md:text-base lg:text-lg text-slate-300 max-w-2xl mx-auto px-2">
             AI-powered frame interpolation for ultra-smooth motion ⚡ Transform your videos with advanced RIFE technology
           </p>
         </div>
@@ -711,12 +718,12 @@ export default function FPSBoostPage() {
           {/* Left Panel - Input */}
           <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Video Upload */}
-            <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+            <div className="bg-slate-900/50 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/50 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
               <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 mb-4 sm:mb-6">
                 <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg sm:rounded-xl">
                   <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">Upload Video</h3>
+                <h3 className="text-base sm:text-lg md:text-xl font-bold text-slate-50">Upload Video</h3>
               </div>
 
             {!uploadedVideoPreview ? (
@@ -724,7 +731,7 @@ export default function FPSBoostPage() {
                 className={`relative border-2 border-dashed rounded-xl p-8 xs:p-10 sm:p-12 md:p-16 text-center cursor-pointer transition-all duration-300 ${
                   isDragging
                     ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 scale-[1.02] shadow-lg'
-                    : 'border-gray-300 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-gradient-to-br hover:from-gray-50 hover:to-purple-50/30 dark:hover:from-gray-800/50 dark:hover:to-purple-900/10'
+                    : 'border-slate-600 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-gradient-to-br hover:from-gray-50 hover:to-purple-50/30 dark:hover:from-gray-800/50 dark:hover:to-purple-900/10'
                 }`}
                 onClick={() => fileInputRef.current?.click()}
                 onDragOver={handleDragOver}
@@ -734,7 +741,7 @@ export default function FPSBoostPage() {
                 {isUploading ? (
                   <div className="space-y-3 sm:space-y-4">
                     <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 animate-spin text-blue-500 mx-auto" />
-                    <p className="text-xs sm:text-sm md:text-base text-gray-600 dark:text-gray-400">Uploading and analyzing video...</p>
+                    <p className="text-xs sm:text-sm md:text-base text-slate-400">Uploading and analyzing video...</p>
                     <div className="max-w-xs mx-auto bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 sm:h-2">
                       <div className="bg-blue-500 h-1.5 sm:h-2 rounded-full animate-pulse" style={{ width: '60%' }} />
                     </div>
@@ -745,17 +752,17 @@ export default function FPSBoostPage() {
                       <Video className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 text-blue-500 mx-auto" />
                     </div>
                     <div>
-                      <p className="text-sm xs:text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                      <p className="text-sm xs:text-base sm:text-lg font-semibold text-slate-50">
                         {isDragging ? 'Drop video here' : 'Click or drag to upload video'}
                       </p>
-                      <p className="text-xs sm:text-sm text-gray-500 mt-1">MP4, MOV, AVI up to 500MB</p>
+                      <p className="text-xs sm:text-sm text-slate-400 mt-1">MP4, MOV, AVI up to 500MB</p>
                     </div>
                   </div>
                 )}
               </div>
             ) : (
               <div className="space-y-3 sm:space-y-4">
-                <div className="relative rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-700 shadow-lg">
+                <div className="relative rounded-xl overflow-hidden border-2 border-slate-700/50 shadow-lg">
                   <video
                     ref={videoPreviewRef}
                     src={uploadedVideoPreview}
@@ -783,18 +790,18 @@ export default function FPSBoostPage() {
           </div>
 
           {/* FPS Settings */}
-          <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+          <div className="bg-slate-900/50 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/50 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 mb-4 sm:mb-6">
               <div className="p-1.5 sm:p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg sm:rounded-xl">
                 <Gauge className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 dark:text-white">FPS Settings</h3>
+              <h3 className="text-base sm:text-lg md:text-xl font-bold text-slate-50">FPS Settings</h3>
             </div>
 
             <div className="space-y-4 sm:space-y-6">
               {/* Output Folder Selection - Vault Only */}
               <div>
-                <label className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-gray-700 dark:text-gray-300">
+                <label className="text-xs sm:text-sm font-semibold mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2 text-slate-200">
                   <Archive className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-500" />
                   <span>Save to Vault</span>
                   {isLoadingVaultData && (
@@ -819,16 +826,16 @@ export default function FPSBoostPage() {
                       setFolderDropdownOpen(!folderDropdownOpen);
                     }}
                     disabled={isGenerating || isLoadingVaultData}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-gray-800 border border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm sm:text-base flex items-center justify-between"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-800/50 border border-slate-700 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm sm:text-base flex items-center justify-between"
                   >
-                    <span className={`truncate ${!params.targetFolder ? 'text-gray-400' : 'text-white'}`}>
+                    <span className={`truncate ${!params.targetFolder ? 'text-slate-400' : 'text-white'}`}>
                       {params.targetFolder ? getSelectedFolderDisplay() : '📁 Select a vault folder...'}
                     </span>
                     <div className="flex-shrink-0 ml-2">
                       {isLoadingVaultData ? (
-                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-gray-400" />
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-slate-400" />
                       ) : (
-                        <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 text-gray-400 transition-transform ${folderDropdownOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 text-slate-400 transition-transform ${folderDropdownOpen ? 'rotate-180' : ''}`} />
                       )}
                     </div>
                   </button>
@@ -837,7 +844,7 @@ export default function FPSBoostPage() {
                   {folderDropdownOpen && typeof document !== 'undefined' && createPortal(
                     <div 
                       ref={folderDropdownRef}
-                      className="fixed z-[9999] bg-gray-800 border-2 border-gray-600 rounded-xl shadow-xl max-h-80 overflow-y-auto"
+                      className="fixed z-[9999] bg-gray-800 border-2 border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto"
                       style={{
                         top: dropdownPosition.top,
                         left: dropdownPosition.left,
@@ -851,7 +858,7 @@ export default function FPSBoostPage() {
                           setParams(prev => ({ ...prev, targetFolder: '' }));
                           setFolderDropdownOpen(false);
                         }}
-                        className="w-full px-4 py-3 text-left text-gray-400 hover:bg-gray-700 flex items-center gap-2 border-b border-gray-700"
+                        className="w-full px-4 py-3 text-left text-slate-400 hover:bg-slate-700/50 flex items-center gap-2 border-b border-gray-700"
                       >
                         <FolderOpen className="w-4 h-4" />
                         <span>Select a vault folder...</span>
@@ -876,7 +883,7 @@ export default function FPSBoostPage() {
                                       setParams(prev => ({ ...prev, targetFolder: folder.id }));
                                       setFolderDropdownOpen(false);
                                     }}
-                                    className={`w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-3 ${
+                                    className={`w-full px-4 py-3 text-left hover:bg-slate-700/50 flex items-center gap-3 ${
                                       params.targetFolder === folder.id ? 'bg-purple-600/20 text-purple-300' : 'text-white'
                                     }`}
                                   >
@@ -884,7 +891,7 @@ export default function FPSBoostPage() {
                                     <div className="flex-1 min-w-0">
                                       <span className="block truncate">{folder.name}</span>
                                       {folder.profileName && (
-                                        <span className="block text-xs text-gray-400 truncate">
+                                        <span className="block text-xs text-slate-400 truncate">
                                           📸 {folder.profileName}
                                           {folder.profileUsername && ` (@${folder.profileUsername})`}
                                         </span>
@@ -914,7 +921,7 @@ export default function FPSBoostPage() {
                                       setParams(prev => ({ ...prev, targetFolder: folder.id }));
                                       setFolderDropdownOpen(false);
                                     }}
-                                    className={`w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-3 ${
+                                    className={`w-full px-4 py-3 text-left hover:bg-slate-700/50 flex items-center gap-3 ${
                                       params.targetFolder === folder.id ? 'bg-blue-600/20 text-blue-300' : 'text-white'
                                     }`}
                                   >
@@ -922,7 +929,7 @@ export default function FPSBoostPage() {
                                     <div className="flex-1 min-w-0">
                                       <span className="block truncate">{folder.name}</span>
                                       {folder.profileName && (
-                                        <span className="block text-xs text-gray-400 truncate">
+                                        <span className="block text-xs text-slate-400 truncate">
                                           📸 {folder.profileName}
                                           {folder.profileUsername && ` (@${folder.profileUsername})`}
                                           {folder.ownerName && ` • Shared by ${folder.ownerName}`}
@@ -949,7 +956,7 @@ export default function FPSBoostPage() {
                                 setParams(prev => ({ ...prev, targetFolder: folder.id }));
                                 setFolderDropdownOpen(false);
                               }}
-                              className={`w-full px-4 py-3 text-left hover:bg-gray-700 flex items-center gap-3 ${
+                              className={`w-full px-4 py-3 text-left hover:bg-slate-700/50 flex items-center gap-3 ${
                                 params.targetFolder === folder.id ? 'bg-purple-600/20 text-purple-300' : 'text-white'
                               }`}
                             >
@@ -966,7 +973,7 @@ export default function FPSBoostPage() {
                       
                       {/* No folders available */}
                       {vaultFolders.filter(f => !f.isDefault).length === 0 && !isLoadingVaultData && (
-                        <div className="px-4 py-6 text-center text-gray-400">
+                        <div className="px-4 py-6 text-center text-slate-400">
                           <FolderOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
                           <p className="text-sm">No folders available</p>
                           <p className="text-xs mt-1">Select a profile or create folders in the Vault tab</p>
@@ -999,7 +1006,7 @@ export default function FPSBoostPage() {
                       className={`px-2 xs:px-3 sm:px-4 py-2 xs:py-2.5 sm:py-3 rounded-lg font-semibold transition-all text-xs xs:text-sm sm:text-base active:scale-95 ${
                         params.targetFPS === fps
                           ? 'bg-blue-600 text-white shadow-lg scale-105'
-                          : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          : 'bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
                       {fps} FPS
@@ -1011,7 +1018,7 @@ export default function FPSBoostPage() {
               {/* Target FPS Slider */}
               <div>
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <label className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <label className="text-xs sm:text-sm font-semibold text-slate-200">
                     Custom FPS
                   </label>
                   <div className="flex items-center space-x-1.5 sm:space-x-2 px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg sm:rounded-xl shadow-md">
@@ -1033,7 +1040,7 @@ export default function FPSBoostPage() {
                     background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((params.targetFPS - 20) / 100) * 100}%, #e5e7eb ${((params.targetFPS - 20) / 100) * 100}%, #e5e7eb 100%)`
                   }}
                 />
-                <div className="flex justify-between text-[10px] xs:text-xs text-gray-500 mt-1.5 sm:mt-2">
+                <div className="flex justify-between text-[10px] xs:text-xs text-slate-400 mt-1.5 sm:mt-2">
                   <span>Slow (20)</span>
                   <span>Smooth (60)</span>
                   <span>Ultra (120)</span>
@@ -1053,9 +1060,9 @@ export default function FPSBoostPage() {
                 <div className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 border-t">
                   {/* Quality/Speed Trade-off */}
                   <div>
-                    <label className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3 block">Quality vs Speed</label>
+                    <label className="text-xs sm:text-sm font-semibold text-slate-200 mb-2 sm:mb-3 block">Quality vs Speed</label>
                     <div className="relative">
-                      <div className="flex justify-between text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 sm:mb-3">
+                      <div className="flex justify-between text-[10px] xs:text-xs font-semibold text-slate-400 mb-2 sm:mb-3">
                         <span className="flex items-center space-x-0.5 xs:space-x-1">
                           <Zap className="w-2.5 h-2.5 xs:w-3 xs:h-3" />
                           <span>Fast</span>
@@ -1072,7 +1079,7 @@ export default function FPSBoostPage() {
                           className={`flex-1 py-2 xs:py-2.5 sm:py-3 rounded-lg sm:rounded-xl transition-all duration-300 active:scale-95 ${
                             params.fastMode && !params.ensemble
                               ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg scale-105'
-                              : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
+                              : 'bg-gradient-to-br from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700'
                           }`}
                         >
                           <Zap className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 mx-auto" />
@@ -1082,7 +1089,7 @@ export default function FPSBoostPage() {
                           className={`flex-1 py-2 xs:py-2.5 sm:py-3 rounded-lg sm:rounded-xl transition-all duration-300 active:scale-95 ${
                             !params.fastMode && !params.ensemble
                               ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
-                              : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
+                              : 'bg-gradient-to-br from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700'
                           }`}
                         >
                           <Gauge className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 mx-auto" />
@@ -1092,13 +1099,13 @@ export default function FPSBoostPage() {
                           className={`flex-1 py-2 xs:py-2.5 sm:py-3 rounded-lg sm:rounded-xl transition-all duration-300 active:scale-95 ${
                             params.ensemble
                               ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg scale-105'
-                              : 'bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700'
+                              : 'bg-gradient-to-br from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700'
                           }`}
                         >
                           <Sparkles className="w-4 h-4 xs:w-4.5 xs:h-4.5 sm:w-5 sm:h-5 mx-auto" />
                         </button>
                       </div>
-                      <p className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400 mt-2 sm:mt-3 text-center font-medium">
+                      <p className="text-[10px] xs:text-xs text-slate-400 mt-2 sm:mt-3 text-center font-medium">
                         {params.fastMode && !params.ensemble && '⚡ Faster processing, good quality'}
                         {!params.fastMode && !params.ensemble && '⚖️ Balanced speed and quality'}
                         {params.ensemble && '✨ Slower processing, best quality'}
@@ -1107,7 +1114,7 @@ export default function FPSBoostPage() {
                   </div>
 
                   <div>
-                    <label className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3 flex items-center justify-between">
+                    <label className="text-xs sm:text-sm font-semibold text-slate-200 mb-2 sm:mb-3 flex items-center justify-between">
                       <span>Memory Management</span>
                       <span className="px-2 xs:px-2.5 sm:px-3 py-0.5 xs:py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] xs:text-xs font-bold rounded-md sm:rounded-lg shadow-sm">
                         {params.clearCache} frames
@@ -1125,12 +1132,12 @@ export default function FPSBoostPage() {
                         background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((params.clearCache - 5) / 45) * 100}%, #e5e7eb ${((params.clearCache - 5) / 45) * 100}%, #e5e7eb 100%)`
                       }}
                     />
-                    <div className="flex justify-between text-[10px] xs:text-xs font-semibold text-gray-600 dark:text-gray-400 mt-1.5 sm:mt-2">
+                    <div className="flex justify-between text-[10px] xs:text-xs font-semibold text-slate-400 mt-1.5 sm:mt-2">
                       <span>Frequent (5)</span>
                       <span>Balanced (25)</span>
                       <span>Rare (50)</span>
                     </div>
-                    <p className="text-[10px] xs:text-xs text-gray-600 dark:text-gray-400 mt-2 sm:mt-3 p-1.5 sm:p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+                    <p className="text-[10px] xs:text-xs text-slate-400 mt-2 sm:mt-3 p-1.5 sm:p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
                       💡 Clear cache more frequently for longer videos or limited GPU memory
                     </p>
                   </div>
@@ -1166,7 +1173,7 @@ export default function FPSBoostPage() {
           
           {(!params.uploadedVideo || !params.targetFolder) && (
             <div className="text-center py-2 xs:py-2.5 sm:py-3 px-3 xs:px-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
-              <p className="text-xs xs:text-sm text-gray-700 dark:text-gray-300 font-medium flex items-center justify-center gap-1.5 sm:gap-2">
+              <p className="text-xs xs:text-sm text-slate-200 font-medium flex items-center justify-center gap-1.5 sm:gap-2">
                 <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {!params.uploadedVideo && "Please upload a video first"}
                 {params.uploadedVideo && !params.targetFolder && "Please select a folder to save your output"}
@@ -1179,9 +1186,9 @@ export default function FPSBoostPage() {
           <div className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Current Job */}
             {currentJob && (
-              <div className="bg-white dark:bg-gray-800/50 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
+              <div className="bg-slate-900/50 backdrop-blur-md rounded-2xl shadow-xl border border-slate-700/50 p-3 sm:p-4 md:p-6 hover:shadow-2xl transition-all duration-300">
                 <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Current Generation</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-50">Current Generation</h3>
                   {currentJob.status === 'processing' && (
                     <div className="flex items-center gap-1.5 sm:gap-2">
                       <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin text-purple-500" />
@@ -1205,12 +1212,12 @@ export default function FPSBoostPage() {
               <div className="space-y-3 sm:space-y-4">
                 {/* Status Badge */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Status</span>
+                  <span className="text-xs sm:text-sm text-slate-400">Status</span>
                   <span className={`px-2 xs:px-2.5 sm:px-3 py-0.5 xs:py-1 rounded-full text-[10px] xs:text-xs sm:text-sm font-medium flex items-center space-x-0.5 xs:space-x-1 ${
-                    currentJob.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                    currentJob.status === 'processing' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                    currentJob.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                    'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                    currentJob.status === 'completed' ? 'bg-green-500/20 text-green-300 border border-green-500/30' :
+                    currentJob.status === 'processing' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                    currentJob.status === 'failed' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                    'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'
                   }`}>
                     {currentJob.status === 'processing' && <Loader2 className="w-2.5 h-2.5 xs:w-3 xs:h-3 animate-spin" />}
                     {currentJob.status === 'completed' && <CheckCircle2 className="w-2.5 h-2.5 xs:w-3 xs:h-3" />}
@@ -1223,7 +1230,7 @@ export default function FPSBoostPage() {
                 {currentJob.status === 'processing' && currentJob.progress !== undefined && (
                   <div>
                     <div className="flex justify-between text-xs sm:text-sm mb-1.5 sm:mb-2">
-                      <span className="text-gray-600 dark:text-gray-400">Progress</span>
+                      <span className="text-slate-400">Progress</span>
                       <span className="font-semibold text-blue-600 dark:text-blue-400">{currentJob.progress}%</span>
                     </div>
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 sm:h-3 overflow-hidden">
@@ -1239,7 +1246,7 @@ export default function FPSBoostPage() {
 
                 {/* Stage Info */}
                 {currentJob.stage && (
-                  <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 flex items-center space-x-1.5 sm:space-x-2">
+                  <div className="text-xs sm:text-sm text-slate-400 flex items-center space-x-1.5 sm:space-x-2">
                     <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>{currentJob.stage}</span>
                   </div>
@@ -1248,13 +1255,13 @@ export default function FPSBoostPage() {
                 {/* Time Info */}
                 {currentJob.elapsedTime && (
                   <div className="grid grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
-                    <div className="p-1.5 sm:p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                      <div className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">Elapsed</div>
+                    <div className="p-1.5 sm:p-2 bg-slate-800/40 rounded-lg">
+                      <div className="text-[10px] xs:text-xs text-slate-400 dark:text-slate-400">Elapsed</div>
                       <div className="font-semibold">{Math.floor(currentJob.elapsedTime / 60)}m {currentJob.elapsedTime % 60}s</div>
                     </div>
                     {currentJob.estimatedTimeRemaining && (
-                      <div className="p-1.5 sm:p-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                        <div className="text-[10px] xs:text-xs text-gray-500 dark:text-gray-400">Remaining</div>
+                      <div className="p-1.5 sm:p-2 bg-slate-800/40 rounded-lg">
+                        <div className="text-[10px] xs:text-xs text-slate-400 dark:text-slate-400">Remaining</div>
                         <div className="font-semibold">{Math.floor(currentJob.estimatedTimeRemaining / 60)}m {currentJob.estimatedTimeRemaining % 60}s</div>
                       </div>
                     )}
@@ -1318,7 +1325,7 @@ export default function FPSBoostPage() {
                           </button>
                           <button
                             onClick={() => shareVideo(video)}
-                            className="flex-1 py-2 sm:py-2.5 px-3 sm:px-4 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-all flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm active:scale-95"
+                            className="flex-1 py-2 sm:py-2.5 px-3 sm:px-4 bg-gray-600 hover:bg-slate-700/50 text-white rounded-lg transition-all flex items-center justify-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm active:scale-95"
                           >
                             <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             <span>Share</span>

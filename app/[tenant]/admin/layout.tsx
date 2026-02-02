@@ -89,6 +89,11 @@ export default function AdminLayout({
       href: `/${tenant}/admin/users`,
       icon: Users,
     },
+    {
+      name: "Organization Members",
+      href: `/${tenant}/admin/members`,
+      icon: Users,
+    },
   ];
 
   // Super admin only navigation items

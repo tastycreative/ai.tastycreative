@@ -185,11 +185,11 @@ export async function PATCH(
     // Allow if:
     // 1. User owns the post, OR
     // 2. User has access to the profile (shared via organization), OR
-    // 3. User is SUPER_ADMIN, ADMIN, or MANAGER (can edit any post)
+    // 3. User is SUPER_ADMIN or ADMIN (can edit any post)
     const canEdit = 
       existingPost.clerkId === userId || 
       hasProfileAccess ||
-      (currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN' || currentUserRecord.role === 'MANAGER'));
+      (currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN'));
 
     if (!canEdit) {
       return NextResponse.json(
@@ -235,11 +235,11 @@ export async function PATCH(
 
     console.log(`✅ Updated Instagram post: ${id} by user ${userId} (role: ${currentUserRecord?.role || 'USER'})`);
 
-    // Send notifications for status changes by admin/manager
-    const isAdminOrManager = currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN' || currentUserRecord.role === 'MANAGER');
+    // Send notifications for status changes by admin
+    const isAdmin = currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN');
     const statusChanged = existingPost.status !== status;
     
-    if (isAdminOrManager && statusChanged && status) {
+    if (isAdmin && statusChanged && status) {
       try {
         const postOwner = await prisma.user.findUnique({
           where: { clerkId: existingPost.clerkId },
@@ -364,11 +364,11 @@ export async function DELETE(
     // Allow if:
     // 1. User owns the post, OR
     // 2. User has access to the shared profile this post belongs to, OR
-    // 3. User is SUPER_ADMIN, ADMIN or MANAGER (can delete any post)
+    // 3. User is SUPER_ADMIN or ADMIN (can delete any post)
     const canDelete = 
       post.clerkId === userId || 
       hasProfileAccess ||
-      (currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN' || currentUserRecord.role === 'MANAGER'));
+      (currentUserRecord && (currentUserRecord.role === 'SUPER_ADMIN' || currentUserRecord.role === 'ADMIN'));
 
     if (!canDelete) {
       return NextResponse.json(

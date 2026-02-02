@@ -495,20 +495,23 @@ export default function OrganizationsTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
                         {getRoleIcon(member.role)}
-                        <select
-                          value={member.role}
-                          onChange={(e) => handleUpdateMemberRole(member.id, e.target.value)}
-                          className="text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded px-2 py-1"
-                        >
-                          <option value="OWNER">Owner</option>
-                          <option value="ADMIN">Admin</option>
-                          <option value="MANAGER">Manager</option>
-                          <option value="CREATOR">Creator</option>
-                          <option value="VIEWER">Viewer</option>
-                          <option value="MEMBER">Member</option>
-                        </select>
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          member.role === 'OWNER'
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                            : member.role === 'ADMIN'
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                            : member.role === 'MANAGER'
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                            : member.role === 'CREATOR'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                            : member.role === 'VIEWER'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'
+                        }`}>
+                          {member.role.charAt(0) + member.role.slice(1).toLowerCase()}
+                        </span>
                       </div>
                       <button
                         onClick={() => handleRemoveMember(member.id)}
