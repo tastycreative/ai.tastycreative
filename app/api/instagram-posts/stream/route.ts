@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       select: { role: true }
     });
 
-    const isAdminOrManager = user && (user.role === 'ADMIN' || user.role === 'MANAGER');
+    const isAdmin = user && user.role === 'ADMIN';
 
     // Create SSE stream
     const stream = new ReadableStream({

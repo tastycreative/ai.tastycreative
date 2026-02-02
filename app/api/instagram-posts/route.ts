@@ -96,8 +96,8 @@ export async function GET(request: NextRequest) {
         select: { role: true }
       });
 
-      // Only SUPER_ADMIN, ADMIN and MANAGER can view other users' posts
-      if (!currentUserRecord || (currentUserRecord.role !== 'SUPER_ADMIN' && currentUserRecord.role !== 'ADMIN' && currentUserRecord.role !== 'MANAGER')) {
+      // Only SUPER_ADMIN and ADMIN can view other users' posts
+      if (!currentUserRecord || (currentUserRecord.role !== 'SUPER_ADMIN' && currentUserRecord.role !== 'ADMIN')) {
         return NextResponse.json(
           { error: 'Unauthorized - insufficient permissions to view other users posts' },
           { status: 403 }

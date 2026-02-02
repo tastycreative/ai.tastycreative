@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const canMarkPublished = 
       post.clerkId === userId || 
-      (user && (user.role === 'ADMIN' || user.role === 'MANAGER'));
+      (user && user.role === 'ADMIN');
 
     if (!canMarkPublished) {
       return NextResponse.json(

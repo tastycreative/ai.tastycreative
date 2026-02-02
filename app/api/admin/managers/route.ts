@@ -43,7 +43,7 @@ export async function GET() {
             email: true,
           }
         },
-        team: {
+        organization: {
           select: {
             id: true,
             name: true
@@ -57,12 +57,12 @@ export async function GET() {
       }
     });
 
-    // Transform to include team information
+    // Transform to include organization information
     const managers = managerMembers.map(member => ({
       ...member.user,
       role: member.role,
-      teamId: member.team.id,
-      teamName: member.team.name
+      organizationId: member.organization.id,
+      organizationName: member.organization.name
     }));
 
     console.log('Found managers:', managers.length);

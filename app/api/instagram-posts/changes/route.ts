@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       select: { role: true }
     });
 
-    if (!user || !['ADMIN', 'MANAGER', 'CONTENT_CREATOR'].includes(user.role)) {
+    if (!user || user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -35,19 +35,19 @@ export async function GET(request: NextRequest) {
 
     if (hasChanges) {
       // Fetch updated posts
-      const isAdminOrManager = user.role === 'ADMIN' || user.role === 'MANAGER';
+      const isAdmin = user.role === 'ADMIN';
       
       // Build query based on role and selected user
       let whereClause: any;
       
-      if (isAdminOrManager && viewingUserId) {
-        // Admin/Manager viewing specific user's posts
+      if (isAdmin && viewingUserId) {
+        // Admin viewing specific user's posts
         whereClause = { clerkId: viewingUserId };
-      } else if (!isAdminOrManager) {
-        // Content Creator can only see their own posts
+      } else if (!isAdmin) {
+        // Regular users can only see their own posts
         whereClause = { clerkId: userId };
       } else {
-        // Admin/Manager with no viewingUserId, show all posts
+        // Admin with no viewingUserId, show all posts
         whereClause = {};
       }
 

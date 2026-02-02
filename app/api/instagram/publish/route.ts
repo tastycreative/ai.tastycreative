@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const canPublish = 
       post.clerkId === userId || 
-      (user && (user.role === 'ADMIN' || user.role === 'MANAGER'));
+      (user && user.role === 'ADMIN');
 
     if (!canPublish) {
       return NextResponse.json(
