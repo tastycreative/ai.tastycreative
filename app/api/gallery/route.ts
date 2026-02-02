@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
               profileImageUrl: true,
             },
           },
-        },
+        } as any,
       }),
       prisma.gallery_items.count({ where }),
     ]);
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
         postedAt: new Date(postedAt),
         origin,
         createdBy: userId,
-      },
+      } as Prisma.gallery_itemsUncheckedCreateInput,
       include: {
         model: {
           select: {
@@ -223,7 +223,7 @@ export async function POST(req: NextRequest) {
             profileImageUrl: true,
           },
         },
-      },
+      } as any,
     });
 
     return NextResponse.json({ data: item }, { status: 201 });

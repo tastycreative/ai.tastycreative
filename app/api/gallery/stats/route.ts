@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
         orderBy: { revenue: "desc" },
         take: 10,
         include: {
-          model: {
+          of_models: {
             select: {
               id: true,
               name: true,
@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
         orderBy: { postedAt: "desc" },
         take: 5,
         include: {
-          model: {
+          of_models: {
             select: {
               id: true,
               name: true,
