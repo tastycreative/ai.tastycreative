@@ -1562,9 +1562,7 @@ enum GenerationType {
 
 enum UserRole {
   USER
-  MANAGER
   ADMIN
-  CONTENT_CREATOR
   SUPER_ADMIN
 }
 

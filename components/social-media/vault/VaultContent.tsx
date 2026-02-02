@@ -16,8 +16,112 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-// Constants for pagination - reduced for better initial load performance
-const ITEMS_PER_PAGE = 30;
+// Constants for pagination
+const ITEMS_PER_PAGE = 50;
+
+// Lazy loading image component with intersection observer
+const LazyImage = memo(function LazyImage({
+  src,
+  alt,
+  className,
+  onError,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+}) {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!imgRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '100px' }
+    );
+    
+    observer.observe(imgRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={imgRef} className={className}>
+      {isInView ? (
+        <img
+          src={src}
+          alt={alt}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setIsLoaded(true)}
+          onError={onError}
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <div className="w-full h-full bg-gray-800 animate-pulse" />
+      )}
+      {isInView && !isLoaded && (
+        <div className="absolute inset-0 bg-gray-800 animate-pulse" />
+      )}
+    </div>
+  );
+});
+
+// Lazy loading video thumbnail component
+const LazyVideoThumbnail = memo(function LazyVideoThumbnail({
+  src,
+  className,
+}: {
+  src: string;
+  className?: string;
+}) {
+  const [isInView, setIsInView] = useState(false);
+  const videoRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!videoRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '100px' }
+    );
+    
+    observer.observe(videoRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={videoRef} className={className}>
+      {isInView ? (
+        <video
+          src={src}
+          className="w-full h-full object-cover"
+          muted
+          playsInline
+          preload="metadata"
+          onLoadedData={(e) => {
+            const video = e.currentTarget;
+            video.currentTime = 0.1;
+          }}
+        />
+      ) : (
+        <div className="w-full h-full bg-gray-800 animate-pulse" />
+      )}
+    </div>
+  );
+});
 import {
   Plus,
   Search,
@@ -267,7 +371,7 @@ const VaultGridItem = memo(function VaultGridItem({
 
   return (
     <div
-      className={`vault-item group bg-gray-900 rounded-lg sm:rounded-xl border transition-all cursor-pointer ${
+      className={`vault-item group bg-gray-900 rounded-lg sm:rounded-xl border transition-all cursor-pointer active:scale-95 ${
         isSelected
           ? 'border-blue-500 ring-2 ring-blue-500/30'
           : 'border-gray-800 hover:border-gray-700 hover:shadow-lg'
@@ -276,14 +380,14 @@ const VaultGridItem = memo(function VaultGridItem({
     >
       <div className="relative">
         <div
-          className={`absolute top-1.5 sm:top-2 left-1.5 sm:left-2 z-20 transition-opacity ${
+          className={`absolute top-1 sm:top-2 left-1 sm:left-2 z-20 transition-opacity ${
             selectionMode || isSelected
               ? 'opacity-100'
               : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
           }`}
         >
           <label 
-            className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-gray-900/80 backdrop-blur rounded-lg cursor-pointer hover:bg-gray-700 transition-colors"
+            className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 bg-gray-900/90 backdrop-blur rounded-lg cursor-pointer hover:bg-gray-700 transition-colors active:scale-95"
             onClick={(e) => e.stopPropagation()}
           >
             <input
@@ -293,7 +397,7 @@ const VaultGridItem = memo(function VaultGridItem({
                 e.stopPropagation();
                 onSelect(item.id);
               }}
-              className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 shadow-sm cursor-pointer"
+              className="w-5 h-5 sm:w-4 sm:h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500 shadow-sm cursor-pointer"
             />
           </label>
         </div>
@@ -302,12 +406,12 @@ const VaultGridItem = memo(function VaultGridItem({
           onClick={handlePreviewClick}
         >
           {item.fileType.startsWith('image/') ? (
-            <img
+            <LazyImage
               src={item.awsS3Url}
               alt={item.fileName}
-              className="w-full h-full object-cover rounded-lg bg-gray-800"
+              className="w-full h-full rounded-lg bg-gray-800 relative overflow-hidden"
               onError={(e) => {
-                const img = e.currentTarget;
+                const img = e.currentTarget as HTMLImageElement;
                 if (!img.dataset.retried) {
                   img.dataset.retried = 'true';
                   img.src = item.awsS3Url + '?t=' + Date.now();
@@ -316,16 +420,9 @@ const VaultGridItem = memo(function VaultGridItem({
             />
           ) : item.fileType.startsWith('video/') ? (
             <div className="relative w-full h-full bg-gray-800 rounded-lg overflow-hidden">
-              <video
+              <LazyVideoThumbnail
                 src={item.awsS3Url}
-                className="w-full h-full object-cover"
-                muted
-                playsInline
-                preload="metadata"
-                onLoadedData={(e) => {
-                  const video = e.currentTarget;
-                  video.currentTime = 0.1;
-                }}
+                className="w-full h-full"
               />
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                 <div className="w-8 sm:w-10 h-8 sm:h-10 bg-white/30 backdrop-blur rounded-full flex items-center justify-center">
@@ -344,42 +441,42 @@ const VaultGridItem = memo(function VaultGridItem({
           )}
         </div>
         <div
-          className={`absolute top-1.5 sm:top-2 right-1.5 sm:right-2 flex items-center gap-1 transition-opacity ${
+          className={`absolute top-1 sm:top-2 right-1 sm:right-2 flex items-center gap-0.5 sm:gap-1 transition-opacity ${
             !selectionMode && (isSelected ? 'opacity-100' : 'opacity-0 sm:group-hover:opacity-100')
           } ${selectionMode ? 'hidden' : ''}`}
         >
           {item.metadata && (
             <div
-              className="p-1 sm:p-1.5 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur shadow-sm rounded-lg"
+              className="p-1.5 sm:p-1.5 bg-gradient-to-br from-cyan-500/20 to-blue-500/20 backdrop-blur shadow-sm rounded-lg"
               title="AI Generated - Click to view details"
             >
-              <Sparkles className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-cyan-400" />
+              <Sparkles className="w-4 sm:w-4 h-4 sm:h-4 text-cyan-400" />
             </div>
           )}
           <a
             href={item.awsS3Url}
             download={item.fileName}
             onClick={(e) => e.stopPropagation()}
-            className="p-1 sm:p-1.5 bg-gray-900/80 backdrop-blur shadow-sm rounded-lg hover:bg-gray-800 transition-colors"
+            className="p-2 sm:p-1.5 bg-gray-900/90 backdrop-blur shadow-sm rounded-lg hover:bg-gray-800 transition-colors active:scale-95 touch-manipulation"
           >
-            <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-300" />
+            <Download className="w-4 sm:w-4 h-4 sm:h-4 text-gray-300" />
           </a>
           {canEdit && (
             <button
               onClick={handleDeleteClick}
-              className="p-1 sm:p-1.5 bg-gray-900/80 backdrop-blur shadow-sm rounded-lg hover:bg-red-900/50 transition-colors"
+              className="p-2 sm:p-1.5 bg-gray-900/90 backdrop-blur shadow-sm rounded-lg hover:bg-red-900/50 transition-colors active:scale-95 touch-manipulation"
             >
-              <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" />
+              <Trash2 className="w-4 sm:w-4 h-4 sm:h-4 text-red-400" />
             </button>
           )}
         </div>
       </div>
       <div className="px-2 sm:px-3 pb-2 sm:pb-3">
-        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate">
+        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate leading-tight">
           {item.fileName}
         </p>
-        <div className="flex items-center justify-between mt-0.5 sm:mt-1">
-          <span className="text-[10px] sm:text-xs text-gray-500">
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-xs sm:text-xs text-gray-500 font-medium">
             {formatFileSize(item.fileSize)}
           </span>
           <span className="text-[10px] sm:text-xs text-gray-600 hidden sm:inline">
@@ -434,7 +531,7 @@ const VaultListItem = memo(function VaultListItem({
   return (
     <div
       onClick={handleClick}
-      className={`vault-item group flex items-center gap-2 sm:gap-4 p-2 sm:p-3 bg-gray-900 rounded-lg border transition-all cursor-pointer ${
+      className={`vault-item group flex items-center gap-2 sm:gap-4 p-2.5 sm:p-3 bg-gray-900 rounded-lg border transition-all cursor-pointer active:scale-[0.99] touch-manipulation ${
         isSelected
           ? 'border-blue-500 ring-2 ring-blue-500/30'
           : 'border-gray-800 hover:border-gray-700'
@@ -462,12 +559,12 @@ const VaultListItem = memo(function VaultListItem({
       </div>
       <div className="w-10 sm:w-12 h-10 sm:h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-800">
         {item.fileType.startsWith('image/') ? (
-          <img
+          <LazyImage
             src={item.awsS3Url}
             alt={item.fileName}
-            className="w-full h-full object-cover"
+            className="w-full h-full relative"
             onError={(e) => {
-              const img = e.currentTarget;
+              const img = e.currentTarget as HTMLImageElement;
               if (!img.dataset.retried) {
                 img.dataset.retried = 'true';
                 img.src = item.awsS3Url + '?t=' + Date.now();
@@ -476,16 +573,9 @@ const VaultListItem = memo(function VaultListItem({
           />
         ) : item.fileType.startsWith('video/') ? (
           <div className="relative w-full h-full bg-gray-800">
-            <video
+            <LazyVideoThumbnail
               src={item.awsS3Url}
-              className="w-full h-full object-cover"
-              muted
-              playsInline
-              preload="metadata"
-              onLoadedData={(e) => {
-                const video = e.currentTarget;
-                video.currentTime = 0.1;
-              }}
+              className="w-full h-full"
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
               <VideoIcon className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
@@ -502,10 +592,10 @@ const VaultListItem = memo(function VaultListItem({
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs sm:text-sm font-medium text-gray-200 truncate">
+        <p className="text-sm sm:text-sm font-medium text-gray-200 truncate leading-tight">
           {item.fileName}
         </p>
-        <p className="text-[10px] sm:text-xs text-gray-500">
+        <p className="text-xs sm:text-xs text-gray-500 mt-0.5">
           {formatFileSize(item.fileSize)}
         </p>
       </div>
@@ -514,7 +604,7 @@ const VaultListItem = memo(function VaultListItem({
         {item.createdAt.toLocaleDateString()}
       </div>
       <div
-        className={`flex items-center gap-1 transition-opacity flex-shrink-0 ${
+        className={`flex items-center gap-0.5 sm:gap-1 transition-opacity flex-shrink-0 ${
           selectionMode ? 'hidden' : 'sm:opacity-0 sm:group-hover:opacity-100'
         }`}
       >
@@ -522,16 +612,16 @@ const VaultListItem = memo(function VaultListItem({
           href={item.awsS3Url}
           download={item.fileName}
           onClick={(e) => e.stopPropagation()}
-          className="p-1.5 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors"
+          className="p-2 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors active:scale-95 touch-manipulation"
         >
-          <Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-gray-400" />
+          <Download className="w-4 sm:w-4 h-4 sm:h-4 text-gray-400" />
         </a>
         {canEdit && (
           <button
             onClick={handleDeleteClick}
-            className="p-1.5 sm:p-2 hover:bg-red-900/30 rounded-lg transition-colors"
+            className="p-2 sm:p-2 hover:bg-red-900/30 rounded-lg transition-colors active:scale-95 touch-manipulation"
           >
-            <Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" />
+            <Trash2 className="w-4 sm:w-4 h-4 sm:h-4 text-red-400" />
           </button>
         )}
       </div>
@@ -2115,7 +2205,7 @@ export function VaultContent() {
     return allFilteredItems;
   }, [isAdmin, adminViewMode, allFilteredCreatorItems, allFilteredItems]);
 
-  // Paginated items for display
+  // Paginated items for display (still keeping some limit for initial render)
   const filteredItems = useMemo(() => {
     return currentFilteredItems.slice(0, displayCount);
   }, [currentFilteredItems, displayCount]);
@@ -3334,9 +3424,9 @@ export function VaultContent() {
             </div>
 
             {/* Desktop header row */}
-            <div className="hidden lg:flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-semibold text-white">
+            <div className="hidden lg:flex items-center justify-between gap-1.5 xl:gap-3">
+              <div className="flex-shrink min-w-0 max-w-[30%] xl:max-w-none">
+                <h1 className="text-sm xl:text-xl font-semibold text-white truncate">
                   {isViewingCreators 
                     ? (selectedContentCreator 
                         ? `${selectedContentCreator.firstName || ''} ${selectedContentCreator.lastName || ''}`.trim() || 'Creator Files'
@@ -3346,51 +3436,51 @@ export function VaultContent() {
                       : (selectedFolder?.name || 'Select a folder')}
                 </h1>
                 {isAllProfiles && !selectedFolder && (
-                  <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5">
+                  <p className="text-xs xl:text-sm text-gray-400 flex items-center gap-1 mt-0.5 hidden xl:flex">
                     <Users className="w-3.5 h-3.5" /> Viewing all {profiles.length} profiles
                   </p>
                 )}
                 {isViewingShared && selectedSharedFolder && (
-                  <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5">
+                  <p className="text-xs xl:text-sm text-gray-400 flex items-center gap-1 mt-0.5 hidden xl:flex">
                     <Share2 className="w-3.5 h-3.5" /> Shared by {selectedSharedFolder.sharedBy}
                     {!canEdit && <span className="text-amber-400 ml-2">(View only)</span>}
                   </p>
                 )}
                 {isViewingCreators && (
-                  <p className="text-sm text-gray-400 flex items-center gap-1 mt-0.5">
+                  <p className="text-xs xl:text-sm text-gray-400 flex items-center gap-1 mt-0.5 hidden xl:flex">
                     <Crown className="w-3.5 h-3.5 text-amber-400" /> 
                     Content Creator Generations
                     <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full ml-2">Admin View</span>
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input type="text" placeholder="Search files..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors" />
+              <div className="flex items-center gap-1 xl:gap-3 flex-shrink-0">
+                <div className="relative w-24 xl:w-64">
+                  <Search className="absolute left-2 xl:left-3 top-1/2 -translate-y-1/2 w-3.5 xl:w-4 h-3.5 xl:h-4 text-gray-500" />
+                  <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-7 xl:pl-9 pr-2 xl:pr-4 py-1.5 xl:py-2.5 bg-white/5 border border-white/10 rounded-lg xl:rounded-xl text-xs xl:text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors" />
                 </div>
-                <div className="flex items-center bg-white/5 rounded-xl p-1 border border-white/10">
-                  <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-4 h-4" /></button>
-                  <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-4 h-4" /></button>
+                <div className="flex items-center bg-white/5 rounded-lg xl:rounded-xl p-0.5 xl:p-1 border border-white/10">
+                  <button onClick={() => setViewMode('grid')} className={`p-1.5 xl:p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><Grid3X3 className="w-3.5 xl:w-4 h-3.5 xl:h-4" /></button>
+                  <button onClick={() => setViewMode('list')} className={`p-1.5 xl:p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-gradient-to-r from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-500/25' : 'text-gray-500 hover:text-gray-300'}`}><List className="w-3.5 xl:w-4 h-3.5 xl:h-4" /></button>
                 </div>
                 {!isViewingShared && !isViewingCreators && (
-                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25" title={selectedProfileId === 'all' ? 'Select a specific profile to upload' : undefined}>
-                    <Upload className="w-4 h-4" /> Upload
+                  <button onClick={() => setIsAddingNew(true)} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-violet-500 to-fuchsia-600 hover:from-violet-600 hover:to-fuchsia-700 text-white rounded-lg xl:rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-violet-500/25" title="Upload">
+                    <Upload className="w-4 h-4" /> <span className="hidden xl:inline">Upload</span>
                   </button>
                 )}
                 {!isViewingShared && !isViewingCreators && (
-                  <button onClick={openGoogleDriveModal} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-blue-500/25" title={selectedProfileId === 'all' ? 'Select a specific profile to import' : 'Import from Google Drive'}>
-                    <HardDrive className="w-4 h-4" /> Google Drive
+                  <button onClick={openGoogleDriveModal} disabled={!selectedProfileId || selectedProfileId === 'all' || !selectedFolderId} className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white rounded-lg xl:rounded-xl font-medium transition-all disabled:opacity-50 shadow-lg shadow-blue-500/25" title="Google Drive">
+                    <HardDrive className="w-4 h-4" /> <span className="hidden xl:inline">Google Drive</span>
                   </button>
                 )}
                 {/* Desktop Export button */}
                 {vaultItems.filter(item => item.fileType.startsWith('image/')).length > 0 && (
                   <button
                     onClick={() => setShowExportModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-fuchsia-500 to-pink-600 hover:from-fuchsia-600 hover:to-pink-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-fuchsia-500/25"
-                    title="Export for platforms"
+                    className="flex items-center justify-center gap-1.5 w-9 h-9 xl:w-auto xl:h-auto xl:px-4 xl:py-2.5 bg-gradient-to-r from-fuchsia-500 to-pink-600 hover:from-fuchsia-600 hover:to-pink-700 text-white rounded-lg xl:rounded-xl font-medium transition-all shadow-lg shadow-fuchsia-500/25"
+                    title="Export"
                   >
-                    <FileOutput className="w-4 h-4" /> Export
+                    <FileOutput className="w-4 h-4" /> <span className="hidden xl:inline">Export</span>
                   </button>
                 )}
               </div>
@@ -3506,16 +3596,18 @@ export function VaultContent() {
               </div>
             ) : viewMode === 'grid' ? (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4">
-                  {filteredItems.length > 0 && selectionMode && (
-                    <div className="col-span-full flex items-center justify-between mb-2 px-3 py-2.5 glass-card rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-violet-600 bg-white/10 border-white/20 rounded focus:ring-violet-500 cursor-pointer" />
-                        <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
-                      </div>
-                      <span className="text-xs text-gray-500">Shift+click for range</span>
+                {/* Selection header */}
+                {filteredItems.length > 0 && selectionMode && (
+                  <div className="flex items-center justify-between mb-2 px-3 py-2.5 glass-card rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-violet-600 bg-white/10 border-white/20 rounded focus:ring-violet-500 cursor-pointer" />
+                      <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
                     </div>
-                  )}
+                    <span className="text-xs text-gray-500">Shift+click for range</span>
+                  </div>
+                )}
+                {/* Standard Grid with lazy loaded images */}
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-3 md:gap-4">
                   {filteredItems.map((item) => (
                     <VaultGridItem
                       key={item.id}
@@ -3540,16 +3632,18 @@ export function VaultContent() {
               </>
             ) : (
               <>
-                <div className="space-y-2">
-                  {filteredItems.length > 0 && selectionMode && (
-                    <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 glass-card rounded-xl mb-2">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-violet-600 bg-white/10 border-white/20 rounded focus:ring-violet-500 cursor-pointer" />
-                        <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
-                      </div>
-                      <span className="text-xs text-gray-500">Shift+click for range</span>
+                {/* Selection header for list view */}
+                {filteredItems.length > 0 && selectionMode && (
+                  <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 glass-card rounded-xl mb-2">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <input type="checkbox" checked={selectedItems.size > 0 && selectedItems.size === currentFilteredItems.length} onChange={toggleSelectAll} className="w-4 h-4 text-violet-600 bg-white/10 border-white/20 rounded focus:ring-violet-500 cursor-pointer" />
+                      <span className="text-xs sm:text-sm text-gray-300 font-medium">{selectedItems.size > 0 ? `${selectedItems.size} of ${currentFilteredItems.length}` : 'Select all'}</span>
                     </div>
-                  )}
+                    <span className="text-xs text-gray-500">Shift+click for range</span>
+                  </div>
+                )}
+                {/* Standard List with lazy loaded images */}
+                <div className="space-y-2">
                   {filteredItems.map((item) => (
                     <VaultListItem
                       key={item.id}
@@ -3577,8 +3671,8 @@ export function VaultContent() {
 
           {/* Floating Selection Action Bar */}
           {selectedItems.size > 0 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 animate-slideUp">
-              <div className="flex items-center gap-2 sm:gap-3 glass-card backdrop-blur-xl rounded-2xl px-3 sm:px-5 py-2.5 sm:py-3 shadow-2xl shadow-violet-500/10">
+            <div className="fixed sm:absolute bottom-20 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 animate-slideUp w-[calc(100%-2rem)] sm:w-auto max-w-2xl">
+              <div className="flex items-center gap-1.5 sm:gap-3 glass-card backdrop-blur-xl rounded-2xl px-2.5 sm:px-5 py-2.5 sm:py-3 shadow-2xl shadow-violet-500/10">
                 {/* Selection count */}
                 <div className="flex items-center gap-2 pr-2 sm:pr-3 border-r border-white/10">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-r from-violet-500 to-fuchsia-600 rounded-full flex items-center justify-center shadow-lg shadow-violet-500/25">
@@ -3590,21 +3684,21 @@ export function VaultContent() {
                 {/* Select all */}
                 <button 
                   onClick={toggleSelectAll}
-                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-300 hover:bg-white/10 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-gray-300 hover:bg-white/10 rounded-lg transition-colors active:scale-95 touch-manipulation min-w-[44px] justify-center"
                 >
                   <Check className="w-4 h-4" />
                   <span className="hidden sm:inline">{selectedItems.size === currentFilteredItems.length ? 'Deselect all' : 'Select all'}</span>
                 </button>
                 
                 {/* Divider */}
-                <div className="w-px h-6 bg-white/10" />
+                <div className="w-px h-6 bg-white/10 hidden xs:block" />
                 
                 {/* Actions */}
                 {canEdit && !isViewingCreators && (
                   <button 
                     onClick={handleBulkMove} 
                     disabled={isMoving}
-                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-violet-400 hover:bg-violet-500/20 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-violet-400 hover:bg-violet-500/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
                     title="Move"
                   >
                     <Move className="w-4 h-4" />
@@ -3615,7 +3709,7 @@ export function VaultContent() {
                 <button
                   onClick={handleDownloadZip}
                   disabled={isDownloading}
-                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
                   title="Download"
                 >
                   {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -3624,7 +3718,7 @@ export function VaultContent() {
 
                 <button
                   onClick={() => setShowExportModal(true)}
-                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-fuchsia-400 hover:bg-fuchsia-500/20 rounded-lg transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-fuchsia-400 hover:bg-fuchsia-500/20 rounded-lg transition-colors active:scale-95 touch-manipulation min-w-[44px] justify-center"
                   title="Platform Export"
                 >
                   <FileOutput className="w-4 h-4" />
@@ -3635,7 +3729,7 @@ export function VaultContent() {
                   <button 
                     onClick={handleBulkDelete} 
                     disabled={isDeleting}
-                    className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-red-400 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-2 text-xs sm:text-sm font-medium text-red-400 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 active:scale-95 touch-manipulation min-w-[44px] justify-center"
                     title="Delete"
                   >
                     {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}

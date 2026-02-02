@@ -62,28 +62,17 @@ export async function isUserAdmin(): Promise<boolean> {
 /**
  * Check if the current user is a manager or admin
  */
+// Note: MANAGER is now a TeamRole (organization-specific), not a global UserRole.
+// For organization-specific permissions, check TeamMember.role in the relevant organization context.
 export async function isUserManagerOrAdmin(): Promise<boolean> {
   try {
     const user = await currentUser();
     if (!user) return false;
 
-    // Check admin first
-    if (await isUserAdmin()) return true;
-
-    // Check database role for manager
-    try {
-      const dbUser = await prisma.user.findUnique({
-        where: { clerkId: user.id },
-        select: { role: true }
-      });
-      
-      return dbUser?.role === 'MANAGER';
-    } catch (dbError) {
-      console.warn('Could not check database role for manager:', dbError);
-      return false;
-    }
+    // Check admin role (ADMIN or SUPER_ADMIN)
+    return await isUserAdmin();
   } catch (error) {
-    console.error('Error checking manager status:', error);
+    console.error('Error checking admin status:', error);
     return false;
   }
 }

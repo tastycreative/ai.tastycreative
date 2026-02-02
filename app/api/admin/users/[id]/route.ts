@@ -22,10 +22,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     console.log('User ID to update:', userId, 'New role:', role);
 
     // Validate role
-    if (!['USER', 'CONTENT_CREATOR', 'MANAGER', 'ADMIN'].includes(role)) {
+    if (!['USER', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
       console.log('Invalid role provided:', role);
       return NextResponse.json(
-        { error: 'Invalid role. Must be USER, CONTENT_CREATOR, MANAGER, or ADMIN' },
+        { error: 'Invalid role. Must be USER, ADMIN, or SUPER_ADMIN' },
         { status: 400 }
       );
     }

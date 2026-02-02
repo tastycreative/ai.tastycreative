@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
     // Combine all users
     const allUsers = [...mergedUsers, ...orphanedUsers];
 
-    return NextResponse.json(allUsers);
+    return NextResponse.json({ users: allUsers });
   } catch (error: any) {
     console.error('Error fetching users:', error);
     

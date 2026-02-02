@@ -23,22 +23,31 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const contentCreatorId = searchParams.get("contentCreatorId");
 
-    // Get all content creators
-    const contentCreators = await prisma.user.findMany({
+    // Get all team members with CREATOR role
+    const creatorMembers = await prisma.teamMember.findMany({
       where: {
-        role: 'CONTENT_CREATOR'
+        role: 'CREATOR'
       },
-      select: {
-        id: true,
-        clerkId: true,
-        firstName: true,
-        lastName: true,
-        email: true,
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
+        }
       },
       orderBy: {
-        firstName: 'asc'
+        user: {
+          firstName: 'asc'
+        }
       }
     });
+
+    // Transform to the format expected by the rest of the code
+    const contentCreators = creatorMembers.map(member => member.user);
 
     // If a specific content creator is selected, get their items
     if (contentCreatorId) {
