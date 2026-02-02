@@ -10,13 +10,20 @@ export default async function ContentCreatorPage() {
     redirect('/sign-in');
   }
 
-  // Check if user is a content creator only
+  // Check if user has CREATOR role in any team
   const dbUser = await prisma.user.findUnique({
     where: { clerkId: user.id },
-    select: { role: true }
+    select: { 
+      id: true,
+      teamMembers: {
+        where: {
+          role: 'CREATOR'
+        }
+      }
+    }
   });
 
-  if (!dbUser || dbUser.role !== 'CONTENT_CREATOR') {
+  if (!dbUser || dbUser.teamMembers.length === 0) {
     redirect('/dashboard');
   }
 
