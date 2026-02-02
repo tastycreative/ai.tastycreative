@@ -28,22 +28,42 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
-    // Fetch all users with MANAGER role
-    const managers = await prisma.user.findMany({
+    // Fetch all users with MANAGER TeamRole
+    const managerMembers = await prisma.teamMember.findMany({
       where: {
         role: 'MANAGER'
       },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        role: true
+      include: {
+        user: {
+          select: {
+            id: true,
+            clerkId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          }
+        },
+        team: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
       },
       orderBy: {
-        firstName: 'asc'
+        user: {
+          firstName: 'asc'
+        }
       }
     });
+
+    // Transform to include team information
+    const managers = managerMembers.map(member => ({
+      ...member.user,
+      role: member.role,
+      teamId: member.team.id,
+      teamName: member.team.name
+    }));
 
     console.log('Found managers:', managers.length);
     return NextResponse.json(managers);
