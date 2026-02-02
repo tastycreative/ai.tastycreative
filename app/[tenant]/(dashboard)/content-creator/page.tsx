@@ -15,7 +15,7 @@ export default async function ContentCreatorPage() {
     where: { clerkId: user.id },
     select: { 
       id: true,
-      teamMembers: {
+      teamMemberships: {
         where: {
           role: 'CREATOR'
         }
@@ -23,7 +23,7 @@ export default async function ContentCreatorPage() {
     }
   });
 
-  if (!dbUser || dbUser.teamMembers.length === 0) {
+  if (!dbUser || dbUser.teamMemberships.length === 0) {
     redirect('/dashboard');
   }
 
