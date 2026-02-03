@@ -67,6 +67,9 @@ interface InfluencerProfile {
     email: string | null;
   };
   isShared?: boolean;
+  currentUserOrgRole?: "OWNER" | "ADMIN" | "MANAGER" | "CREATOR" | "VIEWER" | "MEMBER" | null;
+  tags?: string[];
+  isFavorite?: boolean;
 }
 
 interface LinkedLoRA {
@@ -159,6 +162,14 @@ const CORE_TRAITS_OPTIONS = [
   "Fitness-focused", "Artistic/Creative", "Other",
 ];
 
+const TAG_CATEGORIES = [
+  "Fitness", "Lifestyle", "Gaming", "Fashion", "Beauty",
+  "Travel", "Food", "Tech", "Art", "Music",
+  "Sports", "Comedy", "Educational", "ASMR", "Cosplay",
+];
+
+type SortOption = "name" | "dateCreated" | "dateUpdated" | "postsCount" | "completeness";
+
 const DEFAULT_PRICING_ITEMS: PricingItem[] = [
   { item: "Dick rating (text)", price: "" },
   { item: "Dick rating (video)", price: "" },
@@ -172,12 +183,91 @@ const DEFAULT_PRICING_ITEMS: PricingItem[] = [
   { item: "Worn items", price: "" },
 ];
 
+// Profile completeness calculation
+interface CompletenessResult {
+  percentage: number;
+  filledSections: string[];
+  missingSections: string[];
+  totalSections: number;
+  filledCount: number;
+}
+
+const MODEL_BIBLE_SECTIONS = [
+  { name: "Identity", fields: ["age", "location", "nationality", "occupation", "relationshipStatus"] },
+  { name: "Backstory", fields: ["backstory", "family", "contentCreationOrigin"] },
+  { name: "Personality", fields: ["coreTraits", "personalityDescription"] },
+  { name: "Content", fields: ["primaryNiche", "feedAesthetic", "uniqueHook"] },
+  { name: "Boundaries", fields: ["willDo", "wontDo"] },
+  { name: "Communication", fields: ["tone", "signaturePhrases", "messageLength"] },
+  { name: "Visual", fields: ["hair", "eyes", "bodyType"] },
+  { name: "Platform", fields: ["instagramBio", "instagramPostingStyle"] },
+  { name: "FAQs", fields: ["faqAreYouReal", "faqMeetUp", "faqFreeContent"] },
+];
+
+function calculateProfileCompleteness(profile: InfluencerProfile): CompletenessResult {
+  const bible = profile.modelBible;
+  
+  if (!bible) {
+    return {
+      percentage: 0,
+      filledSections: [],
+      missingSections: MODEL_BIBLE_SECTIONS.map(s => s.name),
+      totalSections: MODEL_BIBLE_SECTIONS.length,
+      filledCount: 0,
+    };
+  }
+
+  const filledSections: string[] = [];
+  const missingSections: string[] = [];
+
+  MODEL_BIBLE_SECTIONS.forEach(section => {
+    const hasContent = section.fields.some(field => {
+      const value = bible[field as keyof ModelBible];
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === "string") return value.trim().length > 0;
+      return !!value;
+    });
+
+    if (hasContent) {
+      filledSections.push(section.name);
+    } else {
+      missingSections.push(section.name);
+    }
+  });
+
+  const percentage = Math.round((filledSections.length / MODEL_BIBLE_SECTIONS.length) * 100);
+
+  return {
+    percentage,
+    filledSections,
+    missingSections,
+    totalSections: MODEL_BIBLE_SECTIONS.length,
+    filledCount: filledSections.length,
+  };
+}
+
+function getCompletenessColor(percentage: number): string {
+  if (percentage >= 80) return "emerald";
+  if (percentage >= 50) return "amber";
+  return "red";
+}
+
+function getCompletenessLabel(percentage: number): string {
+  if (percentage === 100) return "Complete";
+  if (percentage >= 80) return "Excellent";
+  if (percentage >= 50) return "Good";
+  if (percentage >= 25) return "Basic";
+  return "Started";
+}
+
 export default function MyInfluencersPage() {
   const [profiles, setProfiles] = useState<InfluencerProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("name");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -214,6 +304,19 @@ export default function MyInfluencersPage() {
     return profile.clerkId === clerkUser?.id;
   };
 
+  const canEditProfile = (profile: InfluencerProfile) => {
+    // Owner can always edit
+    if (isOwnProfile(profile)) return true;
+    
+    // Check if user has elevated role in the organization
+    if (profile.organizationId && profile.currentUserOrgRole) {
+      const elevatedRoles = ["OWNER", "ADMIN", "MANAGER"];
+      return elevatedRoles.includes(profile.currentUserOrgRole);
+    }
+    
+    return false;
+  };
+
   const getOwnerDisplayName = (profile: InfluencerProfile) => {
     if (!profile.user) return "Unknown";
     if (profile.user.name) return profile.user.name;
@@ -244,12 +347,51 @@ export default function MyInfluencersPage() {
     } catch { toast.error("Failed to update sharing settings"); }
   };
 
+  const handleToggleFavorite = async (profileId: string) => {
+    if (!apiClient) return;
+    try {
+      const profile = profiles.find(p => p.id === profileId);
+      const response = await apiClient.patch(`/api/instagram-profiles/${profileId}`, { isFavorite: !profile?.isFavorite });
+      if (!response.ok) throw new Error("Failed to update favorite");
+      toast.success(profile?.isFavorite ? "Removed from favorites" : "Added to favorites");
+      await loadProfiles();
+    } catch { toast.error("Failed to update favorite status"); }
+  };
+
   const filteredProfiles = profiles.filter((profile) => {
     const matchesSearch = profile.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       profile.instagramUsername?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       getOwnerDisplayName(profile).toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter = filterMode === "all" ? true : filterMode === "mine" ? isOwnProfile(profile) : !isOwnProfile(profile);
-    return matchesSearch && matchesFilter;
+    const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => profile.tags?.includes(tag));
+    return matchesSearch && matchesFilter && matchesTags;
+  });
+
+  // Sort profiles
+  const sortedProfiles = [...filteredProfiles].sort((a, b) => {
+    // Favorites always on top
+    if (a.isFavorite && !b.isFavorite) return -1;
+    if (!a.isFavorite && b.isFavorite) return 1;
+    
+    // Then apply selected sort
+    switch (sortBy) {
+      case "name":
+        return a.name.localeCompare(b.name);
+      case "dateCreated":
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case "dateUpdated":
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      case "postsCount":
+        const aCount = (a._count?.posts || 0) + (a._count?.feedPosts || 0);
+        const bCount = (b._count?.posts || 0) + (b._count?.feedPosts || 0);
+        return bCount - aCount;
+      case "completeness":
+        const aComplete = calculateProfileCompleteness(a).percentage;
+        const bComplete = calculateProfileCompleteness(b).percentage;
+        return bComplete - aComplete;
+      default:
+        return 0;
+    }
   });
 
   const myProfilesCount = profiles.filter((p) => isOwnProfile(p)).length;
@@ -295,20 +437,64 @@ export default function MyInfluencersPage() {
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         {/* Search & Filters */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-8">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-            <input type="text" placeholder="Search profiles..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-11 pl-11 pr-4 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all placeholder:text-zinc-400" />
+        <div className="space-y-4 mb-8">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input type="text" placeholder="Search profiles..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-11 pl-11 pr-4 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all placeholder:text-zinc-400" />
+            </div>
+            <div className="inline-flex items-center p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl">
+              {[{ key: "all", label: "All", count: profiles.length }, { key: "mine", label: "Mine", count: myProfilesCount }, { key: "shared", label: "Shared", count: sharedProfilesCount }].map((filter) => (
+                <button key={filter.key} onClick={() => setFilterMode(filter.key as FilterMode)}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${filterMode === filter.key ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"}`}>
+                  {filter.label}<span className="ml-1.5 text-xs opacity-60">{filter.count}</span>
+                </button>
+              ))}
+            </div>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="h-11 px-4 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all">
+              <option value="name">Sort: Name</option>
+              <option value="dateCreated">Sort: Date Created</option>
+              <option value="dateUpdated">Sort: Last Updated</option>
+              <option value="postsCount">Sort: Posts Count</option>
+              <option value="completeness">Sort: Completeness</option>
+            </select>
           </div>
-          <div className="inline-flex items-center p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl">
-            {[{ key: "all", label: "All", count: profiles.length }, { key: "mine", label: "Mine", count: myProfilesCount }, { key: "shared", label: "Shared", count: sharedProfilesCount }].map((filter) => (
-              <button key={filter.key} onClick={() => setFilterMode(filter.key as FilterMode)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${filterMode === filter.key ? "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm" : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"}`}>
-                {filter.label}<span className="ml-1.5 text-xs opacity-60">{filter.count}</span>
-              </button>
-            ))}
-          </div>
+          
+          {/* Tag Filter */}
+          {TAG_CATEGORIES.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Tags:</span>
+              {TAG_CATEGORIES.map((tag) => {
+                const isSelected = selectedTags.includes(tag);
+                const tagCount = profiles.filter(p => p.tags?.includes(tag)).length;
+                if (tagCount === 0) return null;
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTags(isSelected ? selectedTags.filter(t => t !== tag) : [...selectedTags, tag])}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                      isSelected
+                        ? "bg-violet-500 text-white shadow-sm"
+                        : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                    }`}
+                  >
+                    {tag}
+                    <span className="opacity-60">({tagCount})</span>
+                  </button>
+                );
+              })}
+              {selectedTags.length > 0 && (
+                <button
+                  onClick={() => setSelectedTags([])}
+                  className="text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {error && (
@@ -333,13 +519,14 @@ export default function MyInfluencersPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filteredProfiles.map((profile) => (
-              <ProfileCard key={profile.id} profile={profile} isOwn={isOwnProfile(profile)} ownerName={getOwnerDisplayName(profile)}
+            {sortedProfiles.map((profile) => (
+              <ProfileCard key={profile.id} profile={profile} isOwn={isOwnProfile(profile)} canEdit={canEditProfile(profile)} ownerName={getOwnerDisplayName(profile)}
                 onEdit={() => { setSelectedProfile(profile); setShowEditModal(true); }}
                 onDelete={() => { setSelectedProfile(profile); setShowDeleteModal(true); }}
                 onView={() => { setSelectedProfile(profile); setShowDetailsModal(true); }}
                 onSetDefault={() => handleSetDefault(profile.id)}
-                onToggleShare={() => handleToggleShare(profile)} />
+                onToggleShare={() => handleToggleShare(profile)}
+                onToggleFavorite={() => handleToggleFavorite(profile.id)} />
             ))}
           </div>
         )}
@@ -353,8 +540,8 @@ export default function MyInfluencersPage() {
   );
 }
 
-function ProfileCard({ profile, isOwn, ownerName, onEdit, onDelete, onView, onSetDefault, onToggleShare }: {
-  profile: InfluencerProfile; isOwn: boolean; ownerName: string; onEdit: () => void; onDelete: () => void; onView: () => void; onSetDefault: () => void; onToggleShare: () => void;
+function ProfileCard({ profile, isOwn, canEdit, ownerName, onEdit, onDelete, onView, onSetDefault, onToggleShare, onToggleFavorite }: {
+  profile: InfluencerProfile; isOwn: boolean; canEdit: boolean; ownerName: string; onEdit: () => void; onDelete: () => void; onView: () => void; onSetDefault: () => void; onToggleShare: () => void; onToggleFavorite: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -368,9 +555,11 @@ function ProfileCard({ profile, isOwn, ownerName, onEdit, onDelete, onView, onSe
   }, []);
 
   const totalPosts = (profile._count?.posts || 0) + (profile._count?.feedPosts || 0);
+  const completeness = calculateProfileCompleteness(profile);
+  const color = getCompletenessColor(completeness.percentage);
 
   return (
-    <div className="group relative bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 overflow-hidden hover:shadow-2xl hover:shadow-zinc-200/50 dark:hover:shadow-zinc-900/50 hover:-translate-y-1 transition-all duration-300">
+    <div className="group relative bg-white dark:bg-zinc-900 rounded-2xl shadow-sm shadow-zinc-200/60 dark:shadow-zinc-950/60 overflow-hidden hover:shadow-2xl hover:shadow-zinc-300/40 dark:hover:shadow-black/40 hover:-translate-y-1 transition-all duration-300">
       <div className="relative aspect-[4/5] bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 overflow-hidden">
         {profile.profileImageUrl ? (
           <img src={profile.profileImageUrl} alt={profile.name} className="absolute inset-0 w-full h-full object-cover" />
@@ -379,11 +568,17 @@ function ProfileCard({ profile, isOwn, ownerName, onEdit, onDelete, onView, onSe
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div className="absolute top-3 left-3 flex flex-wrap gap-2">
+          {profile.isFavorite && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-yellow-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Star className="w-3 h-3 fill-current" />Favorite</span>}
           {profile.isDefault && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Star className="w-3 h-3" />Default</span>}
           {!isOwn && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Share2 className="w-3 h-3" />Shared</span>}
           {profile.organizationId && isOwn && <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-500/90 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg"><Building2 className="w-3 h-3" />Org</span>}
+          <span className={`inline-flex items-center gap-1 px-2.5 py-1 backdrop-blur-sm text-white text-[11px] font-semibold rounded-lg shadow-lg ${
+            color === "emerald" ? "bg-emerald-500/90" : color === "amber" ? "bg-amber-500/90" : "bg-red-500/90"
+          }`}>
+            {completeness.percentage}%
+          </span>
         </div>
-        {isOwn && (
+        {canEdit && (
           <div className="absolute top-3 right-3" ref={menuRef}>
             <button onClick={() => setMenuOpen(!menuOpen)} className="p-2 bg-black/20 hover:bg-black/40 backdrop-blur-md rounded-lg transition-colors">
               <MoreVertical className="w-4 h-4 text-white" />
@@ -393,18 +588,27 @@ function ProfileCard({ profile, isOwn, ownerName, onEdit, onDelete, onView, onSe
                 <button onClick={() => { onEdit(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
                   <Edit3 className="w-4 h-4 text-zinc-400" />Edit Profile
                 </button>
-                {!profile.isDefault && (
+                <button onClick={() => { onToggleFavorite(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
+                  <Star className={`w-4 h-4 ${profile.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-zinc-400'}`} />{profile.isFavorite ? 'Unfavorite' : 'Favorite'}
+                </button>
+                {isOwn && !profile.isDefault && (
                   <button onClick={() => { onSetDefault(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
                     <Star className="w-4 h-4 text-zinc-400" />Set as Default
                   </button>
                 )}
-                <button onClick={() => { onToggleShare(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
-                  <Share2 className="w-4 h-4 text-zinc-400" />{profile.organizationId ? "Unshare" : "Share with Org"}
-                </button>
-                <div className="border-t border-zinc-100 dark:border-zinc-800" />
-                <button onClick={() => { onDelete(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center gap-3 transition-colors">
-                  <Trash2 className="w-4 h-4" />Delete
-                </button>
+                {isOwn && (
+                  <button onClick={() => { onToggleShare(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-3 transition-colors">
+                    <Share2 className="w-4 h-4 text-zinc-400" />{profile.organizationId ? "Unshare" : "Share with Org"}
+                  </button>
+                )}
+                {isOwn && (
+                  <>
+                    <div className="border-t border-zinc-100 dark:border-zinc-800" />
+                    <button onClick={() => { onDelete(); setMenuOpen(false); }} className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 flex items-center gap-3 transition-colors">
+                      <Trash2 className="w-4 h-4" />Delete
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -421,11 +625,46 @@ function ProfileCard({ profile, isOwn, ownerName, onEdit, onDelete, onView, onSe
           {profile.instagramUsername && <p className="text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5 mt-0.5"><Instagram className="w-3.5 h-3.5" />@{profile.instagramUsername}</p>}
           {!isOwn && <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Shared by {ownerName}</p>}
         </div>
-        <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400"><Camera className="w-3.5 h-3.5" />{totalPosts} posts</span>
-          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-md ${profile.modelBible ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400" : "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"}`}>
-            <BookOpen className="w-3 h-3" />{profile.modelBible ? "Bible" : "No Bible"}
-          </span>
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400"><Camera className="w-3.5 h-3.5" />{totalPosts} posts</span>
+            <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+              {completeness.filledCount}/{completeness.totalSections} sections
+            </span>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Profile Complete</span>
+              <span className={`text-[10px] font-bold ${
+                color === "emerald" ? "text-emerald-600 dark:text-emerald-400" : 
+                color === "amber" ? "text-amber-600 dark:text-amber-400" : 
+                "text-red-600 dark:text-red-400"
+              }`}>
+                {getCompletenessLabel(completeness.percentage)}
+              </span>
+            </div>
+            <div className="relative h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+              <div 
+                className={`absolute left-0 top-0 h-full transition-all duration-500 rounded-full ${
+                  color === "emerald" ? "bg-gradient-to-r from-emerald-500 to-emerald-600" : 
+                  color === "amber" ? "bg-gradient-to-r from-amber-500 to-amber-600" : 
+                  "bg-gradient-to-r from-red-500 to-red-600"
+                }`}
+                style={{ width: `${completeness.percentage}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Tags */}
+          {profile.tags && profile.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              {profile.tags.map((tag) => (
+                <span key={tag} className="inline-flex items-center px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-medium rounded-md">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -439,11 +678,16 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
   const [uploadingImage, setUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const apiClient = useApiClient();
+  const { user: clerkUser } = useUser();
+
+  // Check if current user is the owner of this profile
+  const isOwner = mode === "create" || profile?.clerkId === clerkUser?.id;
 
   const [formData, setFormData] = useState({
     name: profile?.name || "", description: profile?.description || "", instagramUsername: profile?.instagramUsername || "",
     profileImageUrl: profile?.profileImageUrl || "",
     isDefault: profile?.isDefault || false, shareWithOrganization: !!profile?.organizationId,
+    tags: profile?.tags || [],
     age: profile?.modelBible?.age || "", location: profile?.modelBible?.location || "",
     nationality: profile?.modelBible?.nationality || "", occupation: profile?.modelBible?.occupation || "",
     relationshipStatus: profile?.modelBible?.relationshipStatus || "", backstory: profile?.modelBible?.backstory || "",
@@ -478,10 +722,11 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
     if (!formData.name.trim() || !apiClient) { toast.error("Please enter a profile name"); return; }
     setSaving(true);
     try {
-      const payload = {
-        name: formData.name, description: formData.description, instagramUsername: formData.instagramUsername,
+      const payload: any = {
+        name: formData.name, 
+        description: formData.description, 
+        instagramUsername: formData.instagramUsername,
         profileImageUrl: formData.profileImageUrl || null,
-        isDefault: formData.isDefault, shareWithOrganization: formData.shareWithOrganization,
         modelBible: {
           age: formData.age, location: formData.location, nationality: formData.nationality, occupation: formData.occupation,
           relationshipStatus: formData.relationshipStatus, backstory: formData.backstory, family: formData.family, pets: formData.pets,
@@ -502,6 +747,16 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
           internalNotes: formData.internalNotes,
         },
       };
+
+      // Only include owner-only fields if user is the owner
+      if (isOwner) {
+        payload.isDefault = formData.isDefault;
+        payload.shareWithOrganization = formData.shareWithOrganization;
+      }
+      
+      // Always include tags
+      payload.tags = formData.tags;
+
       const response = mode === "create" ? await apiClient.post("/api/instagram-profiles", payload) : await apiClient.patch(`/api/instagram-profiles/${profile?.id}`, payload);
       if (!response.ok) throw new Error("Failed to save profile");
       toast.success(mode === "create" ? "Profile created!" : "Profile updated!");
@@ -634,16 +889,46 @@ function CreateEditProfileModal({ mode, profile, onClose, onSuccess }: { mode: "
                       className="w-full h-11 pl-9 pr-4 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all" />
                   </div>
                 </FormField>
-                <div className="flex items-center gap-6 pt-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={formData.isDefault} onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })} className="w-5 h-5 rounded-md border-zinc-300 text-violet-600 focus:ring-violet-500" />
-                    <span className="text-sm text-zinc-700 dark:text-zinc-300">Default profile</span>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={formData.shareWithOrganization} onChange={(e) => setFormData({ ...formData, shareWithOrganization: e.target.checked })} className="w-5 h-5 rounded-md border-zinc-300 text-violet-600 focus:ring-violet-500" />
-                    <span className="text-sm text-zinc-700 dark:text-zinc-300">Share with org</span>
-                  </label>
-                </div>
+                {isOwner && (
+                  <div className="flex items-center gap-6 pt-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" checked={formData.isDefault} onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })} className="w-5 h-5 rounded-md border-zinc-300 text-violet-600 focus:ring-violet-500" />
+                      <span className="text-sm text-zinc-700 dark:text-zinc-300">Default profile</span>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input type="checkbox" checked={formData.shareWithOrganization} onChange={(e) => setFormData({ ...formData, shareWithOrganization: e.target.checked })} className="w-5 h-5 rounded-md border-zinc-300 text-violet-600 focus:ring-violet-500" />
+                      <span className="text-sm text-zinc-700 dark:text-zinc-300">Share with org</span>
+                    </label>
+                  </div>
+                )}
+                
+                {/* Tags Selection */}
+                <FormField label="Tags">
+                  <div className="flex flex-wrap gap-2">
+                    {TAG_CATEGORIES.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          const isSelected = formData.tags.includes(tag);
+                          setFormData({
+                            ...formData,
+                            tags: isSelected 
+                              ? formData.tags.filter(t => t !== tag)
+                              : [...formData.tags, tag]
+                          });
+                        }}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                          formData.tags.includes(tag)
+                            ? 'bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 border-2 border-violet-500'
+                            : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-2 border-transparent hover:border-zinc-300 dark:hover:border-zinc-600'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </FormField>
               </FormSection>
             )}
             {activeSection === "identity" && (
@@ -852,6 +1137,20 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
                 <div className="flex items-center gap-3 mt-0.5">
                   {profile.instagramUsername && <p className="text-white/70 flex items-center gap-1 text-sm"><Instagram className="w-3.5 h-3.5" />@{profile.instagramUsername}</p>}
                   {bible?.occupation && <p className="text-white/70 text-sm">• {bible.occupation}</p>}
+                  {(() => {
+                    const completeness = calculateProfileCompleteness(profile);
+                    const color = getCompletenessColor(completeness.percentage);
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold backdrop-blur-sm ${
+                        color === "emerald" ? "bg-emerald-500/90 text-white" : 
+                        color === "amber" ? "bg-amber-500/90 text-white" : 
+                        "bg-red-500/90 text-white"
+                      }`}>
+                        <BookOpen className="w-3 h-3" />
+                        {completeness.percentage}% Complete
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -863,6 +1162,35 @@ function ProfileDetailsModal({ profile, onClose }: { profile: InfluencerProfile;
         <div className="flex-1 overflow-y-auto p-6">
           {bible ? (
             <div className="space-y-8">
+              {/* Missing Sections Alert */}
+              {(() => {
+                const completeness = calculateProfileCompleteness(profile);
+                if (completeness.missingSections.length > 0) {
+                  return (
+                    <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                            Incomplete Profile ({completeness.percentage}%)
+                          </h4>
+                          <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
+                            Missing {completeness.missingSections.length} section{completeness.missingSections.length !== 1 ? "s" : ""}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {completeness.missingSections.map(section => (
+                              <span key={section} className="inline-flex items-center px-2 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 text-xs font-medium rounded-md">
+                                {section}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               {/* SECTION 1: Identity */}
               {(bible.age || bible.location || bible.nationality || bible.occupation || bible.relationshipStatus) && (
                 <DetailSection title="Identity" icon={User}>

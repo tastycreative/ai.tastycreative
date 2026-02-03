@@ -477,6 +477,8 @@ model InstagramProfile {
   profileImageUrl        String?
   organizationId         String?
   modelBible             Json?
+  isFavorite             Boolean               @default(false)
+  tags                   String[]              @default([])
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -493,6 +495,8 @@ model InstagramProfile {
   @@index([clerkId])
   @@index([clerkId, isDefault])
   @@index([organizationId])
+  @@index([tags])
+  @@index([isFavorite])
   @@map("instagram_profiles")
 }
 
@@ -1044,12 +1048,14 @@ model Organization {
   customMaxStorageGB   Int?
   customMonthlyCredits Int?
   currentStorageGB     Float                         @default(0)
-  creditsUsedThisMonth Int                           @default(0)
+  creditsUsedThisMonth Int
   lastCreditReset      DateTime?
   isActive             Boolean                       @default(true)
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @default(now()) @updatedAt
+  availableCredits     Int                           @default(0)
   customPermissions    CustomOrganizationPermission?
+  gallery_items        gallery_items[]
   instagramProfiles    InstagramProfile[]
   marketplaceModels    MarketplaceModel[]
   invites              OrganizationInvite[]
@@ -1057,7 +1063,6 @@ model Organization {
   members              TeamMember[]
   usageLogs            UsageLog[]
   workspaces           Workspace[]
-  gallery_items        gallery_items[]
 
   @@index([slug])
   @@index([subscriptionPlanId])
@@ -1238,6 +1243,7 @@ model reference_items {
   awsS3Key     String
   awsS3Url     String
   thumbnailUrl String?
+  fileHash     String?
   tags         String[]           @default([])
   usageCount   Int                @default(0)
   lastUsedAt   DateTime?
@@ -1256,6 +1262,7 @@ model reference_items {
   @@index([folderId])
   @@index([tags])
   @@index([usageCount])
+  @@index([clerkId, fileHash])
 }
 
 model reference_folders {
@@ -1391,10 +1398,10 @@ model of_models {
   createdAt                   DateTime                      @default(now())
   updatedAt                   DateTime
   createdBy                   String?
+  gallery_items               gallery_items[]
   of_model_assets             of_model_assets[]
   of_model_details            of_model_details?
   of_model_pricing_categories of_model_pricing_categories[]
-  gallery_items               gallery_items[]
 
   @@index([slug])
   @@index([status])
@@ -1413,7 +1420,7 @@ model gallery_items {
   pricingAmount    Decimal?      @db.Decimal(10, 2)
   modelId          String?
   pipelineItemId   String?       @unique
-  captionUsed      String?       @db.Text
+  captionUsed      String?
   revenue          Decimal       @default(0) @db.Decimal(12, 2)
   salesCount       Int           @default(0)
   conversionRate   Decimal?      @db.Decimal(5, 4)
@@ -1718,6 +1725,7 @@ enum FeedPostType {
 enum BillingInterval {
   MONTHLY
   YEARLY
+  DAILY
 }
 
 enum SubscriptionStatus {

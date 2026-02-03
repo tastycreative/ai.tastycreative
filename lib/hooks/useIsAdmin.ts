@@ -24,8 +24,8 @@ export function useIsAdmin() {
         // Check if user has admin role in Clerk metadata (fallback)
         const hasAdminRole = user.publicMetadata?.role === 'admin';
         
-        // Check database role (primary check)
-        let hasDatabaseAdminRole = false;
+        // Check database TeamMember role (primary check)
+        let hasTeamAdminRole = false;
         try {
           const response = await fetch('/api/admin/user-role', {
             method: 'GET',
@@ -36,14 +36,14 @@ export function useIsAdmin() {
           
           if (response.ok) {
             const data = await response.json();
-            // Only ADMIN role should have admin access, not MANAGER
-            hasDatabaseAdminRole = data.role === 'ADMIN' || data.role === 'SUPER_ADMIN';
+            // OWNER, ADMIN, or MANAGER roles should have admin access
+            hasTeamAdminRole = data.role === 'OWNER' || data.role === 'ADMIN' || data.role === 'MANAGER';
           }
         } catch (error) {
           console.log('Could not fetch database role, using fallback methods');
         }
         
-        setIsAdmin(hasDatabaseAdminRole || isAdminEmail || hasAdminRole);
+        setIsAdmin(hasTeamAdminRole || isAdminEmail || hasAdminRole);
         setLoading(false);
       } catch (error) {
         console.error('Error checking admin status:', error);

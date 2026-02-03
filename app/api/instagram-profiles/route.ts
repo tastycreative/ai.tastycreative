@@ -117,9 +117,28 @@ export async function GET(request: NextRequest) {
     console.log('✅ [instagram-profiles] Own profiles count:', ownProfiles.length);
     console.log('✅ [instagram-profiles] Shared profiles count:', sharedProfiles.length);
 
-    // Mark profiles as owned or shared
-    const ownProfilesWithFlag = ownProfiles.map(p => ({ ...p, isShared: false }));
-    const sharedProfilesWithFlag = sharedProfiles.map(p => ({ ...p, isShared: true }));
+    // Get user's organization role (if they're in an org)
+    let userOrgRole: string | null = null;
+    if (user?.currentOrganizationId) {
+      const teamMembership = await prisma.teamMember.findUnique({
+        where: {
+          userId_organizationId: {
+            userId: (await prisma.user.findUnique({
+              where: { clerkId: userId },
+              select: { id: true },
+            }))!.id,
+            organizationId: user.currentOrganizationId,
+          },
+        },
+        select: { role: true },
+      });
+      userOrgRole = teamMembership?.role || null;
+      console.log('🔍 [instagram-profiles] User org role:', userOrgRole);
+    }
+
+    // Mark profiles as owned or shared, and include user's org role
+    const ownProfilesWithFlag = ownProfiles.map(p => ({ ...p, isShared: false, currentUserOrgRole: null }));
+    const sharedProfilesWithFlag = sharedProfiles.map(p => ({ ...p, isShared: true, currentUserOrgRole: userOrgRole }));
 
     // Combine and return all accessible profiles
     const allProfiles = [...ownProfilesWithFlag, ...sharedProfilesWithFlag];
@@ -168,6 +187,7 @@ export async function POST(request: NextRequest) {
       isDefault,
       shareWithOrganization,
       modelBible,
+      tags,
     } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -214,6 +234,7 @@ export async function POST(request: NextRequest) {
         isDefault: isDefault || existingProfileCount === 0,
         organizationId,
         modelBible: modelBible || undefined,
+        tags: tags || [],
       },
       include: {
         user: {

@@ -18,6 +18,7 @@ import {
   X,
   Folder,
   ChevronDown,
+  ChevronUp,
   RefreshCw,
   Info,
   Settings,
@@ -200,6 +201,7 @@ export default function SeeDreamImageToImage() {
   const [maxImages, setMaxImages] = useState(1);
   const [isCompressing, setIsCompressing] = useState(false);
   const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Generation State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -681,6 +683,52 @@ export default function SeeDreamImageToImage() {
     setUploadedImages((prev) => prev.filter((img) => img.id !== imageId));
     // Also remove from the saved tracking ref
     savedToReferenceBankRef.current.delete(imageId);
+  };
+
+  const handleMoveImageUp = (index: number) => {
+    if (index === 0) return;
+    setUploadedImages((prev) => {
+      const newImages = [...prev];
+      [newImages[index - 1], newImages[index]] = [newImages[index], newImages[index - 1]];
+      return newImages;
+    });
+  };
+
+  const handleMoveImageDown = (index: number) => {
+    if (index === uploadedImages.length - 1) return;
+    setUploadedImages((prev) => {
+      const newImages = [...prev];
+      [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
+      return newImages;
+    });
+  };
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      return;
+    }
+
+    setUploadedImages((prev) => {
+      const newImages = [...prev];
+      // Swap the dragged image with the drop target image
+      [newImages[draggedIndex], newImages[dropIndex]] = [newImages[dropIndex], newImages[draggedIndex]];
+      return newImages;
+    });
+    setDraggedIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
   };
 
   const handleGenerate = async () => {
@@ -1203,46 +1251,105 @@ export default function SeeDreamImageToImage() {
                   </div>
                 </div>
 
-                {/* Uploaded Images Grid */}
+                {/* Uploaded Images Grid with Reordering */}
                 {uploadedImages.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {uploadedImages.map((img, index) => (
-                      <div key={img.id} className="relative group">
-                        <div className={`relative overflow-hidden rounded-xl border ${img.fromReferenceBank ? 'border-violet-500/30' : 'border-white/10'} bg-white/5 shadow-lg shadow-cyan-900/30 transition hover:-translate-y-1 hover:shadow-2xl`}>
-                          <img
-                            src={img.base64}
-                            alt={`Reference ${index + 1}`}
-                            className="w-full h-32 object-contain p-2"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-0 transition group-hover:opacity-100" />
-                          <button
-                            onClick={() => handleRemoveImage(img.id)}
-                            disabled={isGenerating}
-                            className="absolute top-2 right-2 rounded-full bg-white/10 p-1.5 text-white opacity-0 transition hover:bg-red-500/80 group-hover:opacity-100"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                          {/* Reference Bank indicator */}
-                          {img.fromReferenceBank && (
-                            <div className="absolute top-2 left-2">
-                              <span className="rounded-full bg-violet-500/90 p-1.5 shadow" title="From Reference Bank">
-                                <Library className="w-3 h-3 text-white" />
-                              </span>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      {uploadedImages.map((img, index) => (
+                        <div 
+                          key={img.id} 
+                          className="relative group"
+                          draggable
+                          onDragStart={() => handleDragStart(index)}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDrop={(e) => handleDrop(e, index)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <div className={`relative overflow-hidden rounded-xl border ${
+                            draggedIndex === index 
+                              ? 'border-cyan-400 shadow-lg shadow-cyan-400/50 opacity-50 scale-95' 
+                              : img.fromReferenceBank 
+                                ? 'border-violet-500/30' 
+                                : 'border-white/10'
+                          } bg-white/5 shadow-lg shadow-cyan-900/30 transition-all hover:-translate-y-1 hover:shadow-2xl ${draggedIndex !== null ? 'cursor-move' : ''}`}>
+                            <img
+                              src={img.base64}
+                              alt={`Reference ${index + 1}`}
+                              className="w-full h-32 object-contain p-2"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-0 transition group-hover:opacity-100" />
+                            
+                            {/* Reordering Controls (only visible on hover) */}
+                            <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {/* Move Up Button */}
+                              {index > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveImageUp(index);
+                                  }}
+                                  disabled={isGenerating}
+                                  className="rounded-md bg-slate-900/90 p-1 text-cyan-300 border border-white/20 hover:bg-cyan-500/20 hover:border-cyan-400 transition"
+                                  title="Move up"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              
+                              {/* Move Down Button */}
+                              {index < uploadedImages.length - 1 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMoveImageDown(index);
+                                  }}
+                                  disabled={isGenerating}
+                                  className="rounded-md bg-slate-900/90 p-1 text-cyan-300 border border-white/20 hover:bg-cyan-500/20 hover:border-cyan-400 transition"
+                                  title="Move down"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              
+                              {/* Remove Button */}
+                              <button
+                                onClick={() => handleRemoveImage(img.id)}
+                                disabled={isGenerating}
+                                className="rounded-md bg-red-500/20 p-1 text-red-300 border border-red-500/40 hover:bg-red-500/30 hover:border-red-400 transition"
+                                title="Remove image"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                          )}
-                          <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-                            <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-900 shadow">
-                              {index === 0 ? 'Primary' : `Ref ${index + 1}`}
-                            </span>
-                            {img.wasCompressed && !img.fromReferenceBank && (
-                              <span className="rounded-full bg-emerald-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow" title="Image was automatically optimized">
-                                ✓ Optimized
-                              </span>
+                            
+                            {/* Reference Bank indicator */}
+                            {img.fromReferenceBank && (
+                              <div className="absolute top-2 left-2">
+                                <span className="rounded-full bg-violet-500/90 p-1.5 shadow" title="From Reference Bank">
+                                  <Library className="w-3 h-3 text-white" />
+                                </span>
+                              </div>
                             )}
+                            
+                            {/* Position and Status Badges */}
+                            <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
+                              <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-900 shadow">
+                                {index === 0 ? 'Primary' : `Ref ${index + 1}`}
+                              </span>
+                              {img.wasCompressed && !img.fromReferenceBank && (
+                                <span className="rounded-full bg-emerald-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow" title="Image was automatically optimized">
+                                  ✓ Optimized
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-400 text-center flex items-center justify-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      Drag images to reorder or use arrow buttons • First image is primary reference
+                    </p>
                   </div>
                 )}
 
