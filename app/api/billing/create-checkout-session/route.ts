@@ -58,7 +58,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
     }
 
-    // Create or retrieve Stripe customer
+    // Check if organization already has an active subscription
+    const hasActiveSubscription = currentOrg.stripeSubscriptionId &&
+      (currentOrg.subscriptionStatus === 'ACTIVE' || currentOrg.subscriptionStatus === 'TRIAL');
+
+    // If changing plans, update the existing subscription instead of creating checkout
+    if (hasActiveSubscription && currentOrg.stripeSubscriptionId) {
+      try {
+        // Get the current subscription
+        const subscription = await stripe.subscriptions.retrieve(currentOrg.stripeSubscriptionId);
+
+        // Update the subscription to change at period end
+        const updatedSubscription = await stripe.subscriptions.update(
+          currentOrg.stripeSubscriptionId,
+          {
+            items: [
+              {
+                id: subscription.items.data[0].id,
+                price: plan.stripePriceId,
+              },
+            ],
+            proration_behavior: 'create_prorations', // Creates prorations for immediate upgrade
+            billing_cycle_anchor: 'unchanged', // Keeps the same billing cycle
+          }
+        );
+
+        // Update the organization's plan in the database
+        await prisma.organization.update({
+          where: { id: currentOrg.id },
+          data: {
+            subscriptionPlanId: plan.id,
+          },
+        });
+
+        // Get the origin for redirect
+        const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/') || process.env.NEXT_PUBLIC_APP_URL;
+
+        return NextResponse.json({
+          sessionId: null,
+          url: `${origin}/${currentOrg.slug}/billing?plan_changed=true`,
+          message: 'Plan updated successfully. Changes will take effect immediately.'
+        });
+      } catch (error) {
+        console.error('Error updating subscription:', error);
+        // If update fails, fall through to create new checkout session
+      }
+    }
+
+    // Create or retrieve Stripe customer (for new subscriptions)
     let customerId = currentOrg.stripeCustomerId;
 
     if (!customerId) {
@@ -81,7 +128,7 @@ export async function POST(req: NextRequest) {
     // Get the origin from the request headers to support any domain
     const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/') || process.env.NEXT_PUBLIC_APP_URL;
 
-    // Create Stripe checkout session
+    // Create Stripe checkout session (for new subscriptions only)
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',

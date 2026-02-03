@@ -50,6 +50,13 @@ const BillingPage = () => {
         // Remove query params but stay on current page
         const currentPath = window.location.pathname;
         router.replace(currentPath);
+      } else if (searchParams.get('plan_changed')) {
+        toast.success('Plan updated successfully! Changes are effective immediately.');
+        setHasShownToast(true);
+        fetchBillingInfo(); // Refresh billing info
+        // Remove query params but stay on current page
+        const currentPath = window.location.pathname;
+        router.replace(currentPath);
       } else if (searchParams.get('canceled')) {
         toast.info('Checkout canceled');
         setHasShownToast(true);
@@ -90,9 +97,19 @@ const BillingPage = () => {
         throw new Error(errorData.details || errorData.error || 'Failed to create checkout session');
       }
 
-      const { url } = await response.json();
-      if (url) {
-        window.location.href = url;
+      const data = await response.json();
+
+      // If it's a plan change (no url, just redirect)
+      if (data.url === null || data.url.includes('plan_changed=true')) {
+        toast.success(data.message || 'Plan updated successfully!');
+        fetchBillingInfo(); // Refresh to show new plan
+        setProcessingPlan(null);
+        return;
+      }
+
+      // Otherwise redirect to checkout
+      if (data.url) {
+        window.location.href = data.url;
       }
     } catch (error) {
       console.error('Error creating checkout session:', error);
@@ -324,6 +341,8 @@ const BillingPage = () => {
             {PRICING_PLANS.map((plan, index) => {
               const isCurrentPlan = billingInfo?.plan?.displayName === plan.name;
               const isProcessing = processingPlan === plan.name;
+              const hasActiveSubscription = billingInfo?.organization?.subscriptionStatus === 'ACTIVE' ||
+                                           billingInfo?.organization?.subscriptionStatus === 'TRIAL';
 
               return (
                 <div
@@ -393,7 +412,7 @@ const BillingPage = () => {
                         disabled={isProcessing}
                         className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isProcessing ? 'Processing...' : 'Subscribe'}
+                        {isProcessing ? 'Processing...' : hasActiveSubscription ? 'Change to This Plan' : 'Subscribe'}
                       </button>
                     )}
                   </div>
