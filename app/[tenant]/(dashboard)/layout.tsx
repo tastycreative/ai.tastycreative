@@ -1233,13 +1233,15 @@ export default function DashboardLayout({
                 </div>
                 <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5 border border-white/10">
                   <CreditCard className="w-4 h-4 text-emerald-400" />
-                  <span className="text-sm font-semibold text-white/80">25 Credits</span>
+                  <span className="text-sm font-semibold text-white/80">
+                    {currentOrganization?.availableCredits ?? 0} Credits
+                  </span>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-4">
                 <ThemeToggle />
-                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/5 border border-white/10" title={`${currentOrganization?.availableCredits ?? 0} Credits`}>
                   <CreditCard className="w-5 h-5 text-emerald-400" />
                 </div>
               </div>
@@ -1341,7 +1343,9 @@ export default function DashboardLayout({
               <ThemeToggle />
               <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-white/5">
                 <CreditCard className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm font-semibold text-white/80">25 Credits</span>
+                <span className="text-sm font-semibold text-white/80">
+                  {currentOrganization?.availableCredits ?? 0} Credits
+                </span>
               </div>
             </div>
           </div>

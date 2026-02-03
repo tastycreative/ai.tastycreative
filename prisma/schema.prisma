@@ -477,6 +477,8 @@ model InstagramProfile {
   profileImageUrl        String?
   organizationId         String?
   modelBible             Json?
+  isFavorite             Boolean               @default(false)
+  tags                   String[]              @default([])
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -493,6 +495,8 @@ model InstagramProfile {
   @@index([clerkId])
   @@index([clerkId, isDefault])
   @@index([organizationId])
+  @@index([isFavorite])
+  @@index([tags])
   @@map("instagram_profiles")
 }
 
@@ -1045,6 +1049,7 @@ model Organization {
   customMonthlyCredits Int?
   currentStorageGB     Float                         @default(0)
   creditsUsedThisMonth Int                           @default(0)
+  availableCredits     Int                           @default(0)
   lastCreditReset      DateTime?
   isActive             Boolean                       @default(true)
   createdAt            DateTime                      @default(now())
@@ -1716,9 +1721,9 @@ enum FeedPostType {
 }
 
 enum BillingInterval {
-  DAILY
   MONTHLY
   YEARLY
+  DAILY
 }
 
 enum SubscriptionStatus {

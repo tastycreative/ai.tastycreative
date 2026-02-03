@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
           description: description?.trim() || null,
           subscriptionStatus: 'TRIAL',
           trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
+          creditsUsedThisMonth: 0,
+          availableCredits: 0,
         },
       });
 

@@ -113,6 +113,34 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return;
   }
 
+  // Get the subscription plan to get monthly credits
+  const subscriptionPlan = await prisma.subscriptionPlan.findUnique({
+    where: { id: planId },
+    select: { monthlyCredits: true },
+  });
+
+  // Get current organization to add credits
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      availableCredits: true,
+      customMonthlyCredits: true,
+    },
+  });
+
+  if (!organization || !subscriptionPlan) {
+    console.error('❌ Organization or subscription plan not found');
+    return;
+  }
+
+  // Calculate credits to add (use custom credits if set, otherwise plan credits)
+  const creditsToAdd = organization.customMonthlyCredits ?? subscriptionPlan.monthlyCredits;
+  const newAvailableCredits = organization.availableCredits + creditsToAdd;
+
+  console.log(`   Adding ${creditsToAdd} credits to organization`);
+  console.log(`   Current credits: ${organization.availableCredits}`);
+  console.log(`   New total: ${newAvailableCredits}`);
+
   const updated = await prisma.organization.update({
     where: { id: organizationId },
     data: {
@@ -124,12 +152,15 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       currentPeriodEnd: new Date(periodEnd * 1000),
       billingEmail: session.customer_details?.email || null,
       billingName: session.customer_details?.name || null,
+      availableCredits: newAvailableCredits,
+      lastCreditReset: new Date(),
     },
   });
 
   console.log(`✅ Subscription activated for organization ${organizationId}`);
   console.log(`   Organization name: ${updated.name}`);
   console.log(`   Subscription status: ${updated.subscriptionStatus}`);
+  console.log(`   Available credits: ${updated.availableCredits}`);
 }
 
 async function handleSubscriptionUpdated(subscription: any) {
@@ -200,6 +231,11 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
 
   const organization = await prisma.organization.findUnique({
     where: { stripeCustomerId: customerId },
+    include: {
+      subscriptionPlan: {
+        select: { monthlyCredits: true },
+      },
+    },
   });
 
   if (!organization) {
@@ -207,16 +243,25 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
     return;
   }
 
-  // Reset monthly credits on successful payment
+  // Calculate credits to add (use custom credits if set, otherwise plan credits)
+  const creditsToAdd = organization.customMonthlyCredits ?? organization.subscriptionPlan?.monthlyCredits ?? 0;
+  const newAvailableCredits = organization.availableCredits + creditsToAdd;
+
+  console.log(`💰 Adding credits for monthly renewal`);
+  console.log(`   Adding ${creditsToAdd} credits to organization ${organization.id}`);
+  console.log(`   Current credits: ${organization.availableCredits}`);
+  console.log(`   New total: ${newAvailableCredits}`);
+
+  // Add monthly credits on successful payment (renewal)
   await prisma.organization.update({
     where: { id: organization.id },
     data: {
-      creditsUsedThisMonth: 0,
+      availableCredits: newAvailableCredits,
       lastCreditReset: new Date(),
     },
   });
 
-  console.log(`✅ Invoice paid for organization ${organization.id}`);
+  console.log(`✅ Invoice paid and credits added for organization ${organization.id}`);
 }
 
 async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
