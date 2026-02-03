@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         // Get the current subscription
         const subscription = await stripe.subscriptions.retrieve(currentOrg.stripeSubscriptionId);
 
-        // Update the subscription to change at period end
+        // Update the subscription immediately
         const updatedSubscription = await stripe.subscriptions.update(
           currentOrg.stripeSubscriptionId,
           {
@@ -78,8 +78,7 @@ export async function POST(req: NextRequest) {
                 price: plan.stripePriceId,
               },
             ],
-            proration_behavior: 'create_prorations', // Creates prorations for immediate upgrade
-            billing_cycle_anchor: 'unchanged', // Keeps the same billing cycle
+            proration_behavior: 'always_invoice', // Immediately charge/credit the prorated amount
           }
         );
 
