@@ -78,3 +78,13 @@ extra_model_paths.yaml
 # config/secrets.py
 # deploy-production.sh
 .claude/settings.local.json
+
+# AI agent configurations
+.agents/
+.agent/
+.serena/
+.claude/skills/
+.codex/
+.cursor/
+.gemini/
+.opencode/
