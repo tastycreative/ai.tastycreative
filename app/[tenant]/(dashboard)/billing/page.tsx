@@ -43,6 +43,12 @@ interface Transaction {
   creditsAdded: number | null;
   planName: string | null;
   createdAt: string;
+  user?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+  } | null;
 }
 
 const BillingPage = () => {
@@ -693,6 +699,9 @@ const BillingPage = () => {
                           Type
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          User
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Credits
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -721,6 +730,24 @@ const BillingPage = () => {
                             }`}>
                               {transaction.type.replace(/_/g, ' ')}
                             </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {transaction.user ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {transaction.user.firstName && transaction.user.lastName
+                                    ? `${transaction.user.firstName} ${transaction.user.lastName}`
+                                    : transaction.user.email || 'Unknown'}
+                                </span>
+                                {transaction.user.firstName && transaction.user.lastName && transaction.user.email && (
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {transaction.user.email}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">System</span>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {transaction.creditsAdded ? (

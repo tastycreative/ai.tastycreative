@@ -48,6 +48,7 @@ model User {
   trainingImages           TrainingImage[]
   trainingJobs             TrainingJob[]
   workspace_members        WorkspaceMember[]
+  billingTransactions      BillingTransaction[]
 
   @@index([currentOrganizationId])
   @@map("users")
@@ -1186,6 +1187,7 @@ model UsageLog {
 model BillingTransaction {
   id                      String            @id @default(cuid())
   organizationId          String
+  userId                  String?
   type                    TransactionType
   status                  TransactionStatus @default(PENDING)
   amount                  Float
@@ -1203,9 +1205,11 @@ model BillingTransaction {
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
   organization            Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user                    User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([organizationId, createdAt])
+  @@index([userId])
   @@index([type])
   @@index([status])
   @@index([stripeInvoiceId])

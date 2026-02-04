@@ -197,6 +197,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         organizationId: currentOrg.id,
         planId: plan.id,
+        userId: user.id, // Track who initiated the purchase
       },
     });
 

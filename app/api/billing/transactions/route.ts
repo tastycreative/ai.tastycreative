@@ -25,6 +25,16 @@ export async function GET() {
       where: {
         organizationId: user.currentOrganizationId,
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
       orderBy: {
         createdAt: 'desc',
       },

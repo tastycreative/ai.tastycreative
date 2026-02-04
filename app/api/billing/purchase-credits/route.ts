@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
         packageId: creditPackage.id,
         credits: totalCredits.toString(),
         type: 'credit_purchase', // Important: identifies this as credit purchase
+        userId: user.id, // Track who initiated the purchase
       },
     });
 

@@ -169,6 +169,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
   await prisma.billingTransaction.create({
     data: {
       organizationId,
+      userId: session.metadata?.userId || null,
       type: 'SUBSCRIPTION_PAYMENT',
       status: 'COMPLETED',
       amount: (session.amount_total || 0) / 100,
@@ -284,9 +285,11 @@ async function handleSubscriptionUpdated(subscription: any) {
       };
 
       // Create transaction record for plan change
+      // Note: subscription updates don't have session metadata, so userId will be null
       await prisma.billingTransaction.create({
         data: {
           organizationId: organization.id,
+          userId: null, // Subscription updates don't have direct user context
           type: 'PLAN_CHANGE',
           status: 'COMPLETED',
           amount: newPlan.price,
@@ -453,6 +456,7 @@ async function handleCreditPurchase(session: Stripe.Checkout.Session) {
   await prisma.billingTransaction.create({
     data: {
       organizationId,
+      userId: session.metadata?.userId || null,
       type: 'CREDIT_PURCHASE',
       status: 'COMPLETED',
       amount: (session.amount_total || 0) / 100,
