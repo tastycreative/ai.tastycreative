@@ -81,11 +81,19 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
   const organizationId = session.metadata?.organizationId;
   const planId = session.metadata?.planId;
+  const purchaseType = session.metadata?.type;
 
   console.log(`   Organization ID: ${organizationId}`);
   console.log(`   Plan ID: ${planId}`);
+  console.log(`   Purchase Type: ${purchaseType}`);
   console.log(`   Customer: ${session.customer}`);
   console.log(`   Subscription: ${session.subscription}`);
+
+  // Handle one-time credit purchase
+  if (purchaseType === 'credit_purchase') {
+    await handleCreditPurchase(session);
+    return;
+  }
 
   if (!organizationId || !planId) {
     console.error('❌ Missing metadata in checkout session');
@@ -164,45 +172,115 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 }
 
 async function handleSubscriptionUpdated(subscription: any) {
-  const organization = await prisma.organization.findUnique({
-    where: { stripeSubscriptionId: subscription.id },
-  });
+  console.log('🔄 Processing customer.subscription.updated');
+  console.log(`   Subscription ID: ${subscription.id}`);
 
-  if (!organization) {
-    console.error(`Organization not found for subscription ${subscription.id}`);
-    return;
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { stripeSubscriptionId: subscription.id },
+      include: {
+        subscriptionPlan: true,
+      },
+    });
+
+    if (!organization) {
+      console.error(`❌ Organization not found for subscription ${subscription.id}`);
+      return;
+    }
+
+    const status = subscription.status;
+    let subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'PAUSED' =
+      'ACTIVE';
+
+    if (status === 'past_due') {
+      subscriptionStatus = 'PAST_DUE';
+    } else if (status === 'canceled' || status === 'unpaid') {
+      subscriptionStatus = 'CANCELLED';
+    } else if (status === 'paused') {
+      subscriptionStatus = 'PAUSED';
+    } else if (status === 'trialing') {
+      subscriptionStatus = 'TRIAL';
+    }
+
+    // Extract period dates from subscription items
+    const firstItem = subscription.items?.data?.[0];
+    if (!firstItem) {
+      console.error('❌ No subscription items found');
+      return;
+    }
+
+    const periodStart = firstItem?.current_period_start;
+    const periodEnd = firstItem?.current_period_end;
+    const stripePriceId = firstItem?.price?.id;
+
+    console.log(`   Organization: ${organization.name} (${organization.id})`);
+    console.log(`   Old status: ${organization.subscriptionStatus} → New status: ${subscriptionStatus}`);
+    console.log(`   Stripe Price ID: ${stripePriceId}`);
+
+    if (!stripePriceId) {
+      console.error('❌ No price ID found in subscription');
+      // Update status anyway
+      await prisma.organization.update({
+        where: { id: organization.id },
+        data: {
+          subscriptionStatus,
+          currentPeriodStart: periodStart ? new Date(periodStart * 1000) : undefined,
+          currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : undefined,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        },
+      });
+      return;
+    }
+
+    // Check if the plan has changed by comparing Stripe price IDs
+    const newPlan = await prisma.subscriptionPlan.findFirst({
+      where: { stripePriceId: stripePriceId },
+    });
+
+    if (!newPlan) {
+      console.error(`❌ No plan found with Stripe Price ID: ${stripePriceId}`);
+      return;
+    }
+
+    let creditsUpdate = {};
+
+    // If plan changed and payment succeeded, add new plan's credits
+    if (newPlan.id !== organization.subscriptionPlanId && subscriptionStatus === 'ACTIVE') {
+      console.log(`✨ Plan changed: ${organization.subscriptionPlan?.name} → ${newPlan.name}`);
+
+      // Calculate credits to add (use custom credits if set, otherwise plan credits)
+      const creditsToAdd = organization.customMonthlyCredits ?? newPlan.monthlyCredits;
+      const newAvailableCredits = organization.availableCredits + creditsToAdd;
+
+      console.log(`   💳 Adding ${creditsToAdd} credits for plan change`);
+      console.log(`   📊 Current credits: ${organization.availableCredits}`);
+      console.log(`   ✅ New total: ${newAvailableCredits}`);
+
+      creditsUpdate = {
+        subscriptionPlanId: newPlan.id,
+        availableCredits: newAvailableCredits,
+        lastCreditReset: new Date(),
+      };
+    } else if (subscriptionStatus === 'PAST_DUE') {
+      console.log('⚠️  Payment failed - no credits added');
+    }
+
+    await prisma.organization.update({
+      where: { id: organization.id },
+      data: {
+        subscriptionStatus,
+        currentPeriodStart: periodStart ? new Date(periodStart * 1000) : undefined,
+        currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : undefined,
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        ...creditsUpdate,
+      },
+    });
+
+    console.log(`✅ Subscription updated for organization ${organization.id}`);
+  } catch (error) {
+    console.error('❌ Error in handleSubscriptionUpdated:', error);
+    throw error; // Re-throw to be caught by main webhook handler
   }
-
-  const status = subscription.status;
-  let subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELLED' | 'PAUSED' =
-    'ACTIVE';
-
-  if (status === 'past_due') {
-    subscriptionStatus = 'PAST_DUE';
-  } else if (status === 'canceled' || status === 'unpaid') {
-    subscriptionStatus = 'CANCELLED';
-  } else if (status === 'paused') {
-    subscriptionStatus = 'PAUSED';
-  } else if (status === 'trialing') {
-    subscriptionStatus = 'TRIAL';
-  }
-
-  // Extract period dates from subscription items
-  const firstItem = subscription.items?.data?.[0];
-  const periodStart = firstItem?.current_period_start;
-  const periodEnd = firstItem?.current_period_end;
-
-  await prisma.organization.update({
-    where: { id: organization.id },
-    data: {
-      subscriptionStatus,
-      currentPeriodStart: periodStart ? new Date(periodStart * 1000) : undefined,
-      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : undefined,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-    },
-  });
-
-  console.log(`✅ Subscription updated for organization ${organization.id}`);
 }
 
 async function handleSubscriptionDeleted(subscription: any) {
@@ -284,4 +362,52 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   });
 
   console.log(`❌ Invoice payment failed for organization ${organization.id}`);
+}
+
+async function handleCreditPurchase(session: Stripe.Checkout.Session) {
+  console.log('💰 Processing one-time credit purchase');
+
+  const organizationId = session.metadata?.organizationId;
+  const credits = parseInt(session.metadata?.credits || '0');
+
+  console.log(`   Organization ID: ${organizationId}`);
+  console.log(`   Credits to add: ${credits}`);
+  console.log(`   Amount paid: ${session.amount_total ? session.amount_total / 100 : 0}`);
+
+  if (!organizationId || !credits) {
+    console.error('❌ Missing metadata in credit purchase session');
+    return;
+  }
+
+  // Get current organization
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: {
+      availableCredits: true,
+      name: true,
+    },
+  });
+
+  if (!organization) {
+    console.error('❌ Organization not found');
+    return;
+  }
+
+  // Add purchased credits to available credits
+  const newAvailableCredits = organization.availableCredits + credits;
+
+  console.log(`   Current credits: ${organization.availableCredits}`);
+  console.log(`   New total: ${newAvailableCredits}`);
+
+  const updated = await prisma.organization.update({
+    where: { id: organizationId },
+    data: {
+      availableCredits: newAvailableCredits,
+      stripeCustomerId: session.customer as string,
+    },
+  });
+
+  console.log(`✅ Credits added to organization ${organizationId}`);
+  console.log(`   Organization name: ${updated.name}`);
+  console.log(`   Available credits: ${updated.availableCredits}`);
 }

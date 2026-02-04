@@ -161,6 +161,7 @@ export async function GET(req: NextRequest) {
           monthlyCredits: 0,
           currentStorageGB: 0,
           creditsUsedThisMonth: 0,
+          availableCredits: 0,
         },
       });
     }
@@ -209,6 +210,7 @@ export async function GET(req: NextRequest) {
       monthlyCredits: organization.customMonthlyCredits || organization.subscriptionPlan?.monthlyCredits || 100,
       currentStorageGB: organization.currentStorageGB,
       creditsUsedThisMonth: organization.creditsUsedThisMonth,
+      availableCredits: organization.availableCredits,
       trialEndsAt: organization.trialEndsAt,
       currentPeriodEnd: organization.currentPeriodEnd,
     };

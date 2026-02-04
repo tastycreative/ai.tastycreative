@@ -58,17 +58,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
     }
 
-    // Check if organization already has an active subscription
+    // Check if organization already has an active PAID subscription
+    // IMPORTANT: TRIAL subscriptions must go through checkout to collect payment
     const hasActiveSubscription = currentOrg.stripeSubscriptionId &&
-      (currentOrg.subscriptionStatus === 'ACTIVE' || currentOrg.subscriptionStatus === 'TRIAL');
+      currentOrg.subscriptionStatus === 'ACTIVE';
 
     // If changing plans, update the existing subscription instead of creating checkout
+    // This only applies to ACTIVE (paid) subscriptions, not TRIAL
     if (hasActiveSubscription && currentOrg.stripeSubscriptionId) {
       try {
+        console.log(`🔄 Attempting to update subscription for organization ${currentOrg.id}`);
+        console.log(`   Current plan: ${currentOrg.subscriptionPlanId}`);
+        console.log(`   New plan: ${plan.id}`);
+
         // Get the current subscription
         const subscription = await stripe.subscriptions.retrieve(currentOrg.stripeSubscriptionId);
 
-        // Update the subscription immediately
+        if (!subscription || subscription.status === 'canceled') {
+          console.error('❌ Subscription not found or canceled');
+          return NextResponse.json(
+            { error: 'Your subscription is not active. Please subscribe to a new plan.' },
+            { status: 400 }
+          );
+        }
+
+        // Check if customer has a valid payment method
+        const customer = await stripe.customers.retrieve(subscription.customer as string) as any;
+        if (!customer.invoice_settings?.default_payment_method && !customer.default_source) {
+          console.error('❌ No payment method on file');
+          return NextResponse.json(
+            { error: 'No payment method on file. Please add a payment method first.' },
+            { status: 400 }
+          );
+        }
+
+        // Update the subscription in Stripe
+        // The webhook will handle updating the database and adding credits
+        console.log('📝 Updating subscription in Stripe...');
         const updatedSubscription = await stripe.subscriptions.update(
           currentOrg.stripeSubscriptionId,
           {
@@ -82,13 +108,14 @@ export async function POST(req: NextRequest) {
           }
         );
 
-        // Update the organization's plan in the database
-        await prisma.organization.update({
-          where: { id: currentOrg.id },
-          data: {
-            subscriptionPlanId: plan.id,
-          },
-        });
+        console.log(`✅ Subscription updated in Stripe: ${updatedSubscription.id}`);
+        console.log(`   Status: ${updatedSubscription.status}`);
+
+        // NOTE: We don't update the database here
+        // The webhook (customer.subscription.updated) will handle:
+        // 1. Updating subscriptionPlanId
+        // 2. Adding credits only after payment succeeds
+        // 3. Updating period dates
 
         // Get the origin for redirect
         const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/') || process.env.NEXT_PUBLIC_APP_URL;
@@ -98,9 +125,36 @@ export async function POST(req: NextRequest) {
           url: `${origin}/${currentOrg.slug}/billing?plan_changed=true`,
           message: 'Plan updated successfully. Changes will take effect immediately.'
         });
-      } catch (error) {
-        console.error('Error updating subscription:', error);
-        // If update fails, fall through to create new checkout session
+      } catch (error: any) {
+        console.error('❌ Error updating subscription:', error);
+
+        // Handle specific Stripe errors
+        if (error.type === 'StripeCardError') {
+          return NextResponse.json(
+            { error: `Payment failed: ${error.message}` },
+            { status: 402 }
+          );
+        } else if (error.type === 'StripeInvalidRequestError') {
+          return NextResponse.json(
+            { error: `Invalid request: ${error.message}` },
+            { status: 400 }
+          );
+        } else if (error.statusCode === 404) {
+          return NextResponse.json(
+            { error: 'Subscription not found. Please contact support.' },
+            { status: 404 }
+          );
+        }
+
+        // For other errors, return a generic message
+        console.error('Falling back to checkout due to error');
+        return NextResponse.json(
+          {
+            error: 'Unable to update subscription automatically. Please try again or contact support.',
+            details: error.message
+          },
+          { status: 500 }
+        );
       }
     }
 

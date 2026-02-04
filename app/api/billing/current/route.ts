@@ -84,8 +84,9 @@ export async function GET(req: NextRequest) {
         credits: {
           used: currentOrg.creditsUsedThisMonth,
           max: monthlyCredits,
-          remaining: monthlyCredits - currentOrg.creditsUsedThisMonth,
-          percentage: (currentOrg.creditsUsedThisMonth / monthlyCredits) * 100,
+          remaining: currentOrg.availableCredits,
+          available: currentOrg.availableCredits,
+          percentage: currentOrg.availableCredits > 0 ? ((monthlyCredits - currentOrg.availableCredits) / monthlyCredits) * 100 : 100,
         },
       },
     });
