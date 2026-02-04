@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Archive,
   ChevronDown,
+  ChevronUp,
   Clock,
   Download,
   Film,
@@ -53,6 +54,23 @@ interface GeneratedVideo {
     cameraFixed?: boolean;
     profileId?: string;
   };
+}
+
+interface PromptTemplate {
+  name: string;
+  description: string;
+  prompt: string;
+}
+
+interface UserPreset {
+  id: string;
+  name: string;
+  resolution: "720p" | "1080p";
+  aspectRatio: "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "21:9" | "adaptive";
+  duration: number;
+  cameraFixed: boolean;
+  generateAudio: boolean;
+  createdAt: number;
 }
 
 const RESOLUTION_DIMENSIONS = {
@@ -104,6 +122,55 @@ export default function SeeDreamTextToVideo() {
   const [generateAudio, setGenerateAudio] = useState(true);
 
   const [targetFolder, setTargetFolder] = useState<string>("");
+
+  // Prompt Templates & Presets
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [showFolderValidation, setShowFolderValidation] = useState(false);
+
+  // Collapsible sections (mobile)
+  const [sectionsCollapsed, setSectionsCollapsed] = useState({
+    prompt: false,
+    duration: false,
+    framing: false,
+    options: false,
+    vault: false,
+  });
+
+  const promptTemplates: PromptTemplate[] = [
+    {
+      name: "Cinematic Sequence",
+      description: "Multi-shot cinematic scene",
+      prompt: "Multiple shots. A character walks through a dimly lit corridor. The camera follows smoothly. Cinematic lighting with dramatic shadows."
+    },
+    {
+      name: "Product Showcase",
+      description: "Professional product video",
+      prompt: "Smooth camera movement around the product. Studio lighting with soft shadows. Clean white background. Professional photography style."
+    },
+    {
+      name: "Nature Documentary",
+      description: "Wildlife or landscape video",
+      prompt: "Sweeping aerial view of the landscape. Golden hour lighting. Smooth, slow camera movement. Documentary film style with natural colors."
+    },
+    {
+      name: "Action Scene",
+      description: "Dynamic movement",
+      prompt: "Fast-paced action sequence. Dynamic camera movements. High contrast lighting. Motion blur effects. Dramatic angles and composition."
+    },
+    {
+      name: "Food & Beverage",
+      description: "Appetizing food video",
+      prompt: "Close-up of the dish. Rotating camera movement. Warm, appetizing lighting. Steam rising. Professional food photography style."
+    },
+    {
+      name: "Tech Demo",
+      description: "Technology showcase",
+      prompt: "Sleek camera movements around the device. Futuristic lighting with blue tones. Clean, modern aesthetic. High-tech atmosphere."
+    },
+  ];
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
@@ -175,6 +242,105 @@ export default function SeeDreamTextToVideo() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // localStorage: Load user presets per profile
+  useEffect(() => {
+    if (typeof window !== 'undefined' && globalProfileId) {
+      const savedPresets = localStorage.getItem(`seedream-t2v-presets-${globalProfileId}`);
+      if (savedPresets) {
+        try {
+          setUserPresets(JSON.parse(savedPresets));
+        } catch (e) {
+          console.error('Error loading T2V presets:', e);
+        }
+      }
+
+      // Load last settings
+      const savedSettings = localStorage.getItem(`seedream-t2v-settings-${globalProfileId}`);
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings);
+          if (settings.resolution) setResolution(settings.resolution);
+          if (settings.aspectRatio) setAspectRatio(settings.aspectRatio);
+          if (settings.duration !== undefined) {
+            setDuration(settings.duration);
+            if (settings.duration === -1) {
+              setDurationSliderValue(0);
+            } else {
+              setDurationSliderValue(Math.max(0, Math.min(9, settings.duration - 3)));
+            }
+          }
+          if (settings.cameraFixed !== undefined) setCameraFixed(settings.cameraFixed);
+          if (settings.generateAudio !== undefined) setGenerateAudio(settings.generateAudio);
+          if (settings.targetFolder) setTargetFolder(settings.targetFolder);
+        } catch (e) {
+          console.error('Error loading T2V settings:', e);
+        }
+      }
+    }
+  }, [globalProfileId]);
+
+  // localStorage: Auto-save settings when they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && globalProfileId && mounted) {
+      const settings = {
+        resolution,
+        aspectRatio,
+        duration,
+        cameraFixed,
+        generateAudio,
+        targetFolder,
+      };
+      localStorage.setItem(`seedream-t2v-settings-${globalProfileId}`, JSON.stringify(settings));
+    }
+  }, [resolution, aspectRatio, duration, cameraFixed, generateAudio, targetFolder, globalProfileId, mounted]);
+
+  // Preset management functions
+  const saveAsPreset = () => {
+    if (!presetName.trim() || !globalProfileId) return;
+
+    const newPreset: UserPreset = {
+      id: Date.now().toString(),
+      name: presetName.trim(),
+      resolution,
+      aspectRatio,
+      duration,
+      cameraFixed,
+      generateAudio,
+      createdAt: Date.now(),
+    };
+
+    const updatedPresets = [...userPresets, newPreset];
+    setUserPresets(updatedPresets);
+    localStorage.setItem(`seedream-t2v-presets-${globalProfileId}`, JSON.stringify(updatedPresets));
+    setShowPresetModal(false);
+    setPresetName('');
+  };
+
+  const loadPreset = (preset: UserPreset) => {
+    setResolution(preset.resolution);
+    setAspectRatio(preset.aspectRatio);
+    setDuration(preset.duration);
+    if (preset.duration === -1) {
+      setDurationSliderValue(0);
+    } else {
+      setDurationSliderValue(Math.max(0, Math.min(9, preset.duration - 3)));
+    }
+    setCameraFixed(preset.cameraFixed);
+    setGenerateAudio(preset.generateAudio);
+  };
+
+  const deletePreset = (presetId: string) => {
+    if (!globalProfileId) return;
+    const updatedPresets = userPresets.filter(p => p.id !== presetId);
+    setUserPresets(updatedPresets);
+    localStorage.setItem(`seedream-t2v-presets-${globalProfileId}`, JSON.stringify(updatedPresets));
+  };
+
+  const applyTemplate = (template: PromptTemplate) => {
+    setPrompt(template.prompt);
+    setShowTemplates(false);
+  };
 
   // Vault folder state - only for the selected profile
   const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
@@ -368,6 +534,9 @@ export default function SeeDreamTextToVideo() {
     }
     if (!targetFolder) {
       setError("Please select a vault folder to save your video");
+      setShowFolderValidation(true);
+      // Scroll to folder section
+      document.getElementById('folder-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     if (!prompt.trim()) {
@@ -375,6 +544,7 @@ export default function SeeDreamTextToVideo() {
       return;
     }
 
+    setShowFolderValidation(false);
     setIsGenerating(true);
     setError(null);
     setGeneratedVideos([]);
@@ -675,8 +845,58 @@ export default function SeeDreamTextToVideo() {
         <div className="grid gap-6 lg:grid-cols-[420px_1fr] items-start">
           <div className="space-y-6">
             <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-cyan-900/40 backdrop-blur space-y-6">
+              {/* Prompt Section */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-100">Prompt *</label>
+                <div className="flex items-center justify-between w-full group">
+                  <label className="text-sm font-semibold text-slate-100">Prompt *</label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplates(!showTemplates)}
+                      className="rounded-full bg-indigo-500/20 hover:bg-indigo-500/30 px-3 py-1 text-[11px] font-semibold text-indigo-100 transition-colors flex items-center gap-1"
+                      disabled={isGenerating}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Templates
+                    </button>
+                    <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                    <button
+                      type="button"
+                      onClick={() => setSectionsCollapsed(prev => ({ ...prev, prompt: !prev.prompt }))}
+                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                    >
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.prompt ? '' : 'rotate-180'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className={`space-y-2 ${sectionsCollapsed.prompt ? 'hidden lg:block' : ''}`}>
+                {/* Prompt Templates Dropdown */}
+                {showTemplates && (
+                  <div className="rounded-2xl border border-indigo-400/30 bg-indigo-950/40 backdrop-blur p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <p className="text-xs font-semibold text-indigo-200 mb-2">Video Templates:</p>
+                    <div className="grid gap-2">
+                      {promptTemplates.map((template, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => applyTemplate(template)}
+                          disabled={isGenerating}
+                          className="w-full text-left p-3 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/0 hover:from-white/10 hover:border-indigo-300/40 transition-all disabled:opacity-50"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white mb-0.5">{template.name}</p>
+                              <p className="text-xs text-slate-400">{template.description}</p>
+                            </div>
+                            <Sparkles className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition flex-shrink-0" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+                  </div>
+                )}
+
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
@@ -687,7 +907,43 @@ export default function SeeDreamTextToVideo() {
                   rows={6}
                   disabled={isGenerating}
                 />
-                <p className="text-xs text-slate-300">Include movement, camera, and style cues for best results.</p>
+                
+                <div className="flex items-center justify-between text-xs">
+                  <p className="text-slate-300">Include movement, camera, and style cues for best results.</p>
+                  <span className={`font-semibold ${
+                    prompt.length > 600 ? 'text-red-400' : prompt.length > 400 ? 'text-amber-400' : 'text-emerald-400'
+                  }`}>
+                    {prompt.length > 600 && '⚠️ '}{prompt.length} chars
+                  </span>
+                </div>
+
+                {/* User Presets Display */}
+                {userPresets.length > 0 && (
+                  <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-xs font-semibold text-slate-300 mb-2">Your Presets:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {userPresets.map((preset) => (
+                        <div key={preset.id} className="group relative">
+                          <button
+                            onClick={() => loadPreset(preset)}
+                            disabled={isGenerating}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-xs font-medium text-indigo-100 border border-indigo-500/30 transition-all disabled:opacity-50"
+                          >
+                            {preset.name}
+                          </button>
+                          <button
+                            onClick={() => deletePreset(preset.id)}
+                            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Delete preset"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -742,10 +998,21 @@ export default function SeeDreamTextToVideo() {
               </div>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between w-full group">
                   <label className="text-sm font-semibold text-slate-100">Duration</label>
-                  <span className="text-xs text-slate-300">Auto picks 4-12s based on prompt</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-300">Auto picks 4-12s based on prompt</span>
+                    <button
+                      type="button"
+                      onClick={() => setSectionsCollapsed(prev => ({ ...prev, duration: !prev.duration }))}
+                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                    >
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.duration ? '' : 'rotate-180'}`} />
+                    </button>
+                  </div>
                 </div>
+
+                <div className={`space-y-3 ${sectionsCollapsed.duration ? 'hidden lg:block' : ''}`}>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-slate-300 w-12">Auto</span>
                   <input
@@ -766,8 +1033,26 @@ export default function SeeDreamTextToVideo() {
                     {duration === -1 ? "Auto" : `${duration} seconds`}
                   </span>
                 </div>
+                </div>
               </div>
 
+              {/* Camera & Audio Options */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between w-full group">
+                  <div className="flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-cyan-300" />
+                    <p className="text-sm font-semibold text-white">Options</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSectionsCollapsed(prev => ({ ...prev, options: !prev.options }))}
+                    className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                  >
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.options ? '' : 'rotate-180'}`} />
+                  </button>
+                </div>
+
+                <div className={`space-y-3 ${sectionsCollapsed.options ? 'hidden lg:block' : ''}`}>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
@@ -801,29 +1086,62 @@ export default function SeeDreamTextToVideo() {
                   </p>
                 </button>
               </div>
+              </div>
+              </div>
+
+              {/* Save as Preset Button */}
+              <button
+                type="button"
+                onClick={() => setShowPresetModal(true)}
+                disabled={isGenerating}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-indigo-400/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-200 font-semibold transition-all disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4" />
+                Save Current Settings as Preset
+              </button>
 
               {/* Folder Selection */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Archive className="w-4 h-4 text-purple-300" />
-                  <p className="text-sm font-semibold text-white">Save to Vault</p>
-                  {isLoadingVaultData && (
-                    <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
-                  )}
+              <div className="space-y-3" id="folder-section">
+                <div className="flex items-center justify-between w-full group">
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4 text-cyan-300" />
+                    <p className="text-sm font-semibold text-white">Save to Vault</p>
+                    {!targetFolder && showFolderValidation && (
+                      <span className="text-xs bg-red-500/20 text-red-200 px-2 py-1 rounded-full animate-pulse">⚠️ Required</span>
+                    )}
+                    {isLoadingVaultData && (
+                      <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSectionsCollapsed(prev => ({ ...prev, vault: !prev.vault }))}
+                    className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                  >
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.vault ? '' : 'rotate-180'}`} />
+                  </button>
                 </div>
-                
+
+                <div className={`space-y-3 ${sectionsCollapsed.vault ? 'hidden lg:block' : ''}`}>
                 {/* Modern Custom Dropdown */}
                 <div ref={folderDropdownRef} className="relative">
                   <button
                     type="button"
-                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    onClick={() => {
+                      if (!(!mounted || isGenerating || isLoadingVaultData || !globalProfileId)) {
+                        setFolderDropdownOpen(!folderDropdownOpen);
+                        setShowFolderValidation(false);
+                      }
+                    }}
                     disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
                     className={`
                       w-full flex items-center justify-between gap-3 px-4 py-3.5
                       rounded-2xl border transition-all duration-200
                       ${folderDropdownOpen 
-                        ? 'border-purple-400 bg-purple-500/10 ring-2 ring-purple-400/30' 
-                        : 'border-white/10 bg-slate-800/80 hover:border-purple-400/50 hover:bg-slate-800'
+                        ? 'border-cyan-400 bg-cyan-500/10 ring-2 ring-cyan-400/30' 
+                        : !targetFolder && showFolderValidation
+                        ? 'border-red-400 bg-red-500/10 ring-2 ring-red-400/30 animate-pulse'
+                        : 'border-white/10 bg-slate-800/80 hover:border-cyan-400/50 hover:bg-slate-800'
                       }
                       disabled:opacity-50 disabled:cursor-not-allowed
                     `}
@@ -988,6 +1306,7 @@ export default function SeeDreamTextToVideo() {
                   </div>
                 )}
               </div>
+            </div>
 
               {error && (
                 <div className="flex items-center gap-2 rounded-2xl border border-red-400/50 bg-red-500/10 px-4 py-3 text-sm text-red-100">
@@ -1399,6 +1718,82 @@ export default function SeeDreamTextToVideo() {
                   <p>No generation history yet</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Save Preset Modal */}
+      {showPresetModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4 text-white">Save Text-to-Video Preset</h3>
+            
+            <div className="space-y-4">
+              {/* Preset Name Input */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Preset Name
+                </label>
+                <input
+                  type="text"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="e.g., My Cinematic Settings"
+                  className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Current Settings Preview */}
+              <div className="bg-slate-900 rounded-lg p-4 space-y-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                  Settings to Save:
+                </p>
+                <div className="space-y-1.5 text-sm text-slate-300">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Resolution:</span>
+                    <span className="font-medium">{resolution}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Aspect Ratio:</span>
+                    <span className="font-medium">{aspectRatio}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Duration:</span>
+                    <span className="font-medium">{duration === -1 ? 'Auto' : `${duration}s`}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Camera:</span>
+                    <span className="font-medium">{cameraFixed ? 'Fixed' : 'Dynamic'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Audio:</span>
+                    <span className="font-medium">{generateAudio ? 'Yes' : 'No'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowPresetModal(false);
+                    setPresetName('');
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveAsPreset}
+                  disabled={!presetName.trim()}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Preset
+                </button>
+              </div>
             </div>
           </div>
         </div>,

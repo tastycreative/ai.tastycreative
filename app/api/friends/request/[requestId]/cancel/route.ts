@@ -19,13 +19,14 @@ export async function DELETE(
 
     const { requestId } = await params;
 
-    // Find the friend request
+    // Find the friend request with profile organization info
     const friendRequest = await prisma.friendship.findUnique({
       where: { id: requestId },
       include: {
         senderProfile: {
           select: {
             clerkId: true,
+            organizationId: true,
           },
         },
       },
@@ -38,8 +39,31 @@ export async function DELETE(
       );
     }
 
-    // Check if the current user owns the sender profile
-    if (friendRequest.senderProfile.clerkId !== userId) {
+    // Check if user owns the profile directly
+    const isOwnProfile = friendRequest.senderProfile.clerkId === userId;
+    
+    // Check if user has access via organization with appropriate role
+    let hasOrgAccess = false;
+    if (!isOwnProfile && friendRequest.senderProfile.organizationId) {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true },
+      });
+      
+      if (user) {
+        const teamMember = await prisma.teamMember.findFirst({
+          where: {
+            userId: user.id,
+            organizationId: friendRequest.senderProfile.organizationId,
+            role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+          },
+        });
+        hasOrgAccess = !!teamMember;
+      }
+    }
+
+    // Check if the current user has access to the sender profile
+    if (!isOwnProfile && !hasOrgAccess) {
       return NextResponse.json(
         { error: 'You can only cancel requests you sent' },
         { status: 403 }

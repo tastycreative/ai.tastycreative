@@ -24,11 +24,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Verify the profile belongs to the current user
+    // Verify the profile belongs to the current user or is shared with them
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     const profile = await prisma.instagramProfile.findFirst({
       where: {
         id: profileId,
-        clerkId: userId,
+        OR: [
+          { clerkId: userId }, // User's own profile
+          { organizationId: user.currentOrganizationId }, // Shared via organization
+        ],
       },
     });
 

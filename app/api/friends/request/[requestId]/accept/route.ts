@@ -19,13 +19,14 @@ export async function POST(
 
     const { requestId } = await params;
 
-    // Find the friendship request
+    // Find the friendship request with profile organization info
     const friendship = await prisma.friendship.findUnique({
       where: { id: requestId },
       include: {
         receiverProfile: {
           select: {
             clerkId: true,
+            organizationId: true,
           },
         },
       },
@@ -38,8 +39,31 @@ export async function POST(
       );
     }
 
-    // Verify that the current user owns the receiver profile
-    if (friendship.receiverProfile.clerkId !== userId) {
+    // Check if user owns the profile directly
+    const isOwnProfile = friendship.receiverProfile.clerkId === userId;
+    
+    // Check if user has access via organization with appropriate role
+    let hasOrgAccess = false;
+    if (!isOwnProfile && friendship.receiverProfile.organizationId) {
+      const user = await prisma.user.findUnique({
+        where: { clerkId: userId },
+        select: { id: true },
+      });
+      
+      if (user) {
+        const teamMember = await prisma.teamMember.findFirst({
+          where: {
+            userId: user.id,
+            organizationId: friendship.receiverProfile.organizationId,
+            role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+          },
+        });
+        hasOrgAccess = !!teamMember;
+      }
+    }
+
+    // Verify that the current user has access to the receiver profile
+    if (!isOwnProfile && !hasOrgAccess) {
       return NextResponse.json(
         { error: 'You are not authorized to accept this request' },
         { status: 403 }

@@ -23,9 +23,10 @@ export async function PATCH(
       );
     }
 
-    // Get current user
+    // Get current user with organization info
     const currentUser = await prisma.user.findUnique({
       where: { clerkId },
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!currentUser) {
@@ -35,14 +36,40 @@ export async function PATCH(
     // Get the post to check ownership
     const post = await prisma.feedPost.findUnique({
       where: { id: postId },
+      include: {
+        profile: {
+          select: {
+            id: true,
+            clerkId: true,
+            organizationId: true,
+          },
+        },
+      },
     });
 
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Only allow updating own posts
-    if (post.userId !== currentUser.id) {
+    // Check if user can edit the post
+    const isOwnPost = post.userId === currentUser.id;
+    
+    // Check if user has org access to the post's profile
+    let hasOrgAccess = false;
+    if (!isOwnPost && post.profile?.organizationId && 
+        post.profile.organizationId === currentUser.currentOrganizationId) {
+      const teamMember = await prisma.teamMember.findFirst({
+        where: {
+          userId: currentUser.id,
+          organizationId: post.profile.organizationId,
+          role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+        },
+      });
+      hasOrgAccess = !!teamMember;
+    }
+
+    // Only allow updating own posts or org posts with appropriate role
+    if (!isOwnPost && !hasOrgAccess) {
       return NextResponse.json(
         { error: 'Not authorized to edit this post' },
         { status: 403 }
@@ -78,9 +105,10 @@ export async function DELETE(
 
     const { postId } = await params;
 
-    // Get current user
+    // Get current user with organization info
     const currentUser = await prisma.user.findUnique({
       where: { clerkId },
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!currentUser) {
@@ -90,14 +118,40 @@ export async function DELETE(
     // Get the post to check ownership
     const post = await prisma.feedPost.findUnique({
       where: { id: postId },
+      include: {
+        profile: {
+          select: {
+            id: true,
+            clerkId: true,
+            organizationId: true,
+          },
+        },
+      },
     });
 
     if (!post) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Only allow deleting own posts
-    if (post.userId !== currentUser.id) {
+    // Check if user can delete the post
+    const isOwnPost = post.userId === currentUser.id;
+    
+    // Check if user has org access to the post's profile
+    let hasOrgAccess = false;
+    if (!isOwnPost && post.profile?.organizationId && 
+        post.profile.organizationId === currentUser.currentOrganizationId) {
+      const teamMember = await prisma.teamMember.findFirst({
+        where: {
+          userId: currentUser.id,
+          organizationId: post.profile.organizationId,
+          role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+        },
+      });
+      hasOrgAccess = !!teamMember;
+    }
+
+    // Only allow deleting own posts or org posts with appropriate role
+    if (!isOwnPost && !hasOrgAccess) {
       return NextResponse.json(
         { error: 'Not authorized to delete this post' },
         { status: 403 }

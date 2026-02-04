@@ -268,15 +268,63 @@ export function ReferenceBankContent() {
     }
   }, [selectedIds, bulkDelete]);
 
+  const handleDownloadSingleFile = useCallback(async (item: ReferenceItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    try {
+      // Use proxy endpoint to avoid CORS issues
+      const response = await fetch('/api/vault/proxy-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: item.awsS3Url }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to download file');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+    }
+  }, []);
+
   const handleBulkDownload = useCallback(async () => {
     setIsDownloading(true);
     try {
       const itemsToDownload = items.filter((i) => selectedIds.includes(i.id));
       for (const item of itemsToDownload) {
+        // Use proxy endpoint to avoid CORS issues
+        const response = await fetch('/api/vault/proxy-download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: item.awsS3Url }),
+        });
+        
+        if (!response.ok) {
+          console.error(`Failed to download ${item.name}`);
+          continue;
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.href = item.awsS3Url;
+        link.href = url;
         link.download = item.name;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     } finally {
@@ -973,13 +1021,13 @@ export function ReferenceBankContent() {
               >
                 <Copy className="w-5 h-5" />
               </button>
-              <a
-                href={previewItem.awsS3Url}
-                download={previewItem.name}
+              <button
+                onClick={(e) => handleDownloadSingleFile(previewItem, e)}
                 className="p-2 text-gray-400 hover:text-white rounded-lg transition-colors"
+                title="Download"
               >
                 <Download className="w-5 h-5" />
-              </a>
+              </button>
               <button
                 onClick={() => {
                   setPreviewItem(null);

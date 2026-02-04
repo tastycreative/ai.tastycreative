@@ -389,11 +389,6 @@ export default function DashboardLayout({
           href: `/${tenant}/workspace/bookmarks`,
           icon: Bookmark,
         },
-        {
-          name: "My Creators",
-          href: `/${tenant}/workspace/creators`,
-          icon: Users,
-        },
       ],
     },
 

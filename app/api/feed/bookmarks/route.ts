@@ -14,21 +14,25 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
 
-    // Find the user in the database
+    // Find the user in the database with organization info
     const user = await prisma.user.findUnique({
       where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Verify profile belongs to user if profileId is provided
+    // Verify profile belongs to user OR their organization if profileId is provided
     if (profileId) {
       const profile = await prisma.instagramProfile.findFirst({
         where: {
           id: profileId,
-          clerkId: userId,
+          OR: [
+            { clerkId: userId },
+            { organizationId: user.currentOrganizationId ?? undefined },
+          ],
         },
       });
 
@@ -67,6 +71,7 @@ export async function GET(request: NextRequest) {
                 name: true,
                 instagramUsername: true,
                 profileImageUrl: true,
+                organizationId: true,
               },
             },
             likes: {
@@ -115,6 +120,13 @@ export async function GET(request: NextRequest) {
         id: post.id,
         userId: post.userId,
         user: displayUser,
+        profile: post.profile ? {
+          id: post.profile.id,
+          name: post.profile.name,
+          instagramUsername: post.profile.instagramUsername,
+          profileImageUrl: post.profile.profileImageUrl,
+          organizationId: post.profile.organizationId,
+        } : null,
         imageUrls: post.imageUrls,
         mediaType: post.mediaType,
         caption: post.caption,

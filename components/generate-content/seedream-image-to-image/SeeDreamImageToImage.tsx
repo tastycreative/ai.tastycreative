@@ -174,6 +174,32 @@ interface GeneratedImage {
   };
 }
 
+interface PromptTemplate {
+  id: string;
+  name: string;
+  prompt: string;
+  category: string;
+  description: string;
+  resolution?: "2K" | "4K";
+  aspectRatio?: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9";
+}
+
+interface UserPreset {
+  id: string;
+  name: string;
+  resolution: "2K" | "4K";
+  aspectRatio: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9";
+  folderId?: string;
+}
+
+interface CompressionProgress {
+  imageId: string;
+  fileName: string;
+  progress: number;
+  originalSize: number;
+  currentSize?: number;
+}
+
 // Maximum number of reference images that can be uploaded (0 = unlimited)
 const MAX_REFERENCE_IMAGES = 0;
 
@@ -202,6 +228,28 @@ export default function SeeDreamImageToImage() {
   const [isCompressing, setIsCompressing] = useState(false);
   const [isSavingToReferenceBank, setIsSavingToReferenceBank] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  
+  // Drag and Drop State
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [compressionProgress, setCompressionProgress] = useState<CompressionProgress[]>([]);
+  
+  // Folder Validation
+  const [showFolderValidation, setShowFolderValidation] = useState(false);
+  
+  // Prompt Templates & Presets
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  
+  // Collapsible Sections for Mobile
+  const [sectionsCollapsed, setSectionsCollapsed] = useState({
+    upload: false,
+    prompt: false,
+    framing: false,
+    vault: false,
+    batch: false
+  });
 
   // Generation State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -325,6 +373,53 @@ export default function SeeDreamImageToImage() {
     checkForReuseData();
   }, []);
 
+  // Load smart defaults from localStorage per profile
+  useEffect(() => {
+    if (!mounted || !globalProfileId) return;
+    
+    const savedSettingsKey = `seedream-i2i-settings-${globalProfileId}`;
+    const savedSettings = localStorage.getItem(savedSettingsKey);
+    
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        if (settings.resolution) setSelectedResolution(settings.resolution);
+        if (settings.aspectRatio) setSelectedRatio(settings.aspectRatio);
+        if (settings.folderId) setTargetFolder(settings.folderId);
+      } catch (e) {
+        console.error('Failed to load saved I2I settings:', e);
+      }
+    }
+  }, [mounted, globalProfileId]);
+
+  // Load user presets
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const savedPresets = localStorage.getItem('seedream-i2i-presets');
+    if (savedPresets) {
+      try {
+        setUserPresets(JSON.parse(savedPresets));
+      } catch (e) {
+        console.error('Failed to load I2I presets:', e);
+      }
+    }
+  }, [mounted]);
+
+  // Save settings when they change
+  useEffect(() => {
+    if (!mounted || !globalProfileId) return;
+    
+    const settingsToSave = {
+      resolution: selectedResolution,
+      aspectRatio: selectedRatio,
+      folderId: targetFolder
+    };
+    
+    const savedSettingsKey = `seedream-i2i-settings-${globalProfileId}`;
+    localStorage.setItem(savedSettingsKey, JSON.stringify(settingsToSave));
+  }, [mounted, globalProfileId, selectedResolution, selectedRatio, targetFolder]);
+
   // Folder dropdown state
   const [folderDropdownOpen, setFolderDropdownOpen] = useState(false);
   const folderDropdownRef = useRef<HTMLDivElement>(null);
@@ -369,6 +464,64 @@ export default function SeeDreamImageToImage() {
   };
 
   const aspectRatios = ["1:1", "3:4", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9"] as const;
+
+  // I2I-Specific Prompt Templates
+  const promptTemplates: PromptTemplate[] = [
+    {
+      id: "style-transfer",
+      name: "Style Transfer",
+      category: "Artistic",
+      description: "Change artistic style while keeping subject",
+      prompt: "Keep the subject and composition exactly as shown, but transform the artistic style to [art style: oil painting/watercolor/anime/3D render/sketch]. Maintain all key features and poses, only change the rendering style and artistic technique.",
+      resolution: "4K",
+      aspectRatio: "1:1"
+    },
+    {
+      id: "outfit-swap",
+      name: "Outfit Swap",
+      category: "Fashion",
+      description: "Change clothing while keeping pose and face",
+      prompt: "Keep the person's face, pose, and body position exactly the same. Only change their outfit to [describe new clothing: elegant evening gown/casual streetwear/business suit]. Maintain the same background, lighting, and camera angle.",
+      resolution: "2K",
+      aspectRatio: "3:4"
+    },
+    {
+      id: "background-replace",
+      name: "Background Replacement",
+      category: "Environment",
+      description: "Change environment while keeping subject",
+      prompt: "Keep the main subject exactly as shown with the same pose, lighting, and details. Replace only the background with [new environment: tropical beach/modern office/fantasy castle/urban street]. Ensure natural integration and consistent lighting.",
+      resolution: "4K",
+      aspectRatio: "16:9"
+    },
+    {
+      id: "artistic-transform",
+      name: "Artistic Transformation",
+      category: "Creative",
+      description: "Convert photo to different medium",
+      prompt: "Convert this photograph into [artistic medium: oil painting/charcoal sketch/digital illustration/3D CGI render/comic book art]. Preserve the composition, subject, and key details while applying the characteristics and techniques of the chosen medium.",
+      resolution: "4K",
+      aspectRatio: "1:1"
+    },
+    {
+      id: "color-grading",
+      name: "Color Grading",
+      category: "Mood",
+      description: "Adjust color palette and mood",
+      prompt: "Keep the composition, subjects, and details identical. Only adjust the color grading and mood to [color palette/mood: cinematic teal and orange/warm golden hour/moody desaturated/vibrant neon/vintage film]. Maintain lighting direction while shifting color temperature.",
+      resolution: "2K",
+      aspectRatio: "16:9"
+    },
+    {
+      id: "time-of-day",
+      name: "Time of Day Change",
+      category: "Lighting",
+      description: "Change time of day and lighting",
+      prompt: "Keep the exact scene and composition, but change the time of day to [time: golden hour sunset/blue hour evening/midday bright sun/night with moonlight]. Adjust lighting, shadows, and sky color accordingly while preserving all elements.",
+      resolution: "4K",
+      aspectRatio: "21:9"
+    }
+  ];
 
   // Get current size based on resolution and ratio
   const currentSize = resolutionRatios[selectedResolution][selectedRatio];
@@ -641,42 +794,176 @@ export default function SeeDreamImageToImage() {
     setShowReferenceBankSelector(false);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setIsCompressing(true);
-      setError(null);
-      
-      try {
-        // Automatically compress large images (target: 2MB max, 2048px max dimension)
+  // Preset Management
+  const saveAsPreset = () => {
+    if (!presetName.trim()) return;
+    
+    const newPreset: UserPreset = {
+      id: Date.now().toString(),
+      name: presetName.trim(),
+      resolution: selectedResolution,
+      aspectRatio: selectedRatio,
+      folderId: targetFolder || undefined
+    };
+    
+    const updatedPresets = [...userPresets, newPreset];
+    setUserPresets(updatedPresets);
+    localStorage.setItem('seedream-i2i-presets', JSON.stringify(updatedPresets));
+    setPresetName("");
+    setShowPresetModal(false);
+  };
+
+  const loadPreset = (preset: UserPreset) => {
+    setSelectedResolution(preset.resolution);
+    setSelectedRatio(preset.aspectRatio);
+    if (preset.folderId) setTargetFolder(preset.folderId);
+  };
+
+  const deletePreset = (presetId: string) => {
+    const updatedPresets = userPresets.filter(p => p.id !== presetId);
+    setUserPresets(updatedPresets);
+    localStorage.setItem('seedream-i2i-presets', JSON.stringify(updatedPresets));
+  };
+
+  const applyTemplate = (template: PromptTemplate) => {
+    setPrompt(template.prompt);
+    if (template.resolution) setSelectedResolution(template.resolution);
+    if (template.aspectRatio) setSelectedRatio(template.aspectRatio);
+    setShowTemplates(false);
+  };
+
+  // Enhanced batch image upload handler
+  const handleBatchImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsCompressing(true);
+    setError(null);
+    const newImages: typeof uploadedImages = [];
+    
+    // Track compression progress
+    const progressItems: CompressionProgress[] = Array.from(files).map((file, idx) => ({
+      imageId: `img-${Date.now()}-${idx}`,
+      fileName: file.name,
+      progress: 0,
+      originalSize: file.size
+    }));
+    setCompressionProgress(progressItems);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // Update progress
+        setCompressionProgress(prev => 
+          prev.map(p => p.fileName === file.name ? { ...p, progress: 50 } : p)
+        );
+        
+        // Compress image
         const result = await compressImage(file, 2, 2048);
         
-        const newImage = {
-          id: `img-${Date.now()}`,
+        newImages.push({
+          id: progressItems[i].imageId,
           base64: result.base64,
           file,
           wasCompressed: result.compressed,
           fromReferenceBank: false,
-        };
+        });
         
-        setUploadedImages((prev) => [...prev, newImage]);
-        
-        // Show a brief notification if image was compressed
-        if (result.compressed) {
-          const savedMB = ((result.originalSize - result.newSize) / (1024 * 1024)).toFixed(1);
-          console.log(`Image compressed: ${(result.originalSize / (1024 * 1024)).toFixed(1)}MB → ${(result.newSize / (1024 * 1024)).toFixed(1)}MB (saved ${savedMB}MB)`);
-        }
-
-        // Note: Images will be saved to Reference Bank when Generate is clicked
-      } catch (err) {
-        console.error('Image compression failed:', err);
-        setError('Failed to process image. Please try a different file.');
-      } finally {
-        setIsCompressing(false);
+        // Update progress complete
+        setCompressionProgress(prev => 
+          prev.map(p => p.fileName === file.name ? { ...p, progress: 100, currentSize: result.newSize } : p)
+        );
       }
+      
+      setUploadedImages(prev => [...prev, ...newImages]);
+      
+      // Clear progress after a moment
+      setTimeout(() => setCompressionProgress([]), 1000);
+    } catch (err) {
+      console.error('Batch upload failed:', err);
+      setError('Failed to process some images. Please try again.');
+    } finally {
+      setIsCompressing(false);
     }
-    // Reset input
+    
     e.target.value = '';
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDragOverZone = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDropZone = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    
+    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    setIsCompressing(true);
+    setError(null);
+    const newImages: typeof uploadedImages = [];
+    
+    const progressItems: CompressionProgress[] = files.map((file, idx) => ({
+      imageId: `img-${Date.now()}-${idx}`,
+      fileName: file.name,
+      progress: 0,
+      originalSize: file.size
+    }));
+    setCompressionProgress(progressItems);
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        setCompressionProgress(prev => 
+          prev.map(p => p.fileName === file.name ? { ...p, progress: 50 } : p)
+        );
+        
+        const result = await compressImage(file, 2, 2048);
+        
+        newImages.push({
+          id: progressItems[i].imageId,
+          base64: result.base64,
+          file,
+          wasCompressed: result.compressed,
+          fromReferenceBank: false,
+        });
+        
+        setCompressionProgress(prev => 
+          prev.map(p => p.fileName === file.name ? { ...p, progress: 100, currentSize: result.newSize } : p)
+        );
+      }
+      
+      setUploadedImages(prev => [...prev, ...newImages]);
+      setTimeout(() => setCompressionProgress([]), 1000);
+    } catch (err) {
+      console.error('Drop upload failed:', err);
+      setError('Failed to process dropped images.');
+    } finally {
+      setIsCompressing(false);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Use batch handler for consistency
+    await handleBatchImageUpload(e);
   };
 
   const handleRemoveImage = (imageId: string) => {
@@ -739,6 +1026,9 @@ export default function SeeDreamImageToImage() {
 
     if (!targetFolder) {
       setError("Please select a vault folder to save your images");
+      setShowFolderValidation(true);
+      // Scroll to folder section
+      document.getElementById('folder-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -1232,7 +1522,7 @@ export default function SeeDreamImageToImage() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-cyan-900/30 backdrop-blur space-y-6">
               {/* Image Upload */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between w-full group">
                   <label className="text-sm font-semibold text-white">Reference Images</label>
                   <div className="flex items-center gap-2">
                     {/* Reference Bank Button */}
@@ -1248,8 +1538,17 @@ export default function SeeDreamImageToImage() {
                       </button>
                     )}
                     <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">{uploadedImages.length || 0} added</span>
+                    <button
+                      type="button"
+                      onClick={() => setSectionsCollapsed(prev => ({ ...prev, upload: !prev.upload }))}
+                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                    >
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.upload ? '' : 'rotate-180'}`} />
+                    </button>
                   </div>
                 </div>
+
+                <div className={`space-y-2 ${sectionsCollapsed.upload ? 'hidden lg:block' : ''}`}>
 
                 {/* Uploaded Images Grid with Reordering */}
                 {uploadedImages.length > 0 && (
@@ -1280,7 +1579,7 @@ export default function SeeDreamImageToImage() {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-0 transition group-hover:opacity-100" />
                             
                             {/* Reordering Controls (only visible on hover) */}
-                            <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                               {/* Move Up Button */}
                               {index > 0 && (
                                 <button
@@ -1332,9 +1631,11 @@ export default function SeeDreamImageToImage() {
                             )}
                             
                             {/* Position and Status Badges */}
-                            <div className="absolute bottom-2 left-2 flex items-center gap-1.5">
-                              <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-900 shadow">
-                                {index === 0 ? 'Primary' : `Ref ${index + 1}`}
+                            <div className="absolute bottom-2 left-2 flex flex-wrap items-center gap-1.5">
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold shadow ${
+                                index === 0 ? 'bg-cyan-500/90 text-white' : 'bg-white/90 text-slate-900'
+                              }`}>
+                                {index === 0 ? '⭐ Primary' : `Ref ${index + 1}`}
                               </span>
                               {img.wasCompressed && !img.fromReferenceBank && (
                                 <span className="rounded-full bg-emerald-500/90 px-2 py-1 text-[10px] font-semibold text-white shadow" title="Image was automatically optimized">
@@ -1353,13 +1654,56 @@ export default function SeeDreamImageToImage() {
                   </div>
                 )}
 
-                {/* Upload New Image Button */}
-                <label className={`group flex flex-col items-center justify-center w-full h-32 rounded-xl border border-dashed border-white/20 bg-slate-950/60 transition hover:border-cyan-200/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-900/30 ${isCompressing || isGenerating ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}>
-                  <div className="flex flex-col items-center justify-center py-4">
+                {/* Compression Progress Indicator */}
+                {compressionProgress.length > 0 && (
+                  <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-blue-200 flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Optimizing images...
+                    </p>
+                    {compressionProgress.map((item) => (
+                      <div key={item.imageId} className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-blue-100">
+                          <span className="truncate max-w-[150px]">{item.fileName}</span>
+                          <span>{item.progress}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-blue-900/40 overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-blue-400 to-cyan-400 transition-all duration-300"
+                            style={{ width: `${item.progress}%` }}
+                          />
+                        </div>
+                        {item.currentSize && (
+                          <p className="text-[10px] text-blue-200/70">
+                            {(item.originalSize / 1024 / 1024).toFixed(1)}MB → {(item.currentSize / 1024 / 1024).toFixed(1)}MB
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Upload New Image Button with Drag & Drop */}
+                <label 
+                  className={`group flex flex-col items-center justify-center w-full h-32 rounded-xl border border-dashed transition-all ${
+                    isDraggingOver
+                      ? 'border-cyan-400 bg-cyan-500/20 shadow-lg shadow-cyan-400/30 scale-[1.02]'
+                      : 'border-white/20 bg-slate-950/60 hover:border-cyan-200/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-900/30'
+                  } ${isCompressing || isGenerating ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDragOverZone}
+                  onDrop={handleDropZone}
+                >
+                  <div className="flex flex-col items-center justify-center py-4 pointer-events-none">
                     <div className="relative mb-2">
-                      <div className="absolute inset-0 bg-cyan-500 blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                      <div className={`absolute inset-0 blur-xl opacity-20 transition-opacity ${
+                        isDraggingOver ? 'bg-cyan-400 opacity-60' : 'bg-cyan-500 group-hover:opacity-40'
+                      }`} />
                       {isCompressing ? (
                         <Loader2 className="relative w-8 h-8 text-cyan-200 animate-spin" />
+                      ) : isDraggingOver ? (
+                        <Download className="relative w-8 h-8 text-cyan-300 animate-bounce" />
                       ) : (
                         <Upload className="relative w-8 h-8 text-cyan-200 group-hover:scale-110 transition-transform" />
                       )}
@@ -1367,28 +1711,36 @@ export default function SeeDreamImageToImage() {
                     <p className="text-sm text-white">
                       <span className="font-semibold text-cyan-100">
                         {isCompressing 
-                          ? 'Optimizing image...' 
-                          : uploadedImages.length === 0 
-                            ? 'Upload primary image' 
-                            : 'Add reference image'}
+                          ? 'Optimizing images...' 
+                          : isDraggingOver
+                            ? 'Drop images here'
+                            : uploadedImages.length === 0 
+                              ? 'Upload or drop primary image' 
+                              : 'Add more references'}
                       </span>
                     </p>
                     <p className="text-[11px] text-slate-300 mt-1">
-                      {isCompressing ? 'Large images are automatically compressed' : 'PNG, JPG, WEBP • Auto-optimized'}
+                      {isCompressing 
+                        ? 'Large images are automatically compressed' 
+                        : isDraggingOver
+                          ? 'Release to upload'
+                          : 'PNG, JPG, WEBP • Multiple files supported • Auto-optimized'}
                     </p>
                   </div>
                   <input
                     type="file"
                     className="hidden"
                     accept="image/*"
-                    onChange={handleImageUpload}
+                    multiple
+                    onChange={handleBatchImageUpload}
                     disabled={isGenerating || isCompressing}
                   />
                 </label>
 
                 {uploadedImages.length > 0 && (
-                  <p className="text-xs text-slate-300">
-                    First image is primary; additional images provide style/composition cues.
+                  <p className="text-xs text-slate-300 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    First image (⭐ Primary) is main reference; others provide style/composition cues.
                   </p>
                 )}
 
@@ -1399,13 +1751,70 @@ export default function SeeDreamImageToImage() {
                   </p>
                 )}
               </div>
+              </div>
 
               {/* Prompt Input */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between w-full group">
                   <label className="text-sm font-semibold text-white">Prompt</label>
-                  <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplates(!showTemplates)}
+                      className="rounded-full bg-indigo-500/20 hover:bg-indigo-500/30 px-3 py-1 text-[11px] font-semibold text-indigo-100 transition-colors flex items-center gap-1"
+                      disabled={isGenerating}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Templates
+                    </button>
+                    <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                    <button
+                      type="button"
+                      onClick={() => setSectionsCollapsed(prev => ({ ...prev, prompt: !prev.prompt }))}
+                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                    >
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.prompt ? '' : 'rotate-180'}`} />
+                    </button>
+                  </div>
                 </div>
+
+                <div className={`space-y-2 ${sectionsCollapsed.prompt ? 'hidden lg:block' : ''}`}>
+                {/* Prompt Templates Dropdown */}
+                {showTemplates && (
+                  <div className="rounded-2xl border border-indigo-400/30 bg-indigo-950/40 backdrop-blur p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-indigo-200">I2I Templates</p>
+                      <button
+                        onClick={() => setShowTemplates(false)}
+                        className="text-indigo-300 hover:text-indigo-100 transition"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="grid gap-2 max-h-80 overflow-y-auto">
+                      {promptTemplates.map((template) => (
+                        <button
+                          key={template.id}
+                          onClick={() => applyTemplate(template)}
+                          className="text-left p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-indigo-300/40 transition-all group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="text-sm font-semibold text-white">{template.name}</p>
+                                <span className="text-[10px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded">{template.category}</span>
+                              </div>
+                              <p className="text-xs text-slate-400 mb-2">{template.description}</p>
+                              <p className="text-xs text-slate-300 line-clamp-2">{template.prompt}</p>
+                            </div>
+                            <Check className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition flex-shrink-0" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="relative">
                   <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
                   <textarea
@@ -1417,15 +1826,74 @@ export default function SeeDreamImageToImage() {
                     disabled={isGenerating}
                   />
                 </div>
-                <p className="text-xs text-slate-300">Be explicit about what stays vs. changes. Under 600 words.</p>
+                
+                {/* Character Counter */}
+                <div className="flex items-center justify-between text-xs">
+                  <p className="text-slate-300">Be explicit about what stays vs. changes. Under 600 words.</p>
+                  <div className={`font-mono ${
+                    prompt.length === 0 ? 'text-slate-400' :
+                    prompt.length < 400 ? 'text-emerald-400' :
+                    prompt.length < 600 ? 'text-amber-400' :
+                    'text-red-400'
+                  }`}>
+                    {prompt.length}/600
+                    {prompt.length > 500 && prompt.length <= 600 && ' ⚠️'}
+                    {prompt.length > 600 && ' 🚫 Too long!'}
+                  </div>
+                </div>
               </div>
+              </div>
+
+              {/* User Presets */}
+              {userPresets.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Your Presets</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {userPresets.map((preset) => (
+                      <div key={preset.id} className="group relative">
+                        <button
+                          onClick={() => loadPreset(preset)}
+                          className="w-full text-left p-3 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/0 hover:from-white/10 hover:border-indigo-300/40 transition-all"
+                        >
+                          <p className="text-sm font-semibold text-white mb-1">{preset.name}</p>
+                          <div className="flex flex-wrap gap-1 text-[10px]">
+                            <span className="bg-cyan-500/20 text-cyan-200 rounded px-1.5 py-0.5">{preset.resolution}</span>
+                            <span className="bg-amber-500/20 text-amber-200 rounded px-1.5 py-0.5">{preset.aspectRatio}</span>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deletePreset(preset.id);
+                          }}
+                          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500/90 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          title="Delete preset"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Resolution & Aspect Ratio Configuration */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Settings className="w-4 h-4 text-cyan-300" />
-                  <p className="text-sm font-semibold text-white">Framing</p>
+                <div className="flex items-center justify-between w-full group">
+                  <div className="flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-cyan-300" />
+                    <p className="text-sm font-semibold text-white">Framing</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSectionsCollapsed(prev => ({ ...prev, framing: !prev.framing }))}
+                    className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                  >
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.framing ? '' : 'rotate-180'}`} />
+                  </button>
                 </div>
+
+                <div className={`space-y-3 ${sectionsCollapsed.framing ? 'hidden lg:block' : ''}`}>
 
                 <div className="grid grid-cols-2 gap-3">
                   {["2K", "4K"].map((res) => (
@@ -1478,29 +1946,61 @@ export default function SeeDreamImageToImage() {
                     <p className="text-lg font-semibold text-white">{currentSize.split('x')[1]}</p>
                   </div>
                 </div>
+
+                {/* Save as Preset Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowPresetModal(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-dashed border-indigo-400/40 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-200 text-sm font-medium transition-colors"
+                  disabled={isGenerating}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Save Current Settings as Preset
+                </button>
+              </div>
               </div>
 
               {/* Folder Selection */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <FolderOpen className="w-4 h-4 text-cyan-300" />
-                  <p className="text-sm font-semibold text-white">Save to Vault</p>
-                  {isLoadingVaultData && (
-                    <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
-                  )}
+              <div className="space-y-3" id="folder-section">
+                <div className="flex items-center justify-between w-full group">
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className="w-4 h-4 text-cyan-300" />
+                    <p className="text-sm font-semibold text-white">Save to Vault</p>
+                    {!targetFolder && showFolderValidation && (
+                      <span className="text-xs bg-red-500/20 text-red-200 px-2 py-1 rounded-full animate-pulse">⚠️ Required</span>
+                    )}
+                    {isLoadingVaultData && (
+                      <Loader2 className="w-3 h-3 animate-spin text-cyan-300" />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSectionsCollapsed(prev => ({ ...prev, vault: !prev.vault }))}
+                    className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                  >
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.vault ? '' : 'rotate-180'}`} />
+                  </button>
                 </div>
                 
+                <div className={`space-y-3 ${sectionsCollapsed.vault ? 'hidden lg:block' : ''}`}>
                 {/* Modern Custom Dropdown */}
                 <div ref={folderDropdownRef} className="relative">
                   <button
                     type="button"
-                    onClick={() => !(!mounted || isLoadingVaultData || isGenerating || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    onClick={() => {
+                      if (!(!mounted || isLoadingVaultData || isGenerating || !globalProfileId)) {
+                        setFolderDropdownOpen(!folderDropdownOpen);
+                        setShowFolderValidation(false);
+                      }
+                    }}
                     disabled={!mounted || isLoadingVaultData || isGenerating || !globalProfileId}
                     className={`
                       w-full flex items-center justify-between gap-3 px-4 py-3.5
                       rounded-2xl border transition-all duration-200
                       ${folderDropdownOpen 
                         ? 'border-cyan-400 bg-cyan-500/10 ring-2 ring-cyan-400/30' 
+                        : !targetFolder && showFolderValidation
+                        ? 'border-red-400 bg-red-500/10 ring-2 ring-red-400/30 animate-pulse'
                         : 'border-white/10 bg-slate-800/80 hover:border-cyan-400/50 hover:bg-slate-800'
                       }
                       disabled:opacity-50 disabled:cursor-not-allowed
@@ -1666,13 +2166,25 @@ export default function SeeDreamImageToImage() {
                   </div>
                 )}
               </div>
+              </div>
 
               {/* Batch Size */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between w-full group">
                   <p className="text-sm font-semibold text-white">Batch Size</p>
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-slate-200">{maxImages} total</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-slate-200">{maxImages} total</span>
+                    <button
+                      type="button"
+                      onClick={() => setSectionsCollapsed(prev => ({ ...prev, batch: !prev.batch }))}
+                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                    >
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.batch ? '' : 'rotate-180'}`} />
+                    </button>
+                  </div>
                 </div>
+
+                <div className={`space-y-3 ${sectionsCollapsed.batch ? 'hidden lg:block' : ''}`}>
                 <input
                   type="range"
                   min="1"
@@ -1696,6 +2208,7 @@ export default function SeeDreamImageToImage() {
                   💡 Max 5 images per batch. For more, run multiple batches.
                 </div>
               </div>
+              </div>
 
               {/* Error Display */}
               {error && (
@@ -1705,8 +2218,8 @@ export default function SeeDreamImageToImage() {
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-[1.6fr_0.4fr] gap-3">
+              {/* Action Buttons - Sticky on Mobile */}
+              <div className="sticky bottom-4 lg:static grid grid-cols-[1.6fr_0.4fr] gap-3 z-10">
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt.trim() || uploadedImages.length === 0}
@@ -2287,6 +2800,82 @@ export default function SeeDreamImageToImage() {
           maxSelect={0}
           selectedItemIds={uploadedImages.filter(img => img.referenceId).map(img => img.referenceId!)}
         />
+      )}
+
+      {/* Save Preset Modal */}
+      {showPresetModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4 text-white">Save Image-to-Image Preset</h3>
+            
+            <div className="space-y-4">
+              {/* Preset Name Input */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Preset Name
+                </label>
+                <input
+                  type="text"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="e.g., My Style Transfer Settings"
+                  className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Current Settings Preview */}
+              <div className="bg-slate-900 rounded-lg p-4 space-y-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                  Settings to Save:
+                </p>
+                <div className="space-y-1.5 text-sm text-slate-300">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Resolution:</span>
+                    <span className="font-medium">{selectedResolution}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Aspect Ratio:</span>
+                    <span className="font-medium">{aspectRatio}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Framing:</span>
+                    <span className="font-medium">{framingOption}</span>
+                  </div>
+                  {selectedFolder && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Vault Folder:</span>
+                      <span className="font-medium truncate max-w-[180px]">
+                        {selectedFolder.name}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowPresetModal(false);
+                    setPresetName('');
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveAsPreset}
+                  disabled={!presetName.trim()}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Preset
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

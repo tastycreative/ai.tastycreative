@@ -347,6 +347,7 @@ interface GridItemProps {
   onSelect: (id: string, e?: React.MouseEvent) => void;
   onPreview: (item: VaultItem) => void;
   onDelete: (id: string) => void;
+  onDownload: (item: VaultItem, e?: React.MouseEvent) => void;
   formatFileSize: (bytes: number) => string;
   favorites?: Set<string>;
   toggleFavorite?: (id: string) => void;
@@ -363,6 +364,7 @@ const VaultGridItem = memo(function VaultGridItem({
   onSelect,
   onPreview,
   onDelete,
+  onDownload,
   formatFileSize,
   favorites,
   toggleFavorite,
@@ -509,14 +511,13 @@ const VaultGridItem = memo(function VaultGridItem({
               <Sparkles className="w-4 sm:w-4 h-4 sm:h-4 text-cyan-400" />
             </div>
           )}
-          <a
-            href={item.awsS3Url}
-            download={item.fileName}
-            onClick={(e) => e.stopPropagation()}
+          <button
+            onClick={(e) => onDownload(item, e)}
             className="p-2 sm:p-1.5 bg-gray-900/90 backdrop-blur shadow-sm rounded-lg hover:bg-gray-800 transition-colors active:scale-95 touch-manipulation"
+            title="Download"
           >
             <Download className="w-4 sm:w-4 h-4 sm:h-4 text-gray-300" />
-          </a>
+          </button>
           {canEdit && (
             <button
               onClick={handleDeleteClick}
@@ -553,6 +554,7 @@ interface ListItemProps {
   onSelect: (id: string, e?: React.MouseEvent) => void;
   onPreview: (item: VaultItem) => void;
   onDelete: (id: string) => void;
+  onDownload: (item: VaultItem, e?: React.MouseEvent) => void;
   formatFileSize: (bytes: number) => string;
   favorites?: Set<string>;
   toggleFavorite?: (id: string) => void;
@@ -566,6 +568,7 @@ const VaultListItem = memo(function VaultListItem({
   onSelect,
   onPreview,
   onDelete,
+  onDownload,
   formatFileSize,
   favorites,
   toggleFavorite,
@@ -668,14 +671,13 @@ const VaultListItem = memo(function VaultListItem({
           selectionMode ? 'hidden' : 'sm:opacity-0 sm:group-hover:opacity-100'
         }`}
       >
-        <a
-          href={item.awsS3Url}
-          download={item.fileName}
-          onClick={(e) => e.stopPropagation()}
+        <button
+          onClick={(e) => onDownload(item, e)}
           className="p-2 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors active:scale-95 touch-manipulation"
+          title="Download"
         >
           <Download className="w-4 sm:w-4 h-4 sm:h-4 text-gray-400" />
-        </a>
+        </button>
         {canEdit && (
           <button
             onClick={handleDeleteClick}
@@ -1098,6 +1100,39 @@ export function VaultContent() {
   const handleBulkMove = () => {
     if (selectedItems.size === 0) return;
     setShowMoveModal(true);
+  };
+
+  const handleDownloadSingleFile = async (item: VaultItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    try {
+      // Use proxy endpoint to avoid CORS issues
+      const response = await fetch('/api/vault/proxy-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: item.awsS3Url }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to download file');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showToast('Download started', 'success');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      showToast('Failed to download file', 'error');
+    }
   };
 
   const handleDownloadZip = async () => {
@@ -3116,7 +3151,7 @@ export function VaultContent() {
                 <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-pink-400" />
               </button>
             )}
-            <a href={previewItem.awsS3Url} download={previewItem.fileName} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></a>
+            <button onClick={(e) => handleDownloadSingleFile(previewItem, e)} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors" title="Download"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></button>
             {canEdit && <button onClick={() => { handleDeleteItem(previewItem.id); setPreviewItem(null); setShowPreviewInfo(false); }} className="p-1.5 sm:p-2 bg-red-500/20 hover:bg-red-500/30 rounded-full transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
           </div>
         </div>,
@@ -3912,6 +3947,7 @@ export function VaultContent() {
                       onSelect={onSelectItem}
                       onPreview={handlePreview}
                       onDelete={handleDeleteItem}
+                      onDownload={handleDownloadSingleFile}
                       formatFileSize={formatFileSize}
                       favorites={favorites}
                       toggleFavorite={toggleFavorite}
@@ -3953,6 +3989,7 @@ export function VaultContent() {
                       onSelect={onSelectItem}
                       onPreview={handlePreview}
                       onDelete={handleDeleteItem}
+                      onDownload={handleDownloadSingleFile}
                       formatFileSize={formatFileSize}
                       favorites={favorites}
                       toggleFavorite={toggleFavorite}

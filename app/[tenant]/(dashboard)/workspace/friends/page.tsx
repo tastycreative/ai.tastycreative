@@ -20,8 +20,10 @@ import {
   Share2,
   Image as ImageIcon,
   Sparkles,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 
 // Types
 interface Friend {
@@ -114,14 +116,6 @@ const tabs = [
   { id: "add", label: "Add Friend", icon: UserPlus },
 ];
 
-interface InstagramProfile {
-  id: string;
-  name: string;
-  instagramUsername: string | null;
-  profileImageUrl: string | null;
-  isDefault: boolean;
-}
-
 function FriendsPageContent() {
   const params = useParams();
   const tenant = params.tenant as string;
@@ -141,48 +135,9 @@ function FriendsPageContent() {
   const apiClient = useApiClient();
   const { userId } = useAuth();
   
-  // Profile selection state
-  const [creatorProfiles, setCreatorProfiles] = useState<InstagramProfile[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [loadingProfiles, setLoadingProfiles] = useState(true);
-
-  // Load creator profiles
-  useEffect(() => {
-    const fetchProfiles = async () => {
-      try {
-        setLoadingProfiles(true);
-        const response = await fetch("/api/instagram/profiles");
-        if (response.ok) {
-          const data = await response.json();
-          const profiles = Array.isArray(data) ? data : data.profiles || [];
-          setCreatorProfiles(profiles);
-          
-          // Set selected profile from localStorage or first profile
-          const savedProfileId = localStorage.getItem('selectedFriendsProfileId');
-          if (savedProfileId && profiles.some((p: InstagramProfile) => p.id === savedProfileId)) {
-            setSelectedProfileId(savedProfileId);
-          } else if (profiles.length > 0) {
-            setSelectedProfileId(profiles[0].id);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching profiles:", error);
-      } finally {
-        setLoadingProfiles(false);
-      }
-    };
-
-    if (userId) {
-      fetchProfiles();
-    }
-  }, [userId]);
-
-  // Save selected profile to localStorage
-  useEffect(() => {
-    if (selectedProfileId) {
-      localStorage.setItem('selectedFriendsProfileId', selectedProfileId);
-    }
-  }, [selectedProfileId]);
+  // Use global profile selector
+  const { selectedProfile, isAllProfiles, loadingProfiles } = useInstagramProfile();
+  const selectedProfileId = isAllProfiles ? null : (selectedProfile?.id || null);
 
   // Update active tab when URL parameter changes
   useEffect(() => {
@@ -193,12 +148,17 @@ function FriendsPageContent() {
 
   // Load friends and requests when profile is selected
   useEffect(() => {
-    if (userId && selectedProfileId) {
+    if (userId && selectedProfileId && !isAllProfiles) {
       loadFriends();
       loadFriendRequests();
       loadSentRequests();
+    } else if (isAllProfiles) {
+      // Clear data when "All Profiles" is selected
+      setFriends([]);
+      setFriendRequests([]);
+      setSentRequests([]);
     }
-  }, [userId, selectedProfileId]);
+  }, [userId, selectedProfileId, isAllProfiles]);
 
   const loadFriends = async () => {
     if (!selectedProfileId) return;
@@ -880,79 +840,36 @@ function FriendsPageContent() {
     }
   };
 
-  return (
-    <div className="flex gap-6 h-full">
-      {/* Profile Selection Sidebar */}
-      <div className="w-80 flex-shrink-0 bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-lg">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Profiles</h2>
-          <p className="text-xs text-gray-600 dark:text-gray-400">Select a profile to manage friends</p>
+  // Show message when "All Profiles" is selected
+  if (isAllProfiles) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center p-8">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+            <User className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Select a Profile</h3>
+          <p className="text-gray-600 dark:text-gray-400">Please select a specific profile from the sidebar to manage friends</p>
         </div>
-
-        {loadingProfiles ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-          </div>
-        ) : creatorProfiles.length === 0 ? (
-          <div className="text-center py-8">
-            <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">No profiles found</p>
-            <a
-              href={`/${tenant}/workspace/creators`}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all"
-            >
-              Create Profile
-            </a>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {creatorProfiles.map((profile) => (
-              <button
-                key={profile.id}
-                onClick={() => setSelectedProfileId(profile.id)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all ${
-                  selectedProfileId === profile.id
-                    ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md"
-                    : "bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-900/70"
-                }`}
-              >
-                {profile.profileImageUrl ? (
-                  <img
-                    src={profile.profileImageUrl}
-                    alt={profile.name}
-                    className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    selectedProfileId === profile.id
-                      ? "bg-white/20"
-                      : "bg-gradient-to-br from-blue-500 to-purple-600"
-                  }`}>
-                    <Users className={`w-5 h-5 ${
-                      selectedProfileId === profile.id ? "text-white" : "text-white"
-                    }`} />
-                  </div>
-                )}
-                <div className="flex-1 text-left min-w-0">
-                  <p className="font-medium text-sm truncate">{profile.name}</p>
-                  {profile.instagramUsername && (
-                    <p className={`text-xs truncate ${
-                      selectedProfileId === profile.id
-                        ? "text-white/80"
-                        : "text-gray-600 dark:text-gray-400"
-                    }`}>
-                      @{profile.instagramUsername}
-                    </p>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
       </div>
+    );
+  }
 
-      {/* Main Content */}
-      <div className="flex-1 min-w-0 space-y-3 sm:space-y-4">
+  if (!selectedProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center p-8">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-gray-500/20 to-gray-500/20 flex items-center justify-center">
+            <Users className="w-10 h-10 text-gray-600 dark:text-gray-400" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Profile Selected</h3>
+          <p className="text-gray-600 dark:text-gray-400">Select a profile from the sidebar to get started</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
     <div className="space-y-3 sm:space-y-4">
       {/* Header */}
       <div className="space-y-2 sm:space-y-3">
@@ -1014,8 +931,6 @@ function FriendsPageContent() {
         </div>
 
         <div className="p-4 sm:p-6">{renderTabContent()}</div>
-      </div>
-    </div>
       </div>
     </div>
   );

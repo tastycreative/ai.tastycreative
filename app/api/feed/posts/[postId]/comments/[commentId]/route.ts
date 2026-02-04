@@ -15,9 +15,10 @@ export async function DELETE(
 
     const { postId, commentId } = await params;
 
-    // Get current user
+    // Get current user with organization info
     const currentUser = await prisma.user.findUnique({
       where: { clerkId },
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!currentUser) {
@@ -27,14 +28,40 @@ export async function DELETE(
     // Get the comment to check ownership
     const comment = await prisma.feedPostComment.findUnique({
       where: { id: commentId },
+      include: {
+        profile: {
+          select: {
+            id: true,
+            clerkId: true,
+            organizationId: true,
+          },
+        },
+      },
     });
 
     if (!comment) {
       return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
     }
 
-    // Only allow deleting own comments
-    if (comment.userId !== currentUser.id) {
+    // Check if user can delete the comment
+    const isOwnComment = comment.userId === currentUser.id;
+    
+    // Check if user has org access to the comment's profile
+    let hasOrgAccess = false;
+    if (!isOwnComment && comment.profile?.organizationId && 
+        comment.profile.organizationId === currentUser.currentOrganizationId) {
+      const teamMember = await prisma.teamMember.findFirst({
+        where: {
+          userId: currentUser.id,
+          organizationId: comment.profile.organizationId,
+          role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+        },
+      });
+      hasOrgAccess = !!teamMember;
+    }
+
+    // Only allow deleting own comments or if user has org access
+    if (!isOwnComment && !hasOrgAccess) {
       return NextResponse.json(
         { error: 'Not authorized to delete this comment' },
         { status: 403 }
