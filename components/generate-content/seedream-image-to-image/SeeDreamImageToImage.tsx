@@ -2838,15 +2838,11 @@ export default function SeeDreamImageToImage() {
                     <span className="text-slate-400">Aspect Ratio:</span>
                     <span className="font-medium">{selectedRatio}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Framing:</span>
-                    <span className="font-medium">{framingOption}</span>
-                  </div>
-                  {selectedFolder && (
+                  {targetFolder && (
                     <div className="flex justify-between">
                       <span className="text-slate-400">Vault Folder:</span>
                       <span className="font-medium truncate max-w-[180px]">
-                        {selectedFolder.name}
+                        {vaultFolders.find(f => f.id === targetFolder)?.name || 'Selected folder'}
                       </span>
                     </div>
                   )}
