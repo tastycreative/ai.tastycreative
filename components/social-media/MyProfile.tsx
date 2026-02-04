@@ -414,7 +414,7 @@ export default function MyProfile() {
       const formData = new FormData();
       formData.append('image', croppedBlob, originalFile.name);
 
-      const response = await fetch(`/api/instagram/profiles/${selectedProfileId}/upload-image`, {
+      const response = await fetch(`/api/instagram/profiles/${selectedProfile.id}/upload-image`, {
         method: 'POST',
         body: formData,
       });
@@ -422,15 +422,12 @@ export default function MyProfile() {
       if (!response.ok) throw new Error('Failed to upload profile picture');
       const data = await response.json();
       
-      // Update selected profile
-      setSelectedProfile(prev => prev ? { ...prev, profileImageUrl: data.imageUrl } : null);
-      setCreatorProfiles(prev => prev.map(p => 
-        p.id === selectedProfileId ? { ...p, profileImageUrl: data.imageUrl } : p
-      ));
-      
       toast.success('Profile picture updated!');
       setShowCropModal(false);
       setImageToCrop(null);
+      
+      // Refresh the page to show updated profile picture
+      window.location.reload();
     } catch (error) {
       console.error('Error uploading profile:', error);
       toast.error('Failed to upload profile picture');
