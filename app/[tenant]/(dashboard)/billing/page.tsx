@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PRICING_PLANS } from '@/lib/pricing-data';
 import { CREDIT_PACKAGES } from '@/lib/credit-packages';
-import { CheckCircle, XCircle, AlertCircle, CreditCard, Users, HardDrive, Zap, Plus } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, CreditCard, Users, HardDrive, Zap, Plus, Receipt } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -33,9 +33,25 @@ interface BillingInfo {
   };
 }
 
+interface Transaction {
+  id: string;
+  type: string;
+  status: string;
+  amount: number;
+  currency: string;
+  description: string;
+  creditsAdded: number | null;
+  planName: string | null;
+  createdAt: string;
+}
+
 const BillingPage = () => {
   const [billingInfo, setBillingInfo] = useState<BillingInfo | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [transactionsFetched, setTransactionsFetched] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'transactions'>('overview');
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [processingCredits, setProcessingCredits] = useState<string | null>(null);
   const [hasShownToast, setHasShownToast] = useState(false);
@@ -87,6 +103,13 @@ const BillingPage = () => {
     }
   }, [searchParams, router, hasShownToast]);
 
+  // Fetch transactions when tab is clicked
+  useEffect(() => {
+    if (activeTab === 'transactions' && !transactionsFetched) {
+      fetchTransactions();
+    }
+  }, [activeTab, transactionsFetched]);
+
   const fetchBillingInfo = async () => {
     try {
       const response = await fetch('/api/billing/current');
@@ -99,6 +122,23 @@ const BillingPage = () => {
       toast.error('Failed to load billing information');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    setLoadingTransactions(true);
+    try {
+      const response = await fetch('/api/billing/transactions');
+      if (response.ok) {
+        const data = await response.json();
+        setTransactions(data.transactions);
+        setTransactionsFetched(true);
+      }
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      toast.error('Failed to load transactions');
+    } finally {
+      setLoadingTransactions(false);
     }
   };
 
@@ -303,7 +343,7 @@ const BillingPage = () => {
     <div className="min-h-screen bg-gradient-to-b from-white via-blue-50/50 to-white dark:from-gray-950 dark:via-blue-950/40 dark:to-gray-950 text-gray-900 dark:text-white">
       <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-12 md:py-20">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white">
             Billing & Subscription
           </h1>
@@ -312,8 +352,37 @@ const BillingPage = () => {
           </p>
         </div>
 
-        {/* Current Subscription Status */}
-        {billingInfo && (
+        {/* Tabs */}
+        <div className="flex justify-center mb-8">
+          <div className="inline-flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                activeTab === 'overview'
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              onClick={() => setActiveTab('transactions')}
+              className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                activeTab === 'transactions'
+                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Transaction History
+            </button>
+          </div>
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Current Subscription Status */}
+            {billingInfo && (
           <div className="mb-12">
             <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 md:p-8">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
@@ -578,20 +647,110 @@ const BillingPage = () => {
           </div>
         </div>
 
-        {/* Help Section */}
-        <div className="text-center">
-          <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-500/20 rounded-2xl p-8">
-            <h3 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-              Need help choosing a plan?
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Our team is here to help you find the perfect plan for your content creation needs.
-            </p>
-            <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium">
-              Contact Sales
-            </button>
+            {/* Help Section */}
+            <div className="text-center">
+              <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-500/20 rounded-2xl p-8">
+                <h3 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+                  Need help choosing a plan?
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  Our team is here to help you find the perfect plan for your content creation needs.
+                </p>
+                <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium">
+                  Contact Sales
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Transactions Tab */}
+        {activeTab === 'transactions' && (
+          <div className="mb-12">
+            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden">
+              {loadingTransactions ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600 dark:text-gray-400">Loading transactions...</p>
+                </div>
+              ) : transactions.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 dark:text-gray-400">No transactions yet</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-gray-800/50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Description
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Credits
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {transactions.map((transaction) => (
+                        <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {new Date(transaction.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                            {transaction.description}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                              transaction.type === 'SUBSCRIPTION_PAYMENT' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                              transaction.type === 'CREDIT_PURCHASE' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' :
+                              transaction.type === 'PLAN_CHANGE' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                              'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400'
+                            }`}>
+                              {transaction.type.replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {transaction.creditsAdded ? (
+                              <span className="text-green-600 dark:text-green-400">+{transaction.creditsAdded}</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            ${transaction.amount.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                              transaction.status === 'COMPLETED' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                              transaction.status === 'PENDING' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                              transaction.status === 'FAILED' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                              'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400'
+                            }`}>
+                              {transaction.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Confirmation Modal - Rendered using Portal */}

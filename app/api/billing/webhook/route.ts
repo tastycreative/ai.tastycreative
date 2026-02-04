@@ -165,6 +165,27 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     },
   });
 
+  // Create transaction record
+  await prisma.billingTransaction.create({
+    data: {
+      organizationId,
+      type: 'SUBSCRIPTION_PAYMENT',
+      status: 'COMPLETED',
+      amount: (session.amount_total || 0) / 100,
+      currency: session.currency || 'usd',
+      description: `Subscription payment for ${subscriptionPlan.monthlyCredits} credits`,
+      stripeCheckoutSessionId: session.id,
+      creditsAdded: creditsToAdd,
+      planName: subscriptionPlan.monthlyCredits.toString(),
+      billingPeriodStart: new Date(periodStart * 1000),
+      billingPeriodEnd: new Date(periodEnd * 1000),
+      metadata: {
+        sessionId: session.id,
+        subscriptionId: subscriptionData.id,
+      },
+    },
+  });
+
   console.log(`✅ Subscription activated for organization ${organizationId}`);
   console.log(`   Organization name: ${updated.name}`);
   console.log(`   Subscription status: ${updated.subscriptionStatus}`);
@@ -261,6 +282,27 @@ async function handleSubscriptionUpdated(subscription: any) {
         availableCredits: newAvailableCredits,
         lastCreditReset: new Date(),
       };
+
+      // Create transaction record for plan change
+      await prisma.billingTransaction.create({
+        data: {
+          organizationId: organization.id,
+          type: 'PLAN_CHANGE',
+          status: 'COMPLETED',
+          amount: newPlan.price,
+          currency: 'usd',
+          description: `Plan changed to ${newPlan.displayName}`,
+          creditsAdded: creditsToAdd,
+          planName: newPlan.name,
+          billingPeriodStart: periodStart ? new Date(periodStart * 1000) : undefined,
+          billingPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : undefined,
+          metadata: {
+            subscriptionId: subscription.id,
+            oldPlan: organization.subscriptionPlan?.name,
+            newPlan: newPlan.name,
+          },
+        },
+      });
     } else if (subscriptionStatus === 'PAST_DUE') {
       console.log('⚠️  Payment failed - no credits added');
     }
@@ -404,6 +446,24 @@ async function handleCreditPurchase(session: Stripe.Checkout.Session) {
     data: {
       availableCredits: newAvailableCredits,
       stripeCustomerId: session.customer as string,
+    },
+  });
+
+  // Create transaction record
+  await prisma.billingTransaction.create({
+    data: {
+      organizationId,
+      type: 'CREDIT_PURCHASE',
+      status: 'COMPLETED',
+      amount: (session.amount_total || 0) / 100,
+      currency: session.currency || 'usd',
+      description: `One-time purchase of ${credits} credits`,
+      stripeCheckoutSessionId: session.id,
+      creditsAdded: credits,
+      metadata: {
+        sessionId: session.id,
+        packageId: session.metadata?.packageId,
+      },
     },
   });
 

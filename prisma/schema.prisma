@@ -1048,12 +1048,12 @@ model Organization {
   customMaxStorageGB   Int?
   customMonthlyCredits Int?
   currentStorageGB     Float                         @default(0)
-  creditsUsedThisMonth Int                           @default(0)
-  availableCredits     Int                           @default(0)
+  creditsUsedThisMonth Int
   lastCreditReset      DateTime?
   isActive             Boolean                       @default(true)
   createdAt            DateTime                      @default(now())
   updatedAt            DateTime                      @default(now()) @updatedAt
+  availableCredits     Int                           @default(0)
   customPermissions    CustomOrganizationPermission?
   gallery_items        gallery_items[]
   instagramProfiles    InstagramProfile[]
@@ -1061,6 +1061,7 @@ model Organization {
   invites              OrganizationInvite[]
   subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   members              TeamMember[]
+  transactions         BillingTransaction[]
   usageLogs            UsageLog[]
   workspaces           Workspace[]
 
@@ -1182,6 +1183,36 @@ model UsageLog {
   @@map("usage_logs")
 }
 
+model BillingTransaction {
+  id                      String            @id @default(cuid())
+  organizationId          String
+  type                    TransactionType
+  status                  TransactionStatus @default(PENDING)
+  amount                  Float
+  currency                String            @default("usd")
+  description             String
+  stripeInvoiceId         String?
+  stripePaymentIntentId   String?
+  stripeCheckoutSessionId String?
+  creditsAdded            Int?
+  planName                String?
+  billingPeriodStart      DateTime?
+  billingPeriodEnd        DateTime?
+  metadata                Json?
+  failureReason           String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  organization            Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([organizationId, createdAt])
+  @@index([type])
+  @@index([status])
+  @@index([stripeInvoiceId])
+  @@index([createdAt])
+  @@map("billing_transactions")
+}
+
 model ai_voice_accounts {
   id                   String                 @id
   name                 String
@@ -1250,6 +1281,7 @@ model reference_items {
   updatedAt    DateTime           @updatedAt
   folderId     String?
   isFavorite   Boolean            @default(false)
+  fileHash     String?
   user         User               @relation(fields: [clerkId], references: [clerkId], onDelete: Cascade)
   folder       reference_folders? @relation(fields: [folderId], references: [id])
 
@@ -1261,6 +1293,7 @@ model reference_items {
   @@index([folderId])
   @@index([tags])
   @@index([usageCount])
+  @@index([clerkId, fileHash])
 }
 
 model reference_folders {
@@ -1793,4 +1826,20 @@ enum PricingItemType {
   FIXED
   RANGE
   MINIMUM
+}
+
+enum TransactionType {
+  SUBSCRIPTION_PAYMENT
+  SUBSCRIPTION_REFUND
+  CREDIT_PURCHASE
+  CREDIT_REFUND
+  PLAN_CHANGE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
 }
