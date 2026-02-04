@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PRICING_PLANS } from '@/lib/pricing-data';
 import { CREDIT_PACKAGES } from '@/lib/credit-packages';
 import { CheckCircle, XCircle, AlertCircle, CreditCard, Users, HardDrive, Zap, Plus } from 'lucide-react';
@@ -43,8 +44,13 @@ const BillingPage = () => {
     type: 'plan' | 'credits' | null;
     data: any;
   }>({ isOpen: false, type: null, data: null });
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     fetchBillingInfo();
@@ -588,9 +594,16 @@ const BillingPage = () => {
         </div>
       </div>
 
-      {/* Confirmation Modal */}
-      {confirmModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      {/* Confirmation Modal - Rendered using Portal */}
+      {mounted && confirmModal.isOpen && createPortal(
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setConfirmModal({ isOpen: false, type: null, data: null });
+            }
+          }}
+        >
           <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-800">
             {confirmModal.type === 'plan' ? (
               <>
@@ -680,7 +693,8 @@ const BillingPage = () => {
               </>
             ) : null}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
