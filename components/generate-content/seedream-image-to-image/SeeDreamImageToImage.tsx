@@ -2836,7 +2836,7 @@ export default function SeeDreamImageToImage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Aspect Ratio:</span>
-                    <span className="font-medium">{aspectRatio}</span>
+                    <span className="font-medium">{selectedRatio}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Framing:</span>
