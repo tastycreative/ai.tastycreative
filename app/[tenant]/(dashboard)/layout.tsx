@@ -131,6 +131,11 @@ export default function DashboardLayout({
           href: `/${tenant}/gallery`,
           icon: ImageIcon,
         },
+        {
+          name: "GIF Maker",
+          href: `/${tenant}/gif-maker`,
+          icon: Film,
+        },
       ],
     },
     {
