@@ -30,11 +30,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify sender profile belongs to current user
+    // Get user and their organization info
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: { id: true, currentOrganizationId: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify sender profile - check if user owns it directly OR has org access
     const senderProfile = await prisma.instagramProfile.findFirst({
       where: {
         id: senderProfileId,
-        clerkId: userId,
+        OR: [
+          { clerkId: userId },
+          { organizationId: user.currentOrganizationId ?? undefined },
+        ],
       },
     });
 
@@ -43,6 +59,25 @@ export async function POST(request: NextRequest) {
         { error: 'Sender profile not found or unauthorized' },
         { status: 404 }
       );
+    }
+
+    // If profile is from organization (not own profile), verify role
+    const isOwnProfile = senderProfile.clerkId === userId;
+    if (!isOwnProfile && senderProfile.organizationId) {
+      const teamMember = await prisma.teamMember.findFirst({
+        where: {
+          userId: user.id,
+          organizationId: senderProfile.organizationId,
+          role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+        },
+      });
+      
+      if (!teamMember) {
+        return NextResponse.json(
+          { error: 'You are not authorized to send friend requests for this profile' },
+          { status: 403 }
+        );
+      }
     }
 
     // Find the target profile

@@ -66,6 +66,73 @@ export interface ClientModelDetailsSource {
 }
 
 // ============================================
+// ContentDetails (Source)
+// ============================================
+
+export interface ContentDetailsSource {
+  id: string;
+  clientModelName: string;
+  // Solo Content
+  boobContent: string | null;
+  pussyContent: string | null;
+  soloSquirtContent: string | null;
+  soloFingerContent: string | null;
+  soloDildoContent: string | null;
+  soloVibratorContent: string | null;
+  joiContent: string | null;
+  analContent: string | null;
+  // Partner Content
+  bgContent: string | null;
+  bjHandjobContent: string | null;
+  bggContent: string | null;
+  bbgContent: string | null;
+  orgyContent: string | null;
+  ggContent: string | null;
+  // Live & Custom
+  livestreamContent: string | null;
+  customVideoPricing: string | null;
+  customCallPricing: string | null;
+  // Bundle Packages
+  bundleContent5_10: string | null;
+  bundleContent10_15: string | null;
+  bundleContent15_20: string | null;
+  bundleContent20_25: string | null;
+  bundleContent25_30: string | null;
+  bundleContent30Plus: string | null;
+  contentOptionsForGames: string | null;
+  // Upsell Scripts
+  upsell_1: string | null;
+  upsell_2: string | null;
+  upsell_3: string | null;
+  upsell_4: string | null;
+  upsell_5: string | null;
+  upsell_6: string | null;
+  upsell_7: string | null;
+  upsell_8: string | null;
+  upsell_9: string | null;
+  upsell_10: string | null;
+  upsell_11: string | null;
+  upsell_12: string | null;
+  upsell_13: string | null;
+  upsell_14: string | null;
+  upsell_15: string | null;
+  upsell_16: string | null;
+  upsell_17: string | null;
+  // Restrictions & Notes
+  twitterNudity: string | null;
+  openToLivestreams: string | null;
+  onlyFansWallLimitations: string | null;
+  flyerCensorshipLimitations: string | null;
+  notes: string | null;
+  generalClientNotes: string | null;
+  personalityType: string | null;
+  restrictedTerms: string | null;
+  // Timestamps
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============================================
 // Migration Types
 // ============================================
 

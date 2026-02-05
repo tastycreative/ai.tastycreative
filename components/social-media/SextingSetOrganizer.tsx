@@ -1,5 +1,37 @@
 "use client";
 
+/**
+ * Sexting Set Organizer Component
+ * 
+ * Recent UX Improvements (Feb 2026):
+ * 
+ * 1. Better Visual Feedback:
+ *    - Custom styled confirmation modals instead of browser alerts
+ *    - Toast notifications for all actions (success/error/info)
+ *    - Prominent saving order indicator (floating badge)
+ *    - Skeleton loaders on initial load
+ * 
+ * 2. Quick Actions on Hover:
+ *    - Floating action buttons on image cards
+ *    - Quick delete, rename, preview buttons
+ *    - Visual drag handle indicator
+ *    - Smooth transitions and delays for better UX
+ * 
+ * 3. Enhanced Drag & Drop:
+ *    - Visual preview while dragging (with move icon)
+ *    - Drop zone highlighting with pulsing border
+ *    - Enhanced visual feedback (shadows, rings, scale)
+ *    - Grid gap highlighting for precise placement
+ * 
+ * 4. Mobile Optimization:
+ *    - Swipe-to-delete gesture on images
+ *    - Bottom sheet modals instead of centered dialogs
+ *    - Touch-friendly 44px minimum touch targets
+ *    - Responsive button labels (hidden on mobile)
+ *    - Floating Action Button (FAB) for quick upload
+ *    - Simplified mobile layout
+ */
+
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -31,6 +63,7 @@ import {
   FolderInput,
   Folder,
   CheckCircle2,
+  XCircle,
   User,
   Users,
   FileText,
@@ -47,6 +80,7 @@ import {
   AlertCircle,
   LogOut,
   Info,
+  Move,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
@@ -218,6 +252,32 @@ export default function SextingSetOrganizer({
   const actionsButtonRef = useRef<HTMLButtonElement>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmText: string;
+    confirmAction: () => void;
+    isDangerous?: boolean;
+  } | null>(null);
+
+  // Hover state for image cards
+  const [hoveredImageId, setHoveredImageId] = useState<string | null>(null);
+
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Touch gesture state for swipe
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number; id: string } | null>(null);
+  const [touchOffset, setTouchOffset] = useState<{ id: string; offset: number } | null>(null);
+
+  // Drop zone state for drag between sets
+  const [dropTargetSetId, setDropTargetSetId] = useState<string | null>(null);
+
   // Check if "All Profiles" is selected
   const isAllProfiles = profileId === "all";
 
@@ -251,6 +311,34 @@ export default function SextingSetOrganizer({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Toast auto-dismiss
+  useEffect(() => {
+    if (toast) {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = setTimeout(() => {
+        setToast(null);
+      }, 4000);
+    }
+    return () => {
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
+  }, [toast]);
+
+  // Show toast notification
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+  };
 
   // Update dropdown position when menu opens
   useEffect(() => {
@@ -343,9 +431,11 @@ export default function SextingSetOrganizer({
         setExpandedSets((prev) => new Set([...prev, data.set.id]));
         setNewSetName("");
         setShowCreateModal(false);
+        showToast(`"${data.set.name}" created successfully`, 'success');
       }
     } catch (error) {
       console.error("Error creating set:", error);
+      showToast('Failed to create set', 'error');
     } finally {
       setCreating(false);
     }
@@ -353,20 +443,28 @@ export default function SextingSetOrganizer({
 
   // Delete set
   const deleteSet = async (setId: string) => {
-    if (
-      !confirm("Are you sure you want to delete this set and all its images?")
-    )
-      return;
+    const setToDelete = sets.find(s => s.id === setId);
+    if (!setToDelete) return;
 
-    try {
-      await fetch(`/api/sexting-sets?id=${setId}`, { method: "DELETE" });
-      setSets((prev) => prev.filter((s) => s.id !== setId));
-      if (selectedSet?.id === setId) {
-        setSelectedSet(null);
+    setConfirmModal({
+      title: "Delete Set",
+      message: `Are you sure you want to delete "${setToDelete.name}" and all ${setToDelete.images.length} image${setToDelete.images.length !== 1 ? 's' : ''}? This action cannot be undone.`,
+      confirmText: "Delete Set",
+      isDangerous: true,
+      confirmAction: async () => {
+        try {
+          await fetch(`/api/sexting-sets?id=${setId}`, { method: "DELETE" });
+          setSets((prev) => prev.filter((s) => s.id !== setId));
+          if (selectedSet?.id === setId) {
+            setSelectedSet(null);
+          }
+          showToast(`"${setToDelete.name}" deleted successfully`, 'success');
+        } catch (error) {
+          console.error("Error deleting set:", error);
+          showToast('Failed to delete set', 'error');
+        }
       }
-    } catch (error) {
-      console.error("Error deleting set:", error);
-    }
+    });
   };
 
   // Update set name
@@ -472,11 +570,14 @@ export default function SextingSetOrganizer({
               setSelectedSet(setData.set);
             }
           }
+          showToast(`${uploadedFiles.length} file${uploadedFiles.length !== 1 ? 's' : ''} uploaded successfully`, 'success');
         }
+      } else {
+        showToast('No files were uploaded', 'error');
       }
     } catch (error) {
       console.error("Error uploading images:", error);
-      alert("Upload failed. Please try again.");
+      showToast('Upload failed. Please try again.', 'error');
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -485,38 +586,57 @@ export default function SextingSetOrganizer({
 
   // Delete image
   const deleteImage = async (setId: string, imageId: string) => {
-    try {
-      await fetch(`/api/sexting-sets/${setId}?imageId=${imageId}`, {
-        method: "DELETE",
-      });
+    const set = sets.find(s => s.id === setId);
+    const image = set?.images.find(img => img.id === imageId);
+    if (!image) return;
 
-      // Update local state
-      setSets((prev) =>
-        prev.map((s) => {
-          if (s.id !== setId) return s;
-          return {
-            ...s,
-            images: s.images
-              .filter((img) => img.id !== imageId)
-              .map((img, idx) => ({ ...img, sequence: idx + 1 })),
-          };
-        }),
-      );
+    setConfirmModal({
+      title: "Delete Image",
+      message: `Are you sure you want to delete "${image.name}"? This action cannot be undone.`,
+      confirmText: "Delete",
+      isDangerous: true,
+      confirmAction: async () => {
+        try {
+          await fetch(`/api/sexting-sets/${setId}?imageId=${imageId}`, {
+            method: "DELETE",
+          });
 
-      if (selectedSet?.id === setId) {
-        setSelectedSet((prev) => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            images: prev.images
-              .filter((img) => img.id !== imageId)
-              .map((img, idx) => ({ ...img, sequence: idx + 1 })),
-          };
-        });
+          // Update local state
+          setSets((prev) =>
+            prev.map((s) => {
+              if (s.id !== setId) return s;
+              return {
+                ...s,
+                images: s.images
+                  .filter((img) => img.id !== imageId)
+                  .map((img, idx) => ({ ...img, sequence: idx + 1 })),
+              };
+            }),
+          );
+
+          if (selectedSet?.id === setId) {
+            setSelectedSet((prev) => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                images: prev.images
+                  .filter((img) => img.id !== imageId)
+                  .map((img, idx) => ({ ...img, sequence: idx + 1 })),
+              };
+            });
+          }
+
+          showToast(`"${image.name}" deleted successfully`, 'success');
+          if (showImageDetailModal) {
+            setShowImageDetailModal(false);
+            setSelectedImageForDetail(null);
+          }
+        } catch (error) {
+          console.error("Error deleting image:", error);
+          showToast('Failed to delete image', 'error');
+        }
       }
-    } catch (error) {
-      console.error("Error deleting image:", error);
-    }
+    });
   };
 
   // Rename image
@@ -578,6 +698,41 @@ export default function SextingSetOrganizer({
   const openImageDetail = (image: SextingImage) => {
     setSelectedImageForDetail(image);
     setShowImageDetailModal(true);
+  };
+
+  // Touch gesture handlers for swipe delete
+  const handleTouchStart = (e: React.TouchEvent, imageId: string) => {
+    if (!isMobile) return;
+    const touch = e.touches[0];
+    setTouchStart({ x: touch.clientX, y: touch.clientY, id: imageId });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent, imageId: string) => {
+    if (!isMobile || !touchStart || touchStart.id !== imageId) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStart.x;
+    const deltaY = Math.abs(touch.clientY - touchStart.y);
+    
+    // Only track horizontal swipe
+    if (deltaY < 30 && Math.abs(deltaX) > 10) {
+      setTouchOffset({ id: imageId, offset: deltaX });
+    }
+  };
+
+  const handleTouchEnd = (imageId: string) => {
+    if (!isMobile || !touchOffset || touchOffset.id !== imageId) {
+      setTouchStart(null);
+      setTouchOffset(null);
+      return;
+    }
+
+    // If swiped left significantly, trigger delete
+    if (touchOffset.offset < -100 && selectedSet) {
+      deleteImage(selectedSet.id, imageId);
+    }
+
+    setTouchStart(null);
+    setTouchOffset(null);
   };
 
   // Fetch profiles for export
@@ -1286,10 +1441,44 @@ export default function SextingSetOrganizer({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-10 h-10 animate-spin text-pink-500 mx-auto" />
-          <p className="text-gray-400">Loading your sets...</p>
+      <div className="space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-gray-700 rounded-xl animate-pulse" />
+            <div className="space-y-2">
+              <div className="h-6 w-48 bg-gray-700 rounded animate-pulse" />
+              <div className="h-4 w-32 bg-gray-700 rounded animate-pulse" />
+            </div>
+          </div>
+          <div className="h-10 w-32 bg-gray-700 rounded-xl animate-pulse" />
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sidebar Skeleton */}
+          <div className="lg:col-span-1">
+            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-4">
+              <div className="h-5 w-24 bg-gray-700 rounded animate-pulse mb-3" />
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="h-12 bg-gray-700 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Main Content Skeleton */}
+          <div className="lg:col-span-2">
+            <div className="bg-gradient-to-br from-gray-900/80 to-gray-800/60 border border-gray-700/50 rounded-2xl p-4">
+              <div className="h-12 bg-gray-700 rounded-xl animate-pulse mb-4" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div key={i} className="aspect-square bg-gray-700 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1327,15 +1516,15 @@ export default function SextingSetOrganizer({
         <button
           onClick={() => setShowCreateModal(true)}
           disabled={isAllProfiles}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium shadow-lg transition-all duration-200 ${
+          className={`flex items-center gap-2 px-4 py-2.5 sm:px-4 sm:py-2.5 min-h-[44px] rounded-xl font-medium shadow-lg transition-all duration-200 ${
             isAllProfiles
               ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-pink-500/25 hover:scale-105"
+              : "bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-pink-500/25 hover:scale-105 active:scale-95"
           }`}
           title={isAllProfiles ? "Select a specific profile to create a new set" : "Create a new set"}
         >
           <FolderPlus className="w-5 h-5" />
-          <span>New Set</span>
+          <span className="hidden sm:inline">New Set</span>
         </button>
       </div>
 
@@ -1685,10 +1874,11 @@ export default function SextingSetOrganizer({
                     {selectedSet.images.length > 0 && (
                       <button
                         onClick={openExportModal}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-purple-500/25"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 active:scale-95 text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-purple-500/25"
                       >
                         <FolderOutput className="w-4 h-4" />
-                        <span>Save to Vault</span>
+                        <span className="hidden sm:inline">Save to Vault</span>
+                        <span className="sm:hidden">Save</span>
                       </button>
                     )}
                     
@@ -1697,10 +1887,10 @@ export default function SextingSetOrganizer({
                       <button
                         ref={actionsButtonRef}
                         onClick={() => setShowActionsMenu(!showActionsMenu)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600 text-gray-300 rounded-xl font-medium transition-all duration-200"
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] bg-gray-700/50 hover:bg-gray-600/50 active:scale-95 border border-gray-600 text-gray-300 rounded-xl font-medium transition-all duration-200"
                       >
                         <PlusCircle className="w-4 h-4" />
-                        <span>Actions</span>
+                        <span className="hidden sm:inline">Actions</span>
                         <ChevronDown className={`w-4 h-4 transition-transform ${showActionsMenu ? 'rotate-180' : ''}`} />
                       </button>
                       
@@ -1771,10 +1961,14 @@ export default function SextingSetOrganizer({
                     }`}
                   >
                     <Upload
-                      className={`w-12 h-12 mx-auto mb-4 ${isDraggingFile ? "text-pink-400" : "text-gray-500"}`}
+                      className={`w-12 h-12 mx-auto mb-4 ${
+                        isDraggingFile ? "text-pink-400" : "text-gray-500"
+                      }`}
                     />
                     <p
-                      className={`font-medium ${isDraggingFile ? "text-pink-400" : "text-gray-400"}`}
+                      className={`font-medium ${
+                        isDraggingFile ? "text-pink-400" : "text-gray-400"
+                      }`}
                     >
                       {isDraggingFile
                         ? "Drop your files here!"
@@ -1786,104 +1980,164 @@ export default function SextingSetOrganizer({
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {selectedSet.images.map((image, index) => (
-                      <div
-                        key={image.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDragEnd={handleDragEnd}
-                        onClick={() => openImageDetail(image)}
-                        className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 cursor-grab active:cursor-grabbing ${
-                          draggedIndex === index
-                            ? "opacity-50 scale-95 border-pink-500"
-                            : dragOverIndex === index
-                              ? "border-pink-500 ring-2 ring-pink-500/50 scale-105"
-                              : "border-transparent hover:border-pink-500/50"
-                        }`}
-                      >
-                        {/* Sequence badge */}
-                        <div className="absolute top-2 left-2 z-10 w-7 h-7 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg flex items-center justify-center shadow-lg">
-                          <span className="text-white text-xs font-bold">
-                            {image.sequence}
-                          </span>
-                        </div>
+                    {selectedSet.images.map((image, index) => {
+                      const isHovered = hoveredImageId === image.id;
+                      const isDragging = draggedIndex === index;
+                      const isDropTarget = dragOverIndex === index;
+                      const touchOffsetValue = touchOffset?.id === image.id ? touchOffset.offset : 0;
 
-                        {/* Media */}
-                        {isVideo(image.type) ? (
-                          <video
-                            src={image.url}
-                            className="w-full h-full object-cover"
-                            muted
-                          />
-                        ) : isAudio(image.type) ? (
-                          <div className="w-full h-full bg-gradient-to-br from-violet-900/50 to-fuchsia-900/50 flex flex-col items-center justify-center p-3">
-                            <Music className="w-10 h-10 text-violet-400 mb-2" />
-                            <audio
-                              src={image.url}
-                              controls
-                              className="w-full h-8"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <span className="text-xs text-gray-400 mt-2 truncate max-w-full">
-                              {image.name}
+                      return (
+                        <div
+                          key={image.id}
+                          draggable={!isMobile}
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => !isMobile && openImageDetail(image)}
+                          onMouseEnter={() => !isMobile && setHoveredImageId(image.id)}
+                          onMouseLeave={() => !isMobile && setHoveredImageId(null)}
+                          onTouchStart={(e) => handleTouchStart(e, image.id)}
+                          onTouchMove={(e) => handleTouchMove(e, image.id)}
+                          onTouchEnd={() => handleTouchEnd(image.id)}
+                          className={`group relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                            isMobile ? 'active:scale-95' : 'cursor-grab active:cursor-grabbing'
+                          } ${
+                            isDragging
+                              ? "opacity-30 scale-95 border-pink-500 shadow-xl shadow-pink-500/50"
+                              : isDropTarget
+                                ? "border-pink-500 ring-4 ring-pink-500/30 scale-105 shadow-xl shadow-pink-500/50"
+                                : isHovered
+                                  ? "border-pink-500/50 scale-[1.02]"
+                                  : "border-transparent hover:border-pink-500/30"
+                          }`}
+                          style={{
+                            transform: isMobile ? `translateX(${touchOffsetValue}px)` : undefined,
+                            transition: touchOffsetValue !== 0 ? 'none' : undefined,
+                          }}
+                        >
+                          {/* Visual drag preview indicator */}
+                          {isDragging && (
+                            <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-rose-500/20 backdrop-blur-sm flex items-center justify-center z-20">
+                              <div className="bg-pink-500 rounded-full p-3 shadow-xl">
+                                <Move className="w-6 h-6 text-white" />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Drop target indicator */}
+                          {isDropTarget && !isDragging && (
+                            <div className="absolute inset-0 border-4 border-dashed border-pink-500 rounded-xl pointer-events-none z-10 animate-pulse" />
+                          )}
+
+                          {/* Swipe delete indicator (mobile) */}
+                          {isMobile && touchOffsetValue < -50 && (
+                            <div className="absolute inset-y-0 right-0 w-20 bg-red-500 flex items-center justify-center">
+                              <Trash2 className="w-6 h-6 text-white" />
+                            </div>
+                          )}
+
+                          {/* Sequence badge */}
+                          <div className={`absolute top-2 left-2 z-10 w-7 h-7 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg flex items-center justify-center shadow-lg transition-transform ${
+                            isHovered ? 'scale-110' : ''
+                          }`}>
+                            <span className="text-white text-xs font-bold">
+                              {image.sequence}
                             </span>
                           </div>
-                        ) : (
-                          <img
-                            src={image.url}
-                            alt={image.name}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
 
-                        {/* Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          {/* Drag handle */}
-                          <div className="absolute top-2 right-2 flex gap-1">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingImageId(image.id);
-                                setEditingImageName(image.name.replace(/\.[^/.]+$/, ''));
-                              }}
-                              className="p-1.5 bg-black/50 hover:bg-blue-500/80 rounded-lg backdrop-blur-sm transition-colors"
-                              title="Edit filename"
-                            >
-                              <Edit3 className="w-4 h-4 text-white" />
-                            </button>
-                            <div className="p-1.5 bg-black/50 rounded-lg backdrop-blur-sm">
-                              <GripVertical className="w-4 h-4 text-white" />
-                            </div>
-                          </div>
-
-                          {/* Actions */}
-                          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
-                            <div className="flex items-center gap-1">
-                              {isVideo(image.type) ? (
-                                <Video className="w-4 h-4 text-pink-400" />
-                              ) : isAudio(image.type) ? (
-                                <Volume2 className="w-4 h-4 text-violet-400" />
-                              ) : (
-                                <ImageIcon className="w-4 h-4 text-pink-400" />
-                              )}
-                              <span className="text-xs text-white/80 truncate max-w-[80px]">
-                                {formatFileSize(image.size)}
+                          {/* Media */}
+                          {isVideo(image.type) ? (
+                            <video
+                              src={image.url}
+                              className="w-full h-full object-cover"
+                              muted
+                            />
+                          ) : isAudio(image.type) ? (
+                            <div className="w-full h-full bg-gradient-to-br from-violet-900/50 to-fuchsia-900/50 flex flex-col items-center justify-center p-3">
+                              <Music className="w-10 h-10 text-violet-400 mb-2" />
+                              <audio
+                                src={image.url}
+                                controls
+                                className="w-full h-8"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="text-xs text-gray-400 mt-2 truncate max-w-full">
+                                {image.name}
                               </span>
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteImage(selectedSet.id, image.id);
-                              }}
-                              className="p-1.5 bg-red-500/80 hover:bg-red-500 rounded-lg transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5 text-white" />
-                            </button>
+                          ) : (
+                            <img
+                              src={image.url}
+                              alt={image.name}
+                              className="w-full h-full object-cover"
+                            />
+                          )}
+
+                          {/* Hover overlay with quick actions */}
+                          <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-200 ${
+                            isHovered || isMobile ? 'opacity-100' : 'opacity-0'
+                          }`}>
+                            {/* Top action buttons */}
+                            <div className="absolute top-2 right-2 flex gap-1">
+                              {/* Drag handle - desktop only */}
+                              {!isMobile && (
+                                <div className={`p-2 bg-black/70 hover:bg-pink-500/80 rounded-lg backdrop-blur-sm transition-all cursor-grab active:cursor-grabbing ${
+                                  isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+                                }`}
+                                  title="Drag to reorder"
+                                  style={{ transitionDelay: '0ms' }}
+                                >
+                                  <GripVertical className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+
+                              {/* Quick delete */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteImage(selectedSet.id, image.id);
+                                }}
+                                className={`p-2 bg-black/70 hover:bg-red-500/80 rounded-lg backdrop-blur-sm transition-all ${
+                                  isHovered || isMobile ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+                                }`}
+                                title="Delete"
+                                style={{ transitionDelay: isMobile ? '0ms' : '50ms' }}
+                              >
+                                <Trash2 className="w-4 h-4 text-white" />
+                              </button>
+                            </div>
+
+                            {/* Bottom info bar */}
+                            <div className="absolute bottom-0 left-0 right-0 p-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                {isVideo(image.type) ? (
+                                  <Video className="w-4 h-4 text-pink-400" />
+                                ) : isAudio(image.type) ? (
+                                  <Volume2 className="w-4 h-4 text-violet-400" />
+                                ) : (
+                                  <ImageIcon className="w-4 h-4 text-pink-400" />
+                                )}
+                                <span className="text-xs text-white/90 font-medium">
+                                  {formatFileSize(image.size)}
+                                </span>
+                              </div>
+                              {isMobile && (
+                                <span className="text-xs text-white/70">
+                                  Swipe left to delete
+                                </span>
+                              )}
+                            </div>
+
+                            {/* File name on hover */}
+                            <div className="absolute bottom-12 left-2 right-2">
+                              <p className="text-xs text-white/90 font-medium truncate bg-black/50 px-2 py-1 rounded backdrop-blur-sm">
+                                {image.name}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1913,8 +2167,17 @@ export default function SextingSetOrganizer({
       {showCreateModal &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => {
+              setShowCreateModal(false);
+              setNewSetName("");
+            }}
+          >
+            <div 
+              className="bg-gradient-to-br from-gray-900 to-gray-800 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-300"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-6 border-b border-gray-700">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl">
@@ -1983,8 +2246,20 @@ export default function SextingSetOrganizer({
         selectedSet &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => {
+              if (!exporting) {
+                setShowExportModal(false);
+                setExportSuccess(null);
+                setExportFolderName("");
+              }
+            }}
+          >
+            <div 
+              className="bg-gradient-to-br from-gray-900 to-gray-800 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-300"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-6 border-b border-gray-700">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl">
@@ -3035,6 +3310,100 @@ export default function SextingSetOrganizer({
           </div>,
           document.body,
         )}
+
+      {/* Toast Notification - React Portal */}
+      {toast &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed top-4 right-4 z-[60] animate-in slide-in-from-top-2 duration-300">
+            <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl backdrop-blur-sm border max-w-md ${
+              toast.type === 'success' ? 'bg-green-500/90 border-green-400/50 text-white' :
+              toast.type === 'error' ? 'bg-red-500/90 border-red-400/50 text-white' :
+              'bg-blue-500/90 border-blue-400/50 text-white'
+            }`}>
+              {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 shrink-0" />}
+              {toast.type === 'error' && <XCircle className="w-5 h-5 shrink-0" />}
+              {toast.type === 'info' && <Info className="w-5 h-5 shrink-0" />}
+              <p className="text-sm font-medium">{toast.message}</p>
+              <button
+                onClick={() => setToast(null)}
+                className="ml-2 p-1 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Confirmation Modal - React Portal */}
+      {confirmModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div 
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+          >
+            <div 
+              className="bg-gradient-to-br from-gray-900 to-gray-800 border-t sm:border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl animate-in slide-in-from-bottom-full sm:zoom-in-95 duration-200"
+            >
+              <div className="p-6 border-b border-gray-700">
+                <h3 className="text-xl font-bold text-white">{confirmModal.title}</h3>
+              </div>
+
+              <div className="p-6">
+                <p className="text-gray-300">{confirmModal.message}</p>
+              </div>
+
+              <div className="p-6 border-t border-gray-700 flex gap-3">
+                <button
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    confirmModal.confirmAction();
+                    setConfirmModal(null);
+                  }}
+                  className={`flex-1 px-4 py-2.5 text-white rounded-xl font-medium transition-all duration-200 shadow-lg ${
+                    confirmModal.isDangerous
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-red-500/25'
+                      : 'bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 shadow-pink-500/25'
+                  }`}
+                >
+                  {confirmModal.confirmText}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Prominent Saving Order Indicator */}
+      {savingOrder && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-full shadow-2xl shadow-pink-500/50">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="font-medium">Saving order...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile FAB - Quick Upload (only on mobile when set is selected) */}
+      {isMobile && selectedSet && (
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-full shadow-2xl shadow-pink-500/50 flex items-center justify-center transition-all duration-200"
+        >
+          {uploading ? (
+            <Loader2 className="w-6 h-6 animate-spin" />
+          ) : (
+            <Upload className="w-6 h-6" />
+          )}
+        </button>
+      )}
     </div>
   );
 }

@@ -99,6 +99,19 @@ export async function GET(req: NextRequest) {
       where: { clerkId: userId, fileType: "video" },
     });
 
+    // Calculate total storage used
+    const storageAggregation = await prisma.reference_items.aggregate({
+      where: { clerkId: userId },
+      _sum: {
+        fileSize: true,
+      },
+    });
+
+    const totalSize = storageAggregation._sum.fileSize || 0;
+    
+    // Storage quota: 5 GB (5 * 1024 * 1024 * 1024 bytes)
+    const quotaLimit = 5 * 1024 * 1024 * 1024;
+
     return NextResponse.json({ 
       items, 
       folders,
@@ -108,6 +121,8 @@ export async function GET(req: NextRequest) {
         unfiled: unfiledCount,
         images: imageCount,
         videos: videoCount,
+        totalSize,
+        quotaLimit,
       }
     });
   } catch (error) {
@@ -141,6 +156,7 @@ export async function POST(req: NextRequest) {
       duration,
       folderId,
       isFavorite,
+      fileHash,
     } = body;
 
     if (!name || !fileType || !mimeType || !awsS3Key) {
@@ -188,6 +204,7 @@ export async function POST(req: NextRequest) {
         duration: duration || null,
         folderId: folderId || null,
         isFavorite: isFavorite || false,
+        fileHash: fileHash || null,
       },
       include: {
         folder: {

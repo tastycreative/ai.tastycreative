@@ -7,32 +7,7 @@ import { Loader2, Heart, MessageCircle, Bookmark, X, ChevronLeft, ChevronRight, 
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import Cropper, { Area, Point } from 'react-easy-crop';
-
-interface UserProfile {
-  id: string;
-  clerkId: string;
-  username: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  email: string | null;
-  imageUrl: string | null;
-  coverImageUrl: string | null;
-  postsCount: number;
-  friendsCount: number;
-}
-
-interface CreatorProfile {
-  id: string;
-  name: string;
-  description: string | null;
-  instagramUsername: string | null;
-  profileImageUrl: string | null;
-  isDefault: boolean;
-  _count?: {
-    posts: number;
-    feedPosts: number;
-  };
-}
+import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 
 interface Post {
   id: string;
@@ -86,9 +61,7 @@ interface Comment {
 export default function MyProfile() {
   const { userId: clerkId } = useAuth();
   const router = useRouter();
-  const [creatorProfiles, setCreatorProfiles] = useState<CreatorProfile[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [selectedProfile, setSelectedProfile] = useState<CreatorProfile | null>(null);
+  const { selectedProfile, isAllProfiles, loadingProfiles } = useInstagramProfile();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -118,54 +91,25 @@ export default function MyProfile() {
     return () => setMounted(false);
   }, []);
 
-  // Fetch creator profiles
+  // Set loading based on profile loading state
   useEffect(() => {
-    if (!clerkId) return;
-
-    const fetchProfiles = async () => {
-      try {
-        setLoading(true);
-        const profilesRes = await fetch('/api/instagram/profiles');
-        if (!profilesRes.ok) throw new Error('Failed to fetch creator profiles');
-        const profilesData = await profilesRes.json();
-        const profiles = Array.isArray(profilesData) ? profilesData : (profilesData.profiles || []);
-        setCreatorProfiles(profiles);
-        
-        // Load saved profile or select first one
-        const savedProfileId = localStorage.getItem('selectedProfileId');
-        if (savedProfileId && profiles.some((p: CreatorProfile) => p.id === savedProfileId)) {
-          setSelectedProfileId(savedProfileId);
-        } else if (profiles.length > 0) {
-          setSelectedProfileId(profiles[0].id);
-        }
-      } catch (error) {
-        console.error('Error fetching profiles:', error);
-        toast.error('Failed to load profiles');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfiles();
-  }, [clerkId]);
+    setLoading(loadingProfiles);
+  }, [loadingProfiles]);
 
   // Fetch posts when profile selection changes
   useEffect(() => {
-    if (!selectedProfileId) return;
+    if (!selectedProfile || isAllProfiles) {
+      setPosts([]);
+      return;
+    }
 
-    const fetchProfileAndPosts = async () => {
+    const fetchPosts = async () => {
       try {
         setLoadingPosts(true);
         setPosts([]); // Clear posts immediately when switching profiles
-        
-        // Find the selected profile
-        const profile = creatorProfiles.find(p => p.id === selectedProfileId);
-        if (profile) {
-          setSelectedProfile(profile);
-        }
 
         // Fetch posts for selected profile (only own posts, not friends)
-        const postsRes = await fetch(`/api/feed/posts?profileId=${selectedProfileId}&ownOnly=true`);
+        const postsRes = await fetch(`/api/feed/posts?profileId=${selectedProfile.id}&ownOnly=true`);
         if (postsRes.ok) {
           const postsData = await postsRes.json();
           setPosts(postsData);
@@ -178,8 +122,8 @@ export default function MyProfile() {
       }
     };
 
-    fetchProfileAndPosts();
-  }, [selectedProfileId, creatorProfiles]);
+    fetchPosts();
+  }, [selectedProfile, isAllProfiles]);
 
 
   // Load comments when a post is selected
@@ -460,7 +404,7 @@ export default function MyProfile() {
   };
 
   const handleCropSave = async () => {
-    if (!croppedAreaPixels || !imageToCrop || !originalFile || !selectedProfileId) return;
+    if (!croppedAreaPixels || !imageToCrop || !originalFile || !selectedProfile?.id) return;
 
     try {
       setUploadingProfile(true);
@@ -470,7 +414,7 @@ export default function MyProfile() {
       const formData = new FormData();
       formData.append('image', croppedBlob, originalFile.name);
 
-      const response = await fetch(`/api/instagram/profiles/${selectedProfileId}/upload-image`, {
+      const response = await fetch(`/api/instagram/profiles/${selectedProfile.id}/upload-image`, {
         method: 'POST',
         body: formData,
       });
@@ -478,15 +422,12 @@ export default function MyProfile() {
       if (!response.ok) throw new Error('Failed to upload profile picture');
       const data = await response.json();
       
-      // Update selected profile
-      setSelectedProfile(prev => prev ? { ...prev, profileImageUrl: data.imageUrl } : null);
-      setCreatorProfiles(prev => prev.map(p => 
-        p.id === selectedProfileId ? { ...p, profileImageUrl: data.imageUrl } : p
-      ));
-      
       toast.success('Profile picture updated!');
       setShowCropModal(false);
       setImageToCrop(null);
+      
+      // Refresh the page to show updated profile picture
+      window.location.reload();
     } catch (error) {
       console.error('Error uploading profile:', error);
       toast.error('Failed to upload profile picture');
@@ -578,6 +519,20 @@ export default function MyProfile() {
     );
   }
 
+  if (isAllProfiles) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20 flex items-center justify-center">
+        <div className="text-center p-8">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+            <User className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Select a Profile</h3>
+          <p className="text-gray-600 dark:text-gray-400">Please select a specific profile from the sidebar to view</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!selectedProfile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20 flex items-center justify-center">
@@ -592,124 +547,9 @@ export default function MyProfile() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-purple-50/40 dark:from-gray-950 dark:via-blue-950/20 dark:to-purple-950/20">
-      {/* Mobile Profile Selector - Only visible on mobile */}
-      <div className="md:hidden sticky top-0 z-20 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border-b border-purple-200/50 dark:border-purple-800/50 shadow-lg">
-        <div className="p-3 overflow-x-auto scrollbar-hide">
-          <div className="flex gap-3 min-w-max">
-            {creatorProfiles.map((profile) => (
-              <button
-                key={profile.id}
-                onClick={() => {
-                  setSelectedProfileId(profile.id);
-                  localStorage.setItem('selectedProfileId', profile.id);
-                }}
-                className="flex-shrink-0 flex flex-col items-center gap-2"
-              >
-                <div className={`relative p-[3px] rounded-full transition-all duration-300 ${
-                  selectedProfileId === profile.id
-                    ? 'bg-gradient-to-tr from-purple-500 via-pink-500 to-blue-500 scale-105 shadow-lg shadow-purple-500/30'
-                    : 'bg-gradient-to-tr from-gray-300 to-gray-400 dark:from-gray-700 dark:to-gray-600'
-                }`}>
-                  <div className="bg-white dark:bg-gray-900 rounded-full p-[2px]">
-                    {profile.profileImageUrl ? (
-                      <img
-                        src={profile.profileImageUrl}
-                        alt={profile.name}
-                        className="w-14 h-14 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                        <User className="w-7 h-7 text-white" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="text-center max-w-[70px]">
-                  <p className={`text-xs font-semibold truncate ${
-                    selectedProfileId === profile.id
-                      ? 'text-purple-600 dark:text-purple-400'
-                      : 'text-gray-700 dark:text-gray-300'
-                  }`}>
-                    {profile.name}
-                  </p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex h-screen overflow-hidden">
-        {/* Profile Sidebar - Hidden on mobile */}
-        <div className="hidden md:block w-80 border-r border-gray-200/50 dark:border-gray-800/50 bg-gradient-to-br from-white via-purple-50/30 to-pink-50/30 dark:from-gray-900 dark:via-purple-950/20 dark:to-pink-950/20 overflow-y-auto backdrop-blur-xl">
-          <div className="p-6">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-6">My Profiles</h2>
-            
-            <div className="space-y-3">
-              {creatorProfiles.map((profile) => (
-                <button
-                  key={profile.id}
-                  onClick={() => {
-                    setSelectedProfileId(profile.id);
-                    localStorage.setItem('selectedProfileId', profile.id);
-                  }}
-                  className={`w-full group relative overflow-hidden rounded-2xl transition-all duration-300 ${
-                    selectedProfileId === profile.id
-                      ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 text-white shadow-2xl shadow-purple-500/30 scale-[1.02]'
-                      : 'bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-white dark:hover:bg-gray-800 hover:shadow-xl hover:scale-[1.01] text-gray-700 dark:text-gray-300 border border-gray-200/50 dark:border-gray-700/50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 p-4">
-                    {/* Story Ring */}
-                    <div className={`relative ${
-                      selectedProfileId === profile.id
-                        ? 'p-[3px] rounded-full bg-gradient-to-tr from-white/50 to-white/20'
-                        : 'p-[3px] rounded-full bg-gradient-to-tr from-purple-500 via-pink-500 to-blue-500'
-                    }`}>
-                      {profile.profileImageUrl ? (
-                        <img
-                          src={profile.profileImageUrl}
-                          alt={profile.name}
-                          className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-900"
-                        />
-                      ) : (
-                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center border-2 border-white dark:border-gray-900">
-                          <User className="w-7 h-7 text-white" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 text-left min-w-0">
-                      <div className="font-semibold text-sm truncate">{profile.name}</div>
-                      {profile.instagramUsername && (
-                        <div className={`text-xs truncate ${
-                          selectedProfileId === profile.id ? 'text-white/90' : 'text-gray-500 dark:text-gray-400'
-                        }`}>
-                          @{profile.instagramUsername}
-                        </div>
-                      )}
-                      <div className={`flex items-center gap-3 mt-1 text-xs ${
-                        selectedProfileId === profile.id ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'
-                      }`}>
-                        <span className="font-medium">
-                          {profile._count?.feedPosts || 0} posts
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Animated background on hover */}
-                  {selectedProfileId !== profile.id && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/0 via-pink-500/0 to-blue-500/0 group-hover:from-purple-500/5 group-hover:via-pink-500/5 group-hover:to-blue-500/5 transition-all duration-300" />
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto p-3 sm:p-4 md:p-6">
-            {loadingPosts ? (
+      <div className="overflow-y-auto">
+        <div className="max-w-5xl mx-auto p-3 sm:p-4 md:p-6">
+          {loadingPosts ? (
               /* Skeleton Loading */
               <>
                 {/* Cover Skeleton */}
@@ -806,8 +646,8 @@ export default function MyProfile() {
                     <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-2 animate-gradient-x">
                       {displayName}
                     </h1>
-                    {selectedProfile.description && (
-                      <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg">{selectedProfile.description}</p>
+                    {selectedProfile.instagramUsername && (
+                      <p className="text-purple-600 dark:text-purple-400 text-base sm:text-lg">@{selectedProfile.instagramUsername}</p>
                     )}
                   </div>
 
@@ -889,7 +729,6 @@ export default function MyProfile() {
             )}
           </div>
         </div>
-      </div>
 
       {/* Post Detail Modal */}
       {mounted && selectedPost && createPortal(

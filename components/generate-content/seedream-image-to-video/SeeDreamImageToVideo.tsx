@@ -22,6 +22,7 @@ import {
   Clock,
   Folder,
   ChevronDown,
+  ChevronUp,
   RefreshCw,
   Info,
   Settings,
@@ -30,6 +31,7 @@ import {
   Check,
   Library,
   Film,
+  Sparkles,
 } from "lucide-react";
 
 interface VaultFolder {
@@ -59,6 +61,23 @@ interface GeneratedVideo {
     referenceImageUrl?: string | null;
     profileId?: string | null;
   };
+}
+
+interface PromptTemplate {
+  name: string;
+  description: string;
+  prompt: string;
+}
+
+interface UserPreset {
+  id: string;
+  name: string;
+  resolution: "720p" | "1080p";
+  aspectRatio: "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "21:9" | "adaptive";
+  duration: number;
+  cameraFixed: boolean;
+  generateAudio: boolean;
+  createdAt: number;
 }
 
 const RESOLUTION_DIMENSIONS = {
@@ -118,6 +137,55 @@ export default function SeeDreamImageToVideo() {
   const [generateAudio, setGenerateAudio] = useState(true);
 
   const [targetFolder, setTargetFolder] = useState<string>("");
+
+  // Prompt Templates & Presets
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [showFolderValidation, setShowFolderValidation] = useState(false);
+
+  // Collapsible sections (mobile)
+  const [sectionsCollapsed, setSectionsCollapsed] = useState({
+    upload: false,
+    prompt: false,
+    duration: false,
+    options: false,
+    vault: false,
+  });
+
+  const promptTemplates: PromptTemplate[] = [
+    {
+      name: "Motion Enhancement",
+      description: "Add smooth movement to photo",
+      prompt: "Smooth, cinematic camera movement. Natural motion with subtle depth. Professional cinematography."
+    },
+    {
+      name: "Portrait to Life",
+      description: "Animate portrait photos",
+      prompt: "Gentle head movement and blinking. Natural facial expressions. Soft, lifelike motion with warm lighting."
+    },
+    {
+      name: "Landscape Pan",
+      description: "Sweeping landscape shots",
+      prompt: "Slow, sweeping camera pan across the scene. Golden hour lighting. Cinematic depth and atmosphere."
+    },
+    {
+      name: "Product Reveal",
+      description: "Dynamic product showcase",
+      prompt: "Rotating camera around the product. Studio lighting. Clean, professional presentation."
+    },
+    {
+      name: "Action Sequence",
+      description: "Add dynamic motion",
+      prompt: "Fast-paced movement with motion blur. Dynamic camera angles. High-energy cinematography."
+    },
+    {
+      name: "Atmospheric Scene",
+      description: "Add environmental effects",
+      prompt: "Subtle particle effects and atmospheric haze. Dramatic lighting shifts. Moody, cinematic atmosphere."
+    },
+  ];
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
@@ -208,6 +276,105 @@ export default function SeeDreamImageToVideo() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // localStorage: Load user presets per profile
+  useEffect(() => {
+    if (typeof window !== 'undefined' && globalProfileId) {
+      const savedPresets = localStorage.getItem(`seedream-i2v-presets-${globalProfileId}`);
+      if (savedPresets) {
+        try {
+          setUserPresets(JSON.parse(savedPresets));
+        } catch (e) {
+          console.error('Error loading I2V presets:', e);
+        }
+      }
+
+      // Load last settings
+      const savedSettings = localStorage.getItem(`seedream-i2v-settings-${globalProfileId}`);
+      if (savedSettings) {
+        try {
+          const settings = JSON.parse(savedSettings);
+          if (settings.resolution) setResolution(settings.resolution);
+          if (settings.aspectRatio) setAspectRatio(settings.aspectRatio);
+          if (settings.duration !== undefined) {
+            setDuration(settings.duration);
+            if (settings.duration === -1) {
+              setDurationSliderValue(0);
+            } else {
+              setDurationSliderValue(Math.max(0, Math.min(9, settings.duration - 3)));
+            }
+          }
+          if (settings.cameraFixed !== undefined) setCameraFixed(settings.cameraFixed);
+          if (settings.generateAudio !== undefined) setGenerateAudio(settings.generateAudio);
+          if (settings.targetFolder) setTargetFolder(settings.targetFolder);
+        } catch (e) {
+          console.error('Error loading I2V settings:', e);
+        }
+      }
+    }
+  }, [globalProfileId]);
+
+  // localStorage: Auto-save settings when they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && globalProfileId && mounted) {
+      const settings = {
+        resolution,
+        aspectRatio,
+        duration,
+        cameraFixed,
+        generateAudio,
+        targetFolder,
+      };
+      localStorage.setItem(`seedream-i2v-settings-${globalProfileId}`, JSON.stringify(settings));
+    }
+  }, [resolution, aspectRatio, duration, cameraFixed, generateAudio, targetFolder, globalProfileId, mounted]);
+
+  // Preset management functions
+  const saveAsPreset = () => {
+    if (!presetName.trim() || !globalProfileId) return;
+
+    const newPreset: UserPreset = {
+      id: Date.now().toString(),
+      name: presetName.trim(),
+      resolution,
+      aspectRatio,
+      duration,
+      cameraFixed,
+      generateAudio,
+      createdAt: Date.now(),
+    };
+
+    const updatedPresets = [...userPresets, newPreset];
+    setUserPresets(updatedPresets);
+    localStorage.setItem(`seedream-i2v-presets-${globalProfileId}`, JSON.stringify(updatedPresets));
+    setShowPresetModal(false);
+    setPresetName('');
+  };
+
+  const loadPreset = (preset: UserPreset) => {
+    setResolution(preset.resolution);
+    setAspectRatio(preset.aspectRatio);
+    setDuration(preset.duration);
+    if (preset.duration === -1) {
+      setDurationSliderValue(0);
+    } else {
+      setDurationSliderValue(Math.max(0, Math.min(9, preset.duration - 3)));
+    }
+    setCameraFixed(preset.cameraFixed);
+    setGenerateAudio(preset.generateAudio);
+  };
+
+  const deletePreset = (presetId: string) => {
+    if (!globalProfileId) return;
+    const updatedPresets = userPresets.filter(p => p.id !== presetId);
+    setUserPresets(updatedPresets);
+    localStorage.setItem(`seedream-i2v-presets-${globalProfileId}`, JSON.stringify(updatedPresets));
+  };
+
+  const applyTemplate = (template: PromptTemplate) => {
+    setPrompt(template.prompt);
+    setShowTemplates(false);
+  };
 
   // Vault folder state - only for the selected profile
   const [vaultFolders, setVaultFolders] = useState<VaultFolder[]>([]);
@@ -589,6 +756,9 @@ export default function SeeDreamImageToVideo() {
     }
     if (!targetFolder) {
       setError("Please select a vault folder to save your video");
+      setShowFolderValidation(true);
+      // Scroll to folder section
+      document.getElementById('folder-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     if (!prompt.trim()) {
@@ -600,6 +770,7 @@ export default function SeeDreamImageToVideo() {
       return;
     }
 
+    setShowFolderValidation(false);
     setIsGenerating(true);
     setError(null);
     setGeneratedVideos([]);
@@ -1038,9 +1209,58 @@ export default function SeeDreamImageToVideo() {
 
               {/* Prompt */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-100">
-                  Motion Description *
-                </label>
+                <div className="flex items-center justify-between w-full group">
+                  <label className="text-sm font-semibold text-slate-100">
+                    Motion Description *
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplates(!showTemplates)}
+                      className="rounded-full bg-indigo-500/20 hover:bg-indigo-500/30 px-3 py-1 text-[11px] font-semibold text-indigo-100 transition-colors flex items-center gap-1"
+                      disabled={isGenerating}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Templates
+                    </button>
+                    <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                    <button
+                      type="button"
+                      onClick={() => setSectionsCollapsed(prev => ({ ...prev, prompt: !prev.prompt }))}
+                      className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition"
+                    >
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${sectionsCollapsed.prompt ? '' : 'rotate-180'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className={`space-y-2 ${sectionsCollapsed.prompt ? 'hidden lg:block' : ''}`}>
+                {/* Prompt Templates Dropdown */}
+                {showTemplates && (
+                  <div className="rounded-2xl border border-indigo-400/30 bg-indigo-950/40 backdrop-blur p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <p className="text-xs font-semibold text-indigo-200 mb-2">Motion Templates:</p>
+                    <div className="grid gap-2">
+                      {promptTemplates.map((template, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => applyTemplate(template)}
+                          disabled={isGenerating}
+                          className="w-full text-left p-3 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/0 hover:from-white/10 hover:border-indigo-300/40 transition-all disabled:opacity-50"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white mb-0.5">{template.name}</p>
+                              <p className="text-xs text-slate-400">{template.description}</p>
+                            </div>
+                            <Sparkles className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition flex-shrink-0" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
+                  </div>
+                )}
+
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
@@ -1051,9 +1271,45 @@ export default function SeeDreamImageToVideo() {
                   rows={5}
                   disabled={isGenerating}
                 />
-                <p className="text-xs text-slate-300">
-                  Describe camera movement, subject actions, and style cues.
-                </p>
+                
+                <div className="flex items-center justify-between text-xs">
+                  <p className="text-slate-300">
+                    Describe camera movement, subject actions, and style cues.
+                  </p>
+                  <span className={`font-semibold ${
+                    prompt.length > 500 ? 'text-red-400' : prompt.length > 300 ? 'text-amber-400' : 'text-emerald-400'
+                  }`}>
+                    {prompt.length > 500 && '⚠️ '}{prompt.length} chars
+                  </span>
+                </div>
+
+                {/* User Presets Display */}
+                {userPresets.length > 0 && (
+                  <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-xs font-semibold text-slate-300 mb-2">Your Presets:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {userPresets.map((preset) => (
+                        <div key={preset.id} className="group relative">
+                          <button
+                            onClick={() => loadPreset(preset)}
+                            disabled={isGenerating}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-xs font-medium text-indigo-100 border border-indigo-500/30 transition-all disabled:opacity-50"
+                          >
+                            {preset.name}
+                          </button>
+                          <button
+                            onClick={() => deletePreset(preset.id)}
+                            className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Delete preset"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                </div>
               </div>
 
               {/* Resolution & Aspect Ratio */}
@@ -1861,6 +2117,82 @@ export default function SeeDreamImageToVideo() {
           onSelect={handleReferenceBankSelect}
           filterType="image"
         />
+      )}
+
+      {/* Save Preset Modal */}
+      {showPresetModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+          <div className="bg-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-700">
+            <h3 className="text-xl font-semibold mb-4 text-white">Save Image-to-Video Preset</h3>
+            
+            <div className="space-y-4">
+              {/* Preset Name Input */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Preset Name
+                </label>
+                <input
+                  type="text"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="e.g., My Motion Settings"
+                  className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Current Settings Preview */}
+              <div className="bg-slate-900 rounded-lg p-4 space-y-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                  Settings to Save:
+                </p>
+                <div className="space-y-1.5 text-sm text-slate-300">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Resolution:</span>
+                    <span className="font-medium">{resolution}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Aspect Ratio:</span>
+                    <span className="font-medium">{aspectRatio}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Duration:</span>
+                    <span className="font-medium">{duration === -1 ? 'Auto' : `${duration}s`}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Camera:</span>
+                    <span className="font-medium">{cameraFixed ? 'Fixed' : 'Dynamic'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Audio:</span>
+                    <span className="font-medium">{generateAudio ? 'Yes' : 'No'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowPresetModal(false);
+                    setPresetName('');
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveAsPreset}
+                  disabled={!presetName.trim()}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Preset
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

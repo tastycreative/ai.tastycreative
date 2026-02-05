@@ -167,20 +167,24 @@ export async function POST(
       );
     }
 
-    // Get current user
+    // Get current user with organization info
     const currentUser = await prisma.user.findUnique({
       where: { clerkId },
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!currentUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Verify the profile belongs to the user
+    // Verify the profile belongs to the user OR their organization
     const profile = await prisma.instagramProfile.findFirst({
       where: {
         id: profileId,
-        clerkId,
+        OR: [
+          { clerkId },
+          { organizationId: currentUser.currentOrganizationId ?? undefined },
+        ],
       },
     });
 
@@ -189,6 +193,24 @@ export async function POST(
         { error: 'Profile not found or unauthorized' },
         { status: 404 }
       );
+    }
+
+    // If profile is from organization (not own profile), verify role
+    if (profile.clerkId !== clerkId && profile.organizationId) {
+      const teamMember = await prisma.teamMember.findFirst({
+        where: {
+          userId: currentUser.id,
+          organizationId: profile.organizationId,
+          role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+        },
+      });
+      
+      if (!teamMember) {
+        return NextResponse.json(
+          { error: 'You are not authorized to use this profile' },
+          { status: 403 }
+        );
+      }
     }
 
     // Create comment

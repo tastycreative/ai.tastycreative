@@ -480,6 +480,8 @@ model InstagramProfile {
   modelBible             Json?
   isFavorite             Boolean               @default(false)
   tags                   String[]              @default([])
+  isFavorite             Boolean               @default(false)
+  tags                   String[]              @default([])
   captions               Caption[]
   bookmarks              FeedPostBookmark[]    @relation("ProfileBookmarks")
   commentLikes           FeedPostCommentLike[] @relation("ProfileCommentLikes")
@@ -1278,6 +1280,7 @@ model reference_items {
   awsS3Key     String
   awsS3Url     String
   thumbnailUrl String?
+  fileHash     String?
   tags         String[]           @default([])
   usageCount   Int                @default(0)
   lastUsedAt   DateTime?
@@ -1440,6 +1443,42 @@ model of_models {
 
   @@index([slug])
   @@index([status])
+}
+
+model gallery_items {
+  id               String        @id @default(cuid())
+  organizationId   String?
+  previewUrl       String
+  thumbnailUrl     String?
+  originalAssetUrl String?
+  title            String?
+  contentType      String
+  tags             String[]      @default([])
+  platform         String
+  pricingAmount    Decimal?      @db.Decimal(10, 2)
+  modelId          String?
+  pipelineItemId   String?       @unique
+  captionUsed      String?
+  revenue          Decimal       @default(0) @db.Decimal(12, 2)
+  salesCount       Int           @default(0)
+  conversionRate   Decimal?      @db.Decimal(5, 4)
+  viewCount        Int           @default(0)
+  postedAt         DateTime
+  origin           String?
+  sourceId         String?
+  isArchived       Boolean       @default(false)
+  archivedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  createdBy        String?
+  model            of_models?    @relation(fields: [modelId], references: [id])
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([modelId])
+  @@index([contentType])
+  @@index([platform])
+  @@index([postedAt])
 }
 
 model plan_features {

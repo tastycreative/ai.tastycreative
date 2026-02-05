@@ -24,7 +24,7 @@ import {
 import { toast } from "sonner";
 import Image from "next/image";
 import { createPortal } from "react-dom";
-import ProfilesSidebar from '@/components/social-media/ProfilesSidebar';
+import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 
 interface Post {
   id: string;
@@ -41,6 +41,13 @@ interface Post {
     email: string;
     imageUrl: string | null;
   };
+  profile?: {
+    id: string;
+    name: string;
+    instagramUsername: string | null;
+    profileImageUrl: string | null;
+    organizationId?: string | null;
+  } | null;
   isLiked: boolean;
   isBookmarked: boolean;
   likeCount: number;
@@ -352,23 +359,37 @@ export default function BookmarksPage() {
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [currentImageIndexes, setCurrentImageIndexes] = useState<Record<string, number>>({});
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [userOrgRole, setUserOrgRole] = useState<string | null>(null);
 
-  // Listen for profile changes
+  // Use global profile selector
+  const { selectedProfile, isAllProfiles } = useInstagramProfile();
+  const selectedProfileId = isAllProfiles ? null : (selectedProfile?.id || null);
+
+  // Fetch user's organization role for the selected profile
   useEffect(() => {
-    const handleProfileChanged = (event: any) => {
-      setSelectedProfileId(event.detail.profileId);
+    const fetchOrgRole = async () => {
+      if (selectedProfile?.organizationId) {
+        try {
+          const response = await fetch(`/api/organizations/${selectedProfile.organizationId}/role`);
+          if (response.ok) {
+            const data = await response.json();
+            setUserOrgRole(data.role);
+          } else {
+            setUserOrgRole(null);
+          }
+        } catch {
+          setUserOrgRole(null);
+        }
+      } else {
+        setUserOrgRole(null);
+      }
     };
-
-    window.addEventListener('profileChanged', handleProfileChanged);
-    return () => window.removeEventListener('profileChanged', handleProfileChanged);
-  }, []);
+    fetchOrgRole();
+  }, [selectedProfile?.organizationId]);
 
   // Reload bookmarks when profile changes
   useEffect(() => {
-    if (selectedProfileId) {
-      loadBookmarkedPosts();
-    }
+    loadBookmarkedPosts();
   }, [selectedProfileId]);
 
   const loadBookmarkedPosts = async (silent = false) => {
@@ -722,20 +743,8 @@ export default function BookmarksPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-purple-50/20 dark:from-gray-950 dark:via-gray-900 dark:to-purple-950/10">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 md:py-8 lg:py-12">
-        {/* Mobile Profile Selector - Only visible on mobile */}
-        <div className="md:hidden mb-4 sticky top-0 z-20 bg-gradient-to-r from-gray-50/95 via-white/95 to-purple-50/95 dark:from-gray-950/95 dark:via-gray-900/95 dark:to-purple-950/95 backdrop-blur-xl pb-3 -mx-3 px-3">
-          <ProfilesSidebar />
-        </div>
-
-        {/* 2-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
-          {/* Left Sidebar - Profiles (Desktop only) */}
-          <aside className="hidden md:block lg:col-span-3">
-            <ProfilesSidebar />
-          </aside>
-
-          {/* Main Content */}
-          <main className="w-full md:col-span-12 lg:col-span-9">
+        {/* Main Content */}
+        <main className="w-full">
             {/* Enhanced Header */}
             <div className="mb-6 sm:mb-8 md:mb-12">
               <div className="flex items-start justify-between mb-4 sm:mb-6 gap-3">
@@ -844,9 +853,17 @@ export default function BookmarksPage() {
                     </button>
 
                     {/* Enhanced Dropdown Menu */}
-                    {openMenuPostId === post.id && (
+                    {openMenuPostId === post.id && (() => {
+                      // Check if user owns the post OR has org access to the post's profile
+                      const isOwnPost = post.user.clerkId === user?.id;
+                      const hasOrgAccess = post.profile?.organizationId && 
+                        post.profile.organizationId === selectedProfile?.organizationId &&
+                        ['OWNER', 'ADMIN', 'MANAGER'].includes(userOrgRole || '');
+                      const canEditPost = isOwnPost || hasOrgAccess;
+                      
+                      return (
                       <div className="dropdown-menu absolute right-0 top-full mt-2 w-56 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                        {post.user.clerkId === user?.id ? (
+                        {canEditPost ? (
                           <>
                             <button
                               onClick={() => handleEditPost(post)}
@@ -899,7 +916,8 @@ export default function BookmarksPage() {
                           </>
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -989,8 +1007,7 @@ export default function BookmarksPage() {
             ))}
           </div>
         )}
-          </main>
-        </div>
+        </main>
       </div>
 
       {/* Enhanced Comments Modal */}

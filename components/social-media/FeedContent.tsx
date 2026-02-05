@@ -6,6 +6,7 @@ import { Heart, MessageCircle, Share2, Bookmark, MoreVertical, Edit2, Trash2, Li
 import { toast } from 'sonner';
 import { Post } from './types';
 import ImageCarousel from './ImageCarousel';
+import { useInstagramProfile } from '@/hooks/useInstagramProfile';
 
 interface FeedContentProps {
   onOpenCreatePost: () => void;
@@ -28,14 +29,21 @@ export default function FeedContent({
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<{ id: string; caption: string } | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [userOrgRole, setUserOrgRole] = useState<string | null>(null);
+  const [userOrgId, setUserOrgId] = useState<string | null>(null);
   const { userId } = useAuth();
+  const { profileId: selectedProfileId, isAllProfiles } = useInstagramProfile();
 
   useEffect(() => {
     if (userId) {
       loadCurrentUser();
     }
   }, [userId]);
+
+  // Load posts on initial mount and when profile changes
+  useEffect(() => {
+    loadFeedPosts();
+  }, [selectedProfileId]);
 
   // Listen for new post created events
   useEffect(() => {
@@ -47,24 +55,6 @@ export default function FeedContent({
     window.addEventListener('postCreated', handlePostCreated);
     return () => window.removeEventListener('postCreated', handlePostCreated);
   }, []);
-
-  // Listen for profile changes
-  useEffect(() => {
-    const handleProfileChanged = (event: any) => {
-      const profileId = event.detail.profileId;
-      setSelectedProfileId(profileId);
-    };
-
-    window.addEventListener('profileChanged', handleProfileChanged);
-    return () => window.removeEventListener('profileChanged', handleProfileChanged);
-  }, []);
-
-  // Load posts when selected profile changes (only if profile is selected)
-  useEffect(() => {
-    if (selectedProfileId) {
-      loadFeedPosts();
-    }
-  }, [selectedProfileId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -88,7 +78,7 @@ export default function FeedContent({
       } else {
         setRefreshing(true);
       }
-      const url = selectedProfileId 
+      const url = selectedProfileId && selectedProfileId !== 'all'
         ? `/api/feed/posts?profileId=${selectedProfileId}`
         : '/api/feed/posts';
       const response = await fetch(url);
@@ -122,6 +112,16 @@ export default function FeedContent({
       if (response.ok) {
         const data = await response.json();
         setCurrentUserId(data.id);
+        setUserOrgId(data.currentOrganizationId);
+        
+        // Fetch user's role in their current organization
+        if (data.currentOrganizationId) {
+          const roleResponse = await fetch(`/api/organizations/${data.currentOrganizationId}/role`);
+          if (roleResponse.ok) {
+            const roleData = await roleResponse.json();
+            setUserOrgRole(roleData.role);
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading current user:', error);
@@ -343,6 +343,23 @@ export default function FeedContent({
     return post.user.email?.split('@')[0] || 'Unknown User';
   };
 
+  // Check if current user can edit/delete a post
+  const canEditPost = (post: Post) => {
+    // User is the post author
+    if (currentUserId === post.user.id) {
+      return true;
+    }
+    
+    // User has admin/manager/owner role in an organization
+    if (userOrgRole && ['OWNER', 'ADMIN', 'MANAGER'].includes(userOrgRole) && userOrgId) {
+      // Check if post author is in the same organization (we'll need to enhance Post type to include this)
+      // For now, we'll allow editing if user has the right role
+      return true;
+    }
+    
+    return false;
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -461,7 +478,7 @@ export default function FeedContent({
 
                 {openMenuPostId === post.id && (
                   <div className="absolute right-0 mt-2 w-56 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl rounded-xl shadow-2xl border-2 border-purple-200/50 dark:border-purple-700/50 z-50 overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                    {currentUserId === post.user.id ? (
+                    {canEditPost(post) ? (
                       <>
                         <button
                           onClick={() => handleEditPost(post)}

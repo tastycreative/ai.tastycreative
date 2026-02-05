@@ -29,6 +29,9 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
   const [vaultItems, setVaultItems] = useState<any[]>([]);
   const [selectedVaultItems, setSelectedVaultItems] = useState<any[]>([]);
   const [loadingVault, setLoadingVault] = useState(false);
+  const [vaultFolders, setVaultFolders] = useState<any[]>([]);
+  const [selectedVaultFolder, setSelectedVaultFolder] = useState<string>('');
+  const [loadingFolders, setLoadingFolders] = useState(false);
   const [captionMode, setCaptionMode] = useState<'custom' | 'bank'>('custom');
   const [availableCaptions, setAvailableCaptions] = useState<any[]>([]);
   const [loadingCaptions, setLoadingCaptions] = useState(false);
@@ -45,9 +48,17 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
   // Fetch vault items when modal opens and profile is selected
   useEffect(() => {
     if (isOpen && profileId && profileId !== 'all' && uploadMode === 'vault') {
+      fetchVaultFolders();
       fetchVaultItems();
     }
   }, [isOpen, profileId, uploadMode]);
+
+  // Fetch vault items when folder selection changes
+  useEffect(() => {
+    if (uploadMode === 'vault' && profileId && profileId !== 'all') {
+      fetchVaultItems(selectedVaultFolder || undefined);
+    }
+  }, [selectedVaultFolder]);
 
   // Pre-fill form when scheduledData is provided
   useEffect(() => {
@@ -113,12 +124,37 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
     }
   };
 
-  const fetchVaultItems = async () => {
+  const fetchVaultFolders = async () => {
+    if (!profileId || profileId === 'all') return;
+    
+    setLoadingFolders(true);
+    try {
+      const response = await fetch(`/api/vault/folders?profileId=${profileId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setVaultFolders(data);
+      } else {
+        console.warn('Vault folders not available');
+        setVaultFolders([]);
+      }
+    } catch (error) {
+      console.error('Error fetching vault folders:', error);
+      setVaultFolders([]);
+    } finally {
+      setLoadingFolders(false);
+    }
+  };
+
+  const fetchVaultItems = async (folderId?: string) => {
     if (!profileId || profileId === 'all') return;
     
     setLoadingVault(true);
     try {
-      const response = await fetch(`/api/vault/items?profileId=${profileId}`);
+      const params = new URLSearchParams({ profileId });
+      if (folderId) {
+        params.append('folderId', folderId);
+      }
+      const response = await fetch(`/api/vault/items?${params}`);
       if (response.ok) {
         const items = await response.json();
         setVaultItems(items);
@@ -359,6 +395,8 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
     setUploadMode('upload');
     setSelectedVaultItems([]);
     setVaultItems([]);
+    setVaultFolders([]);
+    setSelectedVaultFolder('');
     setCaptionMode('custom');
     setAvailableCaptions([]);
     setCaptionSearchQuery('');
@@ -766,22 +804,50 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
             ) : (
               <>
                 {/* Vault Mode */}
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 p-4 max-h-[400px] overflow-y-auto">
-                  {loadingVault ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 p-4">
+                  {/* Folder Selector */}
+                  {vaultFolders.length > 0 && (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Filter by Folder
+                      </label>
+                      <select
+                        value={selectedVaultFolder}
+                        onChange={(e) => setSelectedVaultFolder(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        disabled={loadingVault || loadingFolders}
+                      >
+                        <option value="">All Folders</option>
+                        {vaultFolders
+                          .filter((folder: any) => folder.name !== 'All Media')
+                          .map((folder: any) => (
+                            <option key={folder.id} value={folder.id}>
+                              📁 {folder.name} ({folder._count?.items || 0} items)
+                            </option>
+                          ))}
+                      </select>
                     </div>
-                  ) : vaultItems.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                      <p>No vault items found for this profile</p>
-                      <p className="text-sm mt-2">Upload media to your vault first</p>
-                    </div>
-                  ) : (
-                    <>
-                      {selectedVaultItems.length > 0 && (
-                        <div className="mb-4 p-3 bg-purple-100 dark:bg-purple-900/20 border border-purple-300 dark:border-purple-700 rounded-lg">
-                          <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">
-                            {selectedVaultItems.length} item{selectedVaultItems.length !== 1 ? 's' : ''} selected
+                  )}
+                  
+                  {/* Vault Items Grid */}
+                  <div className="max-h-[400px] overflow-y-auto">
+                    {loadingVault ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                      </div>
+                    ) : vaultItems.length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <p>No vault items found{selectedVaultFolder ? ' in this folder' : ' for this profile'}</p>
+                        <p className="text-sm mt-2">
+                          {selectedVaultFolder ? 'Try selecting a different folder' : 'Upload media to your vault first'}
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {selectedVaultItems.length > 0 && (
+                          <div className="mb-4 p-3 bg-purple-100 dark:bg-purple-900/20 border border-purple-300 dark:border-purple-700 rounded-lg">
+                            <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">
+                              {selectedVaultItems.length} item{selectedVaultItems.length !== 1 ? 's' : ''} selected
                           </p>
                         </div>
                       )}
@@ -841,6 +907,7 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated, profil
                       </div>
                     </>
                   )}
+                  </div>
                 </div>
               </>
             )}

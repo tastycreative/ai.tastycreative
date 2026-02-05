@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import ProfilesSidebar from '@/components/social-media/ProfilesSidebar';
+import ProfileOverview from '@/components/social-media/ProfileOverview';
 import FeedContent from '@/components/social-media/FeedContent';
 import SearchAndEvents from '@/components/social-media/SearchAndEvents';
 import CreatePostModal from '@/components/social-media/CreatePostModal';
@@ -23,6 +23,16 @@ export default function UserFeedPage() {
 
     window.addEventListener('profileChanged', handleProfileChanged);
     return () => window.removeEventListener('profileChanged', handleProfileChanged);
+  }, []);
+
+  // Listen for open create post event from ProfileOverview
+  useEffect(() => {
+    const handleOpenCreatePost = () => {
+      setShowPostModal(true);
+    };
+
+    window.addEventListener('openCreatePost', handleOpenCreatePost);
+    return () => window.removeEventListener('openCreatePost', handleOpenCreatePost);
   }, []);
 
   const handlePostCreated = (newPost: Post) => {
@@ -52,16 +62,11 @@ export default function UserFeedPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 dark:from-gray-950 dark:via-purple-950/20 dark:to-blue-950/20">
       <div className="h-full w-full">
-        {/* Mobile Profile Selector - Only visible on small/medium screens */}
-        <div className="lg:hidden sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-purple-200/50 dark:border-purple-800/50 p-3 shadow-lg">
-          <ProfilesSidebar />
-        </div>
-
         {/* 3-Column Layout with mobile responsiveness */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 p-2 sm:p-4 lg:p-6 h-full">
-          {/* Left Sidebar - Profiles (Hidden on small screens, shown on large) */}
+          {/* Left Sidebar - Profile Overview (Hidden on small screens, shown on large) */}
           <aside className="hidden lg:block lg:col-span-3">
-            <ProfilesSidebar />
+            <ProfileOverview />
           </aside>
 
           {/* Middle - Feed Content (Full width on mobile, 6 cols on large) */}

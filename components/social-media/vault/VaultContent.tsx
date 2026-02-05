@@ -170,9 +170,24 @@ import {
   LogOut,
   CheckCircle2,
   User,
+  Star,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  SlidersHorizontal,
+  Columns2,
+  History,
+  Fingerprint,
+  Zap,
+  Grid2X2,
+  Smartphone,
+  HelpCircle,
+  Settings,
 } from "lucide-react";
 
 import { PlatformExportModal } from "@/components/export";
+import { VaultEnhancements, FavoriteStar } from './VaultEnhancements';
+import { CompareModal } from './CompareModal';
 
 interface InstagramProfile {
   id: string;
@@ -332,7 +347,13 @@ interface GridItemProps {
   onSelect: (id: string, e?: React.MouseEvent) => void;
   onPreview: (item: VaultItem) => void;
   onDelete: (id: string) => void;
+  onDownload: (item: VaultItem, e?: React.MouseEvent) => void;
   formatFileSize: (bytes: number) => string;
+  favorites?: Set<string>;
+  toggleFavorite?: (id: string) => void;
+  compareMode?: boolean;
+  isInCompare?: boolean;
+  onCompareToggle?: (item: VaultItem) => void;
 }
 
 const VaultGridItem = memo(function VaultGridItem({
@@ -343,21 +364,32 @@ const VaultGridItem = memo(function VaultGridItem({
   onSelect,
   onPreview,
   onDelete,
+  onDownload,
   formatFileSize,
+  favorites,
+  toggleFavorite,
+  compareMode,
+  isInCompare,
+  onCompareToggle,
 }: GridItemProps) {
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (selectionMode) {
+    if (compareMode) {
+      e.preventDefault();
+      onCompareToggle?.(item);
+    } else if (selectionMode) {
       e.preventDefault();
       onSelect(item.id, e);
     }
-  }, [selectionMode, onSelect, item.id]);
+  }, [compareMode, selectionMode, onSelect, onCompareToggle, item]);
 
   const handlePreviewClick = useCallback((e: React.MouseEvent) => {
-    if (!selectionMode) {
-      e.stopPropagation();
-      onPreview(item);
+    if (compareMode || selectionMode) {
+      // In compare or selection mode, let the click bubble up to parent handler
+      return;
     }
-  }, [selectionMode, onPreview, item]);
+    e.stopPropagation();
+    onPreview(item);
+  }, [compareMode, selectionMode, onPreview, item]);
 
   const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -372,19 +404,45 @@ const VaultGridItem = memo(function VaultGridItem({
   return (
     <div
       className={`vault-item group bg-gray-900 rounded-lg sm:rounded-xl border transition-all cursor-pointer active:scale-95 ${
-        isSelected
+        isInCompare
+          ? 'border-cyan-500 ring-2 ring-cyan-500/30'
+          : isSelected
           ? 'border-blue-500 ring-2 ring-blue-500/30'
           : 'border-gray-800 hover:border-gray-700 hover:shadow-lg'
       }`}
       onClick={handleClick}
     >
       <div className="relative">
+        {/* Favorite Star */}
+        {!selectionMode && !compareMode && typeof toggleFavorite === 'function' && (
+          <div className="absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
+            <FavoriteStar
+              isFavorite={favorites?.has(item.id) || false}
+              onToggle={(e) => {
+                e.stopPropagation();
+                toggleFavorite(item.id);
+              }}
+            />
+          </div>
+        )}
+        {/* Compare Mode Indicator */}
+        {compareMode && (
+          <div className="absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
+            <div className={`p-1.5 rounded-lg transition-all ${
+              isInCompare
+                ? 'bg-cyan-500/20 text-cyan-400'
+                : 'bg-gray-900/90 text-gray-400'
+            }`}>
+              <Columns2 className="w-4 h-4" />
+            </div>
+          </div>
+        )}
         <div
           className={`absolute top-1 sm:top-2 left-1 sm:left-2 z-20 transition-opacity ${
             selectionMode || isSelected
               ? 'opacity-100'
               : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
-          }`}
+          } ${compareMode ? 'hidden' : ''}`}
         >
           <label 
             className="flex items-center justify-center w-9 h-9 sm:w-8 sm:h-8 bg-gray-900/90 backdrop-blur rounded-lg cursor-pointer hover:bg-gray-700 transition-colors active:scale-95"
@@ -453,14 +511,13 @@ const VaultGridItem = memo(function VaultGridItem({
               <Sparkles className="w-4 sm:w-4 h-4 sm:h-4 text-cyan-400" />
             </div>
           )}
-          <a
-            href={item.awsS3Url}
-            download={item.fileName}
-            onClick={(e) => e.stopPropagation()}
+          <button
+            onClick={(e) => onDownload(item, e)}
             className="p-2 sm:p-1.5 bg-gray-900/90 backdrop-blur shadow-sm rounded-lg hover:bg-gray-800 transition-colors active:scale-95 touch-manipulation"
+            title="Download"
           >
             <Download className="w-4 sm:w-4 h-4 sm:h-4 text-gray-300" />
-          </a>
+          </button>
           {canEdit && (
             <button
               onClick={handleDeleteClick}
@@ -497,7 +554,10 @@ interface ListItemProps {
   onSelect: (id: string, e?: React.MouseEvent) => void;
   onPreview: (item: VaultItem) => void;
   onDelete: (id: string) => void;
+  onDownload: (item: VaultItem, e?: React.MouseEvent) => void;
   formatFileSize: (bytes: number) => string;
+  favorites?: Set<string>;
+  toggleFavorite?: (id: string) => void;
 }
 
 const VaultListItem = memo(function VaultListItem({
@@ -508,7 +568,10 @@ const VaultListItem = memo(function VaultListItem({
   onSelect,
   onPreview,
   onDelete,
+  onDownload,
   formatFileSize,
+  favorites,
+  toggleFavorite,
 }: ListItemProps) {
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (selectionMode) {
@@ -608,14 +671,13 @@ const VaultListItem = memo(function VaultListItem({
           selectionMode ? 'hidden' : 'sm:opacity-0 sm:group-hover:opacity-100'
         }`}
       >
-        <a
-          href={item.awsS3Url}
-          download={item.fileName}
-          onClick={(e) => e.stopPropagation()}
+        <button
+          onClick={(e) => onDownload(item, e)}
           className="p-2 sm:p-2 hover:bg-gray-800 rounded-lg transition-colors active:scale-95 touch-manipulation"
+          title="Download"
         >
           <Download className="w-4 sm:w-4 h-4 sm:h-4 text-gray-400" />
-        </a>
+        </button>
         {canEdit && (
           <button
             onClick={handleDeleteClick}
@@ -730,6 +792,34 @@ export function VaultContent() {
   const [googleDriveError, setGoogleDriveError] = useState<string | null>(null);
   const [googleDriveLinkInput, setGoogleDriveLinkInput] = useState("");
 
+  // NEW FEATURES STATE
+  // Sorting & Organization
+  const [sortBy, setSortBy] = useState<'date' | 'size' | 'name' | 'type'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [recentlyViewed, setRecentlyViewed] = useState<string[]>([]);
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  
+  // Duplicate Detection
+  const [duplicates, setDuplicates] = useState<Map<string, string[]>>(new Map());
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [detectingDuplicates, setDetectingDuplicates] = useState(false);
+  
+  // Enhanced Search
+  const [searchInMetadata, setSearchInMetadata] = useState(true);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  
+  // Compare Mode
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareItems, setCompareItems] = useState<VaultItem[]>([]);
+  const [showCompareModal, setShowCompareModal] = useState(false);
+  
+  // Thumbnail Quality
+  const [thumbnailSize, setThumbnailSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [disableVideoThumbnails, setDisableVideoThumbnails] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+
   // Debounce search for better performance
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
@@ -761,6 +851,169 @@ export function VaultContent() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  // Load favorites and recently viewed from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedFavorites = localStorage.getItem('vault-favorites');
+      const savedRecentlyViewed = localStorage.getItem('vault-recently-viewed');
+      if (savedFavorites) setFavorites(new Set(JSON.parse(savedFavorites)));
+      if (savedRecentlyViewed) setRecentlyViewed(JSON.parse(savedRecentlyViewed));
+    }
+  }, []);
+
+  // Toggle favorite
+  const toggleFavorite = useCallback((itemId: string) => {
+    setFavorites(prev => {
+      const newFavorites = new Set(prev);
+      if (newFavorites.has(itemId)) {
+        newFavorites.delete(itemId);
+        showToast('Removed from favorites', 'info');
+      } else {
+        newFavorites.add(itemId);
+        showToast('Added to favorites', 'success');
+      }
+      localStorage.setItem('vault-favorites', JSON.stringify([...newFavorites]));
+      return newFavorites;
+    });
+  }, []);
+
+  // Add to recently viewed
+  const addToRecentlyViewed = useCallback((itemId: string) => {
+    setRecentlyViewed(prev => {
+      const newRecent = [itemId, ...prev.filter(id => id !== itemId)].slice(0, 20);
+      localStorage.setItem('vault-recently-viewed', JSON.stringify(newRecent));
+      return newRecent;
+    });
+  }, []);
+
+  // Fuzzy search helper (simple Levenshtein-inspired matching)
+  const fuzzyMatch = (searchTerm: string, target: string): boolean => {
+    searchTerm = searchTerm.toLowerCase();
+    target = target.toLowerCase();
+    
+    // Exact match
+    if (target.includes(searchTerm)) return true;
+    
+    // Check if all characters in search term appear in order in target
+    let searchIndex = 0;
+    for (let i = 0; i < target.length && searchIndex < searchTerm.length; i++) {
+      if (target[i] === searchTerm[searchIndex]) {
+        searchIndex++;
+      }
+    }
+    return searchIndex === searchTerm.length;
+  };
+
+  // Detect duplicates (by file size and name similarity)
+  const detectDuplicates = useCallback(async () => {
+    setDetectingDuplicates(true);
+    try {
+      const items = isAdmin && adminViewMode === 'creators' ? contentCreatorItems : vaultItems;
+      const duplicateMap = new Map<string, string[]>();
+      const sizeGroups = new Map<number, VaultItem[]>();
+      
+      // Group by file size first (fast duplicate detection)
+      items.forEach(item => {
+        const group = sizeGroups.get(item.fileSize) || [];
+        group.push(item);
+        sizeGroups.set(item.fileSize, group);
+      });
+      
+      // Find potential duplicates in same-size groups
+      sizeGroups.forEach((group, size) => {
+        if (group.length > 1) {
+          // Further group by similar names or identical hashes
+          const nameGroups = new Map<string, VaultItem[]>();
+          group.forEach(item => {
+            const baseName = item.fileName.replace(/\d+/, '').replace(/\.[^/.]+$/, '');
+            const key = `${baseName}_${size}`;
+            const items = nameGroups.get(key) || [];
+            items.push(item);
+            nameGroups.set(key, items);
+          });
+          
+          nameGroups.forEach((items, key) => {
+            if (items.length > 1) {
+              duplicateMap.set(key, items.map(i => i.id));
+            }
+          });
+        }
+      });
+      
+      setDuplicates(duplicateMap);
+      if (duplicateMap.size > 0) {
+        showToast(`Found ${duplicateMap.size} duplicate groups`, 'info');
+      } else {
+        showToast('No duplicates found', 'success');
+      }
+    } catch (error) {
+      showToast('Failed to detect duplicates', 'error');
+    } finally {
+      setDetectingDuplicates(false);
+    }
+  }, [vaultItems, contentCreatorItems, isAdmin, adminViewMode]);
+
+  // Add search to recent searches
+  const addToRecentSearches = useCallback((query: string) => {
+    if (!query.trim()) return;
+    setRecentSearches(prev => {
+      const newSearches = [query, ...prev.filter(s => s !== query)].slice(0, 5);
+      localStorage.setItem('vault-recent-searches', JSON.stringify(newSearches));
+      return newSearches;
+    });
+  }, []);
+
+  // Load recent searches
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('vault-recent-searches');
+      if (saved) setRecentSearches(JSON.parse(saved));
+    }
+  }, []);
+
+  // Enhanced search with metadata and fuzzy matching
+  const searchItems = useCallback((items: VaultItem[], query: string) => {
+    if (!query.trim()) return items;
+    
+    const lowerQuery = query.toLowerCase();
+    
+    return items.filter(item => {
+      // Search in filename
+      if (fuzzyMatch(query, item.fileName)) return true;
+      
+      // Search in metadata if enabled
+      if (searchInMetadata && item.metadata) {
+        if (item.metadata.prompt && fuzzyMatch(query, item.metadata.prompt)) return true;
+        if (item.metadata.model && fuzzyMatch(query, item.metadata.model)) return true;
+        if (item.metadata.source && fuzzyMatch(query, item.metadata.source)) return true;
+        if (item.metadata.generationType && fuzzyMatch(query, item.metadata.generationType)) return true;
+      }
+      
+      return false;
+    });
+  }, [searchInMetadata]);
+
+  // Handle preview with recently viewed tracking
+  const handlePreview = useCallback((item: VaultItem) => {
+    setPreviewItem(item);
+    addToRecentlyViewed(item.id);
+  }, [addToRecentlyViewed]);
+
+  // Toggle item in compare mode
+  const toggleCompareItem = useCallback((item: VaultItem) => {
+    setCompareItems(prev => {
+      const exists = prev.find(i => i.id === item.id);
+      if (exists) {
+        // Remove item
+        return prev.filter(i => i.id !== item.id);
+      } else if (prev.length < 4) {
+        // Add item (max 4)
+        return [...prev, item];
+      }
+      return prev;
+    });
+  }, []);
 
   const toggleSelectItem = useCallback((itemId: string) => {
     setSelectedItems(prev => {
@@ -847,6 +1100,39 @@ export function VaultContent() {
   const handleBulkMove = () => {
     if (selectedItems.size === 0) return;
     setShowMoveModal(true);
+  };
+
+  const handleDownloadSingleFile = async (item: VaultItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    try {
+      // Use proxy endpoint to avoid CORS issues
+      const response = await fetch('/api/vault/proxy-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: item.awsS3Url }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to download file');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showToast('Download started', 'success');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      showToast('Failed to download file', 'error');
+    }
   };
 
   const handleDownloadZip = async () => {
@@ -2020,26 +2306,20 @@ export function VaultContent() {
     router.push(`/${tenant}/workspace/generate-content/text-to-video`);
   };
 
-  // All filtered items (not paginated)
+  // All filtered items (not paginated) - NOW WITH ENHANCED FEATURES
   const allFilteredItems = useMemo(() => {
     // Helper function to extract sequence number from filename for proper sorting
     const getSequenceNumber = (fileName: string): number => {
-      // Match patterns like "001_", "01_", "1_" at the start of filename
       const match = fileName.match(/^(\d+)_/);
-      if (match) {
-        return parseInt(match[1], 10);
-      }
-      return Infinity; // Items without sequence prefix go to the end
+      if (match) return parseInt(match[1], 10);
+      return Infinity;
     };
 
-    // Helper to get export batch identifier (for grouping items from same sexting set export)
     const getExportBatchKey = (item: VaultItem): string | null => {
       if (item.metadata?.source === 'sexting-set-export' && item.metadata?.originalSetId) {
-        // Group by original set ID + export timestamp (rounded to minute for same export batch)
         const exportedAt = item.metadata?.exportedAt;
         if (exportedAt) {
           const date = new Date(exportedAt);
-          // Round to the minute to group items exported together
           date.setSeconds(0, 0);
           return `${item.metadata.originalSetId}_${date.getTime()}`;
         }
@@ -2048,110 +2328,110 @@ export function VaultContent() {
       return null;
     };
 
-    // Helper to get sequence within a batch
     const getBatchSequence = (item: VaultItem): number => {
-      if (item.metadata?.sequence) {
-        return item.metadata.sequence;
-      }
+      if (item.metadata?.sequence) return item.metadata.sequence;
       return getSequenceNumber(item.fileName);
     };
 
-    if (selectedSharedFolder) {
-      return sharedFolderItems
-        .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
-        .filter((item) => {
-          if (contentFilter === 'all') return true;
-          if (contentFilter === 'photos') return item.fileType.startsWith('image/') && item.fileType !== 'image/gif';
-          if (contentFilter === 'videos') return item.fileType.startsWith('video/');
-          if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
-          if (contentFilter === 'gifs') return item.fileType === 'image/gif';
-          return true;
-        })
-        .sort((a, b) => {
-          // For shared folders, maintain sequence order within batches, then by date
-          const batchA = getExportBatchKey(a);
-          const batchB = getExportBatchKey(b);
-          
-          // If same batch, sort by sequence
-          if (batchA && batchB && batchA === batchB) {
-            return getBatchSequence(a) - getBatchSequence(b);
-          }
-          
-          // Otherwise sort by createdAt (recent first), then sequence, then filename
-          const dateA = new Date(a.createdAt).getTime();
-          const dateB = new Date(b.createdAt).getTime();
-          if (dateA !== dateB) return dateB - dateA; // Recent first
-          
-          const seqA = getSequenceNumber(a.fileName);
-          const seqB = getSequenceNumber(b.fileName);
-          if (seqA !== seqB) return seqA - seqB;
-          return a.fileName.localeCompare(b.fileName);
-        });
-    }
+    // Generic sorting function
+    const sortItems = (items: VaultItem[]) => {
+      return [...items].sort((a, b) => {
+        // Favorites always on top if showing them
+        const aFav = favorites.has(a.id);
+        const bFav = favorites.has(b.id);
+        if (aFav && !bFav) return -1;
+        if (!aFav && bFav) return 1;
 
-    const currentFolder = folders.find(f => f.id === selectedFolderId);
-    const isDefaultFolder = currentFolder?.isDefault === true;
-    const viewingAllProfiles = selectedProfileId === 'all';
-
-    return vaultItems
-      .filter((item) => {
-        // When viewing all profiles with no folder selected, show all items
-        if (viewingAllProfiles && !selectedFolderId) return true;
-        
-        // When viewing all profiles with a folder selected
-        if (viewingAllProfiles && selectedFolderId) {
-          // If it's a default folder (like "All Media"), show all items from that profile
-          if (isDefaultFolder && currentFolder) {
-            return item.profileId === currentFolder.profileId;
-          }
-          // Otherwise filter by the specific folder
-          return item.folderId === selectedFolderId;
-        }
-        
-        // When viewing a specific profile
-        if (!viewingAllProfiles) {
-          if (item.profileId !== selectedProfileId) return false;
-          // Default folder shows all items from that profile
-          if (isDefaultFolder) return true;
-          // Non-default folder shows only items in that folder
-          return item.folderId === selectedFolderId;
-        }
-        
-        return true;
-      })
-      .filter((item) => item.fileName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()))
-      .filter((item) => {
-        if (contentFilter === 'all') return true;
-        if (contentFilter === 'photos') return item.fileType.startsWith('image/') && item.fileType !== 'image/gif';
-        if (contentFilter === 'videos') return item.fileType.startsWith('video/');
-        if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
-        if (contentFilter === 'gifs') return item.fileType === 'image/gif';
-        return true;
-      })
-      .sort((a, b) => {
-        // Primary: Sort by createdAt (recent first)
-        const dateA = new Date(a.createdAt).getTime();
-        const dateB = new Date(b.createdAt).getTime();
-        
-        // Check if items are from the same export batch (sexting set)
+        // Check for batch grouping
         const batchA = getExportBatchKey(a);
         const batchB = getExportBatchKey(b);
-        
-        // If from the same batch, sort by sequence within the batch
         if (batchA && batchB && batchA === batchB) {
           return getBatchSequence(a) - getBatchSequence(b);
         }
+
+        // Apply user-selected sorting
+        let comparison = 0;
+        switch (sortBy) {
+          case 'date':
+            comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+            break;
+          case 'size':
+            comparison = a.fileSize - b.fileSize;
+            break;
+          case 'name':
+            comparison = a.fileName.localeCompare(b.fileName);
+            break;
+          case 'type':
+            comparison = a.fileType.localeCompare(b.fileType);
+            break;
+        }
         
-        // If different batches or not from batches, sort by date (recent first)
-        if (dateA !== dateB) return dateB - dateA;
-        
-        // Fallback: sort by sequence number from filename, then filename
-        const seqA = getSequenceNumber(a.fileName);
-        const seqB = getSequenceNumber(b.fileName);
-        if (seqA !== seqB) return seqA - seqB;
-        return a.fileName.localeCompare(b.fileName);
+        return sortOrder === 'asc' ? comparison : -comparison;
       });
-  }, [vaultItems, sharedFolderItems, selectedFolderId, selectedProfileId, debouncedSearchQuery, folders, contentFilter, selectedSharedFolder]);
+    };
+
+    let baseItems: VaultItem[] = [];
+
+    if (selectedSharedFolder) {
+      baseItems = sharedFolderItems;
+    } else {
+      const currentFolder = folders.find(f => f.id === selectedFolderId);
+      const isDefaultFolder = currentFolder?.isDefault === true;
+      const viewingAllProfiles = selectedProfileId === 'all';
+
+      baseItems = vaultItems.filter((item) => {
+        if (viewingAllProfiles && !selectedFolderId) return true;
+        if (viewingAllProfiles && selectedFolderId) {
+          if (isDefaultFolder && currentFolder) {
+            return item.profileId === currentFolder.profileId;
+          }
+          return item.folderId === selectedFolderId;
+        }
+        if (!viewingAllProfiles) {
+          if (item.profileId !== selectedProfileId) return false;
+          if (isDefaultFolder) return true;
+          return item.folderId === selectedFolderId;
+        }
+        return true;
+      });
+    }
+
+    // Filter by content type
+    baseItems = baseItems.filter((item) => {
+      if (contentFilter === 'all') return true;
+      if (contentFilter === 'photos') return item.fileType.startsWith('image/') && item.fileType !== 'image/gif';
+      if (contentFilter === 'videos') return item.fileType.startsWith('video/');
+      if (contentFilter === 'audio') return item.fileType.startsWith('audio/');
+      if (contentFilter === 'gifs') return item.fileType === 'image/gif';
+      return true;
+    });
+
+    // Show duplicates view if enabled
+    if (showDuplicates && duplicates.size > 0) {
+      const duplicateIds = new Set(Array.from(duplicates.values()).flat());
+      baseItems = baseItems.filter(item => duplicateIds.has(item.id));
+    }
+
+    // Apply enhanced search
+    baseItems = searchItems(baseItems, debouncedSearchQuery);
+
+    // Sort items
+    return sortItems(baseItems);
+  }, [vaultItems, sharedFolderItems, selectedFolderId, selectedProfileId, debouncedSearchQuery, folders, contentFilter, selectedSharedFolder, sortBy, sortOrder, favorites, showDuplicates, duplicates, searchItems]);
+
+  // Helper function to get grid classes based on thumbnail size
+  const getGridClasses = useMemo(() => {
+    if (viewMode !== 'grid') return 'space-y-2';
+    
+    switch (thumbnailSize) {
+      case 'small':
+        return 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-2 sm:gap-2 md:gap-3';
+      case 'large':
+        return 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-5';
+      default: // medium
+        return 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4';
+    }
+  }, [viewMode, thumbnailSize]);
 
   // Filtered items for admin creator view
   const allFilteredCreatorItems = useMemo(() => {
@@ -2871,7 +3151,7 @@ export function VaultContent() {
                 <RotateCcw className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-pink-400" />
               </button>
             )}
-            <a href={previewItem.awsS3Url} download={previewItem.fileName} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></a>
+            <button onClick={(e) => handleDownloadSingleFile(previewItem, e)} className="p-1.5 sm:p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors" title="Download"><Download className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-white" /></button>
             {canEdit && <button onClick={() => { handleDeleteItem(previewItem.id); setPreviewItem(null); setShowPreviewInfo(false); }} className="p-1.5 sm:p-2 bg-red-500/20 hover:bg-red-500/30 rounded-full transition-colors"><Trash2 className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-400" /></button>}
           </div>
         </div>,
@@ -3529,12 +3809,61 @@ export function VaultContent() {
                 </button>
               )}
             </div>
+
+            {/* Vault Enhancements Component */}
+            <VaultEnhancements
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              showSortMenu={showSortMenu}
+              setShowSortMenu={setShowSortMenu}
+              onSortByChange={(sort: 'date' | 'size' | 'name' | 'type') => {
+                setSortBy(sort);
+                setShowSortMenu(false);
+              }}
+              onSortOrderToggle={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              showDuplicates={showDuplicates}
+              duplicatesCount={duplicates.size}
+              onToggleDuplicates={() => setShowDuplicates(!showDuplicates)}
+              detectingDuplicates={detectingDuplicates}
+              onDetectDuplicates={detectDuplicates}
+              selectedCount={compareItems.length}
+              compareMode={compareMode}
+              onCompareClick={() => {
+                if (compareMode && compareItems.length >= 2) {
+                  // Open compare modal
+                  setShowCompareModal(true);
+                } else if (compareMode) {
+                  // Exit compare mode
+                  setCompareMode(false);
+                  setCompareItems([]);
+                } else {
+                  // Enable compare mode
+                  setCompareMode(true);
+                }
+              }}
+              onExitCompare={() => {
+                setCompareMode(false);
+                setCompareItems([]);
+              }}
+              thumbnailSize={thumbnailSize}
+              disableVideoThumbnails={disableVideoThumbnails}
+              searchInMetadata={searchInMetadata}
+              showSettingsMenu={showSettingsMenu}
+              setShowSettingsMenu={setShowSettingsMenu}
+              onThumbnailSizeChange={(size: 'small' | 'medium' | 'large') => {
+                setThumbnailSize(size);
+                setShowSettingsMenu(false);
+              }}
+              onSearchInMetadataToggle={() => setSearchInMetadata(!searchInMetadata)}
+              onDisableVideoThumbnailsToggle={() => setDisableVideoThumbnails(!disableVideoThumbnails)}
+              filteredCount={allFilteredItems.length}
+            />
           </div>
 
           <div ref={contentRef} onScroll={handleScroll} className="flex-1 overflow-y-auto vault-scroll p-3 sm:p-4 md:p-6 bg-[#0a0a0f] rounded-br-2xl">
             {/* Admin Creator View - Loading/Empty States */}
             {isViewingCreators && loadingCreatorItems && (
-              <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4' : 'space-y-2'}>
+              <div className={getGridClasses}>
                 {[...Array(8)].map((_, i) => (
                   <div key={i} className={viewMode === 'grid' ? 'glass-card rounded-xl p-2 sm:p-3 animate-pulse' : 'glass-card rounded-xl p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
                     <div className={viewMode === 'grid' ? 'aspect-square bg-white/5 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-white/5 rounded-lg flex-shrink-0'} />
@@ -3577,7 +3906,7 @@ export function VaultContent() {
                 </button>
               </div>
             ) : (loadingItems || loadingCreatorItems) && !isViewingCreators ? (
-              <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 md:gap-4' : 'space-y-2'}>
+              <div className={getGridClasses}>
                 {[...Array(8)].map((_, i) => (
                   <div key={i} className={viewMode === 'grid' ? 'glass-card rounded-xl p-2 sm:p-3 animate-pulse' : 'glass-card rounded-xl p-3 animate-pulse flex items-center gap-3 sm:gap-4'}>
                     <div className={viewMode === 'grid' ? 'aspect-square bg-white/5 rounded-lg mb-2 sm:mb-3' : 'w-10 sm:w-12 h-10 sm:h-12 bg-white/5 rounded-lg flex-shrink-0'} />
@@ -3607,7 +3936,7 @@ export function VaultContent() {
                   </div>
                 )}
                 {/* Standard Grid with lazy loaded images */}
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-3 md:gap-4">
+                <div className={getGridClasses}>
                   {filteredItems.map((item) => (
                     <VaultGridItem
                       key={item.id}
@@ -3616,9 +3945,15 @@ export function VaultContent() {
                       selectionMode={selectionMode}
                       canEdit={canEdit && !isViewingCreators}
                       onSelect={onSelectItem}
-                      onPreview={setPreviewItem}
+                      onPreview={handlePreview}
                       onDelete={handleDeleteItem}
+                      onDownload={handleDownloadSingleFile}
                       formatFileSize={formatFileSize}
+                      favorites={favorites}
+                      toggleFavorite={toggleFavorite}
+                      compareMode={compareMode}
+                      isInCompare={compareItems.some(i => i.id === item.id)}
+                      onCompareToggle={toggleCompareItem}
                     />
                   ))}
                 </div>
@@ -3652,9 +3987,12 @@ export function VaultContent() {
                       selectionMode={selectionMode}
                       canEdit={canEdit && !isViewingCreators}
                       onSelect={onSelectItem}
-                      onPreview={setPreviewItem}
+                      onPreview={handlePreview}
                       onDelete={handleDeleteItem}
+                      onDownload={handleDownloadSingleFile}
                       formatFileSize={formatFileSize}
+                      favorites={favorites}
+                      toggleFavorite={toggleFavorite}
                     />
                   ))}
                 </div>
@@ -4127,6 +4465,17 @@ export function VaultContent() {
           />
         </div>,
         document.body
+      )}
+
+      {/* Compare Mode Modal */}
+      {showCompareModal && compareItems.length >= 2 && (
+        <CompareModal
+          items={compareItems}
+          onClose={() => {
+            setShowCompareModal(false);
+          }}
+          formatFileSize={formatFileSize}
+        />
       )}
 
       {/* Platform Export Modal */}

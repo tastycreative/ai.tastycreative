@@ -19,10 +19,10 @@ export async function DELETE(
 
     const { friendshipId } = await params;
 
-    // Get the current user's database ID
+    // Get the current user's database ID and organization
     const currentUser = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { id: true },
+      select: { id: true, currentOrganizationId: true },
     });
 
     if (!currentUser) {
@@ -32,9 +32,25 @@ export async function DELETE(
       );
     }
 
-    // Find the friendship
+    // Find the friendship with profile info
     const friendship = await prisma.friendship.findUnique({
       where: { id: friendshipId },
+      include: {
+        senderProfile: {
+          select: {
+            id: true,
+            clerkId: true,
+            organizationId: true,
+          },
+        },
+        receiverProfile: {
+          select: {
+            id: true,
+            clerkId: true,
+            organizationId: true,
+          },
+        },
+      },
     });
 
     if (!friendship) {
@@ -44,8 +60,31 @@ export async function DELETE(
       );
     }
 
-    // Verify that the current user is part of this friendship
-    if (friendship.senderProfileId !== currentUser.id && friendship.receiverProfileId !== currentUser.id) {
+    // Check if user has access to either profile in the friendship
+    const checkProfileAccess = async (profile: { clerkId: string; organizationId: string | null }) => {
+      // Direct ownership
+      if (profile.clerkId === userId) return true;
+      
+      // Organization access with appropriate role
+      if (profile.organizationId && profile.organizationId === currentUser.currentOrganizationId) {
+        const teamMember = await prisma.teamMember.findFirst({
+          where: {
+            userId: currentUser.id,
+            organizationId: profile.organizationId,
+            role: { in: ['OWNER', 'ADMIN', 'MANAGER'] },
+          },
+        });
+        return !!teamMember;
+      }
+      
+      return false;
+    };
+
+    const hasSenderAccess = await checkProfileAccess(friendship.senderProfile);
+    const hasReceiverAccess = await checkProfileAccess(friendship.receiverProfile);
+
+    // Verify that the current user has access to at least one profile in this friendship
+    if (!hasSenderAccess && !hasReceiverAccess) {
       return NextResponse.json(
         { error: 'You are not authorized to remove this friendship' },
         { status: 403 }

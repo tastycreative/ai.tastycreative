@@ -1,392 +1,1449 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, memo } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import {
-  Plus,
-  Search,
-  Trash2,
-  Edit2,
-  Check,
-  X,
-  Loader2,
-  Image as ImageIcon,
-  Menu,
-  PanelLeftClose,
-  Video as VideoIcon,
   Upload,
-  Download,
-  Copy,
+  X,
+  Plus,
+  AlertCircle,
+  FolderPlus,
+  ArrowLeft,
+  Loader2,
   Grid3X3,
   List,
-  Library,
-  Clock,
-  PlayCircle,
-  Info,
-  Calendar,
-  BarChart3,
+  Search,
   Heart,
+  Clock,
   Folder,
-  FolderPlus,
-  FolderOpen,
+  Check,
+  PlayCircle,
+  BarChart3,
+  Edit2,
+  Trash2,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  Download,
   Move,
-  HardDrive,
-  Link,
-  ExternalLink,
-  RefreshCw,
-  LogOut,
-  ChevronRight,
-  CheckCircle2,
-  AlertCircle,
-  Users,
-  Music4,
-  FileText,
+  Tag,
+  SlidersHorizontal,
+  Copy,
 } from "lucide-react";
+import { useReferenceBankStore } from "@/lib/reference-bank/store";
+import {
+  referenceBankAPI,
+  type ReferenceItem,
+  type ReferenceFolder,
+} from "@/lib/reference-bank/api";
 
-// Google Drive interfaces
-interface GoogleDriveFile {
-  id: string;
-  name: string;
-  mimeType: string;
-  size?: string;
-  modifiedTime?: string;
-  webViewLink?: string;
-  webContentLink?: string;
-  thumbnailLink?: string;
-}
+// Modal components
+import { UploadModal } from "./modals/UploadModal";
+import { EditModal } from "./modals/EditModal";
+import { DeleteModal } from "./modals/DeleteModal";
+import { FolderModal } from "./modals/FolderModal";
+import { MoveModal } from "./modals/MoveModal";
 
-interface GoogleDriveFolder {
-  id: string;
-  name: string;
-  mimeType: string;
-  shared?: boolean;
-}
+export function ReferenceBankContent() {
+  // Get state from store - using the actual store interface
+  const {
+    items,
+    folders,
+    stats,
+    isLoading,
+    selectedFolderId,
+    showFavoritesOnly,
+    showRecentlyUsed,
+    filterType,
+    searchQuery,
+    viewMode,
+    sortBy,
+    previewItem,
+    storageUsed,
+    storageLimit,
+    uploadQueue,
+    selectedItems,
+    draggedItemId,
+    dropTargetFolderId,
+    sidebarOpen,
+    fetchData,
+    setSelectedFolderId,
+    setShowFavoritesOnly,
+    setShowRecentlyUsed,
+    setFilterType,
+    setSearchQuery,
+    setViewMode,
+    setSortBy,
+    toggleItemSelection,
+    selectAll,
+    clearSelection,
+    setPreviewItem,
+    addToUploadQueue,
+    removeFromUploadQueue,
+    retryUpload,
+    updateItem,
+    deleteItem,
+    toggleFavorite,
+    moveItems,
+    bulkFavorite,
+    bulkAddTags,
+    bulkDelete,
+    addFolder,
+    updateFolder,
+    removeFolder,
+    navigatePreview,
+    previewIndex,
+    setDraggedItemId,
+    setDropTargetFolderId,
+    fetchStorageQuota,
+  } = useReferenceBankStore();
 
-interface GoogleDriveBreadcrumb {
-  id: string | null;
-  name: string;
-}
+  // Local modal state
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [editItem, setEditItem] = useState<ReferenceItem | null>(null);
+  const [editFolder, setEditFolder] = useState<ReferenceFolder | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isUploadQueueExpanded, setIsUploadQueueExpanded] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
 
-interface ReferenceFolder {
-  id: string;
-  clerkId: string;
-  name: string;
-  description: string | null;
-  color: string;
-  icon: string;
-  parentId: string | null;
-  createdAt: string;
-  updatedAt: string;
-  _count?: {
-    items: number;
+  // Convert selectedItems Set to array for easier use
+  const selectedIds = useMemo(
+    () => Array.from(selectedItems || new Set()),
+    [selectedItems]
+  );
+
+  // Filtered and sorted items
+  const filteredItems = useMemo(() => {
+    let result = items || [];
+
+    // Don't apply folder/favorites/recently used filters here - they're handled by the store's fetchData
+    // Only apply local filtering for search and type
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(
+        (item) =>
+          item.name.toLowerCase().includes(query) ||
+          item.tags?.some((tag) => tag.toLowerCase().includes(query))
+      );
+    }
+
+    // Filter by type
+    if (filterType !== "all") {
+      result = result.filter((item) =>
+        filterType === "image"
+          ? item.fileType.startsWith("image/")
+          : item.fileType.startsWith("video/")
+      );
+    }
+
+    // Sort
+    switch (sortBy) {
+      case "name":
+        result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "usage":
+        result = [...result].sort(
+          (a, b) => (b.usageCount || 0) - (a.usageCount || 0)
+        );
+        break;
+      case "recent":
+      default:
+        result = [...result].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        break;
+    }
+
+    return result;
+  }, [
+    items,
+    searchQuery,
+    filterType,
+    sortBy,
+  ]);
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchData();
+    fetchStorageQuota();
+  }, []);
+
+  // Drag and drop handlers for file upload
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDraggingFile(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (
+      e.clientX < rect.left ||
+      e.clientX >= rect.right ||
+      e.clientY < rect.top ||
+      e.clientY >= rect.bottom
+    ) {
+      setIsDraggingFile(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      setShowUploadModal(true);
+    }
+  }, []);
+
+  // Item actions
+  const handleToggleFavorite = useCallback(
+    async (item: ReferenceItem) => {
+      try {
+        await toggleFavorite(item);
+      } catch (err) {
+        console.error("Failed to toggle favorite:", err);
+      }
+    },
+    [toggleFavorite]
+  );
+
+  const handleEditItem = useCallback((item: ReferenceItem) => {
+    setEditItem(item);
+    setShowEditModal(true);
+  }, []);
+
+  const handleDeleteItem = useCallback((item: ReferenceItem) => {
+    setEditItem(item);
+    setShowDeleteModal(true);
+  }, []);
+
+  const handlePreview = useCallback(
+    (item: ReferenceItem) => {
+      setPreviewItem(item);
+    },
+    [setPreviewItem]
+  );
+
+  // Bulk actions
+  const handleBulkFavorite = useCallback(async () => {
+    try {
+      await bulkFavorite(selectedIds, true);
+    } catch (err) {
+      console.error("Failed to favorite items:", err);
+    }
+  }, [selectedIds, bulkFavorite]);
+
+  const handleBulkTag = useCallback(
+    async (tags: string[]) => {
+      try {
+        await bulkAddTags(selectedIds, tags);
+      } catch (err) {
+        console.error("Failed to tag items:", err);
+      }
+    },
+    [selectedIds, bulkAddTags]
+  );
+
+  const handleBulkMove = useCallback(() => {
+    setShowMoveModal(true);
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (!confirm(`Delete ${selectedIds.length} items?`)) return;
+    try {
+      await bulkDelete(selectedIds);
+    } catch (err) {
+      console.error("Failed to delete items:", err);
+    }
+  }, [selectedIds, bulkDelete]);
+
+  const handleDownloadSingleFile = useCallback(async (item: ReferenceItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    try {
+      // Use proxy endpoint to avoid CORS issues
+      const response = await fetch('/api/vault/proxy-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: item.awsS3Url }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to download file');
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+    }
+  }, []);
+
+  const handleBulkDownload = useCallback(async () => {
+    setIsDownloading(true);
+    try {
+      const itemsToDownload = items.filter((i) => selectedIds.includes(i.id));
+      for (const item of itemsToDownload) {
+        // Use proxy endpoint to avoid CORS issues
+        const response = await fetch('/api/vault/proxy-download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: item.awsS3Url }),
+        });
+        
+        if (!response.ok) {
+          console.error(`Failed to download ${item.name}`);
+          continue;
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = item.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [items, selectedIds]);
+
+  // Folder actions
+  const handleCreateFolder = useCallback(() => {
+    setEditFolder(null);
+    setShowFolderModal(true);
+  }, []);
+
+  const handleEditFolder = useCallback((folder: ReferenceFolder) => {
+    setEditFolder(folder);
+    setShowFolderModal(true);
+  }, []);
+
+  const handleDeleteFolder = useCallback(
+    async (folder: ReferenceFolder) => {
+      if (!confirm("Delete this folder? Items will be moved to root.")) return;
+      try {
+        await referenceBankAPI.folders.delete(folder.id);
+        removeFolder(folder.id);
+        if (selectedFolderId === folder.id) {
+          setSelectedFolderId(null);
+        }
+      } catch (err) {
+        console.error("Failed to delete folder:", err);
+      }
+    },
+    [removeFolder, selectedFolderId, setSelectedFolderId]
+  );
+
+  const handleSaveFolder = useCallback(
+    async (data: { name: string; color?: string }) => {
+      try {
+        if (editFolder) {
+          const updated = await referenceBankAPI.folders.update(editFolder.id, {
+            name: data.name,
+            color: data.color || "#8B5CF6",
+          });
+          updateFolder(editFolder.id, updated);
+        } else {
+          const created = await referenceBankAPI.folders.create({
+            name: data.name,
+            color: data.color || "#8B5CF6",
+          });
+          addFolder(created);
+        }
+        setShowFolderModal(false);
+      } catch (err) {
+        console.error("Failed to save folder:", err);
+      }
+    },
+    [editFolder, updateFolder, addFolder]
+  );
+
+  // Move modal handler
+  const handleMoveConfirm = useCallback(
+    async (targetFolderId: string | null) => {
+      try {
+        await moveItems(selectedIds, targetFolderId);
+        setShowMoveModal(false);
+      } catch (err) {
+        console.error("Failed to move items:", err);
+      }
+    },
+    [selectedIds, moveItems]
+  );
+
+  // Edit modal handler
+  const handleSaveItem = useCallback(
+    async (data: Partial<ReferenceItem>) => {
+      if (!editItem) return;
+      try {
+        // Only send allowed fields
+        const updateData: { name?: string; description?: string; tags?: string[]; isFavorite?: boolean; folderId?: string | null } = {};
+        if (data.name) updateData.name = data.name;
+        if (data.tags) updateData.tags = data.tags;
+        
+        await referenceBankAPI.updateItem(editItem.id, updateData);
+        updateItem(editItem.id, data);
+        setShowEditModal(false);
+        setEditItem(null);
+      } catch (err) {
+        console.error("Failed to update item:", err);
+      }
+    },
+    [editItem, updateItem]
+  );
+
+  // Delete modal handler
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!editItem) return;
+    try {
+      await deleteItem(editItem.id);
+      setShowDeleteModal(false);
+      setEditItem(null);
+      fetchStorageQuota();
+    } catch (err) {
+      console.error("Failed to delete item:", err);
+    }
+  }, [editItem, deleteItem, fetchStorageQuota]);
+
+  // Copy URL to clipboard
+  const handleCopyUrl = useCallback((url: string) => {
+    navigator.clipboard.writeText(url);
+  }, []);
+
+  // Get current folder name
+  const currentFolder = folders.find((f) => f.id === selectedFolderId);
+
+  // Determine current filter state for display
+  const getCurrentFilterLabel = () => {
+    if (showFavoritesOnly) return "Favorites";
+    if (showRecentlyUsed) return "Recently Used";
+    if (currentFolder) return currentFolder.name;
+    return "All References";
   };
-}
 
-interface ReferenceItem {
-  id: string;
-  clerkId: string;
-  name: string;
-  description: string | null;
-  fileType: string;
-  mimeType: string;
-  fileSize: number;
-  width: number | null;
-  height: number | null;
-  duration: number | null;
-  awsS3Key: string;
-  awsS3Url: string;
-  thumbnailUrl: string | null;
-  tags: string[];
-  usageCount: number;
-  lastUsedAt: string | null;
-  isFavorite: boolean;
-  folderId: string | null;
-  folder?: {
-    id: string;
-    name: string;
-    color: string;
-  } | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Stats {
-  total: number;
-  favorites: number;
-  unfiled: number;
-  images: number;
-  videos: number;
-}
-
-// Memoized Reference Item Card component
-const ReferenceItemCard = memo(function ReferenceItemCard({
-  item,
-  viewMode,
-  isSelected,
-  onSelect,
-  onDelete,
-  onEdit,
-  onCopyUrl,
-  onDownload,
-  onToggleFavorite,
-  onMove,
-}: {
-  item: ReferenceItem;
-  viewMode: "grid" | "list";
-  isSelected: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
-  onEdit: () => void;
-  onCopyUrl: () => void;
-  onDownload: () => void;
-  onToggleFavorite: () => void;
-  onMove: () => void;
-}) {
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
+  // Format storage size
+  const formatStorage = useCallback((bytes: number) => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
-  };
+    if (bytes < 1024 * 1024 * 1024)
+      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  }, []);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  const storagePercentage = Math.min(
+    ((storageUsed || 0) / (storageLimit || 1)) * 100,
+    100
+  );
 
-  if (viewMode === "grid") {
+  if (isLoading && (items || []).length === 0) {
     return (
-      <div
-        className={`group relative bg-gray-900 rounded-xl border ${
-          isSelected ? "border-blue-500 ring-2 ring-blue-500/30" : "border-gray-800"
-        } overflow-hidden transition-all duration-300 hover:border-gray-700 hover:shadow-lg hover:shadow-purple-900/20`}
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex h-full bg-gray-900"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Mobile menu button */}
+      <button
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-lg"
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
       >
-        {/* Selection checkbox */}
+        {isMobileMenuOpen ? (
+          <X className="w-5 h-5" />
+        ) : (
+          <FolderPlus className="w-5 h-5" />
+        )}
+      </button>
+
+      {/* Sidebar */}
+      <div
+        className={`fixed lg:relative inset-y-0 left-0 z-40 w-72 bg-gray-900 border-r border-gray-800 transform transition-transform duration-300 ${
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
+        <div className="flex flex-col h-full p-4">
+          {/* Logo/Title */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-violet-500/20 rounded-xl">
+              <ImageIcon className="w-6 h-6 text-violet-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-white">Reference Bank</h2>
+              <p className="text-xs text-gray-500">
+                {stats?.total || 0} items
+              </p>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="space-y-1 mb-6">
+            <button
+              onClick={() => setSelectedFolderId(null)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                !showFavoritesOnly && !showRecentlyUsed && !selectedFolderId
+                  ? "bg-violet-500/20 text-violet-300"
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+              }`}
+            >
+              <ImageIcon className="w-5 h-5" />
+              <span>All References</span>
+              <span className="ml-auto text-xs text-gray-500">
+                {stats?.total || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setShowFavoritesOnly(true)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                showFavoritesOnly
+                  ? "bg-pink-500/20 text-pink-300"
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+              }`}
+            >
+              <Heart className="w-5 h-5" />
+              <span>Favorites</span>
+              <span className="ml-auto text-xs text-gray-500">
+                {stats?.favorites || 0}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setShowRecentlyUsed(true)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                showRecentlyUsed
+                  ? "bg-blue-500/20 text-blue-300"
+                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+              }`}
+            >
+              <Clock className="w-5 h-5" />
+              <span>Recently Used</span>
+            </button>
+          </nav>
+
+          {/* Folders */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Folders
+              </span>
+              <button
+                onClick={handleCreateFolder}
+                className="p-1 hover:bg-gray-800 rounded transition-colors"
+              >
+                <Plus className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              {(folders || []).map((folder) => (
+                <div
+                  key={folder.id}
+                  className={`group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                    selectedFolderId === folder.id
+                      ? "bg-gray-800 text-white"
+                      : dropTargetFolderId === folder.id
+                      ? "bg-violet-500/20 text-violet-300"
+                      : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                  }`}
+                  onClick={() => setSelectedFolderId(folder.id)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDropTargetFolderId(folder.id);
+                  }}
+                  onDragLeave={() => setDropTargetFolderId(null)}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    setDropTargetFolderId(null);
+                    if (draggedItemId) {
+                      const itemsToMove = selectedIds.includes(draggedItemId)
+                        ? selectedIds
+                        : [draggedItemId];
+                      await moveItems(itemsToMove, folder.id);
+                      setDraggedItemId(null);
+                    }
+                  }}
+                >
+                  <Folder
+                    className="w-5 h-5 shrink-0"
+                    style={{ color: folder.color || "#8B5CF6" }}
+                  />
+                  <span className="truncate flex-1">{folder.name}</span>
+                  <span className="text-xs text-gray-500">
+                    {(items || []).filter((i) => i.folderId === folder.id).length}
+                  </span>
+                  <div className="hidden group-hover:flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditFolder(folder);
+                      }}
+                      className="p-1 hover:bg-gray-700 rounded"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteFolder(folder);
+                      }}
+                      className="p-1 hover:bg-red-500/20 rounded text-red-400"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile overlay */}
+      {isMobileMenuOpen && createPortal(
         <div
-          className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect();
-          }}
-        >
-          <div
-            className={`w-5 h-5 rounded-md border-2 ${
-              isSelected
-                ? "bg-blue-600 border-blue-600"
-                : "bg-gray-900/80 border-gray-500"
-            } flex items-center justify-center`}
-          >
-            {isSelected && <Check className="w-3 h-3 text-white" />}
+          className="lg:hidden fixed inset-0 bg-black/50 z-30"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />,
+        document.body
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Header */}
+        <div className="shrink-0 p-4 border-b border-gray-800">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Breadcrumb / Title */}
+            <div className="flex items-center gap-2 min-w-0">
+              {selectedFolderId && (
+                <button
+                  onClick={() => setSelectedFolderId(null)}
+                  className="p-1.5 hover:bg-gray-800 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4 text-gray-400" />
+                </button>
+              )}
+              <h1 className="text-lg font-semibold text-white truncate">
+                {getCurrentFilterLabel()}
+              </h1>
+              <span className="text-sm text-gray-500">
+                ({filteredItems.length} items)
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Upload</span>
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors border border-gray-700"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New Folder</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Search and view controls */}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search references..."
+                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                >
+                  <X className="w-4 h-4 text-gray-500 hover:text-white" />
+                </button>
+              )}
+            </div>
+
+            {/* Type filter */}
+            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setFilterType("all")}
+                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  filterType === "all"
+                    ? "bg-violet-500 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFilterType("image")}
+                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  filterType === "image"
+                    ? "bg-blue-500 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setFilterType("video")}
+                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  filterType === "video"
+                    ? "bg-purple-500 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <VideoIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Sort */}
+            <select
+              value={sortBy}
+              onChange={(e) =>
+                setSortBy(e.target.value as "recent" | "name" | "usage")
+              }
+              className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+            >
+              <option value="recent">Most Recent</option>
+              <option value="name">Name</option>
+              <option value="usage">Most Used</option>
+            </select>
+
+            {/* View mode */}
+            <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-2 rounded-md transition-colors ${
+                  viewMode === "grid"
+                    ? "bg-violet-500 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <Grid3X3 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`p-2 rounded-md transition-colors ${
+                  viewMode === "list"
+                    ? "bg-violet-500 text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Type badge */}
-        <div className="absolute top-2 right-2 z-10">
-          <span
-            className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-              item.fileType === "video"
-                ? "bg-purple-500/80 text-white"
-                : "bg-blue-500/80 text-white"
-            }`}
-          >
-            {item.fileType === "video" ? "Video" : "Image"}
-          </span>
-        </div>
-
-        {/* Preview */}
-        <div className="aspect-square relative bg-gray-800 overflow-hidden">
-          {item.fileType === "video" ? (
-            <div className="relative w-full h-full">
-              <video
-                src={item.awsS3Url}
-                className="w-full h-full object-cover"
-                muted
-                preload="metadata"
-              />
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <PlayCircle className="w-10 h-10 text-white/80" />
+        {/* Bulk actions bar */}
+        {selectedIds.length > 0 && (
+          <div className="shrink-0 px-4 py-3 bg-gray-800/50 border-b border-gray-700 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-violet-500 rounded flex items-center justify-center">
+                <Check className="w-4 h-4 text-white" />
               </div>
-              {item.duration && (
-                <span className="absolute bottom-2 right-2 px-1.5 py-0.5 text-xs bg-black/70 text-white rounded">
-                  {Math.round(item.duration)}s
-                </span>
+              <span className="text-sm font-medium text-white">
+                {selectedIds.length} selected
+              </span>
+              <button
+                onClick={
+                  selectedIds.length === filteredItems.length
+                    ? clearSelection
+                    : selectAll
+                }
+                className="text-sm text-violet-400 hover:text-violet-300"
+              >
+                {selectedIds.length === filteredItems.length
+                  ? "Deselect all"
+                  : "Select all"}
+              </button>
+            </div>
+
+            <div className="flex-1" />
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkFavorite}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+              >
+                <Heart className="w-4 h-4" />
+                Favorite
+              </button>
+              <button
+                onClick={handleBulkMove}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+              >
+                <Move className="w-4 h-4" />
+                Move
+              </button>
+              <button
+                onClick={handleBulkDownload}
+                disabled={isDownloading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isDownloading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                Download
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-sm rounded-lg transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+              <button
+                onClick={clearSelection}
+                className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Content area */}
+        <div className="flex-1 overflow-auto p-4 relative">
+          {isLoading && (
+            <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm z-10 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+                <p className="text-sm text-gray-400">Loading...</p>
+              </div>
+            </div>
+          )}
+          
+          {error ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+              <h2 className="text-xl font-semibold text-white mb-2">
+                Error Loading References
+              </h2>
+              <p className="text-gray-400 mb-4">{error}</p>
+              <button
+                onClick={() => {
+                  setError(null);
+                  fetchData();
+                }}
+                className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              {searchQuery ? (
+                <>
+                  <Search className="w-12 h-12 text-gray-600 mb-4" />
+                  <h2 className="text-xl font-semibold text-white mb-2">
+                    No matches found
+                  </h2>
+                  <p className="text-gray-400">
+                    No references match &quot;{searchQuery}&quot;
+                  </p>
+                </>
+              ) : showFavoritesOnly ? (
+                <>
+                  <Heart className="w-12 h-12 text-gray-600 mb-4" />
+                  <h2 className="text-xl font-semibold text-white mb-2">
+                    No favorites yet
+                  </h2>
+                  <p className="text-gray-400">
+                    Mark items as favorites to see them here
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-12 h-12 text-gray-600 mb-4" />
+                  <h2 className="text-xl font-semibold text-white mb-2">
+                    No references yet
+                  </h2>
+                  <p className="text-gray-400 mb-4">
+                    Upload images and videos to build your reference library
+                  </p>
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                  >
+                    Upload Files
+                  </button>
+                </>
               )}
             </div>
+          ) : viewMode === "grid" ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredItems.map((item) => (
+                <GridItemCard
+                  key={item.id}
+                  item={item}
+                  isSelected={selectedIds.includes(item.id)}
+                  onSelect={() => toggleItemSelection(item.id)}
+                  onPreview={() => handlePreview(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item)}
+                  onEdit={() => handleEditItem(item)}
+                  onDelete={() => handleDeleteItem(item)}
+                  onDragStart={() => setDraggedItemId(item.id)}
+                  onDragEnd={() => setDraggedItemId(null)}
+                />
+              ))}
+            </div>
           ) : (
-            <img
-              src={item.thumbnailUrl || item.awsS3Url}
-              alt={item.name}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              loading="lazy"
-            />
+            <div className="space-y-2">
+              {filteredItems.map((item) => (
+                <ListItemRow
+                  key={item.id}
+                  item={item}
+                  isSelected={selectedIds.includes(item.id)}
+                  onSelect={() => toggleItemSelection(item.id)}
+                  onPreview={() => handlePreview(item)}
+                  onToggleFavorite={() => handleToggleFavorite(item)}
+                  onEdit={() => handleEditItem(item)}
+                  onDelete={() => handleDeleteItem(item)}
+                  onDragStart={() => setDraggedItemId(item.id)}
+                  onDragEnd={() => setDraggedItemId(null)}
+                />
+              ))}
+            </div>
           )}
-          {/* Favorite button */}
+        </div>
+      </div>
+
+      {/* Preview Modal */}
+      {previewItem && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+          <button
+            onClick={() => setPreviewItem(null)}
+            className="absolute top-4 right-4 p-2 bg-gray-800/80 hover:bg-gray-700 rounded-lg transition-colors"
+          >
+            <X className="w-6 h-6 text-white" />
+          </button>
+
+          {/* Navigation */}
+          {filteredItems.length > 1 && (
+            <>
+              <button
+                onClick={() => navigatePreview("prev")}
+                className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-gray-800/80 hover:bg-gray-700 rounded-full transition-colors"
+              >
+                <ArrowLeft className="w-6 h-6 text-white" />
+              </button>
+              <button
+                onClick={() => navigatePreview("next")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-gray-800/80 hover:bg-gray-700 rounded-full transition-colors rotate-180"
+              >
+                <ArrowLeft className="w-6 h-6 text-white" />
+              </button>
+            </>
+          )}
+
+          {/* Content */}
+          <div className="max-w-5xl max-h-[80vh] overflow-hidden">
+            {previewItem.fileType.startsWith("video/") ? (
+              <video
+                src={previewItem.awsS3Url}
+                controls
+                autoPlay
+                className="max-w-full max-h-[80vh] rounded-lg"
+              />
+            ) : (
+              <img
+                src={previewItem.awsS3Url}
+                alt={previewItem.name}
+                className="max-w-full max-h-[80vh] rounded-lg object-contain"
+              />
+            )}
+          </div>
+
+          {/* Info panel */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-gray-800/90 rounded-xl">
+            <span className="text-white font-medium">{previewItem.name}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleToggleFavorite(previewItem)}
+                className={`p-2 rounded-lg transition-colors ${
+                  previewItem.isFavorite
+                    ? "text-pink-500"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                <Heart
+                  className={`w-5 h-5 ${
+                    previewItem.isFavorite ? "fill-current" : ""
+                  }`}
+                />
+              </button>
+              <button
+                onClick={() => handleCopyUrl(previewItem.awsS3Url)}
+                className="p-2 text-gray-400 hover:text-white rounded-lg transition-colors"
+              >
+                <Copy className="w-5 h-5" />
+              </button>
+              <button
+                onClick={(e) => handleDownloadSingleFile(previewItem, e)}
+                className="p-2 text-gray-400 hover:text-white rounded-lg transition-colors"
+                title="Download"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  setPreviewItem(null);
+                  handleEditItem(previewItem);
+                }}
+                className="p-2 text-gray-400 hover:text-white rounded-lg transition-colors"
+              >
+                <Edit2 className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => {
+                  setPreviewItem(null);
+                  handleDeleteItem(previewItem);
+                }}
+                className="p-2 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+            <span className="text-sm text-gray-500">
+              {previewIndex + 1} / {filteredItems.length}
+            </span>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Upload Queue */}
+      {(uploadQueue || []).length > 0 && createPortal(
+        <div className="fixed bottom-4 right-4 z-40 w-96 max-w-[calc(100vw-2rem)]">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
+            <div
+              className="flex items-center justify-between px-4 py-3 bg-gray-800/50 cursor-pointer"
+              onClick={() => setIsUploadQueueExpanded(!isUploadQueueExpanded)}
+            >
+              <div className="flex items-center gap-3">
+                <Upload className="w-5 h-5 text-violet-400" />
+                <span className="text-sm font-medium text-white">
+                  Uploading {uploadQueue.filter((i) => i.status === "uploading").length} files
+                </span>
+              </div>
+              {isUploadQueueExpanded ? (
+                <X className="w-4 h-4 text-gray-400" />
+              ) : (
+                <SlidersHorizontal className="w-4 h-4 text-gray-400" />
+              )}
+            </div>
+            {isUploadQueueExpanded && (
+              <div className="max-h-64 overflow-y-auto p-2 space-y-2">
+                {uploadQueue.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate">{item.name}</p>
+                      {item.status === "uploading" && (
+                        <div className="h-1 bg-gray-700 rounded-full mt-1 overflow-hidden">
+                          <div
+                            className="h-full bg-violet-500 transition-all"
+                            style={{ width: `${item.progress || 0}%` }}
+                          />
+                        </div>
+                      )}
+                      {item.status === "error" && (
+                        <p className="text-xs text-red-400 truncate">
+                          {item.error}
+                        </p>
+                      )}
+                    </div>
+                    {item.status === "uploading" && (
+                      <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+                    )}
+                    {item.status === "success" && (
+                      <Check className="w-4 h-4 text-green-400" />
+                    )}
+                    {item.status === "error" && (
+                      <button
+                        onClick={() => retryUpload(item.id)}
+                        className="p-1 hover:bg-gray-700 rounded"
+                      >
+                        <AlertCircle className="w-4 h-4 text-red-400" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => removeFromUploadQueue(item.id)}
+                      className="p-1 hover:bg-gray-700 rounded"
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Drag overlay */}
+      {isDraggingFile && createPortal(
+        <div className="fixed inset-0 bg-violet-900/20 border-4 border-dashed border-violet-500 z-50 pointer-events-none flex items-center justify-center">
+          <div className="bg-gray-800 rounded-xl p-8 text-center shadow-2xl">
+            <Upload className="w-12 h-12 text-violet-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-white">
+              Drop files to upload
+            </h3>
+            <p className="text-gray-400 mt-2">Images and videos supported</p>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modals */}
+      {showUploadModal && createPortal(
+        <UploadModal
+          onClose={() => setShowUploadModal(false)}
+          onFilesSelected={async (files) => {
+            for (const file of Array.from(files)) {
+              addToUploadQueue({
+                id: `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                file,
+                name: file.name,
+                description: "",
+                tags: [],
+                folderId: selectedFolderId,
+              });
+            }
+            setShowUploadModal(false);
+          }}
+          currentFolderId={selectedFolderId}
+        />,
+        document.body
+      )}
+
+      {showEditModal && editItem && createPortal(
+        <EditModal
+          item={editItem}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditItem(null);
+          }}
+          onSave={handleSaveItem}
+        />,
+        document.body
+      )}
+
+      {showDeleteModal && editItem && createPortal(
+        <DeleteModal
+          item={editItem}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setEditItem(null);
+          }}
+          onConfirm={handleDeleteConfirm}
+        />,
+        document.body
+      )}
+
+      {showFolderModal && createPortal(
+        <FolderModal
+          folder={editFolder}
+          onClose={() => {
+            setShowFolderModal(false);
+            setEditFolder(null);
+          }}
+          onSave={handleSaveFolder}
+        />,
+        document.body
+      )}
+
+      {showMoveModal && createPortal(
+        <MoveModal
+          folders={folders || []}
+          currentFolderId={selectedFolderId}
+          selectedCount={selectedIds.length}
+          onClose={() => setShowMoveModal(false)}
+          onMove={handleMoveConfirm}
+        />,
+        document.body
+      )}
+    </div>
+  );
+}
+
+// Grid Item Card Component
+function GridItemCard({
+  item,
+  isSelected,
+  onSelect,
+  onPreview,
+  onToggleFavorite,
+  onEdit,
+  onDelete,
+  onDragStart,
+  onDragEnd,
+}: {
+  item: ReferenceItem;
+  isSelected: boolean;
+  onSelect: () => void;
+  onPreview: () => void;
+  onToggleFavorite: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  const isVideo = item.fileType.startsWith("video/");
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`group relative bg-gray-800 rounded-xl overflow-hidden cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl ${
+        isSelected ? "ring-2 ring-violet-500 shadow-lg shadow-violet-500/20" : ""
+      }`}
+    >
+      <div
+        className="aspect-square bg-gray-900 relative overflow-hidden"
+        onClick={onPreview}
+      >
+        {isVideo ? (
+          <>
+            <video
+              src={item.thumbnailUrl || item.awsS3Url}
+              className="w-full h-full object-cover"
+              muted
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <PlayCircle className="w-12 h-12 text-white opacity-80" />
+            </div>
+          </>
+        ) : (
+          <img
+            src={item.thumbnailUrl || item.awsS3Url}
+            alt={item.name}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        )}
+
+        <div className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onToggleFavorite();
             }}
-            className={`absolute bottom-2 left-2 z-10 p-1.5 rounded-full transition-all ${
+            className={`p-1.5 rounded-lg backdrop-blur-sm transition-colors ${
               item.isFavorite
-                ? "bg-pink-500 text-white opacity-100"
-                : "bg-gray-900/80 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-pink-500 hover:text-white"
+                ? "bg-pink-500/90 text-white"
+                : "bg-black/50 text-white hover:bg-pink-500/90"
             }`}
           >
-            <Heart className={`w-4 h-4 ${item.isFavorite ? "fill-current" : ""}`} />
+            <Heart
+              className={`w-4 h-4 ${item.isFavorite ? "fill-current" : ""}`}
+            />
           </button>
         </div>
 
-        {/* Info */}
-        <div className="p-3">
-          {item.folder && (
-            <div className="flex items-center gap-1.5 mb-1">
-              <div
-                className="w-4 h-4 rounded flex items-center justify-center"
-                style={{ backgroundColor: `${item.folder.color}30` }}
-              >
-                <Folder className="w-2.5 h-2.5" style={{ color: item.folder.color }} />
-              </div>
-              <span className="text-[10px] truncate" style={{ color: item.folder.color }}>
-                {item.folder.name}
-              </span>
-            </div>
+        <div className="absolute top-2 left-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+            className={`w-5 h-5 rounded border-2 transition-all ${
+              isSelected
+                ? "bg-violet-500 border-violet-500"
+                : "bg-black/30 border-white/50 hover:border-white"
+            } backdrop-blur-sm flex items-center justify-center`}
+          >
+            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+          </button>
+        </div>
+
+        <div className="absolute bottom-2 left-2">
+          {isVideo ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/90 backdrop-blur-sm text-white text-xs rounded-md">
+              <VideoIcon className="w-3 h-3" />
+              Video
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-500/90 backdrop-blur-sm text-white text-xs rounded-md">
+              <ImageIcon className="w-3 h-3" />
+              Image
+            </span>
           )}
-          <h4 className="text-sm font-medium text-white truncate" title={item.name}>
-            {item.name}
-          </h4>
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-xs text-gray-500">{formatFileSize(item.fileSize)}</span>
-            <span className="text-xs text-gray-500 flex items-center gap-1">
+        </div>
+      </div>
+
+      <div className="p-3">
+        <h3 className="text-sm font-medium text-white truncate mb-1">
+          {item.name}
+        </h3>
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <span>
+            {item.width && item.height
+              ? `${item.width}×${item.height}`
+              : item.fileSize
+              ? `${(item.fileSize / 1024 / 1024).toFixed(2)} MB`
+              : "Unknown"}
+          </span>
+          {item.usageCount > 0 && (
+            <span className="flex items-center gap-1">
               <BarChart3 className="w-3 h-3" />
               {item.usageCount}
             </span>
-          </div>
-          {item.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {item.tags.slice(0, 2).map((tag) => (
-                <span
-                  key={tag}
-                  className="px-1.5 py-0.5 text-[10px] bg-gray-800 text-gray-400 rounded"
-                >
-                  {tag}
-                </span>
-              ))}
-              {item.tags.length > 2 && (
-                <span className="text-[10px] text-gray-500">+{item.tags.length - 2}</span>
-              )}
-            </div>
           )}
         </div>
 
-        {/* Actions */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-gray-900 via-gray-900/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="flex items-center justify-center gap-2">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDownload();
-              }}
-              className="p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-              title="Download"
-            >
-              <Download className="w-4 h-4 text-gray-400" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onCopyUrl();
-              }}
-              className="p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-              title="Copy URL"
-            >
-              <Copy className="w-4 h-4 text-gray-400" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onMove();
-              }}
-              className="p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-              title="Move to folder"
-            >
-              <Move className="w-4 h-4 text-gray-400" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="p-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-              title="Edit"
-            >
-              <Edit2 className="w-4 h-4 text-gray-400" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="p-1.5 bg-gray-800 hover:bg-red-900/50 rounded-lg transition-colors"
-              title="Delete"
-            >
-              <Trash2 className="w-4 h-4 text-red-400" />
-            </button>
+        {item.tags && item.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {item.tags.slice(0, 2).map((tag) => (
+              <span
+                key={tag}
+                className="px-1.5 py-0.5 bg-violet-500/20 text-violet-300 text-xs rounded"
+              >
+                {tag}
+              </span>
+            ))}
+            {item.tags.length > 2 && (
+              <span className="px-1.5 py-0.5 bg-gray-700 text-gray-400 text-xs rounded">
+                +{item.tags.length - 2}
+              </span>
+            )}
           </div>
+        )}
+
+        <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            className="flex-1 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs rounded transition-colors"
+          >
+            <Edit2 className="w-3 h-3 mx-auto" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="flex-1 px-2 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs rounded transition-colors"
+          >
+            <Trash2 className="w-3 h-3 mx-auto" />
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // List view
+// List Item Row Component
+function ListItemRow({
+  item,
+  isSelected,
+  onSelect,
+  onPreview,
+  onToggleFavorite,
+  onEdit,
+  onDelete,
+  onDragStart,
+  onDragEnd,
+}: {
+  item: ReferenceItem;
+  isSelected: boolean;
+  onSelect: () => void;
+  onPreview: () => void;
+  onToggleFavorite: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+}) {
+  const isVideo = item.fileType.startsWith("video/");
+
   return (
     <div
-      className={`group flex items-center gap-4 p-3 bg-gray-900 rounded-xl border ${
-        isSelected ? "border-blue-500 ring-2 ring-blue-500/30" : "border-gray-800"
-      } transition-all duration-300 hover:border-gray-700`}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`group flex items-center gap-4 p-3 bg-gray-800 rounded-lg cursor-pointer transition-all hover:bg-gray-750 ${
+        isSelected ? "ring-2 ring-violet-500" : ""
+      }`}
+      onClick={onPreview}
     >
-      {/* Selection checkbox */}
-      <div
-        className="cursor-pointer"
+      <button
         onClick={(e) => {
           e.stopPropagation();
           onSelect();
         }}
+        className={`w-5 h-5 rounded border-2 transition-all shrink-0 ${
+          isSelected
+            ? "bg-violet-500 border-violet-500"
+            : "bg-gray-700 border-gray-600 hover:border-gray-500"
+        } flex items-center justify-center`}
       >
-        <div
-          className={`w-5 h-5 rounded-md border-2 ${
-            isSelected
-              ? "bg-blue-600 border-blue-600"
-              : "bg-gray-800 border-gray-600"
-          } flex items-center justify-center`}
-        >
-          {isSelected && <Check className="w-3 h-3 text-white" />}
-        </div>
-      </div>
+        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+      </button>
 
-      {/* Thumbnail */}
-      <div className="w-16 h-16 flex-shrink-0 bg-gray-800 rounded-lg overflow-hidden relative">
-        {item.isFavorite && (
-          <div className="absolute top-1 right-1 z-10">
-            <Heart className="w-3 h-3 text-pink-500 fill-current" />
-          </div>
-        )}
-        {item.fileType === "video" ? (
-          <div className="relative w-full h-full">
+      <div className="w-16 h-16 bg-gray-900 rounded-lg overflow-hidden shrink-0 relative">
+        {isVideo ? (
+          <>
             <video
-              src={item.awsS3Url}
+              src={item.thumbnailUrl || item.awsS3Url}
               className="w-full h-full object-cover"
               muted
-              preload="metadata"
             />
-            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-              <PlayCircle className="w-6 h-6 text-white/80" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <PlayCircle className="w-6 h-6 text-white opacity-80" />
             </div>
-          </div>
+          </>
         ) : (
           <img
             src={item.thumbnailUrl || item.awsS3Url}
@@ -397,45 +1454,45 @@ const ReferenceItemCard = memo(function ReferenceItemCard({
         )}
       </div>
 
-      {/* Details */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <h4 className="text-sm font-medium text-white truncate">{item.name}</h4>
-          {item.folder && (
-            <span
-              className="px-1.5 py-0.5 text-[10px] rounded flex items-center gap-1"
-              style={{ backgroundColor: `${item.folder.color}20`, color: item.folder.color }}
-            >
-              <Folder className="w-2.5 h-2.5" />
-              {item.folder.name}
-            </span>
+        <div className="flex items-center gap-2 mb-1">
+          <h3 className="text-sm font-medium text-white truncate">
+            {item.name}
+          </h3>
+          {item.isFavorite && (
+            <Heart className="w-4 h-4 text-pink-500 fill-current shrink-0" />
           )}
         </div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+        <div className="flex items-center gap-3 text-xs text-gray-400">
           <span className="flex items-center gap-1">
-            {item.fileType === "video" ? (
+            {isVideo ? (
               <VideoIcon className="w-3 h-3" />
             ) : (
               <ImageIcon className="w-3 h-3" />
             )}
-            {item.fileType}
+            {isVideo ? "Video" : "Image"}
           </span>
-          <span>{formatFileSize(item.fileSize)}</span>
-          <span className="flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {formatDate(item.createdAt)}
-          </span>
-          <span className="flex items-center gap-1">
-            <BarChart3 className="w-3 h-3" />
-            {item.usageCount} uses
-          </span>
+          {item.width && item.height && (
+            <span>
+              {item.width}×{item.height}
+            </span>
+          )}
+          {item.fileSize && (
+            <span>{(item.fileSize / 1024 / 1024).toFixed(2)} MB</span>
+          )}
+          {item.usageCount > 0 && (
+            <span className="flex items-center gap-1">
+              <BarChart3 className="w-3 h-3" />
+              {item.usageCount} uses
+            </span>
+          )}
         </div>
-        {item.tags.length > 0 && (
+        {item.tags && item.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {item.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-1.5 py-0.5 text-[10px] bg-gray-800 text-gray-400 rounded"
+                className="px-1.5 py-0.5 bg-violet-500/20 text-violet-300 text-xs rounded"
               >
                 {tag}
               </span>
@@ -444,8 +1501,7 @@ const ReferenceItemCard = memo(function ReferenceItemCard({
         )}
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -453,1449 +1509,31 @@ const ReferenceItemCard = memo(function ReferenceItemCard({
           }}
           className={`p-2 rounded-lg transition-colors ${
             item.isFavorite
-              ? "bg-pink-500/20 text-pink-400"
-              : "hover:bg-gray-800 text-gray-400"
+              ? "text-pink-500 hover:bg-pink-500/20"
+              : "text-gray-400 hover:bg-gray-700 hover:text-white"
           }`}
-          title={item.isFavorite ? "Remove from favorites" : "Add to favorites"}
         >
           <Heart className={`w-4 h-4 ${item.isFavorite ? "fill-current" : ""}`} />
         </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onDownload();
-          }}
-          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-          title="Download"
-        >
-          <Download className="w-4 h-4 text-gray-400" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onCopyUrl();
-          }}
-          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-          title="Copy URL"
-        >
-          <Copy className="w-4 h-4 text-gray-400" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onMove();
-          }}
-          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-          title="Move to folder"
-        >
-          <Move className="w-4 h-4 text-gray-400" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
             onEdit();
           }}
-          className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-          title="Edit"
+          className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors"
         >
-          <Edit2 className="w-4 h-4 text-gray-400" />
+          <Edit2 className="w-4 h-4" />
         </button>
         <button
           onClick={(e) => {
             e.stopPropagation();
             onDelete();
           }}
-          className="p-2 hover:bg-red-900/30 rounded-lg transition-colors"
-          title="Delete"
+          className="p-2 text-gray-400 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors"
         >
-          <Trash2 className="w-4 h-4 text-red-400" />
+          <Trash2 className="w-4 h-4" />
         </button>
       </div>
     </div>
-  );
-});
-
-// Color options for folders
-const FOLDER_COLORS = [
-  "#8B5CF6", "#EC4899", "#EF4444", "#F97316", "#EAB308",
-  "#22C55E", "#14B8A6", "#3B82F6", "#6366F1", "#A855F7",
-];
-
-export function ReferenceBankContent() {
-  // State
-  const [referenceItems, setReferenceItems] = useState<ReferenceItem[]>([]);
-  const [folders, setFolders] = useState<ReferenceFolder[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, favorites: 0, unfiled: 0, images: 0, videos: 0 });
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [filterType, setFilterType] = useState<"all" | "image" | "video">("all");
-  const [sortBy, setSortBy] = useState<"recent" | "name" | "usage">("recent");
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  
-  // Filter state
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  
-  // Upload state
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  
-  // Modal state
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showFolderModal, setShowFolderModal] = useState(false);
-  const [showMoveModal, setShowMoveModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<ReferenceItem | null>(null);
-  const [deletingItem, setDeletingItem] = useState<ReferenceItem | null>(null);
-  const [editingFolder, setEditingFolder] = useState<ReferenceFolder | null>(null);
-  const [movingItems, setMovingItems] = useState<string[]>([]);
-  
-  // Form state
-  const [uploadName, setUploadName] = useState("");
-  const [uploadDescription, setUploadDescription] = useState("");
-  const [uploadTags, setUploadTags] = useState("");
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
-  const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
-  
-  // Folder form state
-  const [folderName, setFolderName] = useState("");
-  const [folderDescription, setFolderDescription] = useState("");
-  const [folderColor, setFolderColor] = useState("#8B5CF6");
-  
-  // Import from Google Drive state
-  const [showGoogleDriveModal, setShowGoogleDriveModal] = useState(false);
-  const [googleDriveAccessToken, setGoogleDriveAccessToken] = useState<string | null>(null);
-  const [googleDriveFiles, setGoogleDriveFiles] = useState<GoogleDriveFile[]>([]);
-  const [googleDriveFolders, setGoogleDriveFolders] = useState<GoogleDriveFolder[]>([]);
-  const [googleDriveBreadcrumbs, setGoogleDriveBreadcrumbs] = useState<GoogleDriveBreadcrumb[]>([{ id: null, name: 'My Drive' }]);
-  const [currentGoogleDriveFolderId, setCurrentGoogleDriveFolderId] = useState<string | null>(null);
-  const [selectedGoogleDriveFiles, setSelectedGoogleDriveFiles] = useState<Set<string>>(new Set());
-  const [loadingGoogleDriveFiles, setLoadingGoogleDriveFiles] = useState(false);
-  const [importingFromGoogleDrive, setImportingFromGoogleDrive] = useState(false);
-  const [googleDriveImportSuccess, setGoogleDriveImportSuccess] = useState<{ itemCount: number } | null>(null);
-  const [googleDriveError, setGoogleDriveError] = useState<string | null>(null);
-  const [googleDriveLinkInput, setGoogleDriveLinkInput] = useState("");
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Fetch reference items and folders
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (selectedFolderId === "root") {
-        params.set("folderId", "root");
-      } else if (selectedFolderId) {
-        params.set("folderId", selectedFolderId);
-      }
-      if (showFavoritesOnly) {
-        params.set("favorites", "true");
-      }
-      if (filterType !== "all") {
-        params.set("fileType", filterType);
-      }
-      if (searchQuery) {
-        params.set("search", searchQuery);
-      }
-      
-      const response = await fetch(`/api/reference-bank?${params.toString()}`);
-      if (response.ok) {
-        const data = await response.json();
-        setReferenceItems(data.items || []);
-        setFolders(data.folders || []);
-        setStats(data.stats || { total: 0, favorites: 0, unfiled: 0, images: 0, videos: 0 });
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedFolderId, showFavoritesOnly, filterType, searchQuery]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // ==================== Google Drive Functions ====================
-  
-  // Check for Google Drive access token in URL (after OAuth callback) or localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const accessToken = urlParams.get('access_token');
-      if (accessToken) {
-        setGoogleDriveAccessToken(accessToken);
-        localStorage.setItem('googleDriveAccessToken', accessToken);
-        const newUrl = window.location.pathname;
-        window.history.replaceState({}, '', newUrl);
-      } else {
-        const savedToken = localStorage.getItem('googleDriveAccessToken');
-        if (savedToken) {
-          setGoogleDriveAccessToken(savedToken);
-        }
-      }
-    }
-  }, []);
-
-  // Connect to Google Drive
-  const connectToGoogleDrive = async () => {
-    try {
-      const currentPath = window.location.pathname;
-      const response = await fetch(`/api/auth/google?redirect=${encodeURIComponent(currentPath)}`);
-      const data = await response.json();
-      if (data.authUrl) {
-        window.location.href = data.authUrl;
-      }
-    } catch (error) {
-      console.error("Error connecting to Google Drive:", error);
-      setGoogleDriveError("Failed to connect to Google Drive");
-    }
-  };
-
-  // Fetch Google Drive contents (folders and files) for current folder
-  const fetchGoogleDriveContents = async (folderId: string | null = null) => {
-    if (!googleDriveAccessToken) return;
-
-    try {
-      setLoadingGoogleDriveFiles(true);
-      setGoogleDriveError(null);
-      
-      const params = new URLSearchParams({
-        accessToken: googleDriveAccessToken,
-      });
-      if (folderId) {
-        params.append('folderId', folderId);
-      }
-      
-      const response = await fetch(`/api/google-drive/browse?${params}`);
-      const data = await response.json();
-
-      if (data.authError) {
-        setGoogleDriveAccessToken(null);
-        localStorage.removeItem('googleDriveAccessToken');
-        setGoogleDriveError("Session expired. Please reconnect to Google Drive.");
-        return;
-      }
-
-      if (data.error) {
-        if (data.permissionError || data.error.includes('access') || data.error.includes('permission') || data.error.includes('not found')) {
-          setGoogleDriveError("Unable to access this folder. You may not have permission or the link may be invalid.");
-        } else {
-          setGoogleDriveError(data.error);
-        }
-        return;
-      }
-
-      const folders = data.folders || [];
-      const mediaFiles = data.mediaFiles || [];
-      
-      setGoogleDriveFolders(folders);
-      setGoogleDriveFiles(mediaFiles);
-    } catch (error) {
-      console.error("Error fetching Google Drive contents:", error);
-      setGoogleDriveError("Failed to fetch contents from Google Drive");
-    } finally {
-      setLoadingGoogleDriveFiles(false);
-    }
-  };
-
-  // Navigate into a Google Drive folder
-  const navigateToGoogleDriveFolder = (folder: GoogleDriveFolder) => {
-    setCurrentGoogleDriveFolderId(folder.id);
-    setGoogleDriveBreadcrumbs(prev => [...prev, { id: folder.id, name: folder.name }]);
-    setSelectedGoogleDriveFiles(new Set());
-    fetchGoogleDriveContents(folder.id);
-  };
-
-  // Navigate to a specific breadcrumb
-  const navigateToBreadcrumb = (index: number) => {
-    const breadcrumb = googleDriveBreadcrumbs[index];
-    setCurrentGoogleDriveFolderId(breadcrumb.id);
-    setGoogleDriveBreadcrumbs(prev => prev.slice(0, index + 1));
-    setSelectedGoogleDriveFiles(new Set());
-    fetchGoogleDriveContents(breadcrumb.id);
-  };
-
-  // Extract folder ID from Google Drive link
-  const extractFolderIdFromLink = (link: string): string | null => {
-    const patterns = [
-      /\/folders\/([a-zA-Z0-9_-]+)/,
-      /\/drive\/.*folders\/([a-zA-Z0-9_-]+)/,
-      /id=([a-zA-Z0-9_-]+)/,
-    ];
-    
-    for (const pattern of patterns) {
-      const match = link.match(pattern);
-      if (match && match[1]) {
-        return match[1];
-      }
-    }
-    return null;
-  };
-
-  // Browse a Google Drive folder from a link
-  const browseGoogleDriveLink = async () => {
-    if (!googleDriveAccessToken || !googleDriveLinkInput.trim()) return;
-    
-    const folderId = extractFolderIdFromLink(googleDriveLinkInput.trim());
-    if (!folderId) {
-      setGoogleDriveError("Invalid Google Drive link. Please paste a valid folder link.");
-      return;
-    }
-
-    try {
-      setLoadingGoogleDriveFiles(true);
-      setGoogleDriveError(null);
-      setGoogleDriveBreadcrumbs([{ id: folderId, name: 'Linked Folder' }]);
-      setCurrentGoogleDriveFolderId(folderId);
-      
-      await fetchGoogleDriveContents(folderId);
-    } catch (error) {
-      console.error("Error browsing Google Drive link:", error);
-      setGoogleDriveError("Failed to access the linked folder. Make sure you have permission.");
-    }
-  };
-
-  // Open Google Drive import modal
-  const openGoogleDriveModal = () => {
-    setShowGoogleDriveModal(true);
-    setGoogleDriveImportSuccess(null);
-    setSelectedGoogleDriveFiles(new Set());
-    setGoogleDriveError(null);
-    setGoogleDriveLinkInput("");
-    setGoogleDriveBreadcrumbs([{ id: null, name: 'From Link' }]);
-    setCurrentGoogleDriveFolderId(null);
-    setGoogleDriveFolders([]);
-    setGoogleDriveFiles([]);
-  };
-
-  // Toggle Google Drive file selection
-  const toggleGoogleDriveFileSelection = (fileId: string) => {
-    setSelectedGoogleDriveFiles(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(fileId)) {
-        newSet.delete(fileId);
-      } else {
-        newSet.add(fileId);
-      }
-      return newSet;
-    });
-  };
-
-  // Select all Google Drive files
-  const selectAllGoogleDriveFiles = () => {
-    if (selectedGoogleDriveFiles.size === googleDriveFiles.length) {
-      setSelectedGoogleDriveFiles(new Set());
-    } else {
-      setSelectedGoogleDriveFiles(new Set(googleDriveFiles.map(file => file.id)));
-    }
-  };
-
-  // Import from Google Drive
-  const importFromGoogleDrive = async () => {
-    if (selectedGoogleDriveFiles.size === 0 || !googleDriveAccessToken) return;
-
-    try {
-      setImportingFromGoogleDrive(true);
-      setGoogleDriveError(null);
-      const response = await fetch("/api/reference-bank/import-from-google-drive", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          folderId: selectedFolderId === "root" ? null : selectedFolderId,
-          fileIds: Array.from(selectedGoogleDriveFiles),
-          accessToken: googleDriveAccessToken,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.authError) {
-        setGoogleDriveAccessToken(null);
-        localStorage.removeItem('googleDriveAccessToken');
-        setGoogleDriveError("Session expired. Please reconnect to Google Drive.");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to import");
-      }
-
-      // Reload reference items
-      fetchData();
-
-      setGoogleDriveImportSuccess({ itemCount: data.itemCount });
-
-      // Reset and close after success
-      setTimeout(() => {
-        setShowGoogleDriveModal(false);
-        setGoogleDriveImportSuccess(null);
-        setSelectedGoogleDriveFiles(new Set());
-        setGoogleDriveFiles([]);
-      }, 2000);
-    } catch (error) {
-      console.error("Error importing from Google Drive:", error);
-      setGoogleDriveError(
-        error instanceof Error ? error.message : "Failed to import from Google Drive"
-      );
-    } finally {
-      setImportingFromGoogleDrive(false);
-    }
-  };
-
-  // ==================== End Google Drive Functions ====================
-
-  // Sort items
-  const sortedItems = [...referenceItems].sort((a, b) => {
-    switch (sortBy) {
-      case "name":
-        return a.name.localeCompare(b.name);
-      case "usage":
-        return b.usageCount - a.usageCount;
-      case "recent":
-      default:
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-  });
-
-  // Handle file selection
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploadFile(file);
-      setUploadName(file.name.replace(/\.[^/.]+$/, ""));
-      const reader = new FileReader();
-      reader.onload = () => setUploadPreview(reader.result as string);
-      reader.readAsDataURL(file);
-      setUploadFolderId(selectedFolderId === "root" ? null : selectedFolderId);
-      setShowUploadModal(true);
-    }
-  };
-
-  // Handle drag and drop
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file && (file.type.startsWith("image/") || file.type.startsWith("video/"))) {
-      setUploadFile(file);
-      setUploadName(file.name.replace(/\.[^/.]+$/, ""));
-      const reader = new FileReader();
-      reader.onload = () => setUploadPreview(reader.result as string);
-      reader.readAsDataURL(file);
-      setUploadFolderId(selectedFolderId === "root" ? null : selectedFolderId);
-      setShowUploadModal(true);
-    }
-  };
-
-  // Upload file
-  const handleUpload = async () => {
-    if (!uploadFile) return;
-    setIsUploading(true);
-    setUploadProgress(0);
-    
-    try {
-      const presignResponse = await fetch("/api/reference-bank/presigned-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: uploadFile.name,
-          fileType: uploadFile.type,
-          folderId: uploadFolderId,
-        }),
-      });
-      
-      if (!presignResponse.ok) {
-        const errorData = await presignResponse.json();
-        throw new Error(errorData.error || "Failed to get upload URL");
-      }
-      
-      const { uploadUrl, key } = await presignResponse.json();
-      setUploadProgress(30);
-      
-      const uploadResponse = await fetch(uploadUrl, {
-        method: "PUT",
-        body: uploadFile,
-        headers: { "Content-Type": uploadFile.type },
-      });
-      
-      if (!uploadResponse.ok) {
-        throw new Error(`Failed to upload to S3: ${uploadResponse.status}`);
-      }
-      
-      setUploadProgress(70);
-      
-      const createResponse = await fetch("/api/reference-bank", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: uploadName,
-          description: uploadDescription,
-          tags: uploadTags.split(",").map((t) => t.trim()).filter(Boolean),
-          fileType: uploadFile.type.startsWith("video/") ? "video" : "image",
-          mimeType: uploadFile.type,
-          fileSize: uploadFile.size,
-          awsS3Key: key,
-          folderId: uploadFolderId,
-        }),
-      });
-      
-      if (!createResponse.ok) {
-        const errorData = await createResponse.json();
-        throw new Error(errorData.error || "Failed to create record");
-      }
-      
-      setUploadProgress(100);
-      setShowUploadModal(false);
-      setUploadFile(null);
-      setUploadPreview(null);
-      setUploadName("");
-      setUploadDescription("");
-      setUploadTags("");
-      setUploadFolderId(null);
-      fetchData();
-    } catch (error) {
-      console.error("Upload error:", error);
-      alert(`Failed to upload file: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-    }
-  };
-
-  // Delete item
-  const handleDelete = async (item: ReferenceItem) => {
-    try {
-      const response = await fetch(`/api/reference-bank/${item.id}`, { method: "DELETE" });
-      if (response.ok) {
-        setReferenceItems((prev) => prev.filter((i) => i.id !== item.id));
-        setShowDeleteModal(false);
-        setDeletingItem(null);
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Delete error:", error);
-      alert("Failed to delete item.");
-    }
-  };
-
-  // Update item
-  const handleUpdate = async () => {
-    if (!editingItem) return;
-    try {
-      const response = await fetch(`/api/reference-bank/${editingItem.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: uploadName,
-          description: uploadDescription,
-          tags: uploadTags.split(",").map((t) => t.trim()).filter(Boolean),
-        }),
-      });
-      
-      if (response.ok) {
-        const updatedItem = await response.json();
-        setReferenceItems((prev) => prev.map((i) => (i.id === editingItem.id ? updatedItem : i)));
-        setShowEditModal(false);
-        setEditingItem(null);
-      }
-    } catch (error) {
-      console.error("Update error:", error);
-      alert("Failed to update item.");
-    }
-  };
-
-  // Toggle favorite
-  const handleToggleFavorite = async (item: ReferenceItem) => {
-    try {
-      const response = await fetch(`/api/reference-bank/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isFavorite: !item.isFavorite }),
-      });
-      
-      if (response.ok) {
-        const updatedItem = await response.json();
-        setReferenceItems((prev) => prev.map((i) => (i.id === item.id ? updatedItem : i)));
-        setStats((prev) => ({
-          ...prev,
-          favorites: item.isFavorite ? prev.favorites - 1 : prev.favorites + 1,
-        }));
-      }
-    } catch (error) {
-      console.error("Toggle favorite error:", error);
-    }
-  };
-
-  // Download file
-  const handleDownload = async (item: ReferenceItem) => {
-    try {
-      const fileName = `${item.name}.${item.mimeType.split("/")[1]}`;
-      const proxyUrl = `/api/reference-bank/download?url=${encodeURIComponent(item.awsS3Url)}&fileName=${encodeURIComponent(fileName)}`;
-      const response = await fetch(proxyUrl);
-      if (!response.ok) throw new Error("Download failed");
-      const blob = await response.blob();
-      saveAs(blob, fileName);
-    } catch (error) {
-      console.error("Download error:", error);
-      // Fallback to opening in new tab
-      window.open(item.awsS3Url, "_blank");
-    }
-  };
-
-  // Copy URL to clipboard
-  const handleCopyUrl = (url: string) => {
-    navigator.clipboard.writeText(url);
-  };
-
-  // Move items to folder
-  const handleMoveItems = async (targetFolderId: string | null) => {
-    try {
-      const response = await fetch("/api/reference-bank/bulk-move", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemIds: movingItems, folderId: targetFolderId }),
-      });
-      
-      if (response.ok) {
-        setShowMoveModal(false);
-        setMovingItems([]);
-        setSelectedItems(new Set());
-        fetchData();
-      }
-    } catch (error) {
-      console.error("Move error:", error);
-      alert("Failed to move items.");
-    }
-  };
-
-  // Create folder
-  const handleCreateFolder = async () => {
-    try {
-      const response = await fetch("/api/reference-bank/folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: folderName, description: folderDescription, color: folderColor }),
-      });
-      
-      if (response.ok) {
-        const newFolder = await response.json();
-        setFolders((prev) => [...prev, newFolder]);
-        setShowFolderModal(false);
-        setFolderName("");
-        setFolderDescription("");
-        setFolderColor("#8B5CF6");
-        setEditingFolder(null);
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || "Failed to create folder");
-      }
-    } catch (error) {
-      console.error("Create folder error:", error);
-      alert("Failed to create folder.");
-    }
-  };
-
-  // Update folder
-  const handleUpdateFolder = async () => {
-    if (!editingFolder) return;
-    try {
-      const response = await fetch(`/api/reference-bank/folders/${editingFolder.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: folderName, description: folderDescription, color: folderColor }),
-      });
-      
-      if (response.ok) {
-        const updatedFolder = await response.json();
-        setFolders((prev) => prev.map((f) => (f.id === editingFolder.id ? updatedFolder : f)));
-        setShowFolderModal(false);
-        setFolderName("");
-        setFolderDescription("");
-        setFolderColor("#8B5CF6");
-        setEditingFolder(null);
-      }
-    } catch (error) {
-      console.error("Update folder error:", error);
-      alert("Failed to update folder.");
-    }
-  };
-
-  // Delete folder
-  const handleDeleteFolder = async (folder: ReferenceFolder) => {
-    const confirmed = window.confirm(`Are you sure you want to delete "${folder.name}"? Items in this folder will be moved to unfiled.`);
-    if (confirmed) {
-      try {
-        const response = await fetch(`/api/reference-bank/folders/${folder.id}`, { method: "DELETE" });
-        if (response.ok) {
-          setFolders((prev) => prev.filter((f) => f.id !== folder.id));
-          if (selectedFolderId === folder.id) setSelectedFolderId(null);
-          fetchData();
-        }
-      } catch (error) {
-        console.error("Delete folder error:", error);
-        alert("Failed to delete folder.");
-      }
-    }
-  };
-
-  // Toggle item selection
-  const toggleSelection = (id: string) => {
-    setSelectedItems((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) newSet.delete(id);
-      else newSet.add(id);
-      return newSet;
-    });
-  };
-
-  // Select all
-  const toggleSelectAll = () => {
-    if (selectedItems.size === sortedItems.length) setSelectedItems(new Set());
-    else setSelectedItems(new Set(sortedItems.map((i) => i.id)));
-  };
-
-  // Delete selected
-  const deleteSelected = async () => {
-    if (selectedItems.size === 0) return;
-    const confirmed = window.confirm(`Are you sure you want to delete ${selectedItems.size} items?`);
-    if (confirmed) {
-      try {
-        await Promise.all(Array.from(selectedItems).map((id) => fetch(`/api/reference-bank/${id}`, { method: "DELETE" })));
-        setReferenceItems((prev) => prev.filter((i) => !selectedItems.has(i.id)));
-        setSelectedItems(new Set());
-        fetchData();
-      } catch (error) {
-        console.error("Bulk delete error:", error);
-        alert("Failed to delete some items.");
-      }
-    }
-  };
-
-  // Download selected (batch download as zip)
-  const [isDownloading, setIsDownloading] = useState(false);
-  
-  const downloadSelected = async () => {
-    if (selectedItems.size === 0) return;
-    setIsDownloading(true);
-    
-    const itemsToDownload = sortedItems.filter((item) => selectedItems.has(item.id));
-    const zip = new JSZip();
-    
-    try {
-      // Download files and add to zip
-      for (const item of itemsToDownload) {
-        try {
-          const fileName = `${item.name}.${item.mimeType.split("/")[1]}`;
-          const proxyUrl = `/api/reference-bank/download?url=${encodeURIComponent(item.awsS3Url)}&fileName=${encodeURIComponent(fileName)}`;
-          const response = await fetch(proxyUrl);
-          if (response.ok) {
-            const blob = await response.blob();
-            zip.file(fileName, blob);
-          }
-        } catch (error) {
-          console.error(`Failed to add ${item.name} to zip:`, error);
-        }
-      }
-      
-      // Generate and download zip
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      const timestamp = new Date().toISOString().slice(0, 10);
-      saveAs(zipBlob, `reference-bank-${timestamp}.zip`);
-    } catch (error) {
-      console.error("Batch download error:", error);
-      alert("Failed to create zip file.");
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  if (!mounted) {
-    return (
-      <div className="h-[calc(100vh-120px)] sm:h-[calc(100vh-120px)] flex items-center justify-center bg-gray-950 rounded-xl border border-gray-800">
-        <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <style jsx global>{`
-        .reference-scroll::-webkit-scrollbar { width: 8px; }
-        .reference-scroll::-webkit-scrollbar-track { background: transparent; }
-        .reference-scroll::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
-        .reference-scroll::-webkit-scrollbar-thumb:hover { background: #4B5563; }
-      `}</style>
-
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden" onClick={() => setSidebarOpen(false)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-        </div>
-      )}
-
-      <div className="h-[calc(100vh-120px)] sm:h-[calc(100vh-120px)] flex bg-gray-950 rounded-xl border border-gray-800 overflow-hidden relative">
-        {/* Sidebar */}
-        <div className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 fixed lg:relative z-50 lg:z-auto w-72 lg:w-64 h-full bg-gray-900 border-r border-gray-800 flex flex-col rounded-l-xl overflow-hidden transition-transform duration-300 ease-in-out`}>
-          <div className="p-4 border-b border-gray-800">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center">
-                  <Library className="w-5 h-5 text-white" />
-                </div>
-                <span className="font-semibold text-white">Reference Bank</span>
-              </div>
-              <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-gray-800 rounded-lg transition-colors">
-                <PanelLeftClose className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="p-4 border-b border-gray-800">
-            <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Statistics</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">Total Items</span>
-                <span className="text-white font-medium">{stats.total}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400 flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Images</span>
-                <span className="text-white font-medium">{stats.images}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400 flex items-center gap-1"><VideoIcon className="w-3 h-3" /> Videos</span>
-                <span className="text-white font-medium">{stats.videos}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400 flex items-center gap-1"><Heart className="w-3 h-3" /> Favorites</span>
-                <span className="text-white font-medium">{stats.favorites}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <div className="p-4 flex-1 overflow-y-auto reference-scroll">
-            <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Browse</h3>
-            <div className="space-y-1">
-              <button
-                onClick={() => { setSelectedFolderId(null); setShowFavoritesOnly(false); }}
-                className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${!selectedFolderId && !showFavoritesOnly ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`}
-              >
-                <Library className="w-4 h-4" />All Files
-              </button>
-              <button
-                onClick={() => { setSelectedFolderId(null); setShowFavoritesOnly(true); }}
-                className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${showFavoritesOnly ? "bg-pink-600/20 text-pink-300" : "text-gray-400 hover:bg-gray-800"}`}
-              >
-                <Heart className="w-4 h-4" />Favorites
-                {stats.favorites > 0 && <span className="ml-auto text-xs bg-pink-500/20 text-pink-400 px-1.5 py-0.5 rounded">{stats.favorites}</span>}
-              </button>
-              <button
-                onClick={() => { setSelectedFolderId("root"); setShowFavoritesOnly(false); }}
-                className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${selectedFolderId === "root" ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`}
-              >
-                <FolderOpen className="w-4 h-4" />Unfiled
-                {stats.unfiled > 0 && <span className="ml-auto text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">{stats.unfiled}</span>}
-              </button>
-            </div>
-
-            {/* Folders */}
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider">Folders</h3>
-                <button onClick={() => { setEditingFolder(null); setFolderName(""); setFolderDescription(""); setFolderColor("#8B5CF6"); setShowFolderModal(true); }} className="p-1 hover:bg-gray-800 rounded transition-colors" title="Create folder">
-                  <FolderPlus className="w-4 h-4 text-gray-400" />
-                </button>
-              </div>
-              <div className="space-y-1">
-                {folders.map((folder) => (
-                  <div key={folder.id} className={`group flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors cursor-pointer ${selectedFolderId === folder.id ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`} onClick={() => { setSelectedFolderId(folder.id); setShowFavoritesOnly(false); }}>
-                    <Folder className="w-4 h-4" style={{ color: folder.color }} />
-                    <span className="flex-1 truncate">{folder.name}</span>
-                    {folder._count && folder._count.items > 0 && <span className="text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">{folder._count.items}</span>}
-                    <div className="hidden group-hover:flex items-center gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); setEditingFolder(folder); setFolderName(folder.name); setFolderDescription(folder.description || ""); setFolderColor(folder.color); setShowFolderModal(true); }} className="p-1 hover:bg-gray-700 rounded transition-colors"><Edit2 className="w-3 h-3" /></button>
-                      <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder); }} className="p-1 hover:bg-red-900/30 rounded transition-colors"><Trash2 className="w-3 h-3 text-red-400" /></button>
-                    </div>
-                  </div>
-                ))}
-                {folders.length === 0 && <p className="text-xs text-gray-500 px-3 py-2">No folders yet. Create one to organize your files.</p>}
-              </div>
-            </div>
-
-            {/* Quick Filters */}
-            <div className="mt-6">
-              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">File Type</h3>
-              <div className="space-y-1">
-                <button onClick={() => setFilterType("all")} className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors ${filterType === "all" ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`}>All Files</button>
-                <button onClick={() => setFilterType("image")} className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${filterType === "image" ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`}><ImageIcon className="w-4 h-4" />Images Only</button>
-                <button onClick={() => setFilterType("video")} className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${filterType === "video" ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`}><VideoIcon className="w-4 h-4" />Videos Only</button>
-              </div>
-            </div>
-
-            {/* Sort */}
-            <div className="mt-6">
-              <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Sort By</h3>
-              <div className="space-y-1">
-                <button onClick={() => setSortBy("recent")} className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${sortBy === "recent" ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`}><Clock className="w-4 h-4" />Most Recent</button>
-                <button onClick={() => setSortBy("name")} className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${sortBy === "name" ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`}><span className="w-4 h-4 flex items-center justify-center text-xs">A-Z</span>Name</button>
-                <button onClick={() => setSortBy("usage")} className={`w-full px-3 py-2 text-left text-sm rounded-lg transition-colors flex items-center gap-2 ${sortBy === "usage" ? "bg-violet-600/20 text-violet-300" : "text-gray-400 hover:bg-gray-800"}`}><BarChart3 className="w-4 h-4" />Most Used</button>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 border-t border-gray-800 bg-gray-800/30">
-            <div className="flex items-start gap-2 text-xs text-gray-400">
-              <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <p>Store reference images and videos here to quickly reuse them in SeeDream, Kling, and other generation tools.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden w-full relative">
-          <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-3 sm:py-4">
-            <div className="flex items-center gap-3 lg:hidden mb-3">
-              <button onClick={() => setSidebarOpen(true)} className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
-                <Menu className="w-5 h-5 text-gray-300" />
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input type="text" placeholder="Search references..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition-colors" />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex items-center bg-gray-800 rounded-lg p-1">
-                  <button onClick={() => setViewMode("grid")} className={`p-2 rounded-md transition-colors ${viewMode === "grid" ? "bg-gray-700 text-violet-400" : "text-gray-500 hover:text-gray-300"}`}><Grid3X3 className="w-4 h-4" /></button>
-                  <button onClick={() => setViewMode("list")} className={`p-2 rounded-md transition-colors ${viewMode === "list" ? "bg-gray-700 text-violet-400" : "text-gray-500 hover:text-gray-300"}`}><List className="w-4 h-4" /></button>
-                </div>
-
-                <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
-                <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition-all shadow-lg bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white shadow-violet-900/30">
-                  <Upload className="w-4 h-4" /><span className="hidden sm:inline">Upload</span>
-                </button>
-                <button onClick={openGoogleDriveModal} className="flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition-all shadow-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white shadow-blue-900/30">
-                  <HardDrive className="w-4 h-4" /><span className="hidden sm:inline">Google Drive</span>
-                </button>
-              </div>
-            </div>
-
-            {selectedItems.size > 0 && (
-              <div className="flex items-center gap-3 mt-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700">
-                <span className="text-sm text-gray-300">{selectedItems.size} selected</span>
-                <button onClick={toggleSelectAll} className="text-sm text-violet-400 hover:text-violet-300">{selectedItems.size === sortedItems.length ? "Deselect All" : "Select All"}</button>
-                <div className="flex-1" />
-                <button onClick={downloadSelected} disabled={isDownloading} className="flex items-center gap-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-gray-300 rounded-lg text-sm transition-colors">{isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}{isDownloading ? "Creating ZIP..." : "Download ZIP"}</button>
-                <button onClick={() => { setMovingItems(Array.from(selectedItems)); setShowMoveModal(true); }} className="flex items-center gap-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition-colors"><Move className="w-4 h-4" />Move</button>
-                <button onClick={deleteSelected} className="flex items-center gap-1 px-3 py-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded-lg text-sm transition-colors"><Trash2 className="w-4 h-4" />Delete</button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 reference-scroll">
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-violet-500" /></div>
-            ) : sortedItems.length === 0 ? (
-              <div className={`flex flex-col items-center justify-center h-full text-center px-4 border-2 border-dashed border-gray-700 rounded-2xl transition-colors ${isDragging ? "border-violet-500 bg-violet-500/10" : ""}`} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={handleDrop}>
-                <div className="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center mb-4">{showFavoritesOnly ? <Heart className="w-8 h-8 text-gray-600" /> : <Upload className="w-8 h-8 text-gray-600" />}</div>
-                <h3 className="text-lg font-medium text-white mb-1">{searchQuery ? "No matches found" : showFavoritesOnly ? "No favorites yet" : selectedFolderId ? "This folder is empty" : "No references yet"}</h3>
-                <p className="text-sm text-gray-500 mb-4">{searchQuery ? "Try a different search term" : showFavoritesOnly ? "Mark items as favorites to see them here" : "Upload images or videos to use as references in your generations"}</p>
-                {!searchQuery && !showFavoritesOnly && <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white font-medium rounded-lg transition-colors"><Upload className="w-4 h-4" />Upload Reference</button>}
-              </div>
-            ) : (
-              <div className={viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4" : "space-y-2"} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={handleDrop}>
-                {sortedItems.map((item) => (
-                  <ReferenceItemCard key={item.id} item={item} viewMode={viewMode} isSelected={selectedItems.has(item.id)} onSelect={() => toggleSelection(item.id)} onDelete={() => { setDeletingItem(item); setShowDeleteModal(true); }} onEdit={() => { setEditingItem(item); setUploadName(item.name); setUploadDescription(item.description || ""); setUploadTags(item.tags.join(", ")); setShowEditModal(true); }} onCopyUrl={() => handleCopyUrl(item.awsS3Url)} onDownload={() => handleDownload(item)} onToggleFavorite={() => handleToggleFavorite(item)} onMove={() => { setMovingItems([item.id]); setShowMoveModal(true); }} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Upload Modal */}
-      {mounted && showUploadModal && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div className="p-6 border-b border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl"><Upload className="w-5 h-5 text-white" /></div>
-                <div><h3 className="text-lg font-semibold text-white">Add Reference</h3><p className="text-sm text-gray-400">Upload a new reference file</p></div>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              {uploadPreview && <div className="relative aspect-video bg-gray-800 rounded-xl overflow-hidden">{uploadFile?.type.startsWith("video/") ? <video src={uploadPreview} className="w-full h-full object-contain" controls /> : <img src={uploadPreview} alt="Preview" className="w-full h-full object-contain" />}</div>}
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Folder</label><select value={uploadFolderId || ""} onChange={(e) => setUploadFolderId(e.target.value || null)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"><option value="">No folder (unfiled)</option>{folders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Name</label><input type="text" value={uploadName} onChange={(e) => setUploadName(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent" placeholder="Reference name" /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Description (optional)</label><textarea value={uploadDescription} onChange={(e) => setUploadDescription(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" rows={2} placeholder="Add a description..." /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Tags (optional)</label><input type="text" value={uploadTags} onChange={(e) => setUploadTags(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent" placeholder="portrait, outdoor, etc. (comma-separated)" /></div>
-              {isUploading && <div className="space-y-2"><div className="flex items-center justify-between text-sm"><span className="text-gray-400">Uploading...</span><span className="text-violet-400">{uploadProgress}%</span></div><div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-300" style={{ width: `${uploadProgress}%` }} /></div></div>}
-            </div>
-            <div className="p-6 border-t border-gray-700 flex gap-3">
-              <button onClick={() => { setShowUploadModal(false); setUploadFile(null); setUploadPreview(null); setUploadName(""); setUploadDescription(""); setUploadTags(""); setUploadFolderId(null); }} disabled={isUploading} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50">Cancel</button>
-              <button onClick={handleUpload} disabled={!uploadFile || !uploadName || isUploading} className="flex-1 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">{isUploading ? "Uploading..." : "Upload"}</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Edit Modal */}
-      {mounted && showEditModal && editingItem && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl">
-            <div className="p-6 border-b border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl"><Edit2 className="w-5 h-5 text-white" /></div>
-                <div><h3 className="text-lg font-semibold text-white">Edit Reference</h3><p className="text-sm text-gray-400">Update reference details</p></div>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="relative aspect-video bg-gray-800 rounded-xl overflow-hidden">{editingItem.fileType === "video" ? <video src={editingItem.awsS3Url} className="w-full h-full object-contain" controls /> : <img src={editingItem.awsS3Url} alt={editingItem.name} className="w-full h-full object-contain" />}</div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Name</label><input type="text" value={uploadName} onChange={(e) => setUploadName(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent" placeholder="Reference name" /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Description</label><textarea value={uploadDescription} onChange={(e) => setUploadDescription(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" rows={2} placeholder="Add a description..." /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Tags</label><input type="text" value={uploadTags} onChange={(e) => setUploadTags(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent" placeholder="portrait, outdoor, etc. (comma-separated)" /></div>
-            </div>
-            <div className="p-6 border-t border-gray-700 flex gap-3">
-              <button onClick={() => { setShowEditModal(false); setEditingItem(null); }} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors">Cancel</button>
-              <button onClick={handleUpdate} disabled={!uploadName} className="flex-1 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">Save Changes</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Delete Modal */}
-      {mounted && showDeleteModal && deletingItem && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-6 border-b border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-500/20 rounded-xl"><Trash2 className="w-5 h-5 text-red-400" /></div>
-                <div><h3 className="text-lg font-semibold text-white">Delete Reference</h3><p className="text-sm text-gray-400">This action cannot be undone</p></div>
-              </div>
-            </div>
-            <div className="p-6"><p className="text-gray-300">Are you sure you want to delete &quot;{deletingItem.name}&quot;?</p></div>
-            <div className="p-6 border-t border-gray-700 flex gap-3">
-              <button onClick={() => { setShowDeleteModal(false); setDeletingItem(null); }} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors">Cancel</button>
-              <button onClick={() => handleDelete(deletingItem)} className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors">Delete</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Folder Modal */}
-      {mounted && showFolderModal && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-6 border-b border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl">{editingFolder ? <Edit2 className="w-5 h-5 text-white" /> : <FolderPlus className="w-5 h-5 text-white" />}</div>
-                <div><h3 className="text-lg font-semibold text-white">{editingFolder ? "Edit Folder" : "Create Folder"}</h3><p className="text-sm text-gray-400">{editingFolder ? "Update folder details" : "Create a new folder to organize your references"}</p></div>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Folder Name</label><input type="text" value={folderName} onChange={(e) => setFolderName(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent" placeholder="My Folder" /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1">Description (optional)</label><textarea value={folderDescription} onChange={(e) => setFolderDescription(e.target.value)} className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" rows={2} placeholder="Add a description..." /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-2">Color</label><div className="flex flex-wrap gap-2">{FOLDER_COLORS.map((color) => <button key={color} onClick={() => setFolderColor(color)} className={`w-8 h-8 rounded-lg transition-all ${folderColor === color ? "ring-2 ring-white ring-offset-2 ring-offset-gray-900" : "hover:scale-110"}`} style={{ backgroundColor: color }} />)}</div></div>
-            </div>
-            <div className="p-6 border-t border-gray-700 flex gap-3">
-              <button onClick={() => { setShowFolderModal(false); setFolderName(""); setFolderDescription(""); setFolderColor("#8B5CF6"); setEditingFolder(null); }} className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors">Cancel</button>
-              <button onClick={editingFolder ? handleUpdateFolder : handleCreateFolder} disabled={!folderName.trim()} className="flex-1 px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">{editingFolder ? "Save Changes" : "Create Folder"}</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Move Modal */}
-      {mounted && showMoveModal && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="p-6 border-b border-gray-700">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl"><Move className="w-5 h-5 text-white" /></div>
-                <div><h3 className="text-lg font-semibold text-white">Move {movingItems.length} Item{movingItems.length > 1 ? "s" : ""}</h3><p className="text-sm text-gray-400">Select a destination folder</p></div>
-              </div>
-            </div>
-            <div className="p-6 space-y-2 max-h-64 overflow-y-auto">
-              <button onClick={() => handleMoveItems(null)} className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"><FolderOpen className="w-5 h-5 text-gray-400" /><span className="text-white">Unfiled (No folder)</span></button>
-              {folders.map((folder) => <button key={folder.id} onClick={() => handleMoveItems(folder.id)} className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"><Folder className="w-5 h-5" style={{ color: folder.color }} /><span className="text-white">{folder.name}</span>{folder._count && folder._count.items > 0 && <span className="ml-auto text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded">{folder._count.items}</span>}</button>)}
-            </div>
-            <div className="p-6 border-t border-gray-700">
-              <button onClick={() => { setShowMoveModal(false); setMovingItems([]); }} className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors">Cancel</button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Google Drive Import Modal */}
-      {mounted && showGoogleDriveModal && createPortal(
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => {
-            if (!importingFromGoogleDrive) {
-              setShowGoogleDriveModal(false);
-              setSelectedGoogleDriveFiles(new Set());
-              setGoogleDriveFiles([]);
-              setGoogleDriveImportSuccess(null);
-              setGoogleDriveError(null);
-            }
-          }}
-        >
-          <div
-            className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl w-full max-w-6xl max-h-[90vh] shadow-2xl flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="p-6 border-b border-gray-700 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl">
-                  <HardDrive className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white">
-                    Import from Google Drive
-                  </h3>
-                  <p className="text-sm text-gray-400">
-                    Add files to your reference bank
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 flex-1 overflow-y-auto">
-              {googleDriveImportSuccess ? (
-                <div className="text-center py-6">
-                  <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle2 className="w-8 h-8 text-green-400" />
-                  </div>
-                  <h4 className="text-xl font-semibold text-white mb-2">
-                    Import Successful!
-                  </h4>
-                  <p className="text-gray-400">
-                    {googleDriveImportSuccess.itemCount} file
-                    {googleDriveImportSuccess.itemCount !== 1 ? "s" : ""} imported to your reference bank
-                  </p>
-                </div>
-              ) : !googleDriveAccessToken ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 bg-violet-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <HardDrive className="w-10 h-10 text-violet-400" />
-                  </div>
-                  <h4 className="text-xl font-semibold text-white mb-2">
-                    Connect to Google Drive
-                  </h4>
-                  <p className="text-gray-400 mb-6 max-w-md mx-auto">
-                    To import files from Google Drive, you need to connect your account first.
-                  </p>
-                  <button
-                    onClick={connectToGoogleDrive}
-                    className="px-6 py-3 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white rounded-xl font-medium shadow-lg shadow-violet-500/25 transition-all duration-200 flex items-center gap-2 mx-auto"
-                  >
-                    <HardDrive className="w-5 h-5" />
-                    Connect Google Drive
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-5">
-                  {/* Link Input Section */}
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2 text-gray-300">
-                      <Link className="w-5 h-5 text-violet-400" />
-                      <span className="font-medium">Paste a Google Drive folder link to browse</span>
-                    </div>
-                    <div className="flex gap-2 p-4 bg-gray-800/30 rounded-xl border border-gray-700/50">
-                      <div className="flex-1 relative">
-                        <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                        <input
-                          type="text"
-                          placeholder="Paste Google Drive folder link here..."
-                          value={googleDriveLinkInput}
-                          onChange={(e) => setGoogleDriveLinkInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && googleDriveLinkInput.trim()) {
-                              browseGoogleDriveLink();
-                            }
-                          }}
-                          className="w-full pl-10 pr-4 py-2.5 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 transition-all text-sm"
-                        />
-                      </div>
-                      <button
-                        onClick={browseGoogleDriveLink}
-                        disabled={loadingGoogleDriveFiles || !googleDriveLinkInput.trim()}
-                        className="px-5 py-2.5 bg-violet-500 hover:bg-violet-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Browse
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Breadcrumb Navigation */}
-                  <div className="flex items-center gap-1 text-sm bg-gray-800/30 rounded-xl px-4 py-2.5 overflow-x-auto">
-                    {googleDriveBreadcrumbs.map((crumb, index) => (
-                      <div key={index} className="flex items-center">
-                        {index > 0 && <ChevronRight className="w-4 h-4 text-gray-500 mx-1" />}
-                        <button
-                          onClick={() => navigateToBreadcrumb(index)}
-                          className={`px-2 py-1 rounded-lg hover:bg-gray-700/50 transition-colors truncate max-w-[180px] ${
-                            index === googleDriveBreadcrumbs.length - 1
-                              ? "text-violet-400 font-medium bg-violet-500/10"
-                              : "text-gray-400 hover:text-gray-300"
-                          }`}
-                        >
-                          {crumb.name}
-                        </button>
-                      </div>
-                    ))}
-                    <div className="ml-auto flex items-center gap-2">
-                      <button
-                        onClick={() => fetchGoogleDriveContents(currentGoogleDriveFolderId)}
-                        disabled={loadingGoogleDriveFiles}
-                        className="p-2 bg-gray-700/50 hover:bg-gray-600/50 text-gray-400 hover:text-gray-300 rounded-lg transition-all"
-                        title="Refresh"
-                      >
-                        <RefreshCw className={`w-4 h-4 ${loadingGoogleDriveFiles ? 'animate-spin' : ''}`} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setGoogleDriveAccessToken(null);
-                          localStorage.removeItem('googleDriveAccessToken');
-                          setGoogleDriveFiles([]);
-                          setGoogleDriveFolders([]);
-                          setGoogleDriveBreadcrumbs([{ id: null, name: 'My Drive' }]);
-                          setGoogleDriveLinkInput('');
-                          setGoogleDriveError(null);
-                        }}
-                        className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all"
-                        title="Sign out of Google Drive"
-                      >
-                        <LogOut className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {googleDriveError && (
-                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium">{googleDriveError.includes("permission") || googleDriveError.includes("access") ? "Access Denied" : "Error"}</p>
-                        <p className="text-red-400/80 mt-1">{googleDriveError}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Content Area */}
-                  {loadingGoogleDriveFiles ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                    </div>
-                  ) : googleDriveFolders.length === 0 && googleDriveFiles.length === 0 && !googleDriveError ? (
-                    <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl border border-gray-700/30">
-                      <Folder className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p className="text-base font-medium">This folder is empty</p>
-                      <p className="text-sm mt-1 text-gray-600">
-                        {googleDriveBreadcrumbs.length > 1 
-                          ? "Go back or paste a different folder link"
-                          : "Paste a folder link above to browse its contents"}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-5">
-                      {/* Folders */}
-                      {googleDriveFolders.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-3">
-                            📁 Folders ({googleDriveFolders.length})
-                          </label>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[200px] overflow-y-auto pr-2">
-                            {googleDriveFolders.map((folder) => (
-                              <button
-                                key={folder.id}
-                                onClick={() => navigateToGoogleDriveFolder(folder)}
-                                className="flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-700/50 rounded-xl text-left transition-all border border-gray-700/50 hover:border-violet-500/30 group"
-                              >
-                                <div className="p-2 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20 transition-colors">
-                                  <Folder className="w-5 h-5 text-yellow-400" />
-                                </div>
-                                <span className="text-sm text-gray-300 truncate flex-1">{folder.name}</span>
-                                {folder.shared && (
-                                  <Users className="w-4 h-4 text-gray-500 shrink-0" />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Files */}
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          <label className="text-sm font-medium text-gray-300">
-                            🖼️ Media Files ({googleDriveFiles.length})
-                            {selectedGoogleDriveFiles.size > 0 && (
-                              <span className="ml-2 px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded-full text-xs">
-                                {selectedGoogleDriveFiles.size} selected
-                              </span>
-                            )}
-                          </label>
-                          {googleDriveFiles.length > 0 && (
-                            <button
-                              onClick={selectAllGoogleDriveFiles}
-                              className="text-sm text-violet-400 hover:text-violet-300 px-3 py-1 rounded-lg hover:bg-violet-500/10 transition-colors"
-                            >
-                              {selectedGoogleDriveFiles.size === googleDriveFiles.length
-                                ? "Deselect All"
-                                : "Select All"}
-                            </button>
-                          )}
-                        </div>
-
-                        {googleDriveFiles.length === 0 ? (
-                          <div className="text-center py-12 text-gray-500 bg-gray-800/30 rounded-xl">
-                            <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                            <p className="text-base">No media files found</p>
-                            <p className="text-sm mt-1 text-gray-600">
-                              Browse into folders to find images, videos, and audio files
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 max-h-[320px] overflow-y-auto pr-2">
-                            {googleDriveFiles.map((file) => (
-                              <div
-                                key={file.id}
-                                onClick={() => toggleGoogleDriveFileSelection(file.id)}
-                                className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border-2 transition-all ${
-                                  selectedGoogleDriveFiles.has(file.id)
-                                    ? "border-violet-500 ring-2 ring-violet-500/30"
-                                    : "border-transparent hover:border-gray-600"
-                                }`}
-                              >
-                                {file.mimeType?.startsWith("video/") ? (
-                                  file.thumbnailLink ? (
-                                    <img
-                                      src={file.thumbnailLink}
-                                      alt={file.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex flex-col items-center justify-center p-2">
-                                      <VideoIcon className="w-8 h-8 text-gray-400 mb-1" />
-                                      <p className="text-xs text-gray-400 text-center truncate w-full px-1">
-                                        {file.name}
-                                      </p>
-                                    </div>
-                                  )
-                                ) : file.mimeType?.startsWith("audio/") ? (
-                                  <div className="w-full h-full bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex flex-col items-center justify-center p-2">
-                                    <Music4 className="w-8 h-8 text-violet-400 mb-1" />
-                                    <p className="text-xs text-gray-400 text-center truncate w-full px-1">
-                                      {file.name}
-                                    </p>
-                                  </div>
-                                ) : file.thumbnailLink ? (
-                                  <img
-                                    src={file.thumbnailLink}
-                                    alt={file.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-gray-700 to-gray-800 flex flex-col items-center justify-center p-2">
-                                    <ImageIcon className="w-8 h-8 text-gray-400 mb-1" />
-                                    <p className="text-xs text-gray-400 text-center truncate w-full px-1">
-                                      {file.name}
-                                    </p>
-                                  </div>
-                                )}
-                                {selectedGoogleDriveFiles.has(file.id) && (
-                                  <div className="absolute inset-0 bg-violet-500/20 flex items-center justify-center">
-                                    <CheckCircle2 className="w-6 h-6 text-violet-400" />
-                                  </div>
-                                )}
-                                {file.mimeType?.startsWith("video/") && (
-                                  <div className="absolute bottom-1 right-1 bg-black/70 rounded px-1">
-                                    <VideoIcon className="w-3 h-3 text-white" />
-                                  </div>
-                                )}
-                                {file.mimeType?.startsWith("audio/") && (
-                                  <div className="absolute bottom-1 right-1 bg-black/70 rounded px-1">
-                                    <Music4 className="w-3 h-3 text-white" />
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {!googleDriveImportSuccess && googleDriveAccessToken && (
-              <div className="p-6 border-t border-gray-700 flex gap-3 shrink-0">
-                <button
-                  onClick={() => {
-                    setShowGoogleDriveModal(false);
-                    setSelectedGoogleDriveFiles(new Set());
-                    setGoogleDriveFiles([]);
-                    setGoogleDriveError(null);
-                  }}
-                  disabled={importingFromGoogleDrive}
-                  className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={importFromGoogleDrive}
-                  disabled={importingFromGoogleDrive || selectedGoogleDriveFiles.size === 0}
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white rounded-xl font-medium shadow-lg shadow-violet-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {importingFromGoogleDrive ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <HardDrive className="w-4 h-4" />
-                      Import {selectedGoogleDriveFiles.size} File{selectedGoogleDriveFiles.size !== 1 ? "s" : ""}
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-
-            {!googleDriveAccessToken && (
-              <div className="p-6 border-t border-gray-700 shrink-0">
-                <button
-                  onClick={() => setShowGoogleDriveModal(false)}
-                  className="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-medium transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
-    </>
   );
 }

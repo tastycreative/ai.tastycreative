@@ -62,6 +62,24 @@ interface GenerationJob {
   error?: string;
 }
 
+interface PromptTemplate {
+  id: string;
+  name: string;
+  prompt: string;
+  category: string;
+  resolution?: "2K" | "4K";
+  aspectRatio?: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9";
+}
+
+interface UserPreset {
+  id: string;
+  name: string;
+  resolution: "2K" | "4K";
+  aspectRatio: "1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9";
+  watermark: boolean;
+  folderId?: string;
+}
+
 export default function SeeDreamTextToImage() {
   const apiClient = useApiClient();
   const { user } = useUser();
@@ -73,12 +91,27 @@ export default function SeeDreamTextToImage() {
   const [selectedResolution, setSelectedResolution] = useState<"2K" | "4K">("2K");
   const [selectedRatio, setSelectedRatio] = useState<"1:1" | "3:4" | "4:3" | "16:9" | "9:16" | "2:3" | "3:2" | "21:9">("1:1");
   const [enableWatermark, setEnableWatermark] = useState(false);
-  const [maxImages, setMaxImages] = useState(5);
+  const [maxImages, setMaxImages] = useState(1);
   const [enableBatchGeneration, setEnableBatchGeneration] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   // Folder Selection State
   const [targetFolder, setTargetFolder] = useState<string>("");
+  const [showFolderValidation, setShowFolderValidation] = useState(false);
+
+  // Prompt Templates & Presets
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetName, setPresetName] = useState("");
+
+  // Collapsible Sections for Mobile
+  const [sectionsCollapsed, setSectionsCollapsed] = useState({
+    framing: false,
+    vault: false,
+    batch: false,
+    advanced: true
+  });
 
   // Use global profile from header
   const { profileId: globalProfileId, selectedProfile, isAllProfiles } = useInstagramProfile();
@@ -88,6 +121,55 @@ export default function SeeDreamTextToImage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Load smart defaults from localStorage per profile
+  useEffect(() => {
+    if (!mounted || !globalProfileId) return;
+    
+    const savedSettingsKey = `seedream-settings-${globalProfileId}`;
+    const savedSettings = localStorage.getItem(savedSettingsKey);
+    
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        if (settings.resolution) setSelectedResolution(settings.resolution);
+        if (settings.aspectRatio) setSelectedRatio(settings.aspectRatio);
+        if (settings.watermark !== undefined) setEnableWatermark(settings.watermark);
+        if (settings.folderId) setTargetFolder(settings.folderId);
+      } catch (e) {
+        console.error('Failed to load saved settings:', e);
+      }
+    }
+  }, [mounted, globalProfileId]);
+
+  // Load user presets
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const savedPresets = localStorage.getItem('seedream-presets');
+    if (savedPresets) {
+      try {
+        setUserPresets(JSON.parse(savedPresets));
+      } catch (e) {
+        console.error('Failed to load presets:', e);
+      }
+    }
+  }, [mounted]);
+
+  // Save settings when they change
+  useEffect(() => {
+    if (!mounted || !globalProfileId) return;
+    
+    const settingsToSave = {
+      resolution: selectedResolution,
+      aspectRatio: selectedRatio,
+      watermark: enableWatermark,
+      folderId: targetFolder
+    };
+    
+    const savedSettingsKey = `seedream-settings-${globalProfileId}`;
+    localStorage.setItem(savedSettingsKey, JSON.stringify(settingsToSave));
+  }, [mounted, globalProfileId, selectedResolution, selectedRatio, enableWatermark, targetFolder]);
 
   // Check for reuse data from sessionStorage (from Vault)
   useEffect(() => {
@@ -190,6 +272,58 @@ export default function SeeDreamTextToImage() {
 
   const aspectRatios = ["1:1", "3:4", "4:3", "16:9", "9:16", "2:3", "3:2", "21:9"] as const;
 
+  // Prompt Templates
+  const promptTemplates: PromptTemplate[] = [
+    {
+      id: "editorial-portrait",
+      name: "Editorial Portrait",
+      category: "Photography",
+      prompt: "High-fashion editorial portrait, professional model with striking features, dramatic studio lighting with rim light, shot on medium format camera, shallow depth of field, clean background, Vogue magazine aesthetic, sharp focus on eyes, color graded with rich tones",
+      resolution: "4K",
+      aspectRatio: "3:4"
+    },
+    {
+      id: "product-hero",
+      name: "Product Hero Shot",
+      category: "Commercial",
+      prompt: "Premium product photography, luxury item centered on minimalist pedestal, soft directional lighting with subtle reflections, clean white background, photorealistic detail, commercial quality, studio lighting setup, hyper-detailed textures",
+      resolution: "4K",
+      aspectRatio: "1:1"
+    },
+    {
+      id: "cinematic-landscape",
+      name: "Cinematic Landscape",
+      category: "Scenery",
+      prompt: "Epic cinematic landscape, golden hour lighting, dramatic volumetric clouds, vivid color palette, wide-angle composition, atmospheric perspective, photorealistic detail, nature documentary quality, deep depth of field",
+      resolution: "4K",
+      aspectRatio: "21:9"
+    },
+    {
+      id: "instagram-lifestyle",
+      name: "Instagram Lifestyle",
+      category: "Social Media",
+      prompt: "Bright and airy lifestyle shot, natural window lighting, warm color tones, candid moment, aesthetic composition, Instagram-worthy, soft focus background, relatable and authentic vibe",
+      resolution: "2K",
+      aspectRatio: "4:3"
+    },
+    {
+      id: "tech-visualization",
+      name: "Tech Product Viz",
+      category: "Technology",
+      prompt: "Sleek tech product visualization, modern minimalist design, neon accent lighting, futuristic dark background with subtle grid, floating elements, reflective surfaces, cutting-edge aesthetic, high-tech atmosphere",
+      resolution: "4K",
+      aspectRatio: "16:9"
+    },
+    {
+      id: "food-photography",
+      name: "Food Photography",
+      category: "Culinary",
+      prompt: "Gourmet food photography, artfully plated dish, overhead 45-degree angle, natural soft lighting, rustic wooden table surface, depth of field with blurred background, rich colors, appetizing presentation, magazine quality",
+      resolution: "2K",
+      aspectRatio: "1:1"
+    }
+  ];
+
   // Get current size based on resolution and ratio
   const currentSize = resolutionRatios[selectedResolution][selectedRatio];
 
@@ -251,6 +385,46 @@ export default function SeeDreamTextToImage() {
     setTargetFolder("");
   }, [loadVaultData]);
 
+  // Preset Management
+  const saveAsPreset = () => {
+    if (!presetName.trim()) return;
+    
+    const newPreset: UserPreset = {
+      id: Date.now().toString(),
+      name: presetName.trim(),
+      resolution: selectedResolution,
+      aspectRatio: selectedRatio,
+      watermark: enableWatermark,
+      folderId: targetFolder || undefined
+    };
+    
+    const updatedPresets = [...userPresets, newPreset];
+    setUserPresets(updatedPresets);
+    localStorage.setItem('seedream-presets', JSON.stringify(updatedPresets));
+    setPresetName("");
+    setShowPresetModal(false);
+  };
+
+  const loadPreset = (preset: UserPreset) => {
+    setSelectedResolution(preset.resolution);
+    setSelectedRatio(preset.aspectRatio);
+    setEnableWatermark(preset.watermark);
+    if (preset.folderId) setTargetFolder(preset.folderId);
+  };
+
+  const deletePreset = (presetId: string) => {
+    const updatedPresets = userPresets.filter(p => p.id !== presetId);
+    setUserPresets(updatedPresets);
+    localStorage.setItem('seedream-presets', JSON.stringify(updatedPresets));
+  };
+
+  const applyTemplate = (template: PromptTemplate) => {
+    setPrompt(template.prompt);
+    if (template.resolution) setSelectedResolution(template.resolution);
+    if (template.aspectRatio) setSelectedRatio(template.aspectRatio);
+    setShowTemplates(false);
+  };
+
   // Get display text for the selected folder
   const getSelectedFolderDisplay = (): string => {
     if (!targetFolder) return 'Select a vault folder to save images';
@@ -278,6 +452,9 @@ export default function SeeDreamTextToImage() {
 
     if (!targetFolder) {
       setError("Please select a vault folder to save your images");
+      setShowFolderValidation(true);
+      // Scroll to folder section
+      document.getElementById('folder-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -446,7 +623,7 @@ export default function SeeDreamTextToImage() {
     setSelectedResolution("2K");
     setSelectedRatio("1:1");
     setEnableWatermark(false);
-    setMaxImages(5);
+    setMaxImages(1);
     setEnableBatchGeneration(false);
     setTargetFolder("");
     setError(null);
@@ -580,8 +757,57 @@ export default function SeeDreamTextToImage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-semibold text-white">Prompt</label>
-                  <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplates(!showTemplates)}
+                      className="rounded-full bg-indigo-500/20 hover:bg-indigo-500/30 px-3 py-1 text-[11px] font-semibold text-indigo-100 transition-colors flex items-center gap-1"
+                      disabled={isGenerating}
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Templates
+                    </button>
+                    <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-100">Required</span>
+                  </div>
                 </div>
+                
+                {/* Prompt Templates Dropdown */}
+                {showTemplates && (
+                  <div className="rounded-2xl border border-indigo-400/30 bg-indigo-950/40 backdrop-blur p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-indigo-200">Choose a template</p>
+                      <button
+                        onClick={() => setShowTemplates(false)}
+                        className="text-indigo-300 hover:text-indigo-100 transition"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="grid gap-2 max-h-60 overflow-y-auto">
+                      {promptTemplates.map((template) => (
+                        <button
+                          key={template.id}
+                          onClick={() => applyTemplate(template)}
+                          className="text-left p-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-indigo-300/40 transition-all group"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-white mb-1">{template.name}</p>
+                              <p className="text-xs text-slate-300 line-clamp-2 mb-2">{template.prompt}</p>
+                              <div className="flex items-center gap-2 text-[10px]">
+                                <span className="bg-white/10 rounded px-2 py-0.5 text-slate-300">{template.category}</span>
+                                {template.resolution && <span className="bg-cyan-500/20 rounded px-2 py-0.5 text-cyan-200">{template.resolution}</span>}
+                                {template.aspectRatio && <span className="bg-amber-500/20 rounded px-2 py-0.5 text-amber-200">{template.aspectRatio}</span>}
+                              </div>
+                            </div>
+                            <Check className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition flex-shrink-0" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="relative">
                   <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 to-transparent" />
                   <textarea
@@ -593,15 +819,73 @@ export default function SeeDreamTextToImage() {
                     disabled={isGenerating}
                   />
                 </div>
-                <p className="text-xs text-slate-300">Keep it tight & vivid. Under 600 words works best.</p>
+                
+                {/* Character Counter */}
+                <div className="flex items-center justify-between text-xs">
+                  <p className="text-slate-300">Keep it tight & vivid. Under 600 words works best.</p>
+                  <div className={`font-mono ${
+                    prompt.length === 0 ? 'text-slate-400' :
+                    prompt.length < 400 ? 'text-emerald-400' :
+                    prompt.length < 600 ? 'text-amber-400' :
+                    'text-red-400'
+                  }`}>
+                    {prompt.length}/600
+                    {prompt.length > 500 && prompt.length <= 600 && ' ⚠️'}
+                    {prompt.length > 600 && ' 🚫 Too long!'}
+                  </div>
+                </div>
               </div>
+
+              {/* User Presets */}
+              {userPresets.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Your Presets</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {userPresets.map((preset) => (
+                      <div key={preset.id} className="group relative">
+                        <button
+                          onClick={() => loadPreset(preset)}
+                          className="w-full text-left p-3 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/0 hover:from-white/10 hover:border-indigo-300/40 transition-all"
+                        >
+                          <p className="text-sm font-semibold text-white mb-1">{preset.name}</p>
+                          <div className="flex flex-wrap gap-1 text-[10px]">
+                            <span className="bg-cyan-500/20 text-cyan-200 rounded px-1.5 py-0.5">{preset.resolution}</span>
+                            <span className="bg-amber-500/20 text-amber-200 rounded px-1.5 py-0.5">{preset.aspectRatio}</span>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deletePreset(preset.id);
+                          }}
+                          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500/90 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          title="Delete preset"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Resolution & Aspect Ratio Configuration */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Settings className="w-4 h-4 text-cyan-300" />
-                  <p className="text-sm font-semibold text-white">Framing</p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSectionsCollapsed(prev => ({ ...prev, framing: !prev.framing }))}
+                  className="flex items-center justify-between w-full group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-cyan-300" />
+                    <p className="text-sm font-semibold text-white">Framing</p>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform lg:opacity-0 ${sectionsCollapsed.framing ? '' : 'rotate-180'}`} />
+                </button>
+
+                <div className={`space-y-3 ${sectionsCollapsed.framing ? 'hidden lg:block' : ''}`}>
 
                 <div className="grid grid-cols-2 gap-3">
                   {["2K", "4K"].map((res) => (
@@ -654,29 +938,59 @@ export default function SeeDreamTextToImage() {
                     <p className="text-lg font-semibold text-white">{currentSize.split('x')[1]}</p>
                   </div>
                 </div>
+
+                {/* Save as Preset Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowPresetModal(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-dashed border-indigo-400/40 bg-indigo-500/5 hover:bg-indigo-500/10 text-indigo-200 text-sm font-medium transition-colors"
+                  disabled={isGenerating}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Save Current Settings as Preset
+                </button>
+              </div>
               </div>
 
               {/* Folder Selection */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Archive className="w-4 h-4 text-purple-300" />
-                  <p className="text-sm font-semibold text-white">Save to Vault</p>
-                  {isLoadingVaultData && (
-                    <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
-                  )}
-                </div>
+              <div className="space-y-3" id="folder-section">
+                <button
+                  type="button"
+                  onClick={() => setSectionsCollapsed(prev => ({ ...prev, vault: !prev.vault }))}
+                  className="flex items-center justify-between w-full group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Archive className="w-4 h-4 text-purple-300" />
+                    <p className="text-sm font-semibold text-white">Save to Vault</p>
+                    {!targetFolder && showFolderValidation && (
+                      <span className="text-xs bg-red-500/20 text-red-200 px-2 py-1 rounded-full animate-pulse">⚠️ Required</span>
+                    )}
+                    {isLoadingVaultData && (
+                      <Loader2 className="w-3 h-3 animate-spin text-purple-300" />
+                    )}
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform lg:opacity-0 ${sectionsCollapsed.vault ? '' : 'rotate-180'}`} />
+                </button>
                 
+                <div className={`space-y-3 ${sectionsCollapsed.vault ? 'hidden lg:block' : ''}`}>
                 {/* Modern Custom Dropdown */}
                 <div ref={folderDropdownRef} className="relative">
                   <button
                     type="button"
-                    onClick={() => !(!mounted || isGenerating || isLoadingVaultData || !globalProfileId) && setFolderDropdownOpen(!folderDropdownOpen)}
+                    onClick={() => {
+                      if (!(!mounted || isGenerating || isLoadingVaultData || !globalProfileId)) {
+                        setFolderDropdownOpen(!folderDropdownOpen);
+                        setShowFolderValidation(false);
+                      }
+                    }}
                     disabled={!mounted || isGenerating || isLoadingVaultData || !globalProfileId}
                     className={`
                       w-full flex items-center justify-between gap-3 px-4 py-3.5
                       rounded-2xl border transition-all duration-200
                       ${folderDropdownOpen 
                         ? 'border-purple-400 bg-purple-500/10 ring-2 ring-purple-400/30' 
+                        : !targetFolder && showFolderValidation
+                        ? 'border-red-400 bg-red-500/10 ring-2 ring-red-400/30 animate-pulse'
                         : 'border-white/10 bg-slate-800/80 hover:border-purple-400/50 hover:bg-slate-800'
                       }
                       disabled:opacity-50 disabled:cursor-not-allowed
@@ -842,13 +1156,23 @@ export default function SeeDreamTextToImage() {
                   </div>
                 )}
               </div>
+              </div>
 
               {/* Batch Size */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setSectionsCollapsed(prev => ({ ...prev, batch: !prev.batch }))}
+                  className="flex items-center justify-between w-full group"
+                >
                   <p className="text-sm font-semibold text-white">Batch Size</p>
-                  <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-slate-200">{maxImages} total</span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] text-slate-200">{maxImages} total</span>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform lg:opacity-0 ${sectionsCollapsed.batch ? '' : 'rotate-180'}`} />
+                  </div>
+                </button>
+
+                <div className={`space-y-3 ${sectionsCollapsed.batch ? 'hidden lg:block' : ''}`}>
                 <input
                   type="range"
                   min="1"
@@ -869,12 +1193,45 @@ export default function SeeDreamTextToImage() {
                   <span>4</span>
                   <span>5</span>
                 </div>
-                <p className="text-xs text-slate-300 text-center">
-                  Match batch size to how many images your prompt requests.
-                </p>
+                {/* Dynamic Helper Text */}
+                {maxImages === 1 ? (
+                  <p className="text-xs text-slate-300 text-center">
+                    Perfect for single hero shots or focused compositions.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="rounded-2xl border border-cyan-300/30 bg-cyan-400/10 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-cyan-50">✓ Batch Generation Checklist:</p>
+                      <div className="space-y-1 text-xs text-cyan-50/90">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={prompt.toLowerCase().includes(maxImages.toString()) || prompt.toLowerCase().includes(['two', 'three', 'four', 'five'][maxImages - 2] || '')}
+                            readOnly
+                            className="rounded border-cyan-300/50"
+                          />
+                          <span>Mention {maxImages} images in prompt</span>
+                        </label>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={prompt.toLowerCase().includes('consistent') || prompt.toLowerCase().includes('cohesive') || prompt.toLowerCase().includes('same')}
+                            readOnly
+                            className="rounded border-cyan-300/50"
+                          />
+                          <span>Describe relationship/consistency</span>
+                        </label>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-300 text-center">
+                      Example: "Generate {maxImages} cohesive frames with consistent lighting and palette"
+                    </p>
+                  </div>
+                )}
                 <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 p-3 text-xs text-amber-50">
                   💡 Max 5 images per batch. For more, run multiple batches.
                 </div>
+              </div>
               </div>
 
               {/* Error Display */}
@@ -885,8 +1242,8 @@ export default function SeeDreamTextToImage() {
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-[1.6fr_0.4fr] gap-3">
+              {/* Action Buttons - Sticky on Mobile */}
+              <div className="sticky bottom-4 lg:static grid grid-cols-[1.6fr_0.4fr] gap-3 z-10">
                 <button
                   onClick={handleGenerate}
                   disabled={isGenerating || !prompt.trim()}
@@ -1395,6 +1752,93 @@ export default function SeeDreamTextToImage() {
                   <p>No generation history yet</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Save Preset Modal */}
+      {showPresetModal && typeof window !== 'undefined' && document?.body && createPortal(
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4"
+          onClick={() => setShowPresetModal(false)}
+        >
+          <div 
+            className="relative w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/95 shadow-2xl shadow-indigo-900/40 backdrop-blur p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowPresetModal(false)}
+              className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white transition hover:bg-white/20"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20">
+                  <Sparkles className="w-5 h-5 text-indigo-400" />
+                </div>
+                <h2 className="text-xl font-bold text-white">Save as Preset</h2>
+              </div>
+              <p className="text-sm text-slate-300">
+                Save your current settings for quick access later
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Current Settings Preview */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-2">
+                <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Current Settings</p>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="bg-cyan-500/20 text-cyan-200 rounded-full px-3 py-1">{selectedResolution}</span>
+                  <span className="bg-amber-500/20 text-amber-200 rounded-full px-3 py-1">{selectedRatio}</span>
+                  <span className="bg-purple-500/20 text-purple-200 rounded-full px-3 py-1">
+                    {enableWatermark ? 'Watermark ON' : 'Watermark OFF'}
+                  </span>
+                  {targetFolder && (
+                    <span className="bg-emerald-500/20 text-emerald-200 rounded-full px-3 py-1">
+                      Folder: {vaultFolders.find(f => f.id === targetFolder)?.name}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Preset Name Input */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-white">Preset Name</label>
+                <input
+                  type="text"
+                  value={presetName}
+                  onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="e.g., My Instagram Preset"
+                  className="w-full rounded-xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && presetName.trim()) {
+                      saveAsPreset();
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowPresetModal(false)}
+                  className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveAsPreset}
+                  disabled={!presetName.trim()}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 disabled:from-slate-500 disabled:to-slate-500 disabled:shadow-none"
+                >
+                  Save Preset
+                </button>
+              </div>
             </div>
           </div>
         </div>,

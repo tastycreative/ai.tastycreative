@@ -10,13 +10,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify that the requesting user is an admin (ADMIN or SUPER_ADMIN)
+    // Verify that the requesting user is an admin (OWNER, ADMIN, or MANAGER)
     const requestingUser = await prisma.user.findUnique({
       where: { clerkId: userId },
-      select: { role: true }
+      select: { 
+        id: true,
+        teamMemberships: {
+          select: {
+            role: true
+          }
+        }
+      }
     });
 
-    if (!requestingUser || (requestingUser.role !== 'ADMIN' && requestingUser.role !== 'SUPER_ADMIN')) {
+    if (!requestingUser || requestingUser.teamMemberships.length === 0) {
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
+    }
+
+    // Check if user has OWNER, ADMIN, or MANAGER role in any team
+    const hasAdminRole = requestingUser.teamMemberships.some(
+      membership => membership.role === 'OWNER' || membership.role === 'ADMIN' || membership.role === 'MANAGER'
+    );
+
+    if (!hasAdminRole) {
       return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
