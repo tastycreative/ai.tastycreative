@@ -42,6 +42,13 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --breakpoint-xs: 480px;
+
+  /* Custom Brand Colors */
+  --color-brand-light-pink: #F774B9;
+  --color-brand-dark-pink: #E1518E;
+  --color-brand-mid-pink: #EC67A1;
+  --color-brand-blue: #5DC3F8;
+  --color-brand-off-white: #F8F8F8;
 }
 
 :root {
