@@ -483,16 +483,26 @@ export default function DashboardLayout({
       href: `/${tenant}/settings`,
       icon: Settings,
     },
-    {
-      name: "Billing",
-      href: `/${tenant}/billing`,
-      icon: CreditCard,
-    },
-    {
-      name: "Team",
-      href: `/${tenant}/team`,
-      icon: UserCheck,
-    },
+    // Billing - only show to OWNER and ADMIN
+    ...(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN'
+      ? [
+          {
+            name: "Billing",
+            href: `/${tenant}/billing`,
+            icon: CreditCard,
+          },
+        ]
+      : []),
+    // Team - only show to OWNER, ADMIN, and MANAGER
+    ...(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN' || currentOrganization?.role === 'MANAGER'
+      ? [
+          {
+            name: "Team",
+            href: `/${tenant}/team`,
+            icon: UserCheck,
+          },
+        ]
+      : []),
   ];
 
   // Get user's first name or fallback
@@ -1430,13 +1440,15 @@ export default function DashboardLayout({
                           <Settings className="w-4 h-4" />
                           Settings
                         </Link>
-                        <Link
-                          href={`/${tenant}/billing`}
-                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
-                        >
-                          <CreditCard className="w-4 h-4" />
-                          Billing
-                        </Link>
+                        {(currentOrganization?.role === 'OWNER' || currentOrganization?.role === 'ADMIN') && (
+                          <Link
+                            href={`/${tenant}/billing`}
+                            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+                          >
+                            <CreditCard className="w-4 h-4" />
+                            Billing
+                          </Link>
+                        )}
                         {isAdmin && (
                           <Link
                             href={`/${tenant}/admin`}
