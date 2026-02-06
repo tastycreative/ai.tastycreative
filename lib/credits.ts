@@ -66,7 +66,7 @@ export async function deductCredits(
     });
 
     // Log the usage
-    await prisma.usageLog.create({
+    await prisma.creditUsageLog.create({
       data: {
         organizationId,
         userId: userId || null,

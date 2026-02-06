@@ -29,6 +29,7 @@ model User {
   lastLoginAt              DateTime?
   isAdmin                  Boolean                   @default(false)
   billingTransactions      BillingTransaction[]
+  creditUsageLogs          CreditUsageLog[]
   feedPostBookmarks        FeedPostBookmark[]
   feedPostCommentLikes     FeedPostCommentLike[]
   feedPostComments         FeedPostComment[]
@@ -1067,7 +1068,7 @@ model Organization {
   invites              OrganizationInvite[]
   subscriptionPlan     SubscriptionPlan?             @relation(fields: [subscriptionPlanId], references: [id])
   members              TeamMember[]
-  usageLogs            UsageLog[]
+  creditUsageLogs      CreditUsageLog[]
   workspaces           Workspace[]
 
   @@index([slug])
@@ -1169,7 +1170,7 @@ model WorkspaceMember {
   @@map("workspace_members")
 }
 
-model UsageLog {
+model CreditUsageLog {
   id             String       @id @default(cuid())
   organizationId String
   userId         String?
@@ -1180,12 +1181,13 @@ model UsageLog {
   metadata       Json?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([userId])
   @@index([organizationId, createdAt])
   @@index([createdAt])
-  @@map("usage_logs")
+  @@map("credit_usage_logs")
 }
 
 model BillingTransaction {

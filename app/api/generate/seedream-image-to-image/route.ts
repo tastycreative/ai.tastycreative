@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '@/lib/database';
 import { v4 as uuidv4 } from 'uuid';
+import { deductCredits } from '@/lib/credits';
 
 // Vercel function configuration - extend timeout for image generation
 export const runtime = 'nodejs';
@@ -11,6 +12,22 @@ export const dynamic = 'force-dynamic';
 
 const BYTEPLUSES_API_KEY = process.env.ARK_API_KEY!;
 const BYTEPLUSES_API_URL = "https://ark.ap-southeast.bytepluses.com/api/v3/images/generations";
+
+/**
+ * Dynamically determine feature key from the request URL path
+ * Example: /api/generate/seedream-image-to-image -> seedream_image_to_image
+ */
+function getFeatureKeyFromPath(requestUrl: string): string {
+  const url = new URL(requestUrl);
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  const lastSegment = pathSegments[pathSegments.length - 1];
+
+  // Convert kebab-case to snake_case
+  // seedream-image-to-image -> seedream_image_to_image
+  const featureKey = lastSegment.replace(/-/g, '_');
+
+  return featureKey;
+}
 
 // AWS S3 Configuration
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
@@ -60,6 +77,49 @@ export async function POST(request: NextRequest) {
 
     if (!image) {
       return NextResponse.json({ error: "Image is required" }, { status: 400 });
+    }
+
+    // Get user's organization ID
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+      select: {
+        id: true,
+        currentOrganizationId: true
+      },
+    });
+
+    if (!user || !user.currentOrganizationId) {
+      return NextResponse.json(
+        { error: "No organization found" },
+        { status: 400 }
+      );
+    }
+
+    // Dynamically determine feature key from URL path
+    const featureKey = await getFeatureKeyFromPath(request.url);
+
+    if (!featureKey) {
+      return NextResponse.json(
+        { error: "Feature pricing not configured for this endpoint" },
+        { status: 500 }
+      );
+    }
+
+    // Deduct credits using the dynamically determined feature key
+    const creditResult = await deductCredits(
+      user.currentOrganizationId,
+      featureKey,
+      user.id
+    );
+
+    if (!creditResult.success) {
+      return NextResponse.json(
+        {
+          error: creditResult.error || 'Failed to deduct credits',
+          insufficientCredits: creditResult.error?.includes('Insufficient credits')
+        },
+        { status: 400 }
+      );
     }
 
     // Prepare BytePlus API request payload

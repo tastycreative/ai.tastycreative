@@ -9,6 +9,7 @@ import { useIsAdmin } from "@/lib/hooks/useIsAdmin";
 import { useIsContentCreator } from "@/lib/hooks/useIsContentCreator";
 import { usePermissions } from "@/lib/hooks/usePermissions.query";
 import { useOrganization } from "@/lib/hooks/useOrganization.query";
+import { CreditIndicator } from "@/components/credits/CreditIndicator";
 import {
   ChevronLeft,
   ChevronRight,
@@ -1487,6 +1488,9 @@ export default function DashboardLayout({
           </div>
         </main>
       </div>
+
+      {/* Global Credit Indicator */}
+      <CreditIndicator />
 
       {/* Tooltip for collapsed sidebar */}
       {!sidebarOpen && hoveredItem && (

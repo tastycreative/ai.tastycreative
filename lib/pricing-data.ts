@@ -11,20 +11,6 @@ export interface PricingPlan {
 
 export const PRICING_PLANS: PricingPlan[] = [
   {
-    name: "test-daily", // Must match database plan name exactly
-    displayName: "Test Daily Plan",
-    price: "$1",
-    period: "/day",
-    credits: "10 Credits included",
-    badge: "Testing Only",
-    features: [
-      "Daily billing cycle (for testing)",
-      "1 custom character",
-      "Basic AI content generation",
-      "Test subscription renewal",
-    ],
-  },
-  {
     name: "starter", // Must match database plan name exactly
     displayName: "Starter Plan",
     price: "$79",

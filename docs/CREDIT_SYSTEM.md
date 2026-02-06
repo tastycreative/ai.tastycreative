@@ -31,13 +31,29 @@ npx prisma db push
 npx prisma generate
 ```
 
-### 2. Access Admin Panel
+### 2. Seed Feature Pricing (Optional)
+
+To populate the database with default feature pricing:
+
+```bash
+npx tsx scripts/seed-feature-pricing.ts
+```
+
+This will create pricing for all content generation features:
+- SeeDream 4.5 (Text/Image to Image/Video)
+- Kling AI (Text/Image to Video, Multi-Image, Motion Control)
+- AI Voice Generation
+- Advanced Tools (Face Swap, Skin Enhancer, FPS Boost)
+- LoRA Training
+- GIF Maker
+
+### 3. Access Admin Panel
 
 Navigate to: `/{tenant}/admin/feature-pricing`
 
-Only users with `isAdmin: true` can access this page.
+Only users with `role: 'SUPER_ADMIN'` can access this page.
 
-### 3. Add Feature Pricing
+### 4. Add or Edit Feature Pricing
 
 Click "Add Feature" and fill in:
 - **Feature Key**: Unique identifier (e.g., `seedream_text_to_image`)

@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useApiClient } from "@/lib/apiClient";
 import { useUser } from "@clerk/nextjs";
+import { useCredits } from "@/lib/hooks/useCredits.query";
 import { useGenerationProgress } from "@/lib/generationContext";
 import { useInstagramProfile } from "@/hooks/useInstagramProfile";
 import { ReferenceSelector } from "@/components/reference-bank/ReferenceSelector";
 import { ReferenceItem } from "@/hooks/useReferenceBank";
 import VaultFolderDropdown, { VaultFolder } from "@/components/generate-content/shared/VaultFolderDropdown";
+import { CreditCostBadge } from "@/components/credits/CreditCostBadge";
 import {
   ImageIcon,
   Download,
@@ -201,6 +203,7 @@ const MAX_REFERENCE_IMAGES = 0;
 export default function SeeDreamImageToImage() {
   const apiClient = useApiClient();
   const { user } = useUser();
+  const { refreshCredits } = useCredits();
   const { updateGlobalProgress, clearGlobalProgress } = useGenerationProgress();
 
   // Track which images have been saved to Reference Bank to prevent duplicates
@@ -1162,16 +1165,19 @@ export default function SeeDreamImageToImage() {
       if (!response.ok) {
         // Handle non-JSON error responses (e.g., "Request Entity Too Large" from CDN/proxy)
         let errorMessage = "Generation failed";
+        let isInsufficientCredits = false;
+
         try {
           const contentType = response.headers.get("content-type");
           if (contentType && contentType.includes("application/json")) {
             const errorData = await response.json();
             errorMessage = errorData.error || errorData.message || "Generation failed";
+            isInsufficientCredits = errorData.insufficientCredits || errorMessage.toLowerCase().includes("insufficient credits") || errorMessage.toLowerCase().includes("out of credits");
           } else {
             // Non-JSON response (plain text error from CDN/proxy)
             const errorText = await response.text();
             console.error("Non-JSON error response:", errorText);
-            
+
             // Provide user-friendly error messages for common issues
             if (response.status === 413 || errorText.toLowerCase().includes("entity too large") || errorText.toLowerCase().includes("payload too large")) {
               errorMessage = "Image file is too large. Please use smaller images (under 4MB each) or reduce image quality.";
@@ -1189,11 +1195,20 @@ export default function SeeDreamImageToImage() {
           console.error("Error parsing response:", parseError);
           errorMessage = `Request failed with status ${response.status}. Please try with smaller images.`;
         }
+
+        // If insufficient credits, add a helpful message with link to billing
+        if (isInsufficientCredits) {
+          errorMessage = "Insufficient credits to generate image. Please purchase more credits to continue.";
+        }
+
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      
+
+      // Refresh credit balance in the UI after successful generation
+      refreshCredits();
+
       updateGlobalProgress({
         isGenerating: false,
         progress: 100,
@@ -1411,15 +1426,18 @@ export default function SeeDreamImageToImage() {
         {/* Header */}
         <div className="grid gap-4 md:grid-cols-[2fr_1fr] items-center">
           <div className="bg-white/5 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-cyan-900/30 backdrop-blur">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-cyan-900/50">
-                <Sparkles className="w-6 h-6 text-white" />
-                <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="relative inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600 shadow-lg shadow-cyan-900/50">
+                  <Sparkles className="w-6 h-6 text-white" />
+                  <span className="absolute -right-1 -bottom-1 h-4 w-4 rounded-full bg-emerald-400 animate-ping" />
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Live Studio</p>
+                  <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5 — Image to Image</h1>
+                </div>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Live Studio</p>
-                <h1 className="text-3xl sm:text-4xl font-black text-white">SeeDream 4.5 — Image to Image</h1>
-              </div>
+              <CreditCostBadge variant="compact" />
             </div>
             <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed">
               Transform references into finished visuals. Upload a primary image, add optional style refs, and steer with a concise prompt.

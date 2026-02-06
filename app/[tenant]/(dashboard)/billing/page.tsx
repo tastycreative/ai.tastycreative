@@ -6,58 +6,11 @@ import { CREDIT_PACKAGES } from '@/lib/credit-packages';
 import { CheckCircle, XCircle, AlertCircle, CreditCard, Users, HardDrive, Zap, Plus, Receipt } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-
-interface BillingInfo {
-  organization: {
-    id: string;
-    name: string;
-    subscriptionStatus: string;
-    currentPeriodStart: string | null;
-    currentPeriodEnd: string | null;
-    cancelAtPeriodEnd: boolean;
-    trialEndsAt: string | null;
-  };
-  plan: {
-    id: string;
-    name: string;
-    displayName: string;
-    price: number;
-    billingInterval: string;
-    monthlyCredits: number;
-  } | null;
-  usage: {
-    members: { current: number; max: number; percentage: number };
-    profiles: { current: number; max: number; percentage: number };
-    storage: { current: number; max: number; percentage: number };
-    credits: { used: number; max: number; remaining: number; available: number; percentage: number };
-  };
-}
-
-interface Transaction {
-  id: string;
-  type: string;
-  status: string;
-  amount: number;
-  currency: string;
-  description: string;
-  creditsAdded: number | null;
-  planName: string | null;
-  createdAt: string;
-  user?: {
-    id: string;
-    firstName: string | null;
-    lastName: string | null;
-    email: string | null;
-  } | null;
-}
+import { useBillingInfo, useTransactions, useUsageLogs, useCancelSubscription } from '@/lib/hooks/useBilling.query';
 
 const BillingPage = () => {
-  const [billingInfo, setBillingInfo] = useState<BillingInfo | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingTransactions, setLoadingTransactions] = useState(false);
-  const [transactionsFetched, setTransactionsFetched] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'transactions'>('overview');
+  // Local state
+  const [activeTab, setActiveTab] = useState<'overview' | 'transactions' | 'invoices'>('overview');
   const [processingPlan, setProcessingPlan] = useState<string | null>(null);
   const [processingCredits, setProcessingCredits] = useState<string | null>(null);
   const [hasShownToast, setHasShownToast] = useState(false);
@@ -70,13 +23,22 @@ const BillingPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // TanStack Query hooks
+  const { data: billingInfo, isLoading: loadingBilling, refetch: refetchBilling } = useBillingInfo();
+  const { data: transactionsData, isLoading: loadingTransactions } = useTransactions(activeTab === 'transactions' || activeTab === 'invoices');
+  const { data: usageLogsData, isLoading: loadingUsage } = useUsageLogs(activeTab === 'invoices');
+  const cancelSubscriptionMutation = useCancelSubscription();
+
+  // Extract data from queries
+  const transactions = transactionsData?.transactions ?? [];
+  const usageLogs = usageLogsData?.usageLogs ?? [];
+  const loading = loadingBilling;
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    fetchBillingInfo();
-
     // Handle success/cancel redirects from Stripe (only once)
     if (!hasShownToast) {
       if (searchParams.get('success')) {
@@ -88,14 +50,14 @@ const BillingPage = () => {
       } else if (searchParams.get('plan_changed')) {
         toast.success('Plan updated successfully! Changes are effective immediately.');
         setHasShownToast(true);
-        fetchBillingInfo(); // Refresh billing info
+        refetchBilling(); // Refresh billing info
         // Remove query params but stay on current page
         const currentPath = window.location.pathname;
         router.replace(currentPath);
       } else if (searchParams.get('credits_purchased')) {
         toast.success('Credits purchased successfully!');
         setHasShownToast(true);
-        fetchBillingInfo(); // Refresh billing info
+        refetchBilling(); // Refresh billing info
         // Remove query params but stay on current page
         const currentPath = window.location.pathname;
         router.replace(currentPath);
@@ -107,46 +69,7 @@ const BillingPage = () => {
         router.replace(currentPath);
       }
     }
-  }, [searchParams, router, hasShownToast]);
-
-  // Fetch transactions when tab is clicked
-  useEffect(() => {
-    if (activeTab === 'transactions' && !transactionsFetched) {
-      fetchTransactions();
-    }
-  }, [activeTab, transactionsFetched]);
-
-  const fetchBillingInfo = async () => {
-    try {
-      const response = await fetch('/api/billing/current');
-      if (response.ok) {
-        const data = await response.json();
-        setBillingInfo(data);
-      }
-    } catch (error) {
-      console.error('Error fetching billing info:', error);
-      toast.error('Failed to load billing information');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTransactions = async () => {
-    setLoadingTransactions(true);
-    try {
-      const response = await fetch('/api/billing/transactions');
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(data.transactions);
-        setTransactionsFetched(true);
-      }
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      toast.error('Failed to load transactions');
-    } finally {
-      setLoadingTransactions(false);
-    }
-  };
+  }, [searchParams, router, hasShownToast, refetchBilling]);
 
   const handleSubscribe = async (planId: string) => {
     setProcessingPlan(planId);
@@ -186,7 +109,7 @@ const BillingPage = () => {
 
         // Wait a moment for webhook to process, then refresh
         setTimeout(() => {
-          fetchBillingInfo();
+          refetchBilling();
         }, 2000);
 
         setProcessingPlan(null);
@@ -266,7 +189,7 @@ const BillingPage = () => {
 
       const data = await response.json();
       toast.success(data.message);
-      fetchBillingInfo();
+      refetchBilling();
     } catch (error) {
       console.error('Error managing subscription:', error);
       toast.error('Failed to manage subscription');
@@ -365,17 +288,27 @@ const BillingPage = () => {
               onClick={() => setActiveTab('overview')}
               className={`px-6 py-2 rounded-md font-medium transition-colors ${
                 activeTab === 'overview'
-                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  ? 'bg-white dark:bg-gray-700 text-brand-blue dark:text-brand-blue shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Overview
             </button>
             <button
+              onClick={() => setActiveTab('invoices')}
+              className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                activeTab === 'invoices'
+                  ? 'bg-white dark:bg-gray-700 text-brand-blue dark:text-brand-blue shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Invoices
+            </button>
+            <button
               onClick={() => setActiveTab('transactions')}
               className={`px-6 py-2 rounded-md font-medium transition-colors ${
                 activeTab === 'transactions'
-                  ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                  ? 'bg-white dark:bg-gray-700 text-brand-blue dark:text-brand-blue shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
@@ -668,6 +601,199 @@ const BillingPage = () => {
               </div>
             </div>
           </>
+        )}
+
+        {/* Invoices Tab */}
+        {activeTab === 'invoices' && (
+          <div className="space-y-8">
+            {/* Subscription & Credit Purchases */}
+            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Billing Summary</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Overview of your subscription and credit purchases
+                </p>
+              </div>
+
+              {loadingTransactions ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue mx-auto"></div>
+                  <p className="mt-4 text-gray-600 dark:text-gray-400">Loading billing data...</p>
+                </div>
+              ) : transactions.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 dark:text-gray-400">No billing history yet</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-gray-800/50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Description
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Plan/Package
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Credits Added
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Purchased By
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {transactions
+                        .filter(t => t.type === 'SUBSCRIPTION_PAYMENT' || t.type === 'CREDIT_PURCHASE')
+                        .map((transaction) => (
+                        <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {new Date(transaction.createdAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white max-w-xs">
+                            {transaction.description}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {transaction.planName ? (
+                              <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium bg-brand-blue/10 text-brand-blue">
+                                {transaction.planName}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {transaction.creditsAdded ? (
+                              <span className="text-green-600 dark:text-green-400 font-semibold">
+                                +{transaction.creditsAdded.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                            ${transaction.amount.toFixed(2)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {transaction.user ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {transaction.user.firstName && transaction.user.lastName
+                                    ? `${transaction.user.firstName} ${transaction.user.lastName}`
+                                    : transaction.user.email || 'Unknown'}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">System</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Credit Usage Breakdown */}
+            <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden">
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Credit Usage</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Detailed breakdown of how your credits were used
+                </p>
+              </div>
+
+              {loadingUsage ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-blue mx-auto"></div>
+                  <p className="mt-4 text-gray-600 dark:text-gray-400">Loading usage data...</p>
+                </div>
+              ) : usageLogs.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Zap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 dark:text-gray-400">No credit usage yet</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+                    Start using AI features to see usage details here
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 dark:bg-gray-800/50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Date & Time
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Feature Used
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Credits Used
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Used By
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {usageLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {new Date(log.createdAt).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {log.metadata?.featureName || log.resource.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {log.resource}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="text-red-600 dark:text-red-400 font-semibold">
+                              -{log.creditsUsed}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {log.user ? (
+                              <span>
+                                {log.user.firstName && log.user.lastName
+                                  ? `${log.user.firstName} ${log.user.lastName}`
+                                  : log.user.email || 'Unknown'}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">System</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Transactions Tab */}
