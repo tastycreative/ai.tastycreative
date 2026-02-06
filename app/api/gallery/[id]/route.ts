@@ -19,7 +19,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const item = await prisma.gallery_items.findUnique({
       where: { id },
       include: {
-        of_models: {
+        model: {
           select: {
             id: true,
             name: true,
@@ -117,7 +117,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
         }),
       },
       include: {
-        of_models: {
+        model: {
           select: {
             id: true,
             name: true,

@@ -29,8 +29,15 @@ export async function GET(req: NextRequest) {
     // Fetch all matching items
     const items = await prisma.gallery_items.findMany({
       where,
-      // Cast include to any because the generated Prisma client may have a different relation name for the model
-      include: ({ model: { select: { id: true, name: true, displayName: true } } } as any),
+      include: {
+        model: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+          },
+        },
+      },
       orderBy: { postedAt: "desc" },
     });
 
@@ -80,28 +87,25 @@ export async function GET(req: NextRequest) {
       return new Date(date).toISOString();
     };
 
-    const rows = items.map((item) => {
-      const m = (item as any).model;
-      return [
-        item.id,
-        escapeCSV(item.title),
-        escapeCSV(m?.displayName || m?.name),
-        item.contentType,
-        item.platform,
-        item.pricingAmount ? Number(item.pricingAmount).toFixed(2) : "",
-        item.revenue ? Number(item.revenue).toFixed(2) : "0",
-        item.salesCount || 0,
-        item.viewCount || 0,
-        item.conversionRate ? Number(item.conversionRate).toFixed(4) : "",
-        formatDate(item.postedAt),
-        escapeCSV(item.previewUrl),
-        escapeCSV(item.captionUsed),
-        escapeCSV(item.tags?.join(", ")),
-        item.origin || "",
-        item.isArchived ? "Yes" : "No",
-        formatDate(item.createdAt),
-      ];
-    });
+    const rows = items.map((item) => [
+      item.id,
+      escapeCSV(item.title),
+      escapeCSV(item.model?.displayName || item.model?.name),
+      item.contentType,
+      item.platform,
+      item.pricingAmount ? Number(item.pricingAmount).toFixed(2) : "",
+      item.revenue ? Number(item.revenue).toFixed(2) : "0",
+      item.salesCount || 0,
+      item.viewCount || 0,
+      item.conversionRate ? Number(item.conversionRate).toFixed(4) : "",
+      formatDate(item.postedAt),
+      escapeCSV(item.previewUrl),
+      escapeCSV(item.captionUsed),
+      escapeCSV(item.tags?.join(", ")),
+      item.origin || "",
+      item.isArchived ? "Yes" : "No",
+      formatDate(item.createdAt),
+    ]);
 
     const csvContent = [
       headers.join(","),

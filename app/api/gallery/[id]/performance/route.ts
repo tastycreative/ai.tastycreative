@@ -53,6 +53,16 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
           conversionRate: calculatedConversionRate,
         }),
       },
+      include: {
+        model: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            profileImageUrl: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json({ data: item });
